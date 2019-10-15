@@ -1,0 +1,12 @@
+apache-airflow[postgres,gcp]
+apache-beam[gcp]
+avro
+docker
+fastavro
+ndjson
+psycopg2
+requests
+requests-oauthlib
+six
+SQLAlchemy
+urllib3
