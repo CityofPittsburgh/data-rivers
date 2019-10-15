@@ -2,6 +2,7 @@ apache-airflow[postgres,gcp]
 avro
 dill<0.3,>=0.2.2
 docker
+marshmallow-sqlalchemy==0.17.1
 psycopg2
 requests
 requests-oauthlib
