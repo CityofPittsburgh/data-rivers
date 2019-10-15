@@ -105,4 +105,3 @@ venv.bak/
 
 .idea
 airflow.cfg
-data_rivers_key.json
