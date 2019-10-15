@@ -1,9 +1,7 @@
 apache-airflow[postgres,gcp]
-apache-beam[gcp]
 avro
+dill<0.3,>=0.2.2
 docker
-fastavro
-ndjson
 psycopg2
 requests
 requests-oauthlib
