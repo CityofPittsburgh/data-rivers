@@ -19,13 +19,7 @@ default_args = {
 dag = DAG(
     'trash_cans', default_args=default_args, schedule_interval=timedelta(days=1))
 
-t1 = BashOperator(
-    task_id='print_date',
-    bash_command='date',
-    dag=dag
-)
-
-t2 = DockerOperator(
+t1 = DockerOperator(
     task_id='run_trash_can_docker_image',
     image='gcr.io/data-rivers/pgh-trash-can-api',
     api_version='auto',
@@ -37,5 +31,4 @@ t2 = DockerOperator(
     dag=dag
 )
 
-t1 >> t2
-
+t1
