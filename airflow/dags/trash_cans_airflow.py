@@ -10,8 +10,12 @@ from airflow.utils.trigger_rule import TriggerRule
 from datetime import datetime, timedelta
 
 
+#TODO: When Airflow 2.0 is released, upgrade the package, upgrade the virtualenv to Python3,
+# and add the arg py_interpreter='python3' to DataFlowPythonOperator
+
 # We set the start_date of the DAG to the previous date. This will
 # make the DAG immediately available for scheduling.
+
 YESTERDAY = datetime.combine(datetime.today() - timedelta(1), datetime.min.time())
 
 default_args = {
@@ -35,7 +39,7 @@ default_args = {
 dag = DAG(
     'trash_cans', default_args=default_args, schedule_interval=timedelta(days=1))
 
-gcs_load_task = DockerOperator(
+gcs_load = DockerOperator(
     task_id='run_trash_can_docker_image',
     image='gcr.io/data-rivers/pgh-trash-can-api',
     api_version='auto',
@@ -49,9 +53,14 @@ gcs_load_task = DockerOperator(
 
 dataflow_task = DataFlowPythonOperator(
     task_id='trash_cans_dataflow',
-    job_name='trash_cans_dataflow',
+    job_name='trash-cans-dataflow',
     py_file=os.environ['TRASH_CAN_DATAFLOW_FILE'],
     dag=dag
 )
 
-gcs_load_task >> dataflow_task
+bq_load = PythonOperator(
+    # load_avro_to_bq function
+)
+
+
+gcs_load >> dataflow_task >> bq_load

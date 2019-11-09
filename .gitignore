@@ -108,4 +108,6 @@ venv.bak/
 airflow.cfg
 /airflow/logs/*
 /airflow/airflow.db
+*.avsc
+.DS_Store
 data_rivers_key.json

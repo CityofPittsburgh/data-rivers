@@ -38,8 +38,8 @@ gcs_load_task = DockerOperator(
     api_version='auto',
     auto_remove=True,
     environment={
-        'UN': os.environ['UN'],
-        'PW': os.environ['PW'],
+        'ISAT_UN': os.environ['ISAT_UN'],
+        'ISAT_PW': os.environ['ISAT_PW'],
         'GCS_AUTH_FILE': '/root/finance-open-data/data-rivers-service-acct.json'
     },
     dag=dag
