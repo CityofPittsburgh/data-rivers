@@ -1,3 +1,5 @@
+import logging
+
 from google.cloud import bigquery
 
 
@@ -15,3 +17,7 @@ def load_avro_to_bq(dataset, table, gcs_bucket):
     )
 
     load_job.result()
+
+if __name__ == '__main__':
+    logging.getLogger().setLevel(logging.INFO)
+    run()

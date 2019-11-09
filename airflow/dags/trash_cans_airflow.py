@@ -1,12 +1,10 @@
-import logging
 import os
+import logging
 
 from airflow import DAG, configuration, models
-from airflow.contrib.hooks import gcs_hook
 from airflow.operators.docker_operator import DockerOperator
 from airflow.contrib.operators.dataflow_operator import DataFlowPythonOperator
 from airflow.operators.python_operator import PythonOperator
-from airflow.utils.trigger_rule import TriggerRule
 from datetime import datetime, timedelta
 
 
@@ -59,8 +57,16 @@ dataflow_task = DataFlowPythonOperator(
 )
 
 bq_load = PythonOperator(
-    # load_avro_to_bq function
+    # load_avro_to_bq util function
+)
+
+beam_cleanup = PythonOperator(
+    # util function to delete beam staging/temp files
 )
 
 
-gcs_load >> dataflow_task >> bq_load
+gcs_load >> dataflow_task >> (bq_load, beam_cleanup)
+
+if __name__ == '__main__':
+    logging.getLogger().setLevel(logging.INFO)
+    run()
