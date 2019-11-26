@@ -1,17 +1,22 @@
 from __future__ import absolute_import
 
+import os
 import scourgify
 from scourgify import normalize_address_record, exceptions
 
 from avro import schema
+from google.cloud import bigquery, storage
 
 
-GOOGLE_APPLICATION_CREDENTIALS = os.environ['GOOGLE_APPLICATION_CREDENTIALS']
+# GOOGLE_APPLICATION_CREDENTIALS = os.environ['GOOGLE_APPLICATION_CREDENTIALS']
+
+bq_client = bigquery.Client()
+storage_client = storage.Client()
+
 
 # monkey patch for avro schema hashing bug: https://issues.apache.org/jira/browse/AVRO-1737
 def hash_func(self):
     return hash(str(self))
-
 
 schema.RecordSchema.__hash__ = hash_func
 
@@ -29,8 +34,8 @@ def clean_csv_string(string):
     return string.strip('"')
 
 
-def clean_csv_int(int):
-    return int(string.strip('"'))
+def clean_csv_int(integer):
+    return int(integer.strip('"'))
 
 
 def normalize_address(address):

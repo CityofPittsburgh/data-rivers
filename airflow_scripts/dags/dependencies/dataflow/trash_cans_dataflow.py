@@ -17,17 +17,17 @@ from avro import schema
 
 from datetime import datetime
 from google.cloud import storage
-from .dataflow_utils import dataflow_utils
-from .dataflow_utils.dataflow_utils import hash_func, download_schema, clean_csv_int, clean_csv_string
+from dataflow_utils import dataflow_utils
+from dataflow_utils.dataflow_utils import hash_func, download_schema, clean_csv_int, clean_csv_string
 
 
-GOOGLE_APPLICATION_CREDENTIALS = os.environ['GOOGLE_APPLICATION_CREDENTIALS']
+# GOOGLE_APPLICATION_CREDENTIALS = os.environ['GOOGLE_APPLICATION_CREDENTIALS']
 
 
 class ConvertToDicts(beam.DoFn):
     def process(self, datum):
-        container_id, receptacle_model_id, assignment_date, last_updated_date, group_name, address, city, state, zip, \
-        neighborhood, dpw_division, council_district, ward, fire_zone = datum.split(',')
+        container_id, receptacle_model_id, assignment_date, last_updated_date, group_name, address, city, state, \
+        zip, neighborhood, dpw_division, council_district, ward, fire_zone = datum.split(',')
 
         return [{
             'container_id': clean_csv_int(container_id),
@@ -38,7 +38,7 @@ class ConvertToDicts(beam.DoFn):
             'address': clean_csv_string(address),
             'city': clean_csv_string(city),
             'state': clean_csv_string(state),
-            'zip': clean_csv_string(int),
+            'zip': clean_csv_int(zip),
             'neighborhood': clean_csv_string(neighborhood),
             'dpw_division': clean_csv_int(dpw_division),
             'council_district': clean_csv_int(council_district),
@@ -76,9 +76,13 @@ def run(argv=None):
         '--job_name=trash-cans-dataflow',
         '--subnetwork=https://www.googleapis.com/compute/v1/projects/data-rivers/regions/us-east1/subnetworks/default',
         '--region=us-east1',
-        '--service_account_email=data-rivers@data-rivers.iam.gserviceaccount.com'
+        '--service_account_email=data-rivers@data-rivers.iam.gserviceaccount.com',
+        '--setup_file=./setup.py',
+        '--save_main_session'
         # '--subnetwork=https://www.googleapis.com/compute/v1/projects/data-rivers/regions/us-east1/subnetworks/pgh-on-prem-net-142'
     ])
+
+    schema.RecordSchema.__hash__ = hash_func
 
     download_schema('pghpa_avro_schemas', 'smart_trash_cans.avsc', 'smart_trash_cans.avsc')
 

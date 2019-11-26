@@ -25,7 +25,7 @@ def load_avro_to_bq(dataset, table, gcs_bucket, date_partition=False, partition_
     )
 
     load_job.result()
-    print 'Data loaded to {}.{}'.format(table, dataset)
+    print 'Data loaded to {} table, {} dataset'.format(table, dataset)
 
 
 def cleanup_beam_avro(bucket_name):
