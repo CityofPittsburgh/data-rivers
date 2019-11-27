@@ -8,8 +8,6 @@ from avro import schema
 from google.cloud import bigquery, storage
 
 
-# GOOGLE_APPLICATION_CREDENTIALS = os.environ['GOOGLE_APPLICATION_CREDENTIALS']
-
 bq_client = bigquery.Client()
 storage_client = storage.Client()
 

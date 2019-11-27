@@ -10,7 +10,7 @@ from airflow.contrib.operators.dataflow_operator import DataFlowPythonOperator
 from airflow.operators.python_operator import PythonOperator
 from airflow.utils.trigger_rule import TriggerRule
 from datetime import datetime, timedelta
-from .dependencies import airflow_utils
+from dependencies import airflow_utils
 
 YESTERDAY = datetime.combine(datetime.today() - timedelta(1), datetime.min.time())
 

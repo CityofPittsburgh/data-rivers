@@ -10,7 +10,7 @@ from airflow.contrib.operators.dataflow_operator import DataFlowPythonOperator
 from airflow.operators.python_operator import PythonOperator
 from airflow.utils.trigger_rule import TriggerRule
 from datetime import datetime, timedelta
-from .dependencies import airflow_utils
+from dependencies import airflow_utils
 
 
 #TODO: When Airflow 2.0 is released, upgrade the package, upgrade the virtualenv to Python3,
@@ -35,7 +35,8 @@ default_args = {
         'staging_location': 'gs://pghpa_trash_cans/staging',
         'temp_location': 'gs://pghpa_trash_cans/temp',
         'runner': 'DataflowRunner',
-        'job_name': 'trash_cans'
+        'job_name': 'trash_cans',
+        'region': 'us-east1'
     }
 }
 
