@@ -11,37 +11,39 @@ import fastavro
 
 from apache_beam.io import ReadFromText
 from apache_beam.io.avroio import WriteToAvro
-from apache_beam.io.gcp.gcsio import GcsIO
 from apache_beam.options.pipeline_options import PipelineOptions
 from apache_beam.options.pipeline_options import SetupOptions
 from avro import schema
 
 from datetime import datetime
 from google.cloud import storage
+from dataflow_utils import dataflow_utils
+from dataflow_utils.dataflow_utils import hash_func, download_schema, clean_csv_int, clean_csv_string
 
-GOOGLE_APPLICATION_CREDENTIALS = os.environ['GOOGLE_APPLICATION_CREDENTIALS']
+
+# GOOGLE_APPLICATION_CREDENTIALS = os.environ['GOOGLE_APPLICATION_CREDENTIALS']
 
 
 class ConvertToDicts(beam.DoFn):
     def process(self, datum):
-        container_id, receptacle_model_id, assignment_date, last_updated_date, group_name, address, city, state, zip, \
-        neighborhood, dpw_division, council_district, ward, fire_zone = datum.split(',')
+        container_id, receptacle_model_id, assignment_date, last_updated_date, group_name, address, city, state, \
+        zip, neighborhood, dpw_division, council_district, ward, fire_zone = datum.split(',')
 
         return [{
-            'container_id': int(container_id),
-            'receptacle_model_id': int(receptacle_model_id),
-            'assignment_date': assignment_date.strip('"'),
-            'last_updated_date': last_updated_date.strip('"'),
-            'group_name': group_name.strip('"'),
-            'address': address.strip('"'),
-            'city': city.strip('"'),
-            'state': state.strip('"'),
-            'zip': int(zip),
-            'neighborhood': neighborhood.strip('"'),
-            'dpw_division': int(dpw_division),
-            'council_district': int(council_district),
-            'ward': int(ward),
-            'fire_zone': fire_zone.strip('"')
+            'container_id': clean_csv_int(container_id),
+            'receptacle_model_id': clean_csv_int(receptacle_model_id),
+            'assignment_date': clean_csv_string(assignment_date),
+            'last_updated_date': clean_csv_string(last_updated_date),
+            'group_name': clean_csv_string(group_name),
+            'address': clean_csv_string(address),
+            'city': clean_csv_string(city),
+            'state': clean_csv_string(state),
+            'zip': clean_csv_int(zip),
+            'neighborhood': clean_csv_string(neighborhood),
+            'dpw_division': clean_csv_int(dpw_division),
+            'council_district': clean_csv_int(council_district),
+            'ward': clean_csv_int(ward),
+            'fire_zone': clean_csv_string(fire_zone)
         }]
 
 
@@ -74,24 +76,13 @@ def run(argv=None):
         '--job_name=trash-cans-dataflow',
         '--subnetwork=https://www.googleapis.com/compute/v1/projects/data-rivers/regions/us-east1/subnetworks/default',
         '--region=us-east1',
-        '--service_account_email=data-rivers@data-rivers.iam.gserviceaccount.com'
+        '--service_account_email=data-rivers@data-rivers.iam.gserviceaccount.com',
+        '--setup_file=./setup.py',
+        '--save_main_session'
         # '--subnetwork=https://www.googleapis.com/compute/v1/projects/data-rivers/regions/us-east1/subnetworks/pgh-on-prem-net-142'
     ])
 
-    # monkey patch for avro schema hashing bug: https://issues.apache.org/jira/browse/AVRO-1737
-
-    def hash_func(self):
-        return hash(str(self))
-
     schema.RecordSchema.__hash__ = hash_func
-
-    def download_schema(bucket_name, source_blob_name, destination_file_name):
-        """Downloads avro schema from Cloud Storage"""
-        storage_client = storage.Client()
-        bucket = storage_client.get_bucket(bucket_name)
-        blob = bucket.blob(source_blob_name)
-
-        blob.download_to_filename(destination_file_name)
 
     download_schema('pghpa_avro_schemas', 'smart_trash_cans.avsc', 'smart_trash_cans.avsc')
 

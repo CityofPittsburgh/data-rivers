@@ -106,8 +106,13 @@ venv.bak/
 
 .idea
 airflow.cfg
+/airflow
 /airflow/logs/*
 /airflow/airflow.db
+/airflow_scripts/.idea
+/airflow_scripts/logs/*
+/airflow_scripts/airflow.db
 *.avsc
 .DS_Store
 data_rivers_key.json
+*.log

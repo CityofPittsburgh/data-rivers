@@ -1,3 +1,5 @@
+from __future__ import absolute_import
+
 import logging
 import os
 
@@ -8,13 +10,7 @@ from airflow.contrib.operators.dataflow_operator import DataFlowPythonOperator
 from airflow.operators.python_operator import PythonOperator
 from airflow.utils.trigger_rule import TriggerRule
 from datetime import datetime, timedelta
-
-
-#TODO: When Airflow 2.0 is released, upgrade the package, upgrade the virtualenv to Python3,
-# and add the arg py_interpreter='python3' to DataFlowPythonOperator
-
-# We set the start_date of the DAG to the previous date. This will
-# make the DAG immediately available for scheduling.
+from dependencies import airflow_utils
 
 YESTERDAY = datetime.combine(datetime.today() - timedelta(1), datetime.min.time())
 
@@ -29,38 +25,34 @@ default_args = {
     'project_id': os.environ['GCP_PROJECT'],
     'dataflow_default_options': {
         'project': os.environ['GCP_PROJECT'],
-        'staging_location': 'gs://pghpa_trash_cans/staging',
-        'temp_location': 'gs://pghpa_trash_cans/temp',
+        'staging_location': 'gs://pghpa_finance/staging',
+        'temp_location': 'gs://pghpa_finance/temp',
         'runner': 'DataflowRunner',
-        'job_name': 'trash_cans'
+        'job_name': 'finance_open_data'
     }
 }
 
 dag = DAG(
-    'trash_cans', default_args=default_args, schedule_interval=timedelta(days=1))
+    'registered_businesses', default_args=default_args, schedule_interval=timedelta(days=1))
 
-gcs_load = DockerOperator(
-    task_id='run_trash_can_docker_image',
-    image='gcr.io/data-rivers/pgh-trash-can-api',
+gcs_load_task = DockerOperator(
+    task_id='run_finance_image',
+    image='gcr.io/data-rivers/pgh-finance',
     api_version='auto',
     auto_remove=True,
     environment={
-        'KEY': os.environ['AIRFLOW_TRASH_CAN_KEY'],
-        'GCS_AUTH_FILE': '/root/trash-can-api/data-rivers-service-acct.json'
+        'ISAT_UN': os.environ['ISAT_UN'],
+        'ISAT_PW': os.environ['ISAT_PW'],
+        'GCS_AUTH_FILE': '/root/finance-open-data/data-rivers-service-acct.json'
     },
     dag=dag
 )
 
 dataflow_task = DataFlowPythonOperator(
-    task_id='trash_cans_dataflow',
-    job_name='trash-cans-dataflow',
+    task_id='registered_businesses_dataflow',
+    job_name='registered-businesses-dataflow',
     py_file=os.environ['TRASH_CAN_DATAFLOW_FILE'],
     dag=dag
 )
 
-bq_load = PythonOperator(
-    # load_avro_to_bq function
-)
-
-
-gcs_load >> dataflow_task >> bq_load
+gcs_load_task >> dataflow_task
