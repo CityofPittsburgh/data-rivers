@@ -1,9 +1,10 @@
 import logging
+import os
 
 from google.cloud import bigquery, storage
 from scourgify import normalize_address_record
 
-
+GOOGLE_APPLICATION_CREDENTIALS = os.environ['GOOGLE_APPLICATION_CREDENTIALS']
 bq_client = bigquery.Client()
 storage_client = storage.Client()
 

@@ -18,10 +18,7 @@ from avro import schema
 from datetime import datetime
 from google.cloud import storage
 from dataflow_utils import dataflow_utils
-from dataflow_utils.dataflow_utils import hash_func, download_schema, clean_csv_int, clean_csv_string
-
-
-# GOOGLE_APPLICATION_CREDENTIALS = os.environ['GOOGLE_APPLICATION_CREDENTIALS']
+from dataflow_utils.dataflow_utils import hash_func, download_schema, clean_csv_int, clean_csv_string, generate_args
 
 
 class ConvertToDicts(beam.DoFn):
@@ -59,28 +56,17 @@ def run(argv=None):
                         help='Input file to process.')
     parser.add_argument('--avro_output',
                         dest='avro_output',
-                        default='gs://pghpa_trash_cans/avro_output/avro_output',
+                        default='gs://pghpa_trash_cans/avro_output/{}/{}/{}/avro_output'.format(dt.strftime('%Y'),
+                                                                                         dt.strftime('%m').lower(),
+                                                                                         dt.strftime("%Y-%m-%d")),
                         help='Output directory to write avro files.')
 
     known_args, pipeline_args = parser.parse_known_args(argv)
 
     #TODO: run on on-prem network when route is opened
 
-    pipeline_args.extend([
-        # Use runner=DataflowRunner to run in GCP environment, runner=DirectRunner to run locally
-        # '--runner=DirectRunner',
-        '--runner=DataflowRunner',
-        '--project=data-rivers',
-        '--staging_location=gs://pghpa_trash_cans/staging',
-        '--temp_location=gs://pghpa_trash_cans/temp',
-        '--job_name=trash-cans-dataflow',
-        '--subnetwork=https://www.googleapis.com/compute/v1/projects/data-rivers/regions/us-east1/subnetworks/default',
-        '--region=us-east1',
-        '--service_account_email=data-rivers@data-rivers.iam.gserviceaccount.com',
-        '--setup_file=./setup.py',
-        '--save_main_session'
-        # '--subnetwork=https://www.googleapis.com/compute/v1/projects/data-rivers/regions/us-east1/subnetworks/pgh-on-prem-net-142'
-    ])
+    # Use runner=DataflowRunner to run in GCP environment, DirectRunner to run locally
+    pipeline_args.extend(generate_args('trash-cans-dataflow', 'pghpa_trash_cans', 'DirectRunner'))
 
     schema.RecordSchema.__hash__ = hash_func
 

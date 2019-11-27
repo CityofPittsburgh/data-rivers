@@ -3,10 +3,14 @@ from __future__ import absolute_import
 import logging
 import os
 
+from datetime import datetime
+
 from airflow import DAG, configuration, models
 from airflow.contrib.hooks import gcs_hook
 from airflow.operators.docker_operator import DockerOperator
+from airflow.operators.bash_operator import BashOperator
 from airflow.contrib.operators.dataflow_operator import DataFlowPythonOperator
+from airflow.contrib.operators import gcs_to_bq
 from airflow.operators.python_operator import PythonOperator
 from airflow.utils.trigger_rule import TriggerRule
 from datetime import datetime, timedelta
@@ -20,6 +24,7 @@ from dependencies import airflow_utils
 # make the DAG immediately available for scheduling.
 
 YESTERDAY = datetime.combine(datetime.today() - timedelta(1), datetime.min.time())
+dt = datetime.now()
 
 default_args = {
     'depends_on_past': False,
@@ -31,12 +36,7 @@ default_args = {
     'retry_delay': timedelta(minutes=5),
     'project_id': os.environ['GCP_PROJECT'],
     'dataflow_default_options': {
-        'project': os.environ['GCP_PROJECT'],
-        'staging_location': 'gs://pghpa_trash_cans/staging',
-        'temp_location': 'gs://pghpa_trash_cans/temp',
-        'runner': 'DataflowRunner',
-        'job_name': 'trash_cans',
-        'region': 'us-east1'
+        'project': os.environ['GCP_PROJECT']
     }
 }
 
@@ -44,7 +44,7 @@ dag = DAG(
     'trash_cans', default_args=default_args, schedule_interval=timedelta(days=1))
 
 gcs_load = DockerOperator(
-    task_id='run_trash_can_docker_image',
+    task_id='trash_cans_gcs_docker',
     image='gcr.io/data-rivers/pgh-trash-can-api',
     api_version='auto',
     auto_remove=True,
@@ -55,17 +55,42 @@ gcs_load = DockerOperator(
     dag=dag
 )
 
-dataflow_task = DataFlowPythonOperator(
+# dataflow_task = DataFlowPythonOperator(
+#     task_id='trash_cans_dataflow',
+#     job_name='trash-cans-dataflow',
+#     py_file=os.environ['TRASH_CAN_DATAFLOW_FILE'],
+#     dag=dag
+# )
+
+dataflow_task = BashOperator(
     task_id='trash_cans_dataflow',
-    job_name='trash-cans-dataflow',
-    py_file=os.environ['TRASH_CAN_DATAFLOW_FILE'],
+    bash_command='python {}'.format(os.environ['TRASH_CAN_DATAFLOW_FILE']),
     dag=dag
 )
 
-# bq_load = PythonOperator(
-#     # load_avro_to_bq function
+bq_insert = BashOperator(
+    task_id='trash_cans_bq_insert',
+    bash_command='bq load --source_format=AVRO trash_cans.smart_trash_cans \
+    "gs://pghpa_trash_cans/avro_output/{}/{}/{}/*.avro"'.format(dt.strftime('%Y'),
+                                                                dt.strftime('%m').lower(),
+                                                                dt.strftime("%Y-%m-%d")),
+    dag=dag
+
+)
+
+# bq_insert = gcs_to_bq.GoogleCloudStorageToBigQueryOperator(
+#     task_id='trash_cans_bq_insert',
+#     bucket='pghpa_trash_cans',
+#     source_objects='avro_output/*.avro',
+#     destination_project_dataset_table='trash_cans.smart_trash_cans',
+#     write_disposition='WRITE_APPEND',
+#     dag=dag
 # )
 
+beam_cleanup = BashOperator(
+    task_id='trash_cans_beam_cleanup',
+    bash_command='gsutil rm gs://pghpa_trash_cans/beam_output/**',
+    dag=dag
+)
 
-gcs_load >> dataflow_task
-
+gcs_load >> dataflow_task >> (bq_insert,  beam_cleanup)
