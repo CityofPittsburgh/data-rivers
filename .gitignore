@@ -106,6 +106,7 @@ venv.bak/
 
 .idea
 airflow.cfg
+/airflow
 /airflow/logs/*
 /airflow/airflow.db
 /airflow_scripts/.idea
