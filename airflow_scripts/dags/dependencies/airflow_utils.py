@@ -1,9 +1,10 @@
 import logging
+import os
 
 from google.cloud import bigquery, storage
 from scourgify import normalize_address_record
 
-
+GOOGLE_APPLICATION_CREDENTIALS = os.environ['GOOGLE_APPLICATION_CREDENTIALS']
 bq_client = bigquery.Client()
 storage_client = storage.Client()
 
@@ -124,6 +125,11 @@ def reverse_geocode_latlong(lat, long):
         data['ward'] = row.ward
     print result
     return data
+
+
+def beam_cleanup_statement(bucket):
+    return "if gsutil -q stat gs://{}/beam_output/*; then gsutil rm gs://{}/beam_output/**; else echo " \
+           "no beam output; fi".format(bucket, bucket)
 
 
 def load_avro_to_bq(dataset, table, gcs_bucket):
