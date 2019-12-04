@@ -126,6 +126,10 @@ def reverse_geocode_latlong(lat, long):
     print result
     return data
 
+def beam_cleanup_statement(bucket):
+    return "if gsutil -q stat gs://{}/beam_output/*; then gsutil rm gs://{}/beam_output/**; else echo " \
+           "no beam output; fi".format(bucket, bucket)
+
 
 def load_avro_to_bq(dataset, table, gcs_bucket):
     bq_client = bigquery.Client()

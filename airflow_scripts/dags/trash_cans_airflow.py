@@ -89,7 +89,7 @@ bq_insert = BashOperator(
 
 beam_cleanup = BashOperator(
     task_id='trash_cans_beam_cleanup',
-    bash_command='gsutil rm gs://pghpa_trash_cans/beam_output/**',
+    bash_command=beam_cleanup_statement('pghpa_trash_cans'),
     dag=dag
 )
 

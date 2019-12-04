@@ -8,7 +8,6 @@ from scourgify import normalize_address_record, exceptions
 from avro import schema
 from google.cloud import bigquery, storage
 
-
 bq_client = bigquery.Client()
 storage_client = storage.Client()
 
@@ -21,6 +20,7 @@ DEFAULT_DATAFLOW_ARGS = [
     '--save_main_session'
 ]
 
+
 def generate_args(job_name, bucket, runner):
     arguments = DEFAULT_DATAFLOW_ARGS
     arguments.append('--job_name={}'.format(job_name))
@@ -29,9 +29,11 @@ def generate_args(job_name, bucket, runner):
     arguments.append('--temp_location=gs://{}/beam_output/temp'.format(bucket))
     return arguments
 
+
 # monkey patch for avro schema hashing bug: https://issues.apache.org/jira/browse/AVRO-1737
 def hash_func(self):
     return hash(str(self))
+
 
 schema.RecordSchema.__hash__ = hash_func
 
@@ -69,5 +71,5 @@ def normalize_address(address):
                 normalized_string += (str(v) + ' ')
         normalized_string = normalized_string.strip()
         return normalized_string
-    except UnParseableAddressError:  # use original address if unparseable
+    except exceptions.UnParseableAddressError:  # use original address if unparseable
         return address
