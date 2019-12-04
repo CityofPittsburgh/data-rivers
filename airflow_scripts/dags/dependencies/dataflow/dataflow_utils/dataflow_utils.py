@@ -2,6 +2,7 @@ from __future__ import absolute_import
 
 import os
 import re
+
 import scourgify
 from scourgify import normalize_address_record, exceptions
 
@@ -33,7 +34,6 @@ def generate_args(job_name, bucket, runner):
 # monkey patch for avro schema hashing bug: https://issues.apache.org/jira/browse/AVRO-1737
 def hash_func(self):
     return hash(str(self))
-
 
 schema.RecordSchema.__hash__ = hash_func
 
