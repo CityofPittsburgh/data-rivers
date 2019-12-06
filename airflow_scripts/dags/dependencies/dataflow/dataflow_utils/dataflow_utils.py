@@ -12,6 +12,7 @@ from google.cloud import bigquery, storage
 bq_client = bigquery.Client()
 storage_client = storage.Client()
 
+
 DEFAULT_DATAFLOW_ARGS = [
     '--project=data-rivers',
     '--subnetwork=https://www.googleapis.com/compute/v1/projects/data-rivers/regions/us-east1/subnetworks/default',

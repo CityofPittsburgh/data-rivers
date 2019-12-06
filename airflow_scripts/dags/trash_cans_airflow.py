@@ -15,16 +15,14 @@ from airflow.operators.python_operator import PythonOperator
 from airflow.utils.trigger_rule import TriggerRule
 from datetime import datetime, timedelta
 from dependencies import airflow_utils
+from dependencies.airflow_utils import YESTERDAY, dt
 
 
 #TODO: When Airflow 2.0 is released, upgrade the package, upgrade the virtualenv to Python3,
 # and add the arg py_interpreter='python3' to DataFlowPythonOperator
 
-# We set the start_date of the DAG to the previous date. This will
+# We set the start_date of the DAG to the previous date, as defined in airflow_utils. This will
 # make the DAG immediately available for scheduling.
-
-YESTERDAY = datetime.combine(datetime.today() - timedelta(1), datetime.min.time())
-dt = datetime.now()
 
 default_args = {
     'depends_on_past': False,
@@ -78,18 +76,9 @@ bq_insert = BashOperator(
 
 )
 
-# bq_insert = gcs_to_bq.GoogleCloudStorageToBigQueryOperator(
-#     task_id='trash_cans_bq_insert',
-#     bucket='pghpa_trash_cans',
-#     source_objects='avro_output/*.avro',
-#     destination_project_dataset_table='trash_cans.smart_trash_cans',
-#     write_disposition='WRITE_APPEND',
-#     dag=dag
-# )
-
 beam_cleanup = BashOperator(
     task_id='trash_cans_beam_cleanup',
-    bash_command=beam_cleanup_statement('pghpa_trash_cans'),
+    bash_command=airflow_utils.beam_cleanup_statement('pghpa_trash_cans'),
     dag=dag
 )
 

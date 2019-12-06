@@ -11,8 +11,8 @@ from airflow.operators.python_operator import PythonOperator
 from airflow.utils.trigger_rule import TriggerRule
 from datetime import datetime, timedelta
 from dependencies import airflow_utils
+from dependencies.airflow_utils import YESTERDAY, dt
 
-YESTERDAY = datetime.combine(datetime.today() - timedelta(1), datetime.min.time())
 
 default_args = {
     'depends_on_past': False,
