@@ -51,11 +51,17 @@ gcs_load = DockerOperator(
 #     dag=dag
 # )
 
-# dataflow_task = BashOperator(
-#     task_id='computronix_dataflow',
-#     bash_command='python {}'.format(os.environ['TRASH_CAN_DATAFLOW_FILE']),
-#     dag=dag
-# )
+trades_dataflow = BashOperator(
+    task_id='computronix_trades_dataflow',
+    bash_command='python {}'.format(os.environ['COMPUTRONIX_TRADES_DATAFLOW']),
+    dag=dag
+)
+
+contractors_dataflow = BashOperator(
+    task_id='computronix_contractors_dataflow',
+    bash_command='python {}'.format(os.environ['COMPUTRONIX_CONTRACTORS_DATAFLOW']),
+    dag=dag
+)
 #
 # bq_insert = BashOperator(
 #     task_id='trash_cans_bq_insert',
@@ -75,4 +81,5 @@ gcs_load = DockerOperator(
 
 gcs_load
 
-# gcs_load >> dataflow_task >> (bq_insert,  beam_cleanup)
+# gcs_load >> (contractors_dataflow, trades_dataflow, businesses_dataflow) >> (contractors_bq, trades_bq, \
+# businesses_bq, beam_cleanup)
