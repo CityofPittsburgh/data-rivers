@@ -56,7 +56,6 @@ def run(argv=None):
 
     SCHEMA_PATH = 'trade_licenses_computronix.avsc'
     # fastavro does the work of avro.schema.parse(), just need to pass dict
-    # avro_schema = avro.schema.parse(open(SCHEMA_PATH).read())
     avro_schema = json.loads(open(SCHEMA_PATH).read())
 
     pipeline_options = PipelineOptions(pipeline_args)

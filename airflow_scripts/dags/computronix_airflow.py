@@ -13,7 +13,7 @@ from airflow.contrib.operators import gcs_to_bq
 from airflow.operators.python_operator import PythonOperator
 from airflow.utils.trigger_rule import TriggerRule
 from dependencies import airflow_utils
-from dependencies.airflow_utils import YESTERDAY, dt
+from dependencies.airflow_utils import YESTERDAY, dt, bq_client, storage_client
 
 
 default_args = {
@@ -62,24 +62,32 @@ contractors_dataflow = BashOperator(
     bash_command='python {}'.format(os.environ['COMPUTRONIX_CONTRACTORS_DATAFLOW']),
     dag=dag
 )
-#
-# bq_insert = BashOperator(
-#     task_id='trash_cans_bq_insert',
-#     bash_command='bq load --source_format=AVRO trash_cans.smart_trash_cans \
-#     "gs://pghpa_trash_cans/avro_output/{}/{}/{}/*.avro"'.format(dt.strftime('%Y'),
-#                                                                 dt.strftime('%m').lower(),
-#                                                                 dt.strftime("%Y-%m-%d")),
-#     dag=dag
-#
-# )
-#
-# beam_cleanup = BashOperator(
-#     task_id='computronix_beam_cleanup',
-#     bash_command=airflow_utils.beam_cleanup_statement('pghpa_computronix'),
-#     dag=dag
-# )
 
-gcs_load
+trades_bq = BashOperator(
+    task_id='trades_bq',
+    bash_command='bq load --source_format=AVRO computronix.trade_licenses \
+    "gs://pghpa_computronix/trades/avro_output/{}/{}/{}/*.avro"'.format(dt.strftime('%Y'),
+                                                                dt.strftime('%m').lower(),
+                                                                dt.strftime("%Y-%m-%d")),
+    dag=dag
+)
 
-# gcs_load >> (contractors_dataflow, trades_dataflow, businesses_dataflow) >> (contractors_bq, trades_bq, \
-# businesses_bq, beam_cleanup)
+contractors_bq = BashOperator(
+    task_id='contractors_bq',
+    bash_command='bq load --source_format=AVRO computronix.contractor_licenses \
+    "gs://pghpa_computronix/contractors/avro_output/{}/{}/{}/*.avro"'.format(dt.strftime('%Y'),
+                                                                dt.strftime('%m').lower(),
+                                                                dt.strftime("%Y-%m-%d")),
+    dag=dag
+)
+
+beam_cleanup = BashOperator(
+    task_id='computronix_beam_cleanup',
+    bash_command=airflow_utils.beam_cleanup_statement('pghpa_computronix'),
+    dag=dag
+)
+
+# gcs_load
+
+gcs_load >> contractors_dataflow >> contractors_bq >> beam_cleanup
+gcs_load >> trades_dataflow >> trades_bq >> beam_cleanup
