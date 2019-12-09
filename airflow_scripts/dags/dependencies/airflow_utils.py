@@ -1,16 +1,28 @@
+from __future__ import absolute_import
+
 import logging
 import os
 
+from datetime import datetime, timedelta
 from google.cloud import bigquery, storage
 from scourgify import normalize_address_record
+
+
+#TODO: figure out why these globals aren't being imported properly with just 'from dependencies import airflow_utils'
+
+YESTERDAY = datetime.combine(datetime.today() - timedelta(1), datetime.min.time())
+WEEK_AGO = datetime.combine(datetime.today() - timedelta(7), datetime.min.time())
+dt = datetime.now()
 
 GOOGLE_APPLICATION_CREDENTIALS = os.environ['GOOGLE_APPLICATION_CREDENTIALS']
 bq_client = bigquery.Client()
 storage_client = storage.Client()
 
+#TODO: When Airflow 2.0 is released, upgrade the package, upgrade the virtualenv to Python3,
+# and add the arg py_interpreter='python3' to DataFlowPythonOperator
+
 
 def load_avro_to_bq(dataset, table, gcs_bucket, date_partition=False, partition_by=None):
-    bq_client = bigquery.Client()
     dataset_id = dataset
     table = table
     dataset_ref = bq_client.dataset(dataset_id)
@@ -131,21 +143,6 @@ def beam_cleanup_statement(bucket):
     return "if gsutil -q stat gs://{}/beam_output/*; then gsutil rm gs://{}/beam_output/**; else echo " \
            "no beam output; fi".format(bucket, bucket)
 
-
-def load_avro_to_bq(dataset, table, gcs_bucket):
-    bq_client = bigquery.Client()
-    dataset_id = dataset
-    table = table
-    dataset_ref = bq_client.dataset(dataset_id)
-    uri = 'gs://{}}/avro_output/avro_output*'.format(gcs_bucket)
-    job_config = bigquery.LoadJobConfig()
-    job_config.source_format = bigquery.SourceFormat.AVRO
-
-    load_job = bq_client.load_table_from_uri(
-        uri, dataset_ref.table(table), job_config=job_config
-    )
-
-    load_job.result()
 
 # def reverse_geocode_point(point):
 
