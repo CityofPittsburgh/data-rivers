@@ -2,6 +2,7 @@ from __future__ import absolute_import
 
 import os
 import re
+import json
 
 import scourgify
 from scourgify import normalize_address_record, exceptions
@@ -11,6 +12,7 @@ from google.cloud import bigquery, storage
 
 bq_client = bigquery.Client()
 storage_client = storage.Client()
+
 
 DEFAULT_DATAFLOW_ARGS = [
     '--project=data-rivers',
@@ -73,3 +75,13 @@ def normalize_address(address):
         return normalized_string
     except exceptions.UnParseableAddressError:  # use original address if unparseable
         return address
+
+
+class JsonCoder(object):
+    """A JSON coder interpreting each line as a JSON string."""
+
+    def encode(self, x):
+        return json.dumps(x)
+
+    def decode(self, x):
+        return json.loads(x)

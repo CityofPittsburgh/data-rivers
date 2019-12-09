@@ -11,8 +11,8 @@ from airflow.operators.python_operator import PythonOperator
 from airflow.utils.trigger_rule import TriggerRule
 from datetime import datetime, timedelta
 from dependencies import airflow_utils
+from dependencies.airflow_utils import YESTERDAY, dt
 
-YESTERDAY = datetime.combine(datetime.today() - timedelta(1), datetime.min.time())
 
 default_args = {
     'depends_on_past': False,
@@ -51,7 +51,7 @@ gcs_load_task = DockerOperator(
 dataflow_task = DataFlowPythonOperator(
     task_id='registered_businesses_dataflow',
     job_name='registered-businesses-dataflow',
-    py_file=os.environ['TRASH_CAN_DATAFLOW_FILE'],
+    py_file=os.environ['REGISTERED_BUSINESSES_DATAFLOW'],
     dag=dag
 )
 
