@@ -74,6 +74,12 @@ contractors_dataflow = BashOperator(
     dag=dag
 )
 
+businesses_dataflow = BashOperator(
+    task_id='computronix_businesses_dataflow',
+    bash_command='python {}'.format(os.environ['COMPUTRONIX_BUSINESSES_DATAFLOW']),
+    dag=dag
+)
+
 #TODO: change to GCSBigQueryOperator
 
 trades_bq = BashOperator(
@@ -94,6 +100,15 @@ contractors_bq = BashOperator(
     dag=dag
 )
 
+businesses_bq = BashOperator(
+    task_id='contractors_bq',
+    bash_command='bq load --source_format=AVRO computronix.business_licenses \
+    "gs://pghpa_computronix/business/avro_output/{}/{}/{}/*.avro"'.format(dt.strftime('%Y'),
+                                                                dt.strftime('%m').lower(),
+                                                                dt.strftime("%Y-%m-%d")),
+    dag=dag
+)
+
 beam_cleanup = BashOperator(
     task_id='computronix_beam_cleanup',
     bash_command=airflow_utils.beam_cleanup_statement('pghpa_computronix'),
@@ -103,3 +118,4 @@ beam_cleanup = BashOperator(
 
 gcs_load >> contractors_dataflow >> contractors_bq >> beam_cleanup
 gcs_load >> trades_dataflow >> trades_bq >> beam_cleanup
+gcs_load >> businesses_dataflow >> businesses_bq >> beam_cleanup
