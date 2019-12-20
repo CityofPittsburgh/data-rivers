@@ -10,6 +10,7 @@ from airflow.operators.docker_operator import DockerOperator
 from airflow.operators.bash_operator import BashOperator
 from airflow.contrib.operators.dataflow_operator import DataFlowPythonOperator
 from airflow.contrib.operators import gcs_to_bq
+from airflow.contrib.operators.gcp_container_operator import GKEPodOperator
 from airflow.operators.python_operator import PythonOperator
 from airflow.utils.trigger_rule import TriggerRule
 from dependencies import airflow_utils
@@ -44,6 +45,16 @@ gcs_load = DockerOperator(
     dag=dag
 )
 
+# gcs_load = GKEPodOperator(
+#     task_id='computronix_gcs_load',
+#     cluster_name='us-east1-data-rivers-205ba4d7-gk',
+#     image='gcr.io/data-rivers/pgh-computronix',
+#     env_vars={
+#             'GCS_AUTH_FILE': '/root/odata-computronix/data-rivers-service-acct.json'
+#         },
+#     dag=dag
+# )
+
 # dataflow_task = DataFlowPythonOperator(
 #     task_id='trash_cans_dataflow',
 #     job_name='trash-cans-dataflow',
@@ -62,6 +73,8 @@ contractors_dataflow = BashOperator(
     bash_command='python {}'.format(os.environ['COMPUTRONIX_CONTRACTORS_DATAFLOW']),
     dag=dag
 )
+
+#TODO: change to GCSBigQueryOperator
 
 trades_bq = BashOperator(
     task_id='trades_bq',
@@ -87,7 +100,6 @@ beam_cleanup = BashOperator(
     dag=dag
 )
 
-# gcs_load
 
 gcs_load >> contractors_dataflow >> contractors_bq >> beam_cleanup
 gcs_load >> trades_dataflow >> trades_bq >> beam_cleanup

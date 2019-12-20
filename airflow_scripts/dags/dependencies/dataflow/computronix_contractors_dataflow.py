@@ -21,9 +21,26 @@ from dataflow_utils import dataflow_utils
 from dataflow_utils.dataflow_utils import hash_func, download_schema, generate_args, JsonCoder
 
 
-class Formatter(beam.DoFn):
+class FormatColumnNames(beam.DoFn):
     def process(self, datum):
-        datum['NAICSCODE'] = int(datum['NAICSCODE'])
+        cleaned_col_names = {
+            'LICENSENUMBER': u'license_number',
+            'LICENSETYPENAME': u'license_type_name',
+            'NAICSCODE': u'naics_code',
+            'BUSINESSNAME': u'business_name',
+            'LICENSESTATE': u'license_state',
+            'INITIALISSUEDATE': u'initial_issue_date',
+            'MOSTRECENTISSUEDATE': u'most_recent_issue_date',
+            'EFFECTIVEDATE': u'effective_date',
+            'EXPIRATIONDATE': u'expiration_date'
+        }
+        formatted = dict((cleaned_col_names[key], value) for (key, value) in datum.items())
+        yield formatted
+
+
+class ConvertTypes(beam.DoFn):
+    def process(self, datum):
+        datum['naics_code'] = int(datum['naics_code'])
         yield datum
 
 
@@ -66,7 +83,8 @@ def run(argv=None):
 
         load = (
                 lines
-                | beam.ParDo(Formatter())
+                | beam.ParDo(FormatColumnNames())
+                | beam.ParDo(ConvertTypes())
                 | beam.io.avroio.WriteToAvro(known_args.avro_output, schema=avro_schema, file_name_suffix='.avro', use_fastavro=True))
 
 
