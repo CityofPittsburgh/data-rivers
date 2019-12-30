@@ -55,13 +55,6 @@ gcs_load = DockerOperator(
 #     dag=dag
 # )
 
-# dataflow_task = DataFlowPythonOperator(
-#     task_id='trash_cans_dataflow',
-#     job_name='trash-cans-dataflow_scripts',
-#     py_file=os.environ['TRASH_CAN_DATAFLOW_FILE'],
-#     dag=dag
-# )
-
 trades_dataflow = BashOperator(
     task_id='computronix_trades_dataflow',
     bash_command='python {}'.format(os.environ['COMPUTRONIX_TRADES_DATAFLOW']),

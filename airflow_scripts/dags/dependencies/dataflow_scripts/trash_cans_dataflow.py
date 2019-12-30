@@ -64,7 +64,7 @@ def run(argv=None):
 
     #TODO: run on on-prem network when route is opened
     # Use runner=DataflowRunner to run in GCP environment, DirectRunner to run locally
-    pipeline_args.extend(generate_args('trash-cans-dataflow_scripts', 'pghpa_trash_cans', 'DirectRunner'))
+    pipeline_args.extend(generate_args('trash-cans-dataflow', 'pghpa_trash_cans', 'DataflowRunner'))
 
     schema.RecordSchema.__hash__ = hash_func
 
