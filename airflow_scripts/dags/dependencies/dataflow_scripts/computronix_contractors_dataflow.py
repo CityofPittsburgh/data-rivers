@@ -50,13 +50,13 @@ def run(argv=None):
 
     parser.add_argument('--input',
                         dest='input',
-                        default='gs://pghpa_computronix/trades/{}/{}/{}_trades_licenses.json'.format(dt.strftime('%Y'),
+                        default='gs://pghpa_computronix/contractors/{}/{}/{}_contractors_licenses.json'.format(dt.strftime('%Y'),
                                                                                           dt.strftime('%m').lower(),
                                                                                           dt.strftime("%Y-%m-%d")),
                         help='Input file to process.')
     parser.add_argument('--avro_output',
                         dest='avro_output',
-                        default='gs://pghpa_computronix/trades/avro_output/{}/{}/{}/avro_output'.format(dt.strftime('%Y'),
+                        default='gs://pghpa_computronix/contractors/avro_output/{}/{}/{}/avro_output'.format(dt.strftime('%Y'),
                                                                                          dt.strftime('%m').lower(),
                                                                                          dt.strftime("%Y-%m-%d")),
                         help='Output directory to write avro files.')
@@ -65,13 +65,13 @@ def run(argv=None):
 
     #TODO: run on on-prem network when route is opened
     # Use runner=DataflowRunner to run in GCP environment, DirectRunner to run locally
-    pipeline_args.extend(generate_args('computronix-trades-dataflow', 'pghpa_computronix', 'DirectRunner'))
+    pipeline_args.extend(generate_args('computronix-trades-dataflow_scripts', 'pghpa_computronix', 'DirectRunner'))
 
     schema.RecordSchema.__hash__ = hash_func
 
-    download_schema('pghpa_avro_schemas', 'trade_licenses_computronix.avsc', 'trade_licenses_computronix.avsc')
+    download_schema('pghpa_avro_schemas', 'contractors_computronix.avsc', 'contractors_computronix.avsc')
 
-    SCHEMA_PATH = 'trade_licenses_computronix.avsc'
+    SCHEMA_PATH = 'contractors_computronix.avsc'
     # fastavro does the work of avro.schema.parse(), just need to pass dict
     avro_schema = json.loads(open(SCHEMA_PATH).read())
 

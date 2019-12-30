@@ -57,7 +57,7 @@ gcs_load = DockerOperator(
 
 # dataflow_task = DataFlowPythonOperator(
 #     task_id='trash_cans_dataflow',
-#     job_name='trash-cans-dataflow',
+#     job_name='trash-cans-dataflow_scripts',
 #     py_file=os.environ['TRASH_CAN_DATAFLOW_FILE'],
 #     dag=dag
 # )

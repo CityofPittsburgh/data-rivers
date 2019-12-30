@@ -17,7 +17,6 @@ from avro import schema
 
 from datetime import datetime
 from google.cloud import storage
-from dataflow_utils import dataflow_utils
 from dataflow_utils.dataflow_utils import hash_func, download_schema, clean_csv_int, clean_csv_string, generate_args
 
 
@@ -65,7 +64,7 @@ def run(argv=None):
 
     #TODO: run on on-prem network when route is opened
     # Use runner=DataflowRunner to run in GCP environment, DirectRunner to run locally
-    pipeline_args.extend(generate_args('trash-cans-dataflow', 'pghpa_trash_cans', 'DirectRunner'))
+    pipeline_args.extend(generate_args('trash-cans-dataflow_scripts', 'pghpa_trash_cans', 'DirectRunner'))
 
     schema.RecordSchema.__hash__ = hash_func
 
@@ -85,6 +84,8 @@ def run(argv=None):
                 lines
                 | beam.ParDo(ConvertToDicts())
                 | beam.io.avroio.WriteToAvro(known_args.avro_output, schema=avro_schema, file_name_suffix='.avro', use_fastavro=True))
+
+    os.remove('smart_trash_cans.avsc')
 
 
 if __name__ == '__main__':
