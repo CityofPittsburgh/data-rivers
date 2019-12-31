@@ -51,11 +51,11 @@ def download_schema(bucket_name, source_blob_name, destination_file_name):
 
 
 def clean_csv_string(string):
-    return string.strip('"')
+    return string.strip('"').strip()
 
 
 def clean_csv_int(integer):
-    return int(integer.strip('"'))
+    return int(integer.strip('"').strip())
 
 
 def normalize_address(address):

@@ -87,6 +87,8 @@ def run(argv=None):
                 | beam.ParDo(ConvertTypes())
                 | beam.io.avroio.WriteToAvro(known_args.avro_output, schema=avro_schema, file_name_suffix='.avro', use_fastavro=True))
 
+    os.remove('trade_licenses_computronix.avsc')
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.INFO)

@@ -94,6 +94,8 @@ def run(argv=None):
                 # TODO: ^add this step once we are on python3
                 | beam.io.avroio.WriteToAvro(known_args.avro_output, schema=avro_schema, file_name_suffix='.avro', use_fastavro=True))
 
+    os.remove('registered_businesses.avsc')
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.INFO)

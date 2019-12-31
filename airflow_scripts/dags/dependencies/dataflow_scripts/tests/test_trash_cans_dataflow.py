@@ -13,11 +13,6 @@ from fastavro.validation import validate
 from .dataflow_test_utils import get_schema
 from trash_cans_dataflow import ConvertToDicts
 
-try:
-    from avro.schema import Parse  # avro-python3 library for python3
-except ImportError:
-    from avro.schema import parse as Parse  # avro library for python2
-
 
 class TrashCansDataFlowTest(unittest.TestCase):
 
