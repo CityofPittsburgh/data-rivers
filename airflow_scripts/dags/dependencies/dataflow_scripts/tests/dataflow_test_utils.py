@@ -24,7 +24,7 @@ def get_schema(filename):
     return avro_schema
 
 
-def set_up(self):
+def set_up():
     # Reducing the size of thread pools. Without this test execution may fail in
     # environments with limited amount of resources.
     filebasedsource.MAX_NUM_THREADS_FOR_SIZE_ESTIMATION = 2

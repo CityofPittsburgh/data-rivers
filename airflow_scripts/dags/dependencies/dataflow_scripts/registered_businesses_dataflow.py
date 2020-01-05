@@ -31,7 +31,7 @@ class ConvertToDicts(beam.DoFn):
         address_full = clean_csv_string(address1) + ' ' + clean_csv_string(address2)
 
         return [{
-            'acct_no': clean_csv_int(acct_no),
+            'acct_no': clean_csv_string(acct_no),
             'name': clean_csv_string(name),
             'trade_name': clean_csv_string(trade_name),
             'desc_of_business': clean_csv_string(desc_of_business),
@@ -46,10 +46,10 @@ class ConvertToDicts(beam.DoFn):
         }]
 
 
-class AddNormalizedAddress(beam.DoFn):
-    def process(self, datum):
-        datum['normalized_address'] = normalize_address_record(datum['address'])
-        yield datum
+# class AddNormalizedAddress(beam.DoFn):
+#     def process(self, datum):
+#         datum['normalized_address'] = normalize_address_record(datum['address_full'])
+#         return datum
 
 
 def run(argv=None):

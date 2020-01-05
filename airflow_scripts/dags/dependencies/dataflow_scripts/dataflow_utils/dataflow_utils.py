@@ -4,9 +4,7 @@ import os
 import re
 import json
 
-import scourgify
 from scourgify import normalize_address_record, exceptions
-
 from avro import schema
 from google.cloud import bigquery, storage
 
