@@ -26,30 +26,30 @@ from dataflow_utils.dataflow_utils import hash_func, download_schema, generate_a
 class FormatColumnNames(beam.DoFn):
     def process(self, datum):
         cleaned_col_names = {
-            'NAICSCODE': u'naics_code',
-            'EFFECTIVEDATE': u'effective_date',
-            'NUMBEROFJUKEBOXES': u'number_of_jukeboxes',
-            'NUMBEROFNONGAMBLINGMACHINES': u'number_of_nongambling_machines',
-            'MOSTRECENTISSUEDATE': u'most_recent_issue_date',
             'LICENSENUMBER': u'license_number',
             'LICENSETYPENAME': u'license_type_name',
+            'NAICSCODE': u'naics_code',
+            'BUSINESSNAME': u'business_name',
             'LICENSESTATE': u'license_state',
             'INITIALISSUEDATE': u'initial_issue_date',
+            'MOSTRECENTISSUEDATE': u'most_recent_issue_date',
+            'EFFECTIVEDATE': u'effective_date',
             'EXPIRATIONDATE': u'expiration_date',
-            'BUSINESSNAME': u'business_name',
-            'NUMBEROFPOOLTABLES': u'number_of_pool_tables',
-            'PARCELNUMBER': u'parcel_number',
+            'INSURANCEEXPIRATIONDATE': u'insurance_expiration_date',
+            'NUMBEROFEMPLOYEES': u'number_of_employees',
             'NUMBEROFSIGNSTOTAL': u'number_of_signs_total',
             'NUMBEROFSMALLSIGNS': u'number_of_small_signs',
             'NUMBEROFLARGESIGNS': u'number_of_large_signs',
-            'ADDRESSFORMATTEDADDRESS': u'address',
             'TOTALNUMBEROFSPACES': u'total_number_of_spaces',
-            'INSURANCEEXPIRATIONDATE': u'insurance_expiration_date',
             'NUMBEROFNONLEASEDPUBSPACES': u'number_of_nonleased_pub_spaces',
             'NUMBEROFREVGENSPACES': u'number_of_revgen_spaces',
-            'NUMBEROFEMPLOYEES': u'number_of_employees',
             'NUMBEROFHANDICAPSPACES': u'number_of_handicap_spaces',
-            'NUMBEROFSEATS': u'number_of_seats'
+            'NUMBEROFSEATS': u'number_of_seats',
+            'NUMBEROFNONGAMBLINGMACHINES': u'number_of_nongambling_machines',
+            'NUMBEROFPOOLTABLES': u'number_of_pool_tables',
+            'NUMBEROFJUKEBOXES': u'number_of_jukeboxes',
+            'PARCELNUMBER': u'parcel_number',
+            'ADDRESSFORMATTEDADDRESS': u'address',
         }
         formatted = dict((cleaned_col_names[key], value) for (key, value) in datum.items())
         # some of these items don't have all fields included

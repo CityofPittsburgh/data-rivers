@@ -58,7 +58,7 @@ class ComputronixTradesDataFlowTest(unittest.TestCase):
             "effective_date": "2017-11-09T09:12:14-05:00",
             "expiration_date": "2018-11-09T09:12:14-05:00"
         }
-        self.assertEqual(expected, self.type_converted)
+        self.assertEqual(sorted(expected), sorted(self.type_converted))
 
     def test_schema(self):
         self.assertTrue(validate(self.type_converted, self.SCHEMA))
