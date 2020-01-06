@@ -16,7 +16,6 @@ from apache_beam.options.pipeline_options import SetupOptions
 from avro import schema
 
 from datetime import datetime
-from google.cloud import storage
 from dataflow_utils import dataflow_utils
 from dataflow_utils.dataflow_utils import hash_func, download_schema, generate_args, JsonCoder
 
@@ -65,7 +64,7 @@ def run(argv=None):
 
     #TODO: run on on-prem network when route is opened
     # Use runner=DataflowRunner to run in GCP environment, DirectRunner to run locally
-    pipeline_args.extend(generate_args('computronix-trades-dataflow', 'pghpa_computronix', 'DirectRunner'))
+    pipeline_args.extend(generate_args('computronix-trades-dataflow_scripts', 'pghpa_computronix', 'DirectRunner'))
 
     schema.RecordSchema.__hash__ = hash_func
 
@@ -86,6 +85,8 @@ def run(argv=None):
                 | beam.ParDo(FormatColumnNames())
                 | beam.ParDo(ConvertTypes())
                 | beam.io.avroio.WriteToAvro(known_args.avro_output, schema=avro_schema, file_name_suffix='.avro', use_fastavro=True))
+
+    os.remove('trade_licenses_computronix.avsc')
 
 
 if __name__ == '__main__':
