@@ -29,7 +29,9 @@ class ComputronixTradesDataFlowTest(unittest.TestCase):
     }
     SCHEMA = get_schema('trade_licenses_computronix.avsc')
     formatted = FormatColumnNames.process(FormatColumnNames(), RECORD)
-    type_converted = ConvertTypes.process(ConvertTypes(), formatted)
+    formatted_dict = formatted.next()
+    type_converted = ConvertTypes.process(ConvertTypes(), formatted_dict)
+    type_converted_dict = type_converted.next()
 
     def test_format_column_names(self):
         expected = {
@@ -43,7 +45,7 @@ class ComputronixTradesDataFlowTest(unittest.TestCase):
             "effective_date": "2019-10-25T08:23:48-04:00",
             "expiration_date": "2020-10-24T00:00:00-04:00"
         }
-        self.assertEqual(expected, self.formatted)
+        self.assertEqual(sorted(expected), sorted(self.formatted_dict))
 
 
     def test_convert_types(self):
@@ -58,12 +60,14 @@ class ComputronixTradesDataFlowTest(unittest.TestCase):
             "effective_date": "2019-10-25T08:23:48-04:00",
             "expiration_date": "2020-10-24T00:00:00-04:00"
         }
-        self.assertEqual(expected, self.type_converted)
+        self.assertEqual(expected, self.type_converted_dict)
 
 
     def test_schema(self):
-        self.assertTrue(validate(self.type_converted, self.SCHEMA))
-        os.remove('./trade_licenses_computronix.avsc')
+        self.assertTrue(validate(self.type_converted_dict, self.SCHEMA))
+
+
+    os.remove('./trade_licenses_computronix.avsc')
 
 
 if __name__ == '__main__':
