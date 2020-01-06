@@ -4,22 +4,21 @@ import os
 import re
 import json
 
-import scourgify
 from scourgify import normalize_address_record, exceptions
-
 from avro import schema
 from google.cloud import bigquery, storage
 
 bq_client = bigquery.Client()
 storage_client = storage.Client()
-
+SETUP_FILE = os.path.join('../', 'setup.py')
 
 DEFAULT_DATAFLOW_ARGS = [
     '--project=data-rivers',
     '--subnetwork=https://www.googleapis.com/compute/v1/projects/data-rivers/regions/us-east1/subnetworks/default',
     '--region=us-east1',
     '--service_account_email=data-rivers@data-rivers.iam.gserviceaccount.com',
-    '--setup_file={}'.format(os.environ['DATAFLOW_SETUP_FILE']),
+    '--setup_file={}'.format(SETUP_FILE),
+    # '--setup_file={}'.format(os.environ['DATAFLOW_SETUP_FILE']),
     '--save_main_session'
 ]
 
@@ -50,11 +49,11 @@ def download_schema(bucket_name, source_blob_name, destination_file_name):
 
 
 def clean_csv_string(string):
-    return string.strip('"')
+    return string.strip('"').strip()
 
 
 def clean_csv_int(integer):
-    return int(integer.strip('"'))
+    return int(integer.strip('"').strip())
 
 
 def normalize_address(address):

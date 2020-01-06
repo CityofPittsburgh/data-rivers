@@ -31,7 +31,7 @@ class ConvertToDicts(beam.DoFn):
         address_full = clean_csv_string(address1) + ' ' + clean_csv_string(address2)
 
         return [{
-            'acct_no': clean_csv_int(acct_no),
+            'acct_no': clean_csv_string(acct_no),
             'name': clean_csv_string(name),
             'trade_name': clean_csv_string(trade_name),
             'desc_of_business': clean_csv_string(desc_of_business),
@@ -46,10 +46,10 @@ class ConvertToDicts(beam.DoFn):
         }]
 
 
-class AddNormalizedAddress(beam.DoFn):
-    def process(self, datum):
-        datum['normalized_address'] = normalize_address_record(datum['address'])
-        yield datum
+# class AddNormalizedAddress(beam.DoFn):
+#     def process(self, datum):
+#         datum['normalized_address'] = normalize_address_record(datum['address_full'])
+#         return datum
 
 
 def run(argv=None):
@@ -72,7 +72,7 @@ def run(argv=None):
     #TODO: run on on-prem network when route is opened
 
     # Use runner=DataflowRunner to run in GCP environment, DirectRunner to run locally
-    pipeline_args.extend(generate_args('registered-businesses-dataflow', 'DataflowRunner'))
+    pipeline_args.extend(generate_args('registered-businesses-dataflow_scripts', 'DataflowRunner'))
 
     schema.RecordSchema.__hash__ = hash_func
 
@@ -93,6 +93,8 @@ def run(argv=None):
                 # | beam.ParDo(AddNormalizedAddress())
                 # TODO: ^add this step once we are on python3
                 | beam.io.avroio.WriteToAvro(known_args.avro_output, schema=avro_schema, file_name_suffix='.avro', use_fastavro=True))
+
+    os.remove('registered_businesses.avsc')
 
 
 if __name__ == '__main__':
