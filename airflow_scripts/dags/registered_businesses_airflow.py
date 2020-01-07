@@ -51,7 +51,7 @@ gcs_load_task = DockerOperator(
 dataflow_task = DataFlowPythonOperator(
     task_id='registered_businesses_dataflow',
     job_name='registered-businesses-dataflow_scripts',
-    py_file=os.environ['REGISTERED_BUSINESSES_DATAFLOW'],
+    py_file=(os.getcwd() + '/airflow_scripts/dags/dependencies/dataflow_scripts/registered_businesses_dataflow.py'),
     dag=dag
 )
 

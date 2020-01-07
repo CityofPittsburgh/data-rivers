@@ -10,7 +10,7 @@ import future.tests.base  # pylint: disable=unused-import
 
 from fastavro.validation import validate
 
-from .dataflow_test_utils import get_schema, set_up
+from tests.dataflow_test_utils import get_schema, set_up
 from trash_cans_dataflow import ConvertToDicts
 
 

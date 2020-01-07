@@ -12,7 +12,7 @@
 #
 # from fastavro.validation import validate
 #
-# from .dataflow_test_utils import get_schema, set_up
+# from tests.dataflow_test_utils import get_schema, set_up
 # from registered_businesses_dataflow import ConvertToDicts, AddNormalizedAddress
 #
 #
