@@ -62,6 +62,8 @@ def run(argv=None):
 
     known_args, pipeline_args = parser.parse_known_args(argv)
 
+    print 'current directorrrrrrry: ' + os.getcwd()
+
     #TODO: run on on-prem network when route is opened
     # Use runner=DataflowRunner to run in GCP environment, DirectRunner to run locally
     pipeline_args.extend(generate_args('trash-cans-dataflow', 'pghpa_trash_cans', 'DirectRunner'))

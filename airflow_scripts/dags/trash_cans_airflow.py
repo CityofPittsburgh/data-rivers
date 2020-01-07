@@ -62,7 +62,8 @@ gcs_load = DockerOperator(
 
 dataflow_task = BashOperator(
     task_id='trash_cans_dataflow',
-    bash_command='python {}'.format(os.environ['TRASH_CANS_DATAFLOW']),
+    bash_command='python {}'.format(os.getcwd() + '/airflow_scripts/dags/dependencies/dataflow_scripts'
+                                                  '/trash_cans_dataflow.py'),
     dag=dag
 )
 
