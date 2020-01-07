@@ -57,19 +57,22 @@ gcs_load = DockerOperator(
 
 trades_dataflow = BashOperator(
     task_id='computronix_trades_dataflow',
-    bash_command='python {}'.format(os.environ['COMPUTRONIX_TRADES_DATAFLOW']),
+    bash_command='python {}'.format(os.getcwd() + '/airflow_scripts/dags/dependencies/dataflow_scripts'
+                                                  '/computronix_trades_dataflow.py'),
     dag=dag
 )
 
 contractors_dataflow = BashOperator(
     task_id='computronix_contractors_dataflow',
-    bash_command='python {}'.format(os.environ['COMPUTRONIX_CONTRACTORS_DATAFLOW']),
+    bash_command='python {}'.format(os.getcwd() + '/airflow_scripts/dags/dependencies/dataflow_scripts'
+                                                  '/computronix_contractors_dataflow.py'),
     dag=dag
 )
 
 businesses_dataflow = BashOperator(
     task_id='computronix_businesses_dataflow',
-    bash_command='python {}'.format(os.environ['COMPUTRONIX_BUSINESSES_DATAFLOW']),
+    bash_command='python {}'.format(os.getcwd() + '/airflow_scripts/dags/dependencies/dataflow_scripts'
+                                                  '/computronix_businesses_dataflow.py'),
     dag=dag
 )
 
