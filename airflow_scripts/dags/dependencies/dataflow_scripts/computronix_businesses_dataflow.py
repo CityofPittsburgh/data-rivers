@@ -17,8 +17,8 @@ from avro import schema
 
 from datetime import datetime
 from google.cloud import storage
-from dataflow_utils import dataflow_utils
-from dataflow_utils.dataflow_utils import hash_func, download_schema, generate_args, JsonCoder
+from airflow_scripts.dags.dependencies.dataflow_scripts.dataflow_utils import hash_func, download_schema, \
+    generate_args, JsonCoder
 
 
 #TODO: add step to normalize address, add normalized_address to .avsc

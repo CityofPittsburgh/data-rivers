@@ -10,8 +10,8 @@ import future.tests.base  # pylint: disable=unused-import
 
 from fastavro.validation import validate
 
-from tests.dataflow_test_utils import get_schema, set_up
-from computronix_businesses_dataflow import FormatColumnNames, ConvertTypes
+from .dataflow_test_utils import get_schema, set_up
+from ..computronix_businesses_dataflow import FormatColumnNames, ConvertTypes
 
 
 class ComputronixTradesDataFlowTest(unittest.TestCase):

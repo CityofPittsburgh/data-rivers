@@ -9,7 +9,7 @@ import unittest
 
 from apache_beam.io import filebasedsource
 
-from dataflow_utils.dataflow_utils import download_schema
+from ..dataflow_utils.dataflow_utils import download_schema
 
 def create_temp_file(self, contents):
     with tempfile.NamedTemporaryFile(delete=False) as f:
@@ -17,6 +17,7 @@ def create_temp_file(self, contents):
         return f.name
 
 
+# this will only work on travis with non-sensitive .avsc files that have been made public in cloud storage
 def get_schema(filename):
     download_schema('pghpa_avro_schemas', filename, filename)
     SCHEMA_PATH = filename

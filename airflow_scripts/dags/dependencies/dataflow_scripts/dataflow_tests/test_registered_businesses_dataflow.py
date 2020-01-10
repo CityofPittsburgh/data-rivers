@@ -12,13 +12,13 @@
 #
 # from fastavro.validation import validate
 #
-# from tests.dataflow_test_utils import get_schema, set_up
-# from registered_businesses_dataflow import ConvertToDicts, AddNormalizedAddress
+# from from .dataflow_test_utils import get_schema, set_up
+# from ..registered_businesses_dataflow import ConvertToDicts, AddNormalizedAddress
 #
 #
 # class RegisteredBusinessesDataFlowTest(unittest.TestCase):
 #     set_up()
-#     RECORD = '"001033371","A FROST INC ","FROST CO","N/A","CO","MA","PITTSBURGH","PA","15222","1999-11-10",' \
+#     RECORD = '"001033373","A FROST INC ","FROST CO","N/A","CO","MA","PITTSBURGH","PA","15222","1999-11-10",' \
 #              '"1985-01-01","717 LIBERTY AVE PITTSBURGH, PA 15222"'
 #
 #     SCHEMA = get_schema('registered_businesses.avsc')
@@ -28,7 +28,7 @@
 #
 #     def test_convert_to_dicts(self):
 #         expected = {
-#             'acct_no': '001033371',
+#             'acct_no': '001033373',
 #             'name': 'A FROST INC',
 #             'trade_name': 'FROST CO',
 #             'desc_of_business': 'N/A',

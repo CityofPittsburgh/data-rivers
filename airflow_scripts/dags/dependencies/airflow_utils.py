@@ -8,8 +8,6 @@ from google.cloud import bigquery, storage
 from scourgify import normalize_address_record
 
 
-#TODO: figure out why these globals aren't being imported properly with just 'from dependencies import airflow_utils'
-
 YESTERDAY = datetime.combine(datetime.today() - timedelta(1), datetime.min.time())
 WEEK_AGO = datetime.combine(datetime.today() - timedelta(7), datetime.min.time())
 dt = datetime.now()

@@ -12,6 +12,7 @@ marshmallow==2.18.0
 marshmallow-sqlalchemy==0.17.1
 psycopg2
 pyarrow==0.13.0
+pytest==4.6.9
 requests
 requests-oauthlib
 six

@@ -17,7 +17,7 @@ from avro import schema
 
 from datetime import datetime
 from google.cloud import storage
-from dataflow_utils.dataflow_utils import hash_func, download_schema, clean_csv_int, clean_csv_string, generate_args
+from airflow_scripts.dags.dependencies.dataflow_scripts.dataflow_utils import hash_func, download_schema, clean_csv_int, clean_csv_string, generate_args
 
 
 class ConvertToDicts(beam.DoFn):
