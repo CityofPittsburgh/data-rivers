@@ -3,7 +3,7 @@ import setuptools
 REQUIRED_PACKAGES = ['usaddress-scourgify', 'google-cloud-storage']
 
 setuptools.setup(
-    name='dataflow_utils',
+    name='dataflow_utils, dataflow_tests',
     version='0.0.1',
     install_requires=REQUIRED_PACKAGES,
     packages=setuptools.find_packages(),

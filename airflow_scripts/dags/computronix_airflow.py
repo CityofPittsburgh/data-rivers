@@ -5,14 +5,12 @@ import os
 
 from datetime import datetime, timedelta
 from airflow import DAG, configuration, models
-from airflow.contrib.hooks import gcs_hook
 from airflow.operators.docker_operator import DockerOperator
 from airflow.operators.bash_operator import BashOperator
+from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOperator
 from airflow.contrib.operators.dataflow_operator import DataFlowPythonOperator
-from airflow.contrib.operators import gcs_to_bq
 from airflow.contrib.operators.gcp_container_operator import GKEPodOperator
 from airflow.operators.python_operator import PythonOperator
-from airflow.utils.trigger_rule import TriggerRule
 from dependencies import airflow_utils
 from dependencies.airflow_utils import YESTERDAY, dt, bq_client, storage_client
 
@@ -34,8 +32,8 @@ default_args = {
 dag = DAG(
     'computronix', default_args=default_args, schedule_interval=timedelta(days=1))
 
-gcs_load = DockerOperator(
-    task_id='computronix_gcs_docker',
+computronix_gcs = DockerOperator(
+    task_id='computronix_gcs',
     image='gcr.io/data-rivers/pgh-computronix',
     api_version='auto',
     auto_remove=True,
@@ -55,63 +53,77 @@ gcs_load = DockerOperator(
 #     dag=dag
 # )
 
-trades_dataflow = BashOperator(
+computronix_trades_dataflow = BashOperator(
     task_id='computronix_trades_dataflow',
     bash_command='python {}'.format(os.getcwd() + '/airflow_scripts/dags/dependencies/dataflow_scripts'
                                                   '/computronix_trades_dataflow.py'),
     dag=dag
 )
 
-contractors_dataflow = BashOperator(
+computronix_contractors_dataflow = BashOperator(
     task_id='computronix_contractors_dataflow',
     bash_command='python {}'.format(os.getcwd() + '/airflow_scripts/dags/dependencies/dataflow_scripts'
                                                   '/computronix_contractors_dataflow.py'),
     dag=dag
 )
 
-businesses_dataflow = BashOperator(
+computronix_businesses_dataflow = BashOperator(
     task_id='computronix_businesses_dataflow',
     bash_command='python {}'.format(os.getcwd() + '/airflow_scripts/dags/dependencies/dataflow_scripts'
                                                   '/computronix_businesses_dataflow.py'),
     dag=dag
 )
 
-#TODO: change to GCSBigQueryOperator
 
-trades_bq = BashOperator(
-    task_id='trades_bq',
-    bash_command='bq load --source_format=AVRO computronix.trade_licenses \
-    "gs://pghpa_computronix/trades/avro_output/{}/{}/{}/*.avro"'.format(dt.strftime('%Y'),
-                                                                dt.strftime('%m').lower(),
-                                                                dt.strftime("%Y-%m-%d")),
+computronix_trades_bq = GoogleCloudStorageToBigQueryOperator(
+    task_id='computronix_trades_bq',
+    destination_project_dataset_table='{}:computronix.trades'.format(os.environ['GCP_PROJECT']),
+    bucket='{}_computronix'.format(os.environ['GCS_PREFIX']),
+    source_objects=["trades/avro_output/{}/{}/{}/*.avro".format(dt.strftime('%Y'),
+                                                         dt.strftime('%m').lower(),
+                                                         dt.strftime("%Y-%m-%d"))],
+    write_disposition='WRITE_APPEND',
+    source_format='AVRO',
+    time_partitioning={'type': 'DAY'},
     dag=dag
 )
 
-contractors_bq = BashOperator(
-    task_id='contractors_bq',
-    bash_command='bq load --source_format=AVRO computronix.contractor_licenses \
-    "gs://pghpa_computronix/contractors/avro_output/{}/{}/{}/*.avro"'.format(dt.strftime('%Y'),
-                                                                dt.strftime('%m').lower(),
-                                                                dt.strftime("%Y-%m-%d")),
+
+computronix_contractors_bq = GoogleCloudStorageToBigQueryOperator(
+    task_id='computronix_contractors_bq',
+    destination_project_dataset_table='{}:computronix.contractors'.format(os.environ['GCP_PROJECT']),
+    bucket='{}_computronix'.format(os.environ['GCS_PREFIX']),
+    source_objects=["contractors/avro_output/{}/{}/{}/*.avro".format(dt.strftime('%Y'),
+                                                         dt.strftime('%m').lower(),
+                                                         dt.strftime("%Y-%m-%d"))],
+    write_disposition='WRITE_APPEND',
+    source_format='AVRO',
+    time_partitioning={'type': 'DAY'},
     dag=dag
 )
 
-businesses_bq = BashOperator(
-    task_id='contractors_bq',
-    bash_command='bq load --source_format=AVRO computronix.business_licenses \
-    "gs://pghpa_computronix/business/avro_output/{}/{}/{}/*.avro"'.format(dt.strftime('%Y'),
-                                                                dt.strftime('%m').lower(),
-                                                                dt.strftime("%Y-%m-%d")),
+
+computronix_businesses_bq = GoogleCloudStorageToBigQueryOperator(
+    task_id='computronix_businesses_bq',
+    destination_project_dataset_table='{}:computronix.businesses'.format(os.environ['GCP_PROJECT']),
+    bucket='{}_computronix'.format(os.environ['GCS_PREFIX']),
+    source_objects=["businesses/avro_output/{}/{}/{}/*.avro".format(dt.strftime('%Y'),
+                                                         dt.strftime('%m').lower(),
+                                                         dt.strftime("%Y-%m-%d"))],
+    write_disposition='WRITE_APPEND',
+    source_format='AVRO',
+    time_partitioning={'type': 'DAY'},
     dag=dag
 )
+
 
 beam_cleanup = BashOperator(
     task_id='computronix_beam_cleanup',
-    bash_command=airflow_utils.beam_cleanup_statement('pghpa_computronix'),
+    bash_command=airflow_utils.beam_cleanup_statement('{}_computronix'.format(os.environ['GCS_PREFIX'])),
     dag=dag
 )
 
 
-gcs_load >> contractors_dataflow >> contractors_bq >> beam_cleanup
-gcs_load >> trades_dataflow >> trades_bq >> beam_cleanup
-gcs_load >> businesses_dataflow >> businesses_bq >> beam_cleanup
+computronix_gcs >> computronix_trades_dataflow >> (computronix_trades_bq, beam_cleanup)
+computronix_gcs >> computronix_contractors_dataflow >> (computronix_contractors_bq, beam_cleanup)
+computronix_gcs >> computronix_businesses_dataflow >> (computronix_businesses_bq, beam_cleanup)

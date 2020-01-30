@@ -10,16 +10,16 @@ import future.tests.base  # pylint: disable=unused-import
 
 from fastavro.validation import validate
 
-from tests.dataflow_test_utils import get_schema, set_up
-from computronix_contractors_dataflow import FormatColumnNames, ConvertTypes
+from .dataflow_test_utils import get_public_schema, set_up
+from ..computronix_contractors_dataflow import FormatColumnNames, ConvertTypes
 
 
 class ComputronixTradesDataFlowTest(unittest.TestCase):
     set_up()
     RECORD = {
-        "LICENSENUMBER": "BL008029",
+        "LICENSENUMBER": "BL008027",
         "LICENSETYPENAME": "General Contractor",
-        "NAICSCODE": "236220",
+        "NAICSCODE": "236227",
         "BUSINESSNAME": "ENGINE 30 ARCHITECTURE, LLC",
         "LICENSESTATE": "Expired",
         "INITIALISSUEDATE": "2017-11-09T09:10:47-05:00",
@@ -27,16 +27,16 @@ class ComputronixTradesDataFlowTest(unittest.TestCase):
         "EFFECTIVEDATE": "2017-11-09T09:12:14-05:00",
         "EXPIRATIONDATE": "2018-11-09T09:12:14-05:00"
     }
-    SCHEMA = get_schema('contractors_computronix.avsc')
+    SCHEMA = get_public_schema('contractors_computronix.avsc')
     # .next() = hacky way to test values in generator (converts it to dict)
     formatted = FormatColumnNames.process(FormatColumnNames(), RECORD).next()
     type_converted = ConvertTypes.process(ConvertTypes(), formatted).next()
 
     def test_format_column_names(self):
         expected = {
-            "license_number": "BL008029",
+            "license_number": "BL008027",
             "license_type_name": "General Contractor",
-            "naics_code": "236220",
+            "naics_code": "236227",
             "business_name": "ENGINE 30 ARCHITECTURE, LLC",
             "license_state": "Expired",
             "initial_issue_date": "2017-11-09T09:10:47-05:00",
@@ -48,9 +48,9 @@ class ComputronixTradesDataFlowTest(unittest.TestCase):
 
     def test_convert_types(self):
         expected = {
-            "license_number": "BL008029",
+            "license_number": "BL008027",
             "license_type_name": "General Contractor",
-            "naics_code": 236220,
+            "naics_code": 236227,
             "business_name": "ENGINE 30 ARCHITECTURE, LLC",
             "license_state": "Expired",
             "initial_issue_date": "2017-11-09T09:10:47-05:00",

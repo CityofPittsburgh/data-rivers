@@ -10,16 +10,16 @@ import future.tests.base  # pylint: disable=unused-import
 
 from fastavro.validation import validate
 
-from tests.dataflow_test_utils import get_schema, set_up
-from computronix_trades_dataflow import FormatColumnNames, ConvertTypes
+from .dataflow_test_utils import get_public_schema, set_up
+from ..computronix_trades_dataflow import FormatColumnNames, ConvertTypes
 
 
 class ComputronixTradesDataFlowTest(unittest.TestCase):
     set_up()
     RECORD = {
-        "LICENSENUMBER":"EL09921",
+        "LICENSENUMBER":"EL09927",
         "LICENSETYPENAME":"Electrical Trade",
-        "NAICSCODE":"236210",
+        "NAICSCODE":"236217",
         "BUSINESSNAME":"Michael Conroy",
         "LICENSESTATE":"Active",
         "INITIALISSUEDATE":"2017-11-15T15:04:07-05:00",
@@ -27,16 +27,16 @@ class ComputronixTradesDataFlowTest(unittest.TestCase):
         "EFFECTIVEDATE":"2019-10-25T08:23:48-04:00",
         "EXPIRATIONDATE":"2020-10-24T00:00:00-04:00"
     }
-    SCHEMA = get_schema('trade_licenses_computronix.avsc')
+    SCHEMA = get_public_schema('trade_licenses_computronix.avsc')
     # .next() = hacky way to test values in generator (converts it to dict)
     formatted = FormatColumnNames.process(FormatColumnNames(), RECORD).next()
     type_converted = ConvertTypes.process(ConvertTypes(), formatted).next()
 
     def test_format_column_names(self):
         expected = {
-            "license_number": "EL09921",
+            "license_number": "EL09927",
             "license_type_name": "Electrical Trade",
-            "naics_code": "236210",
+            "naics_code": "236217",
             "business_name": "Michael Conroy",
             "license_state": "Active",
             "initial_issue_date": "2017-11-15T15:04:07-05:00",
@@ -49,9 +49,9 @@ class ComputronixTradesDataFlowTest(unittest.TestCase):
 
     def test_convert_types(self):
         expected = {
-            "license_number": "EL09921",
+            "license_number": "EL09927",
             "license_type_name": "Electrical Trade",
-            "naics_code": 236210,
+            "naics_code": 236217,
             "business_name": "Michael Conroy",
             "license_state": "Active",
             "initial_issue_date": "2017-11-15T15:04:07-05:00",
