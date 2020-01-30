@@ -36,7 +36,7 @@ dag = DAG(
     'registered_businesses', default_args=default_args, schedule_interval=timedelta(days=1))
 
 gcs_load_task = DockerOperator(
-    task_id='run_finance_image',
+    task_id='registered_businesses_gcs',
     image='gcr.io/data-rivers/pgh-finance',
     api_version='auto',
     auto_remove=True,
@@ -48,11 +48,27 @@ gcs_load_task = DockerOperator(
     dag=dag
 )
 
+
 dataflow_task = DataFlowPythonOperator(
     task_id='registered_businesses_dataflow',
     job_name='registered-businesses-dataflow_scripts',
     py_file=(os.getcwd() + '/airflow_scripts/dags/dependencies/dataflow_scripts/registered_businesses_dataflow.py'),
     dag=dag
 )
+
+
+# bq_insert = GoogleCloudStorageToBigQueryOperator(
+#     task_id='registered_businesses_bq_insert',
+#     destination_project_dataset_table='{}:registered_businesses.registered_businesses'.format(os.environ['GCP_PROJECT']),
+#     bucket='{}_finance'.format(os.environ['GCS_PREFIX']),
+#     source_objects=["avro_output/{}/{}/{}/*.avro".format(dt.strftime('%Y'),
+#                                                          dt.strftime('%m').lower(),
+#                                                          dt.strftime("%Y-%m-%d"))],
+#     write_disposition='WRITE_APPEND',
+#     source_format='AVRO',
+#     time_partitioning={'type': 'DAY'},
+#     dag=dag
+# )
+
 
 gcs_load_task >> dataflow_task

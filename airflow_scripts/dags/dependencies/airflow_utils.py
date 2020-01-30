@@ -5,10 +5,7 @@ import os
 
 from datetime import datetime, timedelta
 from google.cloud import bigquery, storage
-from scourgify import normalize_address_record
 
-
-#TODO: figure out why these globals aren't being imported properly with just 'from dependencies import airflow_utils'
 
 YESTERDAY = datetime.combine(datetime.today() - timedelta(1), datetime.min.time())
 WEEK_AGO = datetime.combine(datetime.today() - timedelta(7), datetime.min.time())
@@ -38,7 +35,7 @@ def load_avro_to_bq(dataset, table, gcs_bucket, date_partition=False, partition_
     )
 
     load_job.result()
-    print 'Data loaded to {} table, {} dataset'.format(table, dataset)
+    print('Data loaded to {} table, {} dataset'.format(table, dataset))
 
 
 def cleanup_beam_avro(bucket_name):
@@ -47,15 +44,15 @@ def cleanup_beam_avro(bucket_name):
 
     avro = bucket.blob('avro_output/*')
     avro.delete()
-    print 'Avro files deleted'
+    print('Avro files deleted')
 
     beam_temp = bucket.blob('temp/*')
     beam_temp.delete()
-    print 'Beam temp files deleted'
+    print('Beam temp files deleted')
 
     beam_staging = bucket.blob('staging/*')
     beam_staging.delete()
-    print 'Beam staging files deleted'
+    print('Beam staging files deleted')
 
 
 def geocode_address(address):
@@ -135,13 +132,17 @@ def reverse_geocode_latlong(lat, long):
         data['council_district'] = int(row.council_district)
         data['dpw_division'] = row.dpw_division
         data['ward'] = row.ward
-    print result
+    print(result)
     return data
 
 
 def beam_cleanup_statement(bucket):
     return "if gsutil -q stat gs://{}/beam_output/*; then gsutil rm gs://{}/beam_output/**; else echo " \
            "no beam output; fi".format(bucket, bucket)
+
+
+def avsc_cleanup():
+    return "rm *.avsc"
 
 
 # def reverse_geocode_point(point):
