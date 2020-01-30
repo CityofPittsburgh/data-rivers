@@ -16,8 +16,8 @@ from apache_beam.options.pipeline_options import SetupOptions
 from avro import schema
 
 from datetime import datetime
-from google.cloud import storage
-from airflow_scripts.dags.dependencies.dataflow_scripts.dataflow_utils import hash_func, download_schema, clean_csv_int, clean_csv_string, generate_args
+from dataflow_utils import dataflow_utils
+from dataflow_utils.dataflow_utils import download_schema, clean_csv_int, clean_csv_string, generate_args
 
 
 class ConvertToDicts(beam.DoFn):
@@ -49,24 +49,26 @@ def run(argv=None):
 
     parser.add_argument('--input',
                         dest='input',
-                        default='gs://pghpa_trash_cans/{}/{}/{}_smart_trash_containers.csv'.format(dt.strftime('%Y'),
-                                                                                          dt.strftime('%m').lower(),
-                                                                                          dt.strftime("%Y-%m-%d")),
+                        default='gs://{}_trash_cans/{}/{}/{}_smart_trash_containers.csv'.format(os.environ['GCS_PREFIX'],
+                                                                                                dt.strftime('%Y'),
+                                                                                                dt.strftime('%m').lower(),
+                                                                                                dt.strftime("%Y-%m-%d")),
                         help='Input file to process.')
     parser.add_argument('--avro_output',
                         dest='avro_output',
-                        default='gs://pghpa_trash_cans/avro_output/{}/{}/{}/avro_output'.format(dt.strftime('%Y'),
-                                                                                         dt.strftime('%m').lower(),
-                                                                                         dt.strftime("%Y-%m-%d")),
+                        default='gs://{}_trash_cans/avro_output/{}/{}/{}/avro_output'.format(os.environ['GCS_PREFIX'],
+                                                                                             dt.strftime('%Y'),
+                                                                                             dt.strftime('%m').lower(),
+                                                                                             dt.strftime("%Y-%m-%d")),
                         help='Output directory to write avro files.')
 
     known_args, pipeline_args = parser.parse_known_args(argv)
 
     #TODO: run on on-prem network when route is opened
     # Use runner=DataflowRunner to run in GCP environment, DirectRunner to run locally
-    pipeline_args.extend(generate_args('trash-cans-dataflow', 'pghpa_trash_cans', 'DirectRunner'))
-
-    schema.RecordSchema.__hash__ = hash_func
+    pipeline_args.extend(generate_args('trash-cans-dataflow',
+                                       '{}_trash_cans'.format(os.environ['GCS_PREFIX']),
+                                       'DirectRunner'))
 
     download_schema('pghpa_avro_schemas', 'smart_trash_cans.avsc', 'smart_trash_cans.avsc')
 
@@ -83,7 +85,7 @@ def run(argv=None):
         load = (
                 lines
                 | beam.ParDo(ConvertToDicts())
-                | beam.io.avroio.WriteToAvro(known_args.avro_output, schema=avro_schema, file_name_suffix='.avro', use_fastavro=True))
+                | WriteToAvro(known_args.avro_output, schema=avro_schema, file_name_suffix='.avro', use_fastavro=True))
 
     os.remove('smart_trash_cans.avsc')
 

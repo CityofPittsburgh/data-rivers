@@ -18,7 +18,7 @@ def create_temp_file(self, contents):
 
 
 # this will only work on travis with non-sensitive .avsc files that have been made public in cloud storage
-def get_schema(filename):
+def get_public_schema(filename):
     download_schema('pghpa_avro_schemas', filename, filename)
     SCHEMA_PATH = filename
     avro_schema = json.loads(open(SCHEMA_PATH).read())

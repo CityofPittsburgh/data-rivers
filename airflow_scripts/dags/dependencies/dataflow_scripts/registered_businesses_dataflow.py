@@ -16,10 +16,8 @@ from apache_beam.options.pipeline_options import SetupOptions
 from avro import schema
 
 from datetime import datetime
-from google.cloud import storage
 from dataflow_utils import dataflow_utils
-from airflow_scripts.dags.dependencies.dataflow_scripts.dataflow_utils import hash_func, download_schema, \
-    clean_csv_int, clean_csv_string, normalize_address_record, generate_args
+from dataflow_utils.dataflow_utils import hash_func, download_schema, clean_csv_int, clean_csv_string, generate_args
 
 
 class ConvertToDicts(beam.DoFn):
@@ -58,13 +56,19 @@ def run(argv=None):
 
     parser.add_argument('--input',
                         dest='input',
-                        default='gs://pghpa_finance/{}/{}/{}_smart_trash_containers.csv'.format(dt.strftime('%Y'),
-                                                                                          dt.strftime('%m').lower(),
-                                                                                          dt.strftime("%Y-%m-%d")),
+                        default='gs://{}_finance/{}/{}/{}_registered_businesses.csv'
+                                .format(os.environ['GCS_PREFIX'],
+                                        dt.strftime('%Y'),
+                                        dt.strftime('%m').lower(),
+                                        dt.strftime("%Y-%m-%d")),
                         help='Input file to process.')
     parser.add_argument('--avro_output',
                         dest='avro_output',
-                        default='gs://pghpa_finance/avro_output/avro_output',
+                        default='gs://{}_finance/avro_output/{}/{}/{}/avro_output'
+                                .format(os.environ['GCS_PREFIX'],
+                                        dt.strftime('%Y'),
+                                        dt.strftime('%m').lower(),
+                                        dt.strftime("%Y-%m-%d")),
                         help='Output directory to write avro files.')
 
     known_args, pipeline_args = parser.parse_known_args(argv)
@@ -72,7 +76,9 @@ def run(argv=None):
     #TODO: run on on-prem network when route is opened
 
     # Use runner=DataflowRunner to run in GCP environment, DirectRunner to run locally
-    pipeline_args.extend(generate_args('registered-businesses-dataflow_scripts', 'DataflowRunner'))
+    pipeline_args.extend(generate_args('registered-businesses-dataflow_scripts',
+                                       '{}_finance'.format(os.environ['GCS_PREFIX']),
+                                       'DirectRunner'))
 
     schema.RecordSchema.__hash__ = hash_func
 

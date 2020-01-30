@@ -4,7 +4,6 @@ python:
 cache: pip
 install:
 - pip install -r requirements.txt
-script: cd airflow_scripts/dags/dependencies/dataflow_scripts && python -m unittest
-  discover tests
+script: pytest
 git:
   quiet: true
