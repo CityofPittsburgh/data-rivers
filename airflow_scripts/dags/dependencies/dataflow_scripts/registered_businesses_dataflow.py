@@ -44,10 +44,10 @@ class ConvertToDicts(beam.DoFn):
         }]
 
 
-# class AddNormalizedAddress(beam.DoFn):
-#     def process(self, datum):
-#         datum['normalized_address'] = normalize_address_record(datum['address_full'])
-#         return datum
+class AddNormalizedAddress(beam.DoFn):
+    def process(self, datum):
+        datum['normalized_address'] = normalize_address_record(datum['address_full'])
+        return datum
 
 
 def run(argv=None):
