@@ -41,11 +41,18 @@ schema.RecordSchema.__hash__ = hash_func
 
 def download_schema(bucket_name, source_blob_name, destination_file_name):
     """Downloads avro schema from Cloud Storage"""
-    storage_client = storage.Client()
     bucket = storage_client.get_bucket(bucket_name)
     blob = bucket.blob(source_blob_name)
 
     blob.download_to_filename(destination_file_name)
+
+
+def get_schema(schema):
+    """Read avsc from cloud storage and return json object stored in memory"""
+    bucket = storage_client.get_bucket('pghpa_avro_schemas')
+    blob = bucket.get_blob('{}.avsc'.format(schema))
+    schema_string = blob.download_as_string()
+    return json.loads(schema_string)
 
 
 def clean_csv_string(string):

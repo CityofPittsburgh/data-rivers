@@ -10,8 +10,9 @@ import future.tests.base  # pylint: disable=unused-import
 
 from fastavro.validation import validate
 
-from .dataflow_test_utils import get_public_schema, set_up
-from ..computronix_contractors_dataflow import FormatColumnNames, ConvertTypes
+from dataflow_utils import get_schema
+from dataflow_test_utils import set_up
+from computronix_contractors_dataflow import FormatColumnNames, ConvertTypes
 
 
 class ComputronixTradesDataFlowTest(unittest.TestCase):
@@ -27,10 +28,10 @@ class ComputronixTradesDataFlowTest(unittest.TestCase):
         "EFFECTIVEDATE": "2017-11-09T09:12:14-05:00",
         "EXPIRATIONDATE": "2018-11-09T09:12:14-05:00"
     }
-    SCHEMA = get_public_schema('contractors_computronix.avsc')
-    # .next() = hacky way to test values in generator (converts it to dict)
-    formatted = FormatColumnNames.process(FormatColumnNames(), RECORD).next()
-    type_converted = ConvertTypes.process(ConvertTypes(), formatted).next()
+    SCHEMA = get_schema('contractors_computronix')
+    # need to use next() to access dict value because dataflow steps yield generators
+    formatted = next(FormatColumnNames.process(FormatColumnNames(), RECORD))
+    type_converted = next(ConvertTypes.process(ConvertTypes(), formatted))
 
     def test_format_column_names(self):
         expected = {
@@ -62,8 +63,6 @@ class ComputronixTradesDataFlowTest(unittest.TestCase):
 
     def test_schema(self):
         self.assertTrue(validate(self.type_converted, self.SCHEMA))
-
-    os.remove('./contractors_computronix.avsc')
 
 
 if __name__ == '__main__':

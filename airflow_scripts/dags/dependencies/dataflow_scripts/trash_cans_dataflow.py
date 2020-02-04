@@ -8,16 +8,16 @@ import os
 import apache_beam as beam
 import avro
 import fastavro
+import dataflow_utils
 
 from apache_beam.io import ReadFromText
 from apache_beam.io.avroio import WriteToAvro
 from apache_beam.options.pipeline_options import PipelineOptions
 from apache_beam.options.pipeline_options import SetupOptions
 from avro import schema
-
 from datetime import datetime
-from dataflow_utils import dataflow_utils
-from dataflow_utils.dataflow_utils import download_schema, clean_csv_int, clean_csv_string, generate_args
+
+from dataflow_utils import clean_csv_int, clean_csv_string, generate_args, get_schema
 
 
 class ConvertToDicts(beam.DoFn):
@@ -70,11 +70,7 @@ def run(argv=None):
                                        '{}_trash_cans'.format(os.environ['GCS_PREFIX']),
                                        'DirectRunner'))
 
-    download_schema('pghpa_avro_schemas', 'smart_trash_cans.avsc', 'smart_trash_cans.avsc')
-
-    SCHEMA_PATH = 'smart_trash_cans.avsc'
-    # fastavro does the work of avro.schema.parse(), just need to pass dict
-    avro_schema = json.loads(open(SCHEMA_PATH).read())
+    avro_schema = get_schema('smart_trash_cans')
 
     pipeline_options = PipelineOptions(pipeline_args)
 
@@ -86,8 +82,6 @@ def run(argv=None):
                 lines
                 | beam.ParDo(ConvertToDicts())
                 | WriteToAvro(known_args.avro_output, schema=avro_schema, file_name_suffix='.avro', use_fastavro=True))
-
-    os.remove('smart_trash_cans.avsc')
 
 
 if __name__ == '__main__':
