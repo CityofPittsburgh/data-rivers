@@ -8,16 +8,16 @@ import os
 import apache_beam as beam
 import avro
 import fastavro
+import dataflow_utils
 
 from apache_beam.io import ReadFromText
 from apache_beam.io.avroio import WriteToAvro
 from apache_beam.options.pipeline_options import PipelineOptions
 from apache_beam.options.pipeline_options import SetupOptions
 from avro import schema
-
 from datetime import datetime
-from dataflow_utils import dataflow_utils
-from dataflow_utils.dataflow_utils import clean_csv_int, clean_csv_string, generate_args, get_schema
+
+from dataflow_utils import clean_csv_int, clean_csv_string, generate_args, get_schema
 
 
 class ConvertToDicts(beam.DoFn):

@@ -8,6 +8,7 @@ import os
 import apache_beam as beam
 import avro
 import fastavro
+import dataflow_utils
 
 from apache_beam.io import ReadFromText
 from apache_beam.io.avroio import WriteToAvro
@@ -16,8 +17,7 @@ from apache_beam.options.pipeline_options import SetupOptions
 from avro import schema
 
 from datetime import datetime
-from dataflow_utils import dataflow_utils
-from dataflow_utils.dataflow_utils import hash_func, download_schema, clean_csv_int, clean_csv_string, generate_args
+from dataflow_utils import get_schema, clean_csv_int, clean_csv_string, generate_args, normalize_address_record
 
 
 class ConvertToDicts(beam.DoFn):
@@ -80,12 +80,7 @@ def run(argv=None):
                                        '{}_finance'.format(os.environ['GCS_PREFIX']),
                                        'DirectRunner'))
 
-    schema.RecordSchema.__hash__ = hash_func
-
-    download_schema('pghpa_avro_schemas', 'registered_businesses.avsc', 'registered_businesses.avsc')
-
-    SCHEMA_PATH = 'registered_businesses.avsc'
-    avro_schema = json.loads(open(SCHEMA_PATH).read())
+    avro_schema = get_schema('registered_businesses')
 
     pipeline_options = PipelineOptions(pipeline_args)
 
@@ -99,8 +94,6 @@ def run(argv=None):
                 # | beam.ParDo(AddNormalizedAddress())
                 # TODO: ^add this step once we are on python3
                 | beam.io.avroio.WriteToAvro(known_args.avro_output, schema=avro_schema, file_name_suffix='.avro', use_fastavro=True))
-
-    os.remove('registered_businesses.avsc')
 
 
 if __name__ == '__main__':
