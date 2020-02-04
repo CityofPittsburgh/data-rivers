@@ -45,8 +45,6 @@ class ConvertToDicts(beam.DoFn):
 
 def run(argv=None):
     dt = datetime.now()
-    # from datetime import timedelta
-    # dt = datetime.combine(datetime.today() + timedelta(1), datetime.min.time())
     parser = argparse.ArgumentParser()
 
     parser.add_argument('--input',
