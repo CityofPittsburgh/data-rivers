@@ -8,6 +8,7 @@ import os
 import apache_beam as beam
 import avro
 import fastavro
+import dataflow_utils
 
 from apache_beam.io import ReadFromText
 from apache_beam.io.avroio import WriteToAvro
@@ -16,8 +17,7 @@ from apache_beam.options.pipeline_options import SetupOptions
 from avro import schema
 
 from datetime import datetime
-from dataflow_utils import dataflow_utils
-from dataflow_utils.dataflow_utils import hash_func, download_schema, generate_args, JsonCoder
+from dataflow_utils import get_schema, generate_args, JsonCoder
 
 
 #TODO: add step to normalize address, add normalized_address to .avsc
@@ -93,12 +93,7 @@ def run(argv=None):
                                        '{}_computronix'.format(os.environ['GCS_PREFIX']),
                                        'DirectRunner'))
 
-    schema.RecordSchema.__hash__ = hash_func
-
-    download_schema('pghpa_avro_schemas', 'businesses_computronix.avsc', 'businesses_computronix.avsc')
-
-    SCHEMA_PATH = 'businesses_computronix.avsc'
-    avro_schema = json.loads(open(SCHEMA_PATH).read())
+    avro_schema = get_schema('businesses_computronix')
 
     pipeline_options = PipelineOptions(pipeline_args)
 
@@ -111,8 +106,6 @@ def run(argv=None):
                 | beam.ParDo(FormatColumnNames())
                 | beam.ParDo(ConvertTypes())
                 | beam.io.avroio.WriteToAvro(known_args.avro_output, schema=avro_schema, file_name_suffix='.avro', use_fastavro=True))
-
-    os.remove('businesses_computronix.avsc')
 
 
 if __name__ == '__main__':

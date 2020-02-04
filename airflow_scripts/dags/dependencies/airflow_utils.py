@@ -147,7 +147,6 @@ def avsc_cleanup():
 
 # def reverse_geocode_point(point):
 
-#TODO: fix formatting so run() does not throw error
-# if __name__ == '__main__':
-#     logging.getLogger().setLevel(logging.INFO)
-#     run()
+if __name__ == '__main__':
+    logging.getLogger().setLevel(logging.INFO)
+    run()
