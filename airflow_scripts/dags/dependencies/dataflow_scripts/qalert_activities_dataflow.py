@@ -46,7 +46,7 @@ def run(argv=None):
                                        '{}_311'.format(os.environ['GCS_PREFIX']),
                                        'DirectRunner'))
 
-    avro_schema = get_schema('qalert_activity')
+    avro_schema = get_schema('City_of_Pittsburgh_QAlert_Activities')
 
     pipeline_options = PipelineOptions(pipeline_args)
 
