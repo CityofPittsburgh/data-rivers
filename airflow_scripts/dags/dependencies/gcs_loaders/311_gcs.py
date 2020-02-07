@@ -61,12 +61,12 @@ if response.status_code == 200:
         trimmed_activity = {k: activity[k] for k in ACTIVITY_KEYS}
         trimmed_activities.append(trimmed_activity)
 
-json_to_gcs('{}/{}/{}_requests.json'.format(now.strftime('%Y'),
+json_to_gcs('requests/{}/{}/{}_requests.json'.format(now.strftime('%Y'),
                                             now.strftime('%m').lower(),
                                             now.strftime("%Y-%m-%d")),
             trimmed_requests, bucket)
 
-json_to_gcs('{}/{}/{}_activities.json'.format(now.strftime('%Y'),
+json_to_gcs('activities/{}/{}/{}_activities.json'.format(now.strftime('%Y'),
                                               now.strftime('%m').lower(),
                                               now.strftime("%Y-%m-%d")),
             trimmed_activities, bucket)

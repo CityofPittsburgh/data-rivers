@@ -25,14 +25,14 @@ def run(argv=None):
 
     parser.add_argument('--input',
                         dest='input',
-                        default='gs://{}_311/{}/{}/{}_activities.json'.format(os.environ['GCS_PREFIX'],
+                        default='gs://{}_311/activities/{}/{}/{}_activities.json'.format(os.environ['GCS_PREFIX'],
                                                                                                 dt.strftime('%Y'),
                                                                                                 dt.strftime('%m').lower(),
                                                                                                 dt.strftime("%Y-%m-%d")),
                         help='Input file to process.')
     parser.add_argument('--avro_output',
                         dest='avro_output',
-                        default='gs://{}_311/avro_output/{}/{}/{}/avro_output'.format(os.environ['GCS_PREFIX'],
+                        default='gs://{}_311/activities/avro_output/{}/{}/{}/avro_output'.format(os.environ['GCS_PREFIX'],
                                                                                              dt.strftime('%Y'),
                                                                                              dt.strftime('%m').lower(),
                                                                                              dt.strftime("%Y-%m-%d")),

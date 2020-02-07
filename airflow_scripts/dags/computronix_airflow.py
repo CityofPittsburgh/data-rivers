@@ -38,7 +38,8 @@ computronix_gcs = DockerOperator(
     api_version='auto',
     auto_remove=True,
     environment={
-        'GCS_AUTH_FILE': '/root/odata-computronix/data-rivers-service-acct.json'
+        'GCS_AUTH_FILE': '/root/odata-computronix/data-rivers-service-acct.json',
+        'GCS_PREFIX': os.environ['GCS_PREFIX']
     },
     dag=dag
 )
