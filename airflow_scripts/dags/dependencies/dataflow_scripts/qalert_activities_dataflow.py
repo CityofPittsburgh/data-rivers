@@ -17,7 +17,7 @@ from apache_beam.options.pipeline_options import SetupOptions
 from avro import schema
 from datetime import datetime
 
-from dataflow_utils import clean_csv_int, clean_csv_string, generate_args, get_schema
+from dataflow_utils import generate_args, get_schema, JsonCoder
 
 def run(argv=None):
     dt = datetime.now()
@@ -52,7 +52,7 @@ def run(argv=None):
 
     with beam.Pipeline(options=pipeline_options) as p:
         # Read the text file[pattern] into a PCollection.
-        lines = p | ReadFromText(known_args.input, skip_header_lines=1)
+        lines = p | ReadFromText(known_args.input, coder=JsonCoder())
 
         load = (
                 lines
