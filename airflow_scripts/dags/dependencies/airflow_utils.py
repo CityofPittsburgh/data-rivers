@@ -130,7 +130,6 @@ def reverse_geocode_latlong(lat, long):
     for row in result:
         data['neighborhood'] = row.neighborhood
         data['fire_zone'] = row.fire_zone
-        # TODO: fix problem with council_district geography table: change district values from string to int
         data['council_district'] = int(row.council_district)
         data['dpw_division'] = row.dpw_division
         data['ward'] = row.ward
