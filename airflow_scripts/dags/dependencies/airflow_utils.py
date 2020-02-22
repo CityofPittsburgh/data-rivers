@@ -7,9 +7,11 @@ from datetime import datetime, timedelta
 from google.cloud import bigquery, storage
 
 
-YESTERDAY = datetime.combine(datetime.today() - timedelta(1), datetime.min.time())
-WEEK_AGO = datetime.combine(datetime.today() - timedelta(7), datetime.min.time())
 dt = datetime.now()
+yesterday = datetime.combine(datetime.today() - timedelta(1), datetime.min.time())
+week_ago = datetime.combine(datetime.today() - timedelta(7), datetime.min.time())
+last_day_prev_month = dt.replace(day=1) - timedelta(days=1)
+first_day_prev_month = dt.replace(day=1) - timedelta(days=last_day_prev_month.day)
 
 GOOGLE_APPLICATION_CREDENTIALS = os.environ['GOOGLE_APPLICATION_CREDENTIALS']
 bq_client = bigquery.Client()

@@ -56,7 +56,7 @@ def run(argv=None):
 
         load = (
                 lines
-                | WriteToAvro(known_args.avro_output, schema=avro_schema, file_name_suffix='.avro', use_fastavro=True))
+                | WriteToAvro(known_args.avro_output, schema=avro_schema, file_name_suffix='.avro', use_fastavro=False))
 
 
 if __name__ == '__main__':
