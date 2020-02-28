@@ -11,12 +11,12 @@ from airflow.operators.python_operator import PythonOperator
 from airflow.utils.trigger_rule import TriggerRule
 from datetime import datetime, timedelta
 from dependencies import airflow_utils
-from dependencies.airflow_utils import YESTERDAY, dt
+from dependencies.airflow_utils import yesterday, dt
 
 
 default_args = {
     'depends_on_past': False,
-    'start_date': YESTERDAY,
+    'start_date': yesterday,
     'email': os.environ['EMAIL'],
     'email_on_failure': True,
     'email_on_retry': False,
@@ -33,7 +33,7 @@ default_args = {
 }
 
 dag = DAG(
-    'registered_businesses', default_args=default_args, schedule_interval=timedelta(days=1))
+    'registered_businesses', default_args=default_args, schedule_interval='@monthly')
 
 gcs_load_task = DockerOperator(
     task_id='registered_businesses_gcs',

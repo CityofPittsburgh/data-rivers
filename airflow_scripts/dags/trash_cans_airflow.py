@@ -14,7 +14,7 @@ from airflow.operators.python_operator import PythonOperator
 from airflow.utils.trigger_rule import TriggerRule
 from datetime import datetime, timedelta
 from dependencies import airflow_utils
-from dependencies.airflow_utils import YESTERDAY, dt
+from dependencies.airflow_utils import yesterday, dt
 
 
 #TODO: When Airflow 2.0 is released, upgrade the package, upgrade the virtualenv to Python3,
@@ -25,7 +25,7 @@ from dependencies.airflow_utils import YESTERDAY, dt
 
 default_args = {
     'depends_on_past': False,
-    'start_date': YESTERDAY,
+    'start_date': yesterday,
     'email': os.environ['EMAIL'],
     'email_on_failure': True,
     'email_on_retry': False,
@@ -38,7 +38,7 @@ default_args = {
 }
 
 dag = DAG(
-    'trash_cans', default_args=default_args, schedule_interval=timedelta(days=1))
+    'trash_cans', default_args=default_args, schedule_interval='@daily')
 
 gcs_load = DockerOperator(
     task_id='trash_cans_gcs_docker',
