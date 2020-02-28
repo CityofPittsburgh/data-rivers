@@ -76,77 +76,62 @@ def geocode_address(address):
     point = result[0]
     return point
 
-def latlong_to_point(lat, long):
-    return 'ST_GEOGPOINT({}, {})'.format(long, lat)
 
-
-def reverse_geocode_latlong(lat, long):
-    bq_client = bigquery.Client()
-    #TODO: figure out how to create temp table, not regular, and then access temp table in subsequent query
-    temp_table_query = """
-    CREATE OR REPLACE TABLE geography.point
-    (point GEOGRAPHY);
-    INSERT INTO geography.point
-    VALUES(ST_GEOGPOINT({}{}{}));
-    """.format(long, ',', lat)
-
-    temp_query = bq_client.query(temp_table_query)
-    result = temp_query.result()
-
-    rev_geo_query = """
-        SELECT
-          point.*,
-          neighborhoods.hood AS neighborhood,
-          council_districts.council_district,
-          wards.ward,
-          fire_zones.firezones AS fire_zone,
-          dpw_divisions.objectid AS dpw_division
-        FROM
-          geography.point AS point
-        JOIN
-          geography.neighborhoods
-        ON
-          ST_CONTAINS(neighborhoods.geometry, point.point)
-        JOIN
-          geography.council_districts
-        ON
-          ST_CONTAINS(council_districts.geometry, point.point)
-        JOIN
-          geography.wards
-        ON
-          ST_CONTAINS(wards.geometry, point.point)
-        JOIN
-          geography.fire_zones
-        ON
-          ST_CONTAINS(fire_zones.geometry, point.point)
-        JOIN
-          geography.dpw_divisions
-        ON
-          ST_CONTAINS(dpw_divisions.geometry, point.point)
+def build_revgeo_query(dataset, temp_table):
+    return f"""
+    SELECT
+        {temp_table}.*,
+        neighborhoods.hood AS neighborhood,
+        council_districts.council_district,
+        wards.ward,
+        fire_zones.firezones AS fire_zone,
+        police_zones.zone AS police_zone,
+        dpw_divisions.objectid AS dpw_division
+    FROM
+      `{os.environ['GCP_PROJECT']}.{dataset}.{temp_table}` AS {temp_table}
+    JOIN
+      `data-rivers.geography.neighborhoods` AS neighborhoods
+    ON
+      ST_CONTAINS(neighborhoods.geometry,
+        ST_GEOGPOINT({temp_table}.long,
+          {temp_table}.lat))
+    JOIN
+      `data-rivers.geography.council_districts` AS council_districts
+    ON
+      ST_CONTAINS(council_districts.geometry,
+        ST_GEOGPOINT({temp_table}.long,
+          {temp_table}.lat))
+    JOIN
+      `data-rivers.geography.wards` AS wards
+    ON
+      ST_CONTAINS(wards.geometry,
+        ST_GEOGPOINT({temp_table}.long,
+          {temp_table}.lat))
+    JOIN
+      `data-rivers.geography.fire_zones` AS fire_zones
+    ON
+      ST_CONTAINS(fire_zones.geometry,
+        ST_GEOGPOINT({temp_table}.long,
+          {temp_table}.lat))
+    JOIN
+      `data-rivers.geography.police_zones` AS police_zones
+    ON
+      ST_CONTAINS(police_zones.geometry,
+        ST_GEOGPOINT({temp_table}.long,
+          {temp_table}.lat))
+    JOIN
+      `data-rivers.geography.dpw_divisions` AS dpw_divisions
+    ON
+      ST_CONTAINS(dpw_divisions.geometry,
+        ST_GEOGPOINT({temp_table}.long,
+          {temp_table}.lat))
     """
-    query_job = bq_client.query(rev_geo_query)
-    result = query_job.result()
-    data = {}
-    for row in result:
-        data['neighborhood'] = row.neighborhood
-        data['fire_zone'] = row.fire_zone
-        data['council_district'] = int(row.council_district)
-        data['dpw_division'] = row.dpw_division
-        data['ward'] = row.ward
-    print(result)
-    return data
 
 
 def beam_cleanup_statement(bucket):
     return "if gsutil -q stat gs://{}/beam_output/*; then gsutil rm gs://{}/beam_output/**; else echo " \
            "no beam output; fi".format(bucket, bucket)
 
-
-def avsc_cleanup():
-    return "rm *.avsc"
-
-
-# def reverse_geocode_point(point):
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.INFO)

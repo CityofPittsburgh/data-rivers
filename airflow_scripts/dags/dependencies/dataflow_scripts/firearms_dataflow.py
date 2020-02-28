@@ -33,7 +33,6 @@ class ConvertToDicts(beam.DoFn):
             'rifle_count': clean_csv_int(rifle_count),
             'shotgun_count': clean_csv_int(shotgun_count),
             'other_count': clean_csv_int(other_count),
-            'police_zone': clean_csv_int(police_zone),
             'long': clean_csv_float(long),
             'lat': clean_csv_float(lat)
         }]
