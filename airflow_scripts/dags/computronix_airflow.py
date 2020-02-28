@@ -12,12 +12,12 @@ from airflow.contrib.operators.dataflow_operator import DataFlowPythonOperator
 from airflow.contrib.operators.gcp_container_operator import GKEPodOperator
 from airflow.operators.python_operator import PythonOperator
 from dependencies import airflow_utils
-from dependencies.airflow_utils import YESTERDAY, dt, bq_client, storage_client
+from dependencies.airflow_utils import yesterday, dt, bq_client, storage_client
 
 
 default_args = {
     'depends_on_past': False,
-    'start_date': YESTERDAY,
+    'start_date': yesterday,
     'email': os.environ['EMAIL'],
     'email_on_failure': True,
     'email_on_retry': False,
@@ -30,7 +30,7 @@ default_args = {
 }
 
 dag = DAG(
-    'computronix', default_args=default_args, schedule_interval=timedelta(days=1))
+    'computronix', default_args=default_args, schedule_interval='@daily')
 
 computronix_gcs = DockerOperator(
     task_id='computronix_gcs',

@@ -56,11 +56,24 @@ def get_schema(schema):
 
 
 def clean_csv_string(string):
-    return string.strip('"').strip()
+    try:
+        return string.strip('"').strip()
+    except ValueError:
+        return None
 
 
 def clean_csv_int(integer):
-    return int(integer.strip('"').strip())
+    try:
+        return int(integer.strip('"').strip())
+    except ValueError:
+        return None
+
+
+def clean_csv_float(num):
+    try:
+        return float(num)
+    except ValueError:
+        return None
 
 
 def normalize_address(address):
