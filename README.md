@@ -1,5 +1,5 @@
 # Data Rivers
-Apache Airflow + Beam ETL scripts for the City of Pittsburgh's Data Rivers project, orchestrated with Google Cloud Composer.
+Apache Airflow + Beam ETL scripts for the City of Pittsburgh's data pipelines, orchestrated with Google Cloud Composer.
 
 Requirements: Python 3.7.x, access to city GCP account, JSON file with Data Rivers service account key (stored in the project root as `data_rivers_key.json` but excluded from version control for security reasons via `.gitignore`)
 
