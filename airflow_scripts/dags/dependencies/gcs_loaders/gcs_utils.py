@@ -1,12 +1,3 @@
-<<<<<<< HEAD
-import os
-import ndjson
-import logging
-
-from datetime import datetime, timedelta
-from google.cloud import storage
-
-=======
 from __future__ import print_function
 
 import os
@@ -20,19 +11,15 @@ import re
 
 from datetime import datetime, timedelta
 from google.cloud import storage, dlp_v2
->>>>>>> 74a14db6899e04e390e0954ad7a708867852e1c2
 
-YESTERDAY = datetime.combine(datetime.today() - timedelta(1), datetime.min.time())
-WEEK_AGO = datetime.combine(datetime.today() - timedelta(7), datetime.min.time())
+
+yesterday = datetime.combine(datetime.today() - timedelta(1), datetime.min.time())
+week_ago = datetime.combine(datetime.today() - timedelta(7), datetime.min.time())
 now = datetime.now()
 
 GOOGLE_APPLICATION_CREDENTIALS = os.environ['GOOGLE_APPLICATION_CREDENTIALS']
 storage_client = storage.Client()
-<<<<<<< HEAD
 
-
-def json_to_gcs(path, json_response, bucket_name):
-=======
 dlp = dlp_v2.DlpServiceClient()
 project = os.environ['GCP_PROJECT']
 
@@ -106,20 +93,21 @@ def regex_filter(value):
 
 
 def json_to_gcs(path, json_object, bucket_name):
->>>>>>> 74a14db6899e04e390e0954ad7a708867852e1c2
     blob = storage.Blob(
         name=path,
         bucket=storage_client.get_bucket(bucket_name),
     )
     blob.upload_from_string(
         # dataflow needs newline-delimited json, so use ndjson
-<<<<<<< HEAD
-        data=ndjson.dumps(json_response),
-=======
         data=ndjson.dumps(json_object),
->>>>>>> 74a14db6899e04e390e0954ad7a708867852e1c2
         content_type='application/json',
         client=storage_client,
     )
     logging.info(
         'Successfully uploaded blob %r to bucket %r.', path, bucket_name)
+
+
+# bash command to convert shapefiles to .geojson:
+# for filename in ./*.shp; do mkdir -p geojson; ogr2ogr -f "GeoJSON" "./geojson/$filename.geojson" "$filename";done
+# TODO: wrap this into a helper function
+# TODO: helper to convert geojson -> json

@@ -82,7 +82,7 @@ def build_revgeo_query(dataset, temp_table):
     SELECT
         {temp_table}.*,
         neighborhoods.hood AS neighborhood,
-        council_districts.council_district,
+        council_districts.council AS council_district,
         wards.ward,
         fire_zones.firezones AS fire_zone,
         police_zones.zone AS police_zone,
@@ -128,20 +128,17 @@ def build_revgeo_query(dataset, temp_table):
     """
 
 
+def filter_old_values(dataset, temp_table, final_table, join_field):
+    return f"""
+    DELETE FROM `{os.environ['GCP_PROJECT']}.{dataset}.{final_table}` final
+    WHERE final.{join_field} IN (SELECT {join_field} FROM `{os.environ['GCP_PROJECT']}.{dataset}.{temp_table}`)
+    """
+
 def beam_cleanup_statement(bucket):
     return "if gsutil -q stat gs://{}/beam_output/*; then gsutil rm gs://{}/beam_output/**; else echo " \
            "no beam output; fi".format(bucket, bucket)
 
 
-<<<<<<< HEAD
-def avsc_cleanup():
-    return "rm *.avsc"
-
-
-# def reverse_geocode_point(point):
-
-=======
->>>>>>> 74a14db6899e04e390e0954ad7a708867852e1c2
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.INFO)
     run()
