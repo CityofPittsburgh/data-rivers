@@ -91,8 +91,7 @@ def run(argv=None):
         load = (
                 lines
                 | beam.ParDo(ConvertToDicts())
-                # | beam.ParDo(AddNormalizedAddress())
-                # TODO: ^add this step once we are on python3
+                | beam.ParDo(AddNormalizedAddress())
                 | beam.io.avroio.WriteToAvro(known_args.avro_output, schema=avro_schema, file_name_suffix='.avro', use_fastavro=True))
 
 
