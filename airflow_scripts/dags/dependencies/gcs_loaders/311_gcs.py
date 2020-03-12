@@ -2,19 +2,18 @@ import requests
 import logging
 import os
 
-from gcs_utils import YESTERDAY, now, storage_client, json_to_gcs, scrub_pii
+from gcs_utils import yesterday, now, storage_client, json_to_gcs
 
 
 bucket = '{}_311'.format(os.environ['GCS_PREFIX'])
-payload = {'key': os.environ['QALERT_KEY'], 'since': YESTERDAY.strftime('%s')}
+payload = {'key': os.environ['QALERT_KEY'], 'since': yesterday.strftime('%s')}
 # qscend requires a value (any value) for the user-agent field  ¯\_(ツ)_/¯
 headers = {'User-Agent': 'City of Pittsburgh ETL'}
 
+
 REQUEST_KEYS = ['id',
                 'master',
-                'addDate',
                 'addDateUnix',
-                'lastAction',
                 'lastActionUnix',
                 'dept',
                 'displayDate',
@@ -25,7 +24,6 @@ REQUEST_KEYS = ['id',
                 'streetNum',
                 'crossStreetId',
                 'crossStreetName',
-                'district',
                 'typeId',
                 'typeName',
                 'priorityValue',
@@ -35,8 +33,7 @@ REQUEST_KEYS = ['id',
                 'priorityToDisplay',
                 'resumeDate']
 
-ACTIVITY_KEYS = ['actDate',
-                 'actDateUnix',
+ACTIVITY_KEYS = ['actDateUnix',
                  'code',
                  'codeDesc',
                  'displayDate',

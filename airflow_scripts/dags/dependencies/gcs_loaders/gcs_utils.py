@@ -12,12 +12,14 @@ import re
 from datetime import datetime, timedelta
 from google.cloud import storage, dlp_v2
 
-YESTERDAY = datetime.combine(datetime.today() - timedelta(1), datetime.min.time())
-WEEK_AGO = datetime.combine(datetime.today() - timedelta(7), datetime.min.time())
+
+yesterday = datetime.combine(datetime.today() - timedelta(1), datetime.min.time())
+week_ago = datetime.combine(datetime.today() - timedelta(7), datetime.min.time())
 now = datetime.now()
 
 GOOGLE_APPLICATION_CREDENTIALS = os.environ['GOOGLE_APPLICATION_CREDENTIALS']
 storage_client = storage.Client()
+
 dlp = dlp_v2.DlpServiceClient()
 project = os.environ['GCP_PROJECT']
 
@@ -103,3 +105,9 @@ def json_to_gcs(path, json_object, bucket_name):
     )
     logging.info(
         'Successfully uploaded blob %r to bucket %r.', path, bucket_name)
+
+
+# bash command to convert shapefiles to .geojson:
+# for filename in ./*.shp; do mkdir -p geojson; ogr2ogr -f "GeoJSON" "./geojson/$filename.geojson" "$filename";done
+# TODO: wrap this into a helper function
+# TODO: helper to convert geojson -> json
