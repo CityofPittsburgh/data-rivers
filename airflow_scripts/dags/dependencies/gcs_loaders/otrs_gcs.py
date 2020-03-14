@@ -12,7 +12,8 @@ bucket = '{}_otrs'.format(os.environ['GCS_PREFIX'])
 
 startTime = datetime.now()
 
-OTRScon = MySQLdb.connect(host='10.1.0.97', user='OTRSReport', passwd='OTRSReport', db='otrs')
+OTRScon = MySQLdb.connect(host=os.envrion['OTRS_IP'], user=os.environ['OTRS_USER'], passwd=os.environ['OTRS_PW'],
+                          db='otrs')
 
 cursor_master = OTRScon.cursor()
 
