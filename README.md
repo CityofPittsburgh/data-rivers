@@ -39,3 +39,5 @@ Lastly, you'll need the Data Rivers service account key (stored as `data_rivers_
 Write tests for every new Dataflow script. You can execute the entire test suite by running `pytest` from the project root (please do so before making any new pull requests).
 
 Travis integration = work in progress
+
+THIS IS A TEST -- DELETE LATER
