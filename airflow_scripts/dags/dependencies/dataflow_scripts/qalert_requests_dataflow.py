@@ -19,6 +19,33 @@ from datetime import datetime
 
 from dataflow_utils import generate_args, get_schema, JsonCoder
 
+
+class GetStatus(beam.DoFn):
+    def process(self, datum):
+        status = ''
+        if datum['status'] == 0:
+            status = 'open'
+        elif datum['status'] == 1:
+            status = 'closed'
+        elif datum['status'] == 3:
+            status == 'in progress'
+        elif datum['status'] == 4:
+            status = 'on hold'
+        else:
+            pass
+        datum['status'] = status
+        yield datum
+
+
+class CleanLatLong(beam.DoFn):
+    def process(self, datum):
+        datum['lat'] = datum['latitude']
+        datum['long'] = datum['longitude']
+        datum.pop('latitude')
+        datum.pop('longitude')
+        yield datum
+
+
 def run(argv=None):
     dt = datetime.now()
     parser = argparse.ArgumentParser()
@@ -56,6 +83,8 @@ def run(argv=None):
 
         load = (
                 lines
+                | beam.ParDo(GetStatus())
+                | beam.ParDo(CleanLatLong())
                 | WriteToAvro(known_args.avro_output, schema=avro_schema, file_name_suffix='.avro', use_fastavro=True))
 
 
