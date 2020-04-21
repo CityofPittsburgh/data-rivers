@@ -17,7 +17,7 @@ from apache_beam.options.pipeline_options import SetupOptions
 from avro import schema
 
 from datetime import datetime
-from dataflow_utils import get_schema, clean_csv_int, clean_csv_string, generate_args, normalize_address_record
+from dataflow_utils import get_schema, clean_csv_int, clean_csv_string, clean_csv_float, clean_csv_boolean, generate_args, normalize_address_record
 
 class ConvertToDicts(beam.DoFn):
     def process(self, datum):
@@ -52,11 +52,11 @@ class ConvertToDicts(beam.DoFn):
             'priority': clean_csv_string(priority),
             'comm_article': clean_csv_int(comm_article),
             'subject': clean_csv_string(subject),
-            'email': email,
-            'success': success,
+            'email': clean_csv_boolean(email),
+            'success': clean_csv_boolean(success),
             'removed': clean_csv_int(removed),
-            'closed.HD': closed.HD,
-            'closed': closed,
+            'closed.HD': clean_csv_boolean(closed.HD),
+            'closed': clean_csv_boolean(closed),
             'last.action': clean_csv_string(last.action),
             'survey.sent': clean_csv_int(survey.sent),
             'survey.response': clean_csv_int(survey.response),
@@ -86,7 +86,7 @@ class ConvertToDicts(beam.DoFn):
             'same_com_time': same_com_time,
             'last_move.time': clean_csv_string(last_move.time),
             'cur_owner.time': clean_csv_string(cur_owner.time),
-            'open': open,
+            'open': clean_csv_boolean(open),
             'create.hour': clean_csv_int(create.hour),
             'closed.date': clean_csv_string(closed.date),
             'create.date': clean_csv_string(create.date),
@@ -96,8 +96,8 @@ class ConvertToDicts(beam.DoFn):
             'week.open': clean_csv_string(week.open),
             'week.closed': clean_csv_string(week.closed),
             'andon.flag': clean_csv_int(andon.flag),
-            'sd_esc': sd_esc,
-            't1_esc': t1_esc,
+            'sd_esc': clean_csv_boolean(sd_esc),
+            't1_esc': clean_csv_boolean(t1_esc),
             'year': clean_csv_string(year),
             'create.weekday': clean_csv_string(create.weekday),
             'days.open': clean_csv_int(days.open),
