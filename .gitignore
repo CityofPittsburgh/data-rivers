@@ -116,3 +116,4 @@ airflow.cfg
 .DS_Store
 data_rivers_key.json
 *.log
+list/*
