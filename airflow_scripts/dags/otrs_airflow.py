@@ -52,7 +52,8 @@ gcs_otrs_csv = DockerOperator(
         'OTRS_IP': os.environ['OTRS_IP'],
         'OTRS_USER': os.environ['OTRS_USER'],
         'OTRS_PW': os.environ['OTRS_PW'],
-        'GCS_AUTH_FILE': '/root/otrs_gcs/data_rivers_key.json'
+        'GCS_AUTH_FILE': '/root/otrs_gcs/data_rivers_key.json',
+        'GCS_PRFIX': os.environ['GCS_PREFIX']
     },
     dag=dag
 )
@@ -103,12 +104,13 @@ otrs_surveys_bq = GoogleCloudStorageToBigQueryOperator(
     dag=dag
 )
 
-beam_cleanup = BashOperator(
+
+otrs_beam_cleanup = BashOperator(
     task_id='otrs_beam_cleanup',
     bash_command=airflow_utils.beam_cleanup_statement('{}_otrs'.format(os.environ['GCS_PREFIX'])),
     dag=dag
 )
 
-accela_to_gcs >> gcs_otrs_csv >> otrs_tickets_dataflow >> (otrs_tickets_bq, beam_cleanup)
+accela_to_gcs >> gcs_otrs_csv >> otrs_tickets_dataflow >> (otrs_tickets_bq, otrs_beam_cleanup)
 
-accela_to_gcs >> gcs_otrs_csv >> otrs_surveys_dataflow >> (otrs_surveys_bq, beam_cleanup)
+#accela_to_gcs >> gcs_otrs_csv >> otrs_surveys_dataflow >> (otrs_surveys_bq, otrs_beam_cleanup)
