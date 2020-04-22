@@ -17,7 +17,7 @@ from apache_beam.options.pipeline_options import SetupOptions
 from avro import schema
 
 from datetime import datetime
-from dataflow_utils import get_schema, clean_csv_int, clean_csv_string, clean_csv_boolean, generate_args, normalize_address_record
+from dataflow_utils import get_schema, clean_csv_int, clean_csv_string, generate_args, normalize_address_record
 
 class ConvertToDicts(beam.DoFn):
     def process(self, datum):

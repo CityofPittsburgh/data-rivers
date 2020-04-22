@@ -4,6 +4,7 @@ import os
 
 from airflow import DAG, configuration, models
 from airflow.operators.bash_operator import BashOperator
+from airflow.operators.docker_operator import DockerOperator
 from airflow.contrib.operators.dataflow_operator import DataFlowPythonOperator
 from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOperator
 from airflow.contrib.operators.bigquery_operator import BigQueryOperator
@@ -33,7 +34,7 @@ default_args = {
 }
 
 dag = DAG(
-    'qalert', default_args=default_args, schedule_interval=timedelta(days=1))
+    'otrs', default_args=default_args, schedule_interval=timedelta(days=1))
 
 accela_to_gcs = BashOperator(
     task_id='accla_gcs',
@@ -58,20 +59,27 @@ gcs_otrs_csv = DockerOperator(
 
 ## two dataflow for tickets and surveys (similar to finance)
 
-qalert_activities_dataflow = BashOperator(
-    task_id='qalert_activities_dataflow',
+otrs_tickets_dataflow = BashOperator(
+    task_id='otrs_tickets_dataflow',
     bash_command='python {}'.format(os.getcwd() + '/airflow_scripts/dags/dependencies/dataflow_scripts'
-                                                  '/qalert_activities_dataflow.py'),
+                                                  '/otrs_tickets_dataflow.py'),
+    dag=dag
+)
+
+otrs_surveys_dataflow = BashOperator(
+    task_id='otrs_surveys_dataflow',
+    bash_command='python {}'.format(os.getcwd() + '/airflow_scripts/dags/dependencies/dataflow_scripts'
+                                                  '/otrs_surveys_dataflow.py'),
     dag=dag
 )
 
 ## two avro files pushing to bigquery
 
-qalert_activities_bq = GoogleCloudStorageToBigQueryOperator(
-    task_id='qalert_activities_bq',
-    destination_project_dataset_table='{}:311.activities'.format(os.environ['GCP_PROJECT']),
-    bucket='{}_311'.format(os.environ['GCS_PREFIX']),
-    source_objects=["activities/avro_output/{}/{}/{}/*.avro".format(dt.strftime('%Y'),
+otrs_tickets_bq = GoogleCloudStorageToBigQueryOperator(
+    task_id='otrs_tickets_bq',
+    destination_project_dataset_table='{}:otrs.tickets'.format(os.environ['GCP_PROJECT']),
+    bucket='{}_otrs'.format(os.environ['GCS_PREFIX']),
+    source_objects=["tickets/avro_output/{}/{}/{}/*.avro".format(dt.strftime('%Y'),
                                                                     dt.strftime('%m').lower(),
                                                                     dt.strftime("%Y-%m-%d"))],
     write_disposition='WRITE_APPEND',
@@ -81,11 +89,11 @@ qalert_activities_bq = GoogleCloudStorageToBigQueryOperator(
     dag=dag
 )
 
-qalert_requests_bq = GoogleCloudStorageToBigQueryOperator(
-    task_id='qalert_requests_bq',
-    destination_project_dataset_table='{}:311.requests_temp'.format(os.environ['GCP_PROJECT']),
-    bucket='{}_311'.format(os.environ['GCS_PREFIX']),
-    source_objects=["requests/avro_output/{}/{}/{}/*.avro".format(dt.strftime('%Y'),
+otrs_surveys_bq = GoogleCloudStorageToBigQueryOperator(
+    task_id='otrs_surveys_bq',
+    destination_project_dataset_table='{}:otrs.surveys'.format(os.environ['GCP_PROJECT']),
+    bucket='{}_otrs'.format(os.environ['GCS_PREFIX']),
+    source_objects=["surveys/avro_output/{}/{}/{}/*.avro".format(dt.strftime('%Y'),
                                                                   dt.strftime('%m').lower(),
                                                                   dt.strftime("%Y-%m-%d"))],
     write_disposition='WRITE_APPEND',
@@ -94,3 +102,13 @@ qalert_requests_bq = GoogleCloudStorageToBigQueryOperator(
     time_partitioning={'type': 'DAY'},
     dag=dag
 )
+
+beam_cleanup = BashOperator(
+    task_id='otrs_beam_cleanup',
+    bash_command=airflow_utils.beam_cleanup_statement('{}_otrs'.format(os.environ['GCS_PREFIX'])),
+    dag=dag
+)
+
+accela_to_gcs >> gcs_otrs_csv >> otrs_tickets_dataflow >> (otrs_tickets_bq, beam_cleanup)
+
+accela_to_gcs >> gcs_otrs_csv >> otrs_surveys_dataflow >> (otrs_surveys_bq, beam_cleanup)
