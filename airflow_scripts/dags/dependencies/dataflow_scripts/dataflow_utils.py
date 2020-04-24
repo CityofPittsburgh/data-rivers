@@ -4,10 +4,12 @@ import os
 import re
 import json
 
+from datetime import datetime
 from scourgify import normalize_address_record, exceptions
 from avro import schema
 from google.cloud import bigquery, storage
 
+dt = datetime.now()
 bq_client = bigquery.Client()
 storage_client = storage.Client()
 SETUP_FILE = os.path.join('../', 'setup.py')
