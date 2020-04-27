@@ -53,7 +53,7 @@ gcs_otrs_csv = DockerOperator(
         'OTRS_USER': os.environ['OTRS_USER'],
         'OTRS_PW': os.environ['OTRS_PW'],
         'GCS_AUTH_FILE': '/root/otrs_gcs/data_rivers_key.json',
-        'GCS_PRFIX': os.environ['GCS_PREFIX']
+        'GCS_PREFIX': os.environ['GCS_PREFIX']
     },
     dag=dag
 )
