@@ -22,7 +22,7 @@ from dataflow_utils import get_schema, clean_csv_int, clean_csv_string, generate
 class ConvertToDicts(beam.DoFn):
     def process(self, datum):
 
-        ticket_id, send_time, vote_time, communication, resolution, comment
+        ticket_id, send_time, vote_time, communication, resolution, comment = datum.split(',')
 
         return [{
             'ticket_id': clean_csv_int(ticket_id),

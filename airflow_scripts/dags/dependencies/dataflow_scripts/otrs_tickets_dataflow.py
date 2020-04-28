@@ -31,7 +31,7 @@ class ConvertToDicts(beam.DoFn):
         first_com, recent_com, same_com_time, last_move.time, cur_owner.time, open, create.hour, closed.date, create.date, \
         month.open, month.closed, year.open, week.open, week.closed, andon.flag, sd_esc, t1_esc, year, create.weekday, \
         days.open, hrs.own, hrs.update, hrs.triage, hrs.assign, hrs.res, hrs.com, hrs.first_com, team, hyperlink, count, \
-        state.new 
+        state.new = datum.split(',')
 
         return [{
             'ticket_id': clean_csv_int(ticket_id),
@@ -157,7 +157,6 @@ def run(argv=None):
         load = (
                 lines
                 | beam.ParDo(ConvertToDicts())
-                | beam.ParDo(AddNormalizedAddress())
                 | beam.io.avroio.WriteToAvro(known_args.avro_output, schema=avro_schema, file_name_suffix='.avro', use_fastavro=True))
 
 
