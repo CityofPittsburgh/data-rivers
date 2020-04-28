@@ -75,7 +75,6 @@ def run(argv=None):
         load = (
                 lines
                 | beam.ParDo(ConvertToDicts())
-                | beam.ParDo(AddNormalizedAddress())
                 | beam.io.avroio.WriteToAvro(known_args.avro_output, schema=avro_schema, file_name_suffix='.avro', use_fastavro=True))
 
 
