@@ -27,7 +27,7 @@ class ConvertToDicts(beam.DoFn):
         owner, responsible, closed.by, ticket.state, cust.dept, cust.name, priority, comm_article, subject, email, \
         success, removed, closed.HD, closed, last.action, survey.sent, survey.response, enter.andon, enter.default, \
         enter.dr, enter.fq, enter.na, enter.servicedesk, enter.staging, enter.t1, last.andon, last.default, last.dr, \
-        last.fq, last.na, last.servicedesk, last.staging, last.t1, start.delivery, enter.ordering, last.ordering, moves, \
+        last.fq, last.na, last.servicedesk, last.staging, last.t1, start.inventory, start.delivery, enter.ordering, last.ordering, moves, \
         first_com, recent_com, same_com_time, last_move.time, cur_owner.time, open, create.hour, closed.date, create.date, \
         month.open, month.closed, year.open, week.open, week.closed, andon.flag, sd_esc, t1_esc, year, create.weekday, \
         days.open, hrs.own, hrs.update, hrs.triage, hrs.assign, hrs.res, hrs.com, hrs.first_com, team, hyperlink, count, \
@@ -43,7 +43,7 @@ class ConvertToDicts(beam.DoFn):
             'created.by': clean_csv_int(created.by),
             'change.time': clean_csv_string(change.time),
             'closed.time': clean_csv_string(closed.time),
-            'final_queue': clean_csv_int(final_queue),
+            'final.queue': clean_csv_int(final.queue),
             'owner': clean_csv_string(owner),
             'responsible': clean_csv_string(responsible),
             'closed.by': clean_csv_int(closed.by),
@@ -61,7 +61,7 @@ class ConvertToDicts(beam.DoFn):
             'last.action': clean_csv_string(last.action),
             'survey.sent': clean_csv_int(survey.sent),
             'survey.response': clean_csv_int(survey.response),
-            'enter.andon': clean_csv_survey(enter.andon),
+            'enter.andon': clean_csv_string(enter.andon),
             'enter.default': clean_csv_string(enter.default),
             'enter.dr': clean_csv_string(enter.dr),
             'enter.fq': clean_csv_string(enter.fq),
@@ -84,7 +84,7 @@ class ConvertToDicts(beam.DoFn):
             'moves': clean_csv_int(moves),
             'first_com': clean_csv_string(first_com),
             'recent_com': clean_csv_string(recent_com),
-            'same_com_time': same_com_time,
+            'same_com_time': clean_csv_boolean(same_com_time),
             'last_move.time': clean_csv_string(last_move.time),
             'cur_owner.time': clean_csv_string(cur_owner.time),
             'open': clean_csv_boolean(open),

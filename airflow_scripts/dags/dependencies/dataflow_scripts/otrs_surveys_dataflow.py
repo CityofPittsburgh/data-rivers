@@ -26,11 +26,11 @@ class ConvertToDicts(beam.DoFn):
 
         return [{
             'ticket_id': clean_csv_int(ticket_id),
-            'send_time': clean_csv_string(name),
-            'vote_time': clean_csv_string(ticket_num),
-            'communication': clean_csv_int(service),
-            'resolution': clean_csv_int(type),
-            'comment': clean_csv_string(create.time)
+            'send_time': clean_csv_string(send_time),
+            'vote_time': clean_csv_string(vote_time),
+            'communication': clean_csv_int(communication),
+            'resolution': clean_csv_int(resolution),
+            'comment': clean_csv_string(comment)
         }]
 
 
