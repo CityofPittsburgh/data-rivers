@@ -36,15 +36,15 @@ default_args = {
 dag = DAG(
     'otrs', default_args=default_args, schedule_interval=timedelta(days=1))
 
-accela_to_gcs = BashOperator(
-    task_id='accla_gcs',
+otrs_to_gcs = BashOperator(
+    task_id='otrs_to_gcs',
     bash_command='python {}'.format(os.getcwd() + '/airflow_scripts/dags/dependencies/gcs_loaders'
                                                   '/otrs_gcs.py'),
     dag=dag
 )
 
-gcs_otrs_csv = DockerOperator(
-    task_id='gcs_otrs_csv',
+gcs_to_csv = DockerOperator(
+    task_id='gcs_to_csv',
     image='gcr.io/data-rivers/pgh-otrs',
     api_version='auto',
     auto_remove=True,
@@ -111,6 +111,6 @@ otrs_beam_cleanup = BashOperator(
     dag=dag
 )
 
-accela_to_gcs >> gcs_otrs_csv >> otrs_tickets_dataflow >> (otrs_tickets_bq, otrs_beam_cleanup)
+otrs_to_gcs >> gcs_to_csv >> otrs_tickets_dataflow >> (otrs_tickets_bq, otrs_beam_cleanup)
 
-accela_to_gcs >> gcs_otrs_csv >> otrs_surveys_dataflow >> (otrs_surveys_bq, otrs_beam_cleanup)
+otrs_to_gcs >> gcs_to_csv >> otrs_surveys_dataflow >> (otrs_surveys_bq, otrs_beam_cleanup)
