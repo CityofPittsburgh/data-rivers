@@ -17,22 +17,7 @@ from apache_beam.options.pipeline_options import SetupOptions
 from avro import schema
 
 from datetime import datetime
-from dataflow_utils import get_schema, clean_csv_int, clean_csv_string, generate_args, normalize_address_record
-
-class ConvertToDicts(beam.DoFn):
-    def process(self, datum):
-
-        ticket_id, send_time, vote_time, communication, resolution, comment = datum.split(',')
-
-        return [{
-            'ticket_id': clean_csv_int(ticket_id),
-            'send_time': clean_csv_string(send_time),
-            'vote_time': clean_csv_string(vote_time),
-            'communication': clean_csv_int(communication),
-            'resolution': clean_csv_int(resolution),
-            'comment': clean_csv_string(comment)
-        }]
-
+from dataflow_utils import get_schema, generate_args, JsonCoder
 
 def run(argv=None):
     dt = datetime.now()
@@ -40,7 +25,7 @@ def run(argv=None):
 
     parser.add_argument('--input',
                         dest='input',
-                        default='gs://{}_otrs/surveys/{}/{}/{}_survey_final.csv'
+                        default='gs://{}_otrs/surveys/{}/{}/{}_survey_final.json'
                                 .format(os.environ['GCS_PREFIX'],
                                         dt.strftime('%Y'),
                                         dt.strftime('%m').lower(),
@@ -70,11 +55,10 @@ def run(argv=None):
 
     with beam.Pipeline(options=pipeline_options) as p:
         # Read the text file[pattern] into a PCollection.
-        lines = p | ReadFromText(known_args.input, skip_header_lines=1)
+        lines = p | ReadFromText(known_args.input, coder = JsonCoder())
 
         load = (
                 lines
-                | beam.ParDo(ConvertToDicts())
                 | beam.io.avroio.WriteToAvro(known_args.avro_output, schema=avro_schema, file_name_suffix='.avro', use_fastavro=True))
 
 
