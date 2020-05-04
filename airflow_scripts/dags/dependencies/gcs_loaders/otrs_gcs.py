@@ -91,7 +91,7 @@ with open('master.csv', 'w') as csv_file:
     csv_writer.writerow([i[0] for i in cursor_master.description])  # write headers
     csv_writer.writerows(cursor_master)
 
-upload_file_gcs(bucket, 'master.csv', '{}/{}/{}_master.csv'.format(now.strftime('%Y'), now.strftime('%m').lower(),
+upload_file_gcs(bucket, 'master.csv', 'tickets/{}/{}/{}_master.csv'.format(now.strftime('%Y'), now.strftime('%m').lower(),
                                                                    now.strftime('%Y-%m-%d')))
 cursor_master.close()
 
@@ -107,7 +107,7 @@ with open('move_count.csv', 'w') as csv_file:
     csv_writer.writerow([i[0] for i in cursor_moves.description])
     csv_writer.writerows(cursor_moves)
 
-upload_file_gcs(bucket, 'move_count.csv', '{}/{}/{}_move_count.csv'.format(now.strftime('%Y'),
+upload_file_gcs(bucket, 'move_count.csv', 'tickets/{}/{}/{}_move_count.csv'.format(now.strftime('%Y'),
                                                                            now.strftime('%m').lower(),
                                                                            now.strftime('%Y-%m-%d')))
 
@@ -134,7 +134,7 @@ with open('owner_time.csv', 'w') as csv_file:
     csv_writer.writerow([i[0] for i in cursor_owner.description])
     csv_writer.writerows(cursor_owner)
 
-upload_file_gcs(bucket, 'owner_time.csv', '{}/{}/{}_owner_time.csv'.format(now.strftime('%Y'),
+upload_file_gcs(bucket, 'owner_time.csv', 'tickets/{}/{}/{}_owner_time.csv'.format(now.strftime('%Y'),
                                                                             now.strftime('%m').lower(),
                                                                             now.strftime('%Y-%m-%d')))
 cursor_owner.close()
@@ -184,7 +184,7 @@ with open('survey_responses.csv', 'w') as csv_file:
     csv_writer.writerow([i[0] for i in cursor_survey.description])
     csv_writer.writerows(cursor_survey)
 
-upload_file_gcs(bucket, 'survey_responses.csv', '{}/{}/{}_survey_responses.csv'.format(now.strftime('%Y'),
+upload_file_gcs(bucket, 'survey_responses.csv', 'surveys/{}/{}/{}_survey_responses.csv'.format(now.strftime('%Y'),
                                                                                        now.strftime('%m').lower(),
                                                                                        now.strftime('%Y-%m-%d')))
 cursor_survey.close()
@@ -222,7 +222,7 @@ with open('survey_responses_2.csv', 'w') as csv_file:
     csv_writer.writerow([i[0] for i in cursor_survey2.description])
     csv_writer.writerows(cursor_survey2)
 
-upload_file_gcs(bucket, 'survey_responses_2.csv', '{}/{}/{}_survey_responses_2.csv'.format(now.strftime('%Y'),
+upload_file_gcs(bucket, 'survey_responses_2.csv', 'surveys/{}/{}/{}_survey_responses_2.csv'.format(now.strftime('%Y'),
                                                                                          now.strftime('%m').lower(),
                                                                                          now.strftime('%Y-%m-%d')))
 cursor_survey2.close()
@@ -256,7 +256,7 @@ with open('ticket_history.csv', 'w') as csv_file:
     csv_writer.writerow([i[0] for i in cursor_history.description])  # write headers
     csv_writer.writerows(cursor_history)
 
-upload_file_gcs(bucket, 'ticket_history.csv', '{}/{}/{}_ticket_history.csv'.format(now.strftime('%Y'),
+upload_file_gcs(bucket, 'ticket_history.csv', 'tickets/{}/{}/{}_ticket_history.csv'.format(now.strftime('%Y'),
                                                                                    now.strftime('%m').lower(),
                                                                                    now.strftime('%Y-%m-%d')))
 cursor_history.close()
@@ -290,7 +290,7 @@ with open('comm_times.csv', 'w') as csv_file:
     csv_writer.writerow([i[0] for i in cursor_comms.description])  # write headers
     csv_writer.writerows(cursor_comms)
 
-upload_file_gcs(bucket, 'comm_times.csv', '{}/{}/{}_comm_times.csv'.format(now.strftime('%Y'), now.strftime('%m').lower(),
+upload_file_gcs(bucket, 'comm_times.csv', 'tickets/{}/{}/{}_comm_times.csv'.format(now.strftime('%Y'), now.strftime('%m').lower(),
                                                                        now.strftime('%Y-%m-%d')))
 
 cursor_comms.close()
