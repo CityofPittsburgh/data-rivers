@@ -1,7 +1,7 @@
-apache-airflow[postgres,gcp]==1.10.7
+apache-airflow[postgres,gcp]==1.10.10
 apache-beam[gcp]==2.18.0
 avro==1.9.1
-Cython==0.29.16
+Cython==0.29.17
 dill==0.3.1.1
 docker==4.1.0
 fastavro==0.21.4
