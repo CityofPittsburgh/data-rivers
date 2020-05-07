@@ -41,7 +41,6 @@ class TrashCansDataFlowTest(unittest.TestCase):
         }]
         self.assertEqual(expected, self.converted)
 
-
     def test_schema(self):
         self.assertTrue(validate(self.converted[0], self.SCHEMA))
 

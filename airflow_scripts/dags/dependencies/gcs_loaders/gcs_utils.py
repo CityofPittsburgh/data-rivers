@@ -1,10 +1,8 @@
 from __future__ import print_function
 
 import os
-import sys
 import json
 import ndjson
-import math
 import logging
 import time
 import re
