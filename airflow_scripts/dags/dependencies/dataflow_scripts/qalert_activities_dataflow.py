@@ -1,23 +1,18 @@
 from __future__ import absolute_import
 
 import argparse
-import json
 import logging
 import os
+from datetime import datetime
 
 import apache_beam as beam
-import avro
-import fastavro
-import dataflow_utils
-
 from apache_beam.io import ReadFromText
 from apache_beam.io.avroio import WriteToAvro
 from apache_beam.options.pipeline_options import PipelineOptions
-from apache_beam.options.pipeline_options import SetupOptions
-from avro import schema
-from datetime import datetime
 
-from dataflow_utils import generate_args, get_schema, JsonCoder
+from dataflow_utils import dataflow_utils
+from dataflow_utils.dataflow_utils import generate_args, get_schema, JsonCoder
+
 
 def run(argv=None):
     dt = datetime.now()
@@ -40,11 +35,10 @@ def run(argv=None):
 
     known_args, pipeline_args = parser.parse_known_args(argv)
 
-    #TODO: run on on-prem network when route is opened
-    # Use runner=DataflowRunner to run in GCP environment, DirectRunner to run locally
+    # Use runner=DirectRunner for rapid development locally if needed
     pipeline_args.extend(generate_args('qalert-activity-dataflow',
                                        '{}_311'.format(os.environ['GCS_PREFIX']),
-                                       'DirectRunner'))
+                                       'DataflowRunner'))
 
     avro_schema = get_schema('City_of_Pittsburgh_QAlert_Activities')
 

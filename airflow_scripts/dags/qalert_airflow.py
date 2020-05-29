@@ -42,6 +42,13 @@ qalert_gcs = BashOperator(
     dag=dag
 )
 
+# qalert_requests_dataflow = DataFlowPythonOperator(
+#     task_id='qalert_requests_dataflow',
+#     job_name='qalert_requests_dataflow',
+#     py_file=os.getcwd() + '/airflow_scripts/dags/dependencies/dataflow_scripts/qalert_requests_dataflow.py',
+#     dag=dag
+# )
+
 qalert_requests_dataflow = BashOperator(
     task_id='qalert_requests_dataflow',
     bash_command='python {}'.format(os.getcwd() + '/airflow_scripts/dags/dependencies/dataflow_scripts'
@@ -52,9 +59,16 @@ qalert_requests_dataflow = BashOperator(
 qalert_activities_dataflow = BashOperator(
     task_id='qalert_activities_dataflow',
     bash_command='python {}'.format(os.getcwd() + '/airflow_scripts/dags/dependencies/dataflow_scripts'
-                                                  '/qalert_activities_dataflow.py'),
+                                                  '/qalert_requests_dataflow.py'),
     dag=dag
 )
+
+# qalert_activities_dataflow = DataFlowPythonOperator(
+#     task_id='qalert_activities_dataflow',
+#     job_name='qalert_activities_dataflow',
+#     py_file=os.getcwd() + '/airflow_scripts/dags/dependencies/dataflow_scripts/qalert_activities_dataflow.py',
+#     dag=dag
+# )
 
 qalert_activities_bq = GoogleCloudStorageToBigQueryOperator(
     task_id='qalert_activities_bq',
