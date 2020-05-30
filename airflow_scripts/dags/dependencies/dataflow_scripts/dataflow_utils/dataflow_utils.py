@@ -5,22 +5,20 @@ import re
 import json
 from datetime import datetime
 
-# from scourgify import normalize_address_record, exceptions
+from scourgify import normalize_address_record, exceptions
 from avro import schema
 from google.cloud import bigquery, storage
 
 dt = datetime.now()
 bq_client = bigquery.Client()
 storage_client = storage.Client()
-SETUP_FILE = os.path.join('./', 'setup.py')
 
 DEFAULT_DATAFLOW_ARGS = [
     '--project=data-rivers',
     '--subnetwork=https://www.googleapis.com/compute/v1/projects/data-rivers/regions/us-east1/subnetworks/default',
     '--region=us-east1',
     '--service_account_email=data-rivers@data-rivers.iam.gserviceaccount.com',
-    '--setup_file={}'.format(SETUP_FILE),
-    '--save_main_session'
+    '--save_main_session',
 ]
 
 
@@ -88,24 +86,24 @@ def clean_csv_boolean(boolean):
         return None
 
 
-# def normalize_address(address):
-#     text2number = {"ZERO": "0", "ONE": "1", "TWO": "2", "THREE": "3", "FOUR": "4", "FIVE": "5", "SIX": "6",
-#                    "SEVEN": "7",
-#                    "EIGHT": "8", "NINE": "9", "TEN": "10", "FIRST": "1ST", "SECOND": "2ND", "THIRD": "3RD",
-#                    "FOURTH": "4TH",
-#                    "FIFTH": "5TH", "SIXTH": "6TH", "SEVENTH": "7TH", "EIGHTH": "8TH", "NINTH": "9TH", "TENTH": "10TH"}
-#     try:
-#         normalized_string = ""
-#         pattern = re.compile(r'\b(' + '|'.join(text2number.keys()) + r')\b')
-#         address_num = pattern.sub(lambda x: text2number[x.group()], address)
-#         normalized_dict = normalize_address_record(address_num)
-#         for k, v in normalized_dict.items():
-#             if v:
-#                 normalized_string += (str(v) + ' ')
-#         normalized_string = normalized_string.strip()
-#         return normalized_string
-#     except exceptions.UnParseableAddressError:  # use original address if unparseable
-#         return address
+def normalize_address(address):
+    text2number = {"ZERO": "0", "ONE": "1", "TWO": "2", "THREE": "3", "FOUR": "4", "FIVE": "5", "SIX": "6",
+                   "SEVEN": "7",
+                   "EIGHT": "8", "NINE": "9", "TEN": "10", "FIRST": "1ST", "SECOND": "2ND", "THIRD": "3RD",
+                   "FOURTH": "4TH",
+                   "FIFTH": "5TH", "SIXTH": "6TH", "SEVENTH": "7TH", "EIGHTH": "8TH", "NINTH": "9TH", "TENTH": "10TH"}
+    try:
+        normalized_string = ""
+        pattern = re.compile(r'\b(' + '|'.join(text2number.keys()) + r')\b')
+        address_num = pattern.sub(lambda x: text2number[x.group()], address)
+        normalized_dict = normalize_address_record(address_num)
+        for k, v in normalized_dict.items():
+            if v:
+                normalized_string += (str(v) + ' ')
+        normalized_string = normalized_string.strip()
+        return normalized_string
+    except exceptions.UnParseableAddressError:  # use original address if unparseable
+        return address
 
 
 class JsonCoder(object):

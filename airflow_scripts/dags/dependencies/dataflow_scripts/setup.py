@@ -1,7 +1,7 @@
 import setuptools
 
 REQUIRED_PACKAGES = [
-    # 'usaddress-scourgify==0.1.11',
+    'usaddress-scourgify==0.1.11',
     'google-cloud-storage==1.28.1',
 ]
 

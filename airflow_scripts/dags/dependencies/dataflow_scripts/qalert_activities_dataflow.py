@@ -40,6 +40,8 @@ def run(argv=None):
                                        '{}_311'.format(os.environ['GCS_PREFIX']),
                                        'DataflowRunner'))
 
+    pipeline_args.append('--setup_file={}'.format(os.environ['SETUP_PY_DATAFLOW']))
+
     avro_schema = get_schema('City_of_Pittsburgh_QAlert_Activities')
 
     pipeline_options = PipelineOptions(pipeline_args)
