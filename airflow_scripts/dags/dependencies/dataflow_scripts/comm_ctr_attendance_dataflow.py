@@ -5,13 +5,12 @@ import logging
 import os
 
 import apache_beam as beam
-import dataflow_utils
-
 from apache_beam.io import ReadFromText
 from apache_beam.io.avroio import WriteToAvro
 from apache_beam.options.pipeline_options import PipelineOptions
 
-from dataflow_utils import clean_csv_int, clean_csv_string, generate_args, get_schema, dt
+from dataflow_utils import dataflow_utils
+from dataflow_utils.dataflow_utils import clean_csv_int, clean_csv_string, generate_args, get_schema, dt
 
 
 class ConvertToDicts(beam.DoFn):
@@ -51,7 +50,9 @@ def run(argv=None):
     # Use runner=DataflowRunner to run in GCP environment, DirectRunner to run locally
     pipeline_args.extend(generate_args('comm-ctr-attendance-dataflow',
                                        '{}_community_centers'.format(os.environ['GCS_PREFIX']),
-                                       'DirectRunner'))
+                                       'DataflowRunner'))
+
+    pipeline_args.append('--setup_file={}'.format(os.environ['SETUP_PY_DATAFLOW']))
 
     avro_schema = get_schema('community_center_attendance')
 

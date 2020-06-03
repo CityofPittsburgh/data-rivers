@@ -2,7 +2,6 @@ from __future__ import absolute_import
 from __future__ import division
 
 import logging
-import os
 import unittest
 
 # patches unittest.TestCase to be python3 compatible
@@ -10,8 +9,8 @@ import future.tests.base  # pylint: disable=unused-import
 
 from fastavro.validation import validate
 
-from dataflow_utils import get_schema
-from dataflow_test_utils import set_up
+from dataflow_utils.dataflow_utils import get_schema
+from dataflow_utils.dataflow_test_utils import set_up
 from trash_cans_dataflow import ConvertToDicts
 
 

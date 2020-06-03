@@ -13,7 +13,6 @@ week_ago = datetime.combine(datetime.today() - timedelta(7), datetime.min.time()
 last_day_prev_month = dt.replace(day=1) - timedelta(days=1)
 first_day_prev_month = dt.replace(day=1) - timedelta(days=last_day_prev_month.day)
 
-GOOGLE_APPLICATION_CREDENTIALS = os.environ['GOOGLE_APPLICATION_CREDENTIALS']
 bq_client = bigquery.Client()
 storage_client = storage.Client()
 
@@ -88,7 +87,7 @@ def build_revgeo_query(dataset, temp_table):
         police_zones.zone AS police_zone,
         dpw_divisions.objectid AS dpw_division
     FROM
-      `{os.environ['GCP_PROJECT']}.{dataset}.{temp_table}` AS {temp_table}
+      `{os.environ['GCLOUD_PROJECT']}.{dataset}.{temp_table}` AS {temp_table}
     JOIN
       `data-rivers.geography.neighborhoods` AS neighborhoods
     ON
@@ -130,8 +129,8 @@ def build_revgeo_query(dataset, temp_table):
 
 def filter_old_values(dataset, temp_table, final_table, join_field):
     return f"""
-    DELETE FROM `{os.environ['GCP_PROJECT']}.{dataset}.{final_table}` final
-    WHERE final.{join_field} IN (SELECT {join_field} FROM `{os.environ['GCP_PROJECT']}.{dataset}.{temp_table}`)
+    DELETE FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{final_table}` final
+    WHERE final.{join_field} IN (SELECT {join_field} FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{temp_table}`)
     """
 
 def beam_cleanup_statement(bucket):

@@ -15,7 +15,6 @@ yesterday = datetime.combine(datetime.today() - timedelta(1), datetime.min.time(
 week_ago = datetime.combine(datetime.today() - timedelta(7), datetime.min.time())
 now = datetime.now()
 
-GOOGLE_APPLICATION_CREDENTIALS = os.environ['GOOGLE_APPLICATION_CREDENTIALS']
 storage_client = storage.Client()
 dlp = dlp_v2.DlpServiceClient()
 project = os.environ['GCP_PROJECT']

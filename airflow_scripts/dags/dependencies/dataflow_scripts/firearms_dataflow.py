@@ -3,16 +3,15 @@ from __future__ import absolute_import
 import argparse
 import logging
 import os
+from datetime import datetime
 
 import apache_beam as beam
-import dataflow_utils
-
 from apache_beam.io import ReadFromText
 from apache_beam.io.avroio import WriteToAvro
 from apache_beam.options.pipeline_options import PipelineOptions
-from datetime import datetime
 
-from dataflow_utils import clean_csv_int, clean_csv_string, clean_csv_float, generate_args, get_schema
+from dataflow_utils import dataflow_utils
+from dataflow_utils.dataflow_utils import clean_csv_int, clean_csv_string, clean_csv_float, generate_args, get_schema
 
 
 class ConvertToDicts(beam.DoFn):
@@ -65,7 +64,9 @@ def run(argv=None):
     # Use runner=DataflowRunner to run in GCP environment, DirectRunner to run locally
     pipeline_args.extend(generate_args('firearms-dataflow',
                                        '{}_firearm_seizures'.format(os.environ['GCS_PREFIX']),
-                                       'DirectRunner'))
+                                       'DataflowRunner'))
+
+    pipeline_args.append('--setup_file={}'.format(os.environ['SETUP_PY_DATAFLOW']))
 
     avro_schema = get_schema('firearm_seizures')
 
