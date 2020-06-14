@@ -12,8 +12,11 @@ from airflow.contrib.operators.dataflow_operator import DataFlowPythonOperator
 from airflow.contrib.operators.gcp_container_operator import GKEPodOperator
 from airflow.operators.python_operator import PythonOperator
 from dependencies import airflow_utils
-from dependencies.airflow_utils import yesterday, dt, bq_client, storage_client
+from dependencies.airflow_utils import yesterday, bq_client, storage_client
 
+
+execution_date = "{{ execution_date }}"
+prev_execution_date = "{{ prev_execution_date }}"
 
 default_args = {
     'depends_on_past': False,
@@ -23,9 +26,9 @@ default_args = {
     'email_on_retry': False,
     'retries': 1,
     'retry_delay': timedelta(minutes=5),
-    'project_id': os.environ['GCP_PROJECT'],
+    'project_id': os.environ['GCLOUD_PROJECT'],
     'dataflow_default_options': {
-        'project': os.environ['GCP_PROJECT']
+        'project': os.environ['GCLOUD_PROJECT']
     }
 }
 
@@ -78,11 +81,11 @@ computronix_businesses_dataflow = BashOperator(
 
 computronix_trades_bq = GoogleCloudStorageToBigQueryOperator(
     task_id='computronix_trades_bq',
-    destination_project_dataset_table='{}:computronix.trades'.format(os.environ['GCP_PROJECT']),
+    destination_project_dataset_table='{}:computronix.trades'.format(os.environ['GCLOUD_PROJECT']),
     bucket='{}_computronix'.format(os.environ['GCS_PREFIX']),
-    source_objects=["trades/avro_output/{}/{}/{}/*.avro".format(dt.strftime('%Y'),
-                                                         dt.strftime('%m').lower(),
-                                                         dt.strftime("%Y-%m-%d"))],
+    source_objects=["trades/avro_output/{}/{}/{}/*.avro".format(execution_date.strftime('%Y'),
+                                                                execution_date.strftime('%m').lower(),
+                                                                execution_date.strftime("%Y-%m-%d"))],
     write_disposition='WRITE_APPEND',
     source_format='AVRO',
     time_partitioning={'type': 'DAY'},
@@ -92,7 +95,7 @@ computronix_trades_bq = GoogleCloudStorageToBigQueryOperator(
 
 computronix_contractors_bq = GoogleCloudStorageToBigQueryOperator(
     task_id='computronix_contractors_bq',
-    destination_project_dataset_table='{}:computronix.contractors'.format(os.environ['GCP_PROJECT']),
+    destination_project_dataset_table='{}:computronix.contractors'.format(os.environ['GCLOUD_PROJECT']),
     bucket='{}_computronix'.format(os.environ['GCS_PREFIX']),
     source_objects=["contractors/avro_output/{}/{}/{}/*.avro".format(dt.strftime('%Y'),
                                                          dt.strftime('%m').lower(),
@@ -106,7 +109,7 @@ computronix_contractors_bq = GoogleCloudStorageToBigQueryOperator(
 
 computronix_businesses_bq = GoogleCloudStorageToBigQueryOperator(
     task_id='computronix_businesses_bq',
-    destination_project_dataset_table='{}:computronix.businesses'.format(os.environ['GCP_PROJECT']),
+    destination_project_dataset_table='{}:computronix.businesses'.format(os.environ['GCLOUD_PROJECT']),
     bucket='{}_computronix'.format(os.environ['GCS_PREFIX']),
     source_objects=["businesses/avro_output/{}/{}/{}/*.avro".format(dt.strftime('%Y'),
                                                          dt.strftime('%m').lower(),

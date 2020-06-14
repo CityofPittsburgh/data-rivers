@@ -14,11 +14,14 @@ from airflow.operators.python_operator import PythonOperator
 from airflow.utils.trigger_rule import TriggerRule
 from datetime import datetime, timedelta
 from dependencies import airflow_utils
-from dependencies.airflow_utils import yesterday, dt
+from dependencies.airflow_utils import yesterday
 
 
 #TODO: When Airflow 2.0 is released, upgrade the package, upgrade the virtualenv to Python3,
 # and add the arg py_interpreter='python3' to DataFlowPythonOperator
+
+execution_date = "{{ execution_date }}"
+prev_execution_date = "{{ prev_execution_date }}"
 
 # We set the start_date of the DAG to the previous date, as defined in airflow_utils. This will
 # make the DAG immediately available for scheduling.
@@ -31,9 +34,9 @@ default_args = {
     'email_on_retry': False,
     'retries': 1,
     'retry_delay': timedelta(minutes=5),
-    'project_id': os.environ['GCP_PROJECT'],
+    'project_id': os.environ['GCLOUD_PROJECT'],
     'dataflow_default_options': {
-        'project': os.environ['GCP_PROJECT']
+        'project': os.environ['GCLOUD_PROJECT']
     }
 }
 
@@ -70,11 +73,11 @@ dataflow_task = BashOperator(
 
 bq_insert = GoogleCloudStorageToBigQueryOperator(
     task_id='trash_cans_bq_insert',
-    destination_project_dataset_table='{}:trash_cans.containers'.format(os.environ['GCP_PROJECT']),
+    destination_project_dataset_table='{}:trash_cans.containers'.format(os.environ['GCLOUD_PROJECT']),
     bucket='{}_trash_cans'.format(os.environ['GCS_PREFIX']),
-    source_objects=["avro_output/{}/{}/{}/*.avro".format(dt.strftime('%Y'),
-                                                         dt.strftime('%m').lower(),
-                                                         dt.strftime("%Y-%m-%d"))],
+    source_objects=["avro_output/{}/{}/{}/*.avro".format(execution_date.strftime('%Y'),
+                                                         execution_date.strftime('%m').lower(),
+                                                         execution_date.strftime("%Y-%m-%d"))],
     write_disposition='WRITE_APPEND',
     source_format='AVRO',
     time_partitioning={'type': 'DAY'},

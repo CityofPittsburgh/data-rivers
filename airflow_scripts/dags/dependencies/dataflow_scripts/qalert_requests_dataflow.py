@@ -3,7 +3,6 @@ from __future__ import absolute_import
 import argparse
 import logging
 import os
-from datetime import datetime
 
 import apache_beam as beam
 from apache_beam.io import ReadFromText
@@ -41,30 +40,29 @@ class CleanLatLong(beam.DoFn):
 
 
 def run(argv=None):
-    dt = datetime.now()
     parser = argparse.ArgumentParser()
-
-    parser.add_argument('--input',
-                        dest='input',
-                        default='gs://{}_311/requests/{}/{}/{}_requests.json'.format(os.environ['GCS_PREFIX'],
-                                                                                                dt.strftime('%Y'),
-                                                                                                dt.strftime('%m').lower(),
-                                                                                                dt.strftime("%Y-%m-%d")),
-                        help='Input file to process.')
-    parser.add_argument('--avro_output',
-                        dest='avro_output',
-                        default='gs://{}_311/requests/avro_output/{}/{}/{}/avro_output'.format(os.environ['GCS_PREFIX'],
-                                                                                             dt.strftime('%Y'),
-                                                                                             dt.strftime('%m').lower(),
-                                                                                             dt.strftime("%Y-%m-%d")),
-                        help='Output directory to write avro files.')
+    #
+    # parser.add_argument('--input',
+    #                     dest='input',
+    #                     default='gs://{}_qalert/requests/{}/{}/{}_requests.json'.format(os.environ['GCS_PREFIX'],
+    #                                                                                             dt.strftime('%Y'),
+    #                                                                                             dt.strftime('%m').lower(),
+    #                                                                                             dt.strftime("%Y-%m-%d")),
+    #                     help='Input file to process.')
+    # parser.add_argument('--avro_output',
+    #                     dest='avro_output',
+    #                     default='gs://{}_qalert/requests/avro_output/{}/{}/{}/avro_output'.format(os.environ['GCS_PREFIX'],
+    #                                                                                          dt.strftime('%Y'),
+    #                                                                                          dt.strftime('%m').lower(),
+    #                                                                                          dt.strftime("%Y-%m-%d")),
+    #                     help='Output directory to write avro files.')
 
     known_args, pipeline_args = parser.parse_known_args(argv)
 
     #TODO: run on on-prem network when route is opened
     # Use runner=DataflowRunner to run in GCP environment, DirectRunner to run locally
     pipeline_args.extend(generate_args('qalert-requests-dataflow',
-                                       '{}_311'.format(os.environ['GCS_PREFIX']),
+                                       '{}_qalert'.format(os.environ['GCS_PREFIX']),
                                        'DataflowRunner'))
 
     pipeline_args.append('--setup_file={}'.format(os.environ['SETUP_PY_DATAFLOW']))

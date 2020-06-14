@@ -1,17 +1,18 @@
 from __future__ import absolute_import
 
-import logging
 import os
 
 from airflow import DAG, configuration, models
-from airflow.contrib.hooks import gcs_hook
 from airflow.operators.docker_operator import DockerOperator
 from airflow.contrib.operators.dataflow_operator import DataFlowPythonOperator
-from airflow.operators.python_operator import PythonOperator
-from airflow.utils.trigger_rule import TriggerRule
+from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOperator
 from datetime import datetime, timedelta
 from dependencies import airflow_utils
-from dependencies.airflow_utils import yesterday, dt
+from dependencies.airflow_utils import yesterday
+
+
+execution_date = "{{ execution_date }}"
+prev_execution_date = "{{ prev_execution_date }}"
 
 
 default_args = {
@@ -22,9 +23,9 @@ default_args = {
     'email_on_retry': False,
     'retries': 1,
     'retry_delay': timedelta(minutes=5),
-    'project_id': os.environ['GCP_PROJECT'],
+    'project_id': os.environ['GCLOUD_PROJECT'],
     'dataflow_default_options': {
-        'project': os.environ['GCP_PROJECT'],
+        'project': os.environ['GCLOUD_PROJECT'],
         'staging_location': 'gs://pghpa_finance/staging',
         'temp_location': 'gs://pghpa_finance/temp',
         'runner': 'DataflowRunner',
@@ -57,18 +58,18 @@ dataflow_task = DataFlowPythonOperator(
 )
 
 
-# bq_insert = GoogleCloudStorageToBigQueryOperator(
-#     task_id='registered_businesses_bq_insert',
-#     destination_project_dataset_table='{}:registered_businesses.registered_businesses'.format(os.environ['GCP_PROJECT']),
-#     bucket='{}_finance'.format(os.environ['GCS_PREFIX']),
-#     source_objects=["avro_output/{}/{}/{}/*.avro".format(dt.strftime('%Y'),
-#                                                          dt.strftime('%m').lower(),
-#                                                          dt.strftime("%Y-%m-%d"))],
-#     write_disposition='WRITE_APPEND',
-#     source_format='AVRO',
-#     time_partitioning={'type': 'DAY'},
-#     dag=dag
-# )
+bq_insert = GoogleCloudStorageToBigQueryOperator(
+    task_id='registered_businesses_bq_insert',
+    destination_project_dataset_table='{}:registered_businesses.registered_businesses'.format(os.environ['GCLOUD_PROJECT']),
+    bucket='{}_finance'.format(os.environ['GCS_PREFIX']),
+    source_objects=["avro_output/{}/{}/{}/*.avro".format(execution_date.strftime('%Y'),
+                                                         execution_date.strftime('%m').lower(),
+                                                         execution_date.strftime("%Y-%m-%d"))],
+    write_disposition='WRITE_APPEND',
+    source_format='AVRO',
+    time_partitioning={'type': 'DAY'},
+    dag=dag
+)
 
 
 gcs_load_task >> dataflow_task

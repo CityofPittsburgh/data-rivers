@@ -1,0 +1,167 @@
+from __future__ import absolute_import
+
+import os
+from datetime import datetime, timedelta
+
+from airflow import DAG
+from airflow.operators.bash_operator import BashOperator
+from airflow.contrib.operators.dataflow_operator import DataFlowPythonOperator
+from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOperator
+from airflow.contrib.operators.bigquery_operator import BigQueryOperator
+
+from dependencies import airflow_utils
+from dependencies.airflow_utils import yesterday, build_revgeo_query, filter_old_values
+
+# TODO: When Airflow 2.0 is released, upgrade the package, sub in DataFlowPythonOperator for BashOperator,
+# and pass the argument 'py_interpreter=python3'
+
+default_args = {
+    'depends_on_past': False,
+    'start_date': yesterday,
+    'email': os.environ['EMAIL'],
+    'email_on_failure': True,
+    'email_on_retry': False,
+    'retries': 1,
+    'retry_delay': timedelta(minutes=5),
+    'project_id': os.environ['GCLOUD_PROJECT'],
+    'dataflow_default_options': {
+        'project': os.environ['GCLOUD_PROJECT']
+    }
+}
+
+# TODO: create Python callable to parse {{ ds }} var, or find jinja2 methods that will accomplish the same
+# def set_context():
+#     YYYY = '{{ ds }}'.split('-')[0]
+#     MM = '{{ ds }}'.split('-')[1]
+#     YYYYMMDD = '{{ ds }}'
+
+
+dag = DAG('qalert', default_args=default_args, schedule_interval=timedelta(days=1))
+
+qalert_gcs = BashOperator(
+    task_id='qalert_gcs',
+    bash_command='python {}'.format(os.environ['DAGS_PATH'] + 'dependencies/gcs_loaders/qalert_gcs.py --since {{ '
+                                                                'prev_ds }} --execution_date {{ ds }}'),
+    dag=dag
+)
+
+# qalert_requests_dataflow = DataFlowPythonOperator(
+#     task_id='qalert_requests_dataflow',
+#     job_name='qalert_requests_dataflow',
+#     py_file=os.environ['DAGS_PATH'] + 'dependencies/dataflow_scripts/qalert_requests_dataflow.py',
+#     options={
+#         "input": "gs://{}_qalert/requests/{{ ds.split('-')[0] }}/{{ ds.split('-')[1] }}/{{ ds }}_requests.json"
+#             .format(os.environ['GCLOUD_PROJECT']),
+#         "avro_output": "gs://{}_qalert/requests/avro_output/{{ ds.split('-')[0] }}/{{ ds.split('-')[1] }}/{{ ds }}"
+#             .format(os.environ['GCLOUD_PROJECT'])
+#     },
+#     dag=dag
+# )
+
+qalert_requests_dataflow = BashOperator(
+    task_id='qalert_requests_dataflow',
+    bash_command="python {}dependencies/dataflow_scripts/qalert_requests_dataflow.py --input gs://{"
+                 "}_qalert/requests/{{ ds.split('-')[0] }}/{{ ds.split('-')[1] }}/{{ ds }}_requests.json --output "
+                 "gs://{}_qalert/requests/avro_output/{{ ds.split('-')[0] }}/{{ ds.split('-')[1] }}/{{ ds "
+                 "}}".format(os.environ['DAGS_PATH'], os.environ['GCS_PREFIX'], os.environ['GCS_PREFIX']),
+    dag=dag
+)
+
+# qalert_activities_dataflow = DataFlowPythonOperator(
+#     task_id='qalert_activities_dataflow',
+#     job_name='qalert_activities_dataflow',
+#     py_file=os.environ['DAGS_PATH'] + 'dependencies/dataflow_scripts/qalert_activities_dataflow.py',
+#     options={
+#         "input": "gs://{}_qalert/activities/{{ ds.split('-')[0] }}/{{ ds.split('-')[1] }}/{{ ds }}_activities.json"
+#             .format(os.environ['GCLOUD_PROJECT']),
+#         "avro_output": "gs://{}_qalert/activities/avro_output//{{ ds.split('-')[0] }}/{{ ds.split('-')[1] }}/{{ ds }}"
+#             .format(os.environ['GCLOUD_PROJECT'])
+#     },
+#     dag=dag
+# )
+
+qalert_activities_dataflow = BashOperator(
+    task_id='qalert_activities_dataflow',
+    bash_command="python {}dependencies/dataflow_scripts/qalert_activities_dataflow.py --input gs://{"
+                 "}_qalert/activities/{{ ds.split('-')[0] }}/{{ ds.split('-')[1] }}/{{ ds }}_requests.json --output "
+                 "gs://{}_qalert/activities/avro_output//{{ ds.split('-')[0] }}/{{ ds.split('-')[1] }}/{{ ds "
+                 "}}".format(os.environ['DAGS_PATH'], os.environ['GCS_PREFIX'], os.environ['GCS_PREFIX']),
+    dag=dag
+)
+
+qalert_activities_bq = GoogleCloudStorageToBigQueryOperator(
+    task_id='qalert_activities_bq',
+    destination_project_dataset_table='{}:qalert.activities'.format(os.environ['GCLOUD_PROJECT']),
+    bucket='{}_qalert'.format(os.environ['GCS_PREFIX']),
+    source_objects=["activities/avro_output/{{ ds.split('-')[0] }}/{{ ds.split('-')[1] }}/{{ ds }}/*.avro"],
+
+    write_disposition='WRITE_APPEND',
+    create_disposition='CREATE_IF_NEEDED',
+    source_format='AVRO',
+    time_partitioning={'type': 'DAY'},
+    dag=dag
+)
+
+qalert_requests_bq = GoogleCloudStorageToBigQueryOperator(
+    task_id='qalert_requests_bq',
+    destination_project_dataset_table='{}:qalert.requests_temp'.format(os.environ['GCLOUD_PROJECT']),
+    bucket='{}_qalert'.format(os.environ['GCS_PREFIX']),
+    source_objects=["requests/avro_output/{{ ds.split('-')[0] }}/{{ ds.split('-')[1] }}/{{ ds }}/*.avro"],
+    write_disposition='WRITE_APPEND',
+    create_disposition='CREATE_IF_NEEDED',
+    source_format='AVRO',
+    time_partitioning={'type': 'DAY'},
+    dag=dag
+)
+
+qalert_requests_geo_join = BigQueryOperator(
+    task_id='qalert_requests_bq_geojoin',
+    sql=build_revgeo_query('qalert', 'requests_temp'),
+    use_legacy_sql=False,
+    destination_dataset_table='{}:qalert.requests_geo_temp'.format(os.environ['GCLOUD_PROJECT']),
+    write_disposition='WRITE_APPEND',
+    time_partitioning={'type': 'DAY'},
+    dag=dag
+)
+
+qalert_requests_bq_filter = BigQueryOperator(
+    task_id='qalert_requests_bq_filter',
+    sql=filter_old_values('qalert', 'requests_geo_temp', 'requests', 'id'),
+    use_legacy_sql=False,
+    dag=dag
+)
+
+qalert_requests_bq_merge = BigQueryOperator(
+    task_id='qalert_requests_bq_merge',
+    sql='SELECT * FROM {}.qalert.requests_geo_temp'.format(os.environ['GCLOUD_PROJECT']),
+    use_legacy_sql=False,
+    destination_dataset_table='{}:qalert.requests'.format(os.environ['GCLOUD_PROJECT']),
+    write_disposition='WRITE_APPEND',
+    time_partitioning={'type': 'DAY'},
+    dag=dag
+)
+
+qalert_bq_drop_temp = BigQueryOperator(
+    task_id='qalert_bq_drop_temp',
+    sql='DROP TABLE `{}.qalert.requests_temp`'.format(os.environ['GCLOUD_PROJECT']),
+    use_legacy_sql=False,
+    dag=dag
+)
+
+qalert_bq_drop_geo_temp = BigQueryOperator(
+    task_id='qalert_bq_drop_geo_temp',
+    sql='DROP TABLE `{}.qalert.requests_geo_temp`'.format(os.environ['GCLOUD_PROJECT']),
+    use_legacy_sql=False,
+    dag=dag
+)
+
+beam_cleanup = BashOperator(
+    task_id='qalert_beam_cleanup',
+    bash_command=airflow_utils.beam_cleanup_statement('{}_qalert'.format(os.environ['GCS_PREFIX'])),
+    dag=dag
+)
+
+qalert_gcs >> qalert_requests_dataflow >> (qalert_requests_bq, beam_cleanup) >> qalert_requests_geo_join >> \
+    qalert_requests_bq_filter >> qalert_requests_bq_merge >> (qalert_bq_drop_temp, qalert_bq_drop_geo_temp)
+
+qalert_gcs >> qalert_activities_dataflow >> (qalert_activities_bq, beam_cleanup)

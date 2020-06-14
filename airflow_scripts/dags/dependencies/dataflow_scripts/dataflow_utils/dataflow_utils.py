@@ -20,6 +20,10 @@ DEFAULT_DATAFLOW_ARGS = [
     '--save_main_session',
 ]
 
+# airflow template vars won't be available if you want to run this file as a one-off (outside the DAG) in development
+if 'EXECUTION_DATE' not in globals():
+    EXECUTION_DATE = datetime.now()
+
 
 def generate_args(job_name, bucket, runner):
     arguments = DEFAULT_DATAFLOW_ARGS
@@ -33,6 +37,7 @@ def generate_args(job_name, bucket, runner):
 # monkey patch for avro schema hashing bug: https://issues.apache.org/jira/browse/AVRO-1737
 def hash_func(self):
     return hash(str(self))
+
 
 schema.RecordSchema.__hash__ = hash_func
 
@@ -73,13 +78,14 @@ def clean_csv_float(num):
     except ValueError:
         return None
 
+
 def clean_csv_boolean(boolean):
     try:
         if str(boolean).lower() == 'true':
             return True
         elif str(boolean).lower() == 'false':
             return False
-        else: 
+        else:
             return None
     except ValueError:
         return None

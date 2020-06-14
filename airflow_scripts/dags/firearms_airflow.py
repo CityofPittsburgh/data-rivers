@@ -11,12 +11,15 @@ from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOper
 from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 from datetime import timedelta
 from dependencies import airflow_utils
-from dependencies.airflow_utils import yesterday, dt, build_revgeo_query
+from dependencies.airflow_utils import yesterday, build_revgeo_query
 
 # TODO: When Airflow 2.0 is released, upgrade the package, upgrade the virtualenv to Python3,
 # and add the arg py_interpreter='python3' to DataFlowPythonOperator
 
-# We set the start_date of the DAG to the previous date, as defined in airflow_utils. This will
+execution_date = "{{ execution_date }}"
+prev_execution_date = "{{ prev_execution_date }}"
+
+# We set the start_date of the DAG to the previous date, This will
 # make the DAG immediately available for scheduling.
 
 default_args = {
@@ -27,9 +30,9 @@ default_args = {
     'email_on_retry': False,
     'retries': 1,
     'retry_delay': timedelta(minutes=5),
-    'project_id': os.environ['GCP_PROJECT'],
+    'project_id': os.environ['GCLOUD_PROJECT'],
     'dataflow_default_options': {
-        'project': os.environ['GCP_PROJECT']
+        'project': os.environ['GCLOUD_PROJECT']
     }
 }
 
@@ -72,11 +75,11 @@ beam_cleanup = BashOperator(
 
 bq_insert_temp = GoogleCloudStorageToBigQueryOperator(
     task_id='firearms_bq_insert',
-    destination_project_dataset_table='{}:firearm_seizures.seizures_temp'.format(os.environ['GCP_PROJECT']),
+    destination_project_dataset_table='{}:firearm_seizures.seizures_temp'.format(os.environ['GCLOUD_PROJECT']),
     bucket='{}_firearm_seizures'.format(os.environ['GCS_PREFIX']),
-    source_objects=["avro_output/{}/{}/{}/*.avro".format(dt.strftime('%Y'),
-                                                         dt.strftime('%m').lower(),
-                                                         dt.strftime("%Y-%m-%d"))],
+    source_objects=["avro_output/{}/{}/{}/*.avro".format(execution_date.strftime('%Y'),
+                                                         execution_date.strftime('%m').lower(),
+                                                         execution_date.strftime("%Y-%m-%d"))],
     write_disposition='WRITE_APPEND',
     source_format='AVRO',
     time_partitioning={'type': 'DAY'},
@@ -87,7 +90,7 @@ bq_geo_join = BigQueryOperator(
     task_id='firearms_bq_geojoin',
     sql=build_revgeo_query('firearm_seizures', 'seizures_temp'),
     use_legacy_sql=False,
-    destination_dataset_table='{}:firearm_seizures.seizures'.format(os.environ['GCP_PROJECT']),
+    destination_dataset_table='{}:firearm_seizures.seizures'.format(os.environ['GCLOUD_PROJECT']),
     write_disposition='WRITE_APPEND',
     time_partitioning={'type': 'DAY'},
     dag=dag
@@ -95,7 +98,7 @@ bq_geo_join = BigQueryOperator(
 
 bq_drop_temp = BigQueryOperator(
     task_id='firearms_bq_drop_temp',
-    sql='DROP TABLE `{}.firearm_seizures.seizures_temp`'.format(os.environ['GCP_PROJECT']),
+    sql='DROP TABLE `{}.firearm_seizures.seizures_temp`'.format(os.environ['GCLOUD_PROJECT']),
     use_legacy_sql=False,
     dag=dag
 )

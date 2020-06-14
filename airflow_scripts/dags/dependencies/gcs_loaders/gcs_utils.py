@@ -1,23 +1,19 @@
 from __future__ import print_function
 
 import os
-import json
-import ndjson
 import logging
 import time
 import re
 
-from datetime import datetime, timedelta
+import ciso8601
+import ndjson
+
 from google.cloud import storage, dlp_v2
 
 
-yesterday = datetime.combine(datetime.today() - timedelta(1), datetime.min.time())
-week_ago = datetime.combine(datetime.today() - timedelta(7), datetime.min.time())
-now = datetime.now()
-
 storage_client = storage.Client()
 dlp = dlp_v2.DlpServiceClient()
-project = os.environ['GCP_PROJECT']
+project = os.environ['GCLOUD_PROJECT']
 
 
 def scrub_pii(field, data_objects):
@@ -86,6 +82,11 @@ def regex_filter(value):
     value = re.sub(phone_regex, '#########', value)
     value = re.sub(email_regex, '####', value)
     return value
+
+
+def time_to_seconds(t):
+    ts = ciso8601.parse_datetime(t)
+    return int(time.mktime(ts.timetuple()))
 
 
 def upload_file_gcs(bucket_name, source_file_name, destination_blob_name):

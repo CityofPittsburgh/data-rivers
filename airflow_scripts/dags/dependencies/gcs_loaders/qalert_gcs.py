@@ -1,15 +1,20 @@
-import requests
-import logging
 import os
+import argparse
+import requests
 
-from gcs_utils import yesterday, now, storage_client, json_to_gcs
+from gcs_utils import storage_client, json_to_gcs, time_to_seconds
 
 
-bucket = '{}_311'.format(os.environ['GCS_PREFIX'])
-payload = {'key': os.environ['QALERT_KEY'], 'since': yesterday.strftime('%s')}
-# qscend requires a value (any value) for the user-agent field  ¯\_(ツ)_/¯
+parser = argparse.ArgumentParser()
+parser.add_argument('-s', '--since', dest='since', required=True, help='Start param for API pull (last successful DAG '
+                                                                       'run as YYYY-MM-DD)')
+parser.add_argument('--execution_date', dest='execution_date', required=True, help='DAG execution date (YYYY-MM-DD)')
+args = vars(parser.parse_args())
+
+bucket = '{}_qalert'.format(os.environ['GCS_PREFIX'])
+# qscend requires a value (any value) for the user-agent field
 headers = {'User-Agent': 'City of Pittsburgh ETL'}
-
+payload = {'key': os.environ['QALERT_KEY'], 'since': time_to_seconds(args['since'])}
 
 REQUEST_KEYS = ['id',
                 'master',
@@ -43,7 +48,8 @@ ACTIVITY_KEYS = ['actDateUnix',
                  'routeId',
                  'reasonId']
 
-response = requests.get('https://pittsburghpa.qscend.com/qalert/api/v1/requests/changes', params=payload, headers=headers)
+response = requests.get('https://pittsburghpa.qscend.com/qalert/api/v1/requests/changes', params=payload,
+                        headers=headers)
 
 trimmed_requests = []
 trimmed_activities = []
@@ -58,12 +64,10 @@ if response.status_code == 200:
         trimmed_activity = {k: activity[k] for k in ACTIVITY_KEYS}
         trimmed_activities.append(trimmed_activity)
 
-json_to_gcs('requests/{}/{}/{}_requests.json'.format(now.strftime('%Y'),
-                                            now.strftime('%m').lower(),
-                                            now.strftime("%Y-%m-%d")),
+json_to_gcs('requests/{}/{}/{}_requests.json'.format(args['execution_date'].split('-')[0],
+                                                     args['execution_date'].split('-')[1], args['execution_date']),
             trimmed_requests, bucket)
 
-json_to_gcs('activities/{}/{}/{}_activities.json'.format(now.strftime('%Y'),
-                                              now.strftime('%m').lower(),
-                                              now.strftime("%Y-%m-%d")),
-            trimmed_activities, bucket)
+json_to_gcs('activities/{}/{}/{}_activities.json'.format(args['execution_date'].split('-')[0],
+                                                         args['execution_date'].split('-')[1], args['execution_date']),
+            trimmed_requests, bucket)

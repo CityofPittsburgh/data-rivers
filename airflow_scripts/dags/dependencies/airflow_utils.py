@@ -8,17 +8,12 @@ from google.cloud import bigquery, storage
 
 
 dt = datetime.now()
-yesterday = datetime.combine(datetime.today() - timedelta(1), datetime.min.time())
-week_ago = datetime.combine(datetime.today() - timedelta(7), datetime.min.time())
-last_day_prev_month = dt.replace(day=1) - timedelta(days=1)
-first_day_prev_month = dt.replace(day=1) - timedelta(days=last_day_prev_month.day)
-
+yesterday = datetime.combine(dt - timedelta(1), datetime.min.time())
 bq_client = bigquery.Client()
 storage_client = storage.Client()
 
 #TODO: When Airflow 2.0 is released, upgrade the package, upgrade the virtualenv to Python3,
 # and add the arg py_interpreter='python3' to DataFlowPythonOperator
-
 
 def load_avro_to_bq(dataset, table, gcs_bucket, date_partition=False, partition_by=None):
     dataset_id = dataset
