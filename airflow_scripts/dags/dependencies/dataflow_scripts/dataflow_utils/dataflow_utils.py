@@ -1,5 +1,6 @@
 from __future__ import absolute_import
 
+import argparse
 import re
 import json
 from datetime import datetime
@@ -32,6 +33,12 @@ def generate_args(job_name, bucket, runner):
     arguments.append('--staging_location=gs://{}/beam_output/staging'.format(bucket))
     arguments.append('--temp_location=gs://{}/beam_output/temp'.format(bucket))
     return arguments
+
+
+def parse_bash_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--input', dest='input', required=True)
+    parser.add_argument('--avro_output', dest='avro_output', required=True)
 
 
 # monkey patch for avro schema hashing bug: https://issues.apache.org/jira/browse/AVRO-1737

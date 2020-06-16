@@ -6,14 +6,22 @@ import os
 from datetime import datetime, timedelta
 from google.cloud import bigquery, storage
 
-
 dt = datetime.now()
 yesterday = datetime.combine(dt - timedelta(1), datetime.min.time())
 bq_client = bigquery.Client()
 storage_client = storage.Client()
 
-#TODO: When Airflow 2.0 is released, upgrade the package, upgrade the virtualenv to Python3,
+
+# TODO: When Airflow 2.0 is released, upgrade the package, upgrade the virtualenv to Python3,
 # and add the arg py_interpreter='python3' to DataFlowPythonOperator
+
+def get_ds_year(ds):
+    return ds.split('-')[0]
+
+
+def get_ds_month(ds):
+    return ds.split('-')[1]
+
 
 def load_avro_to_bq(dataset, table, gcs_bucket, date_partition=False, partition_by=None):
     dataset_id = dataset
@@ -127,6 +135,7 @@ def filter_old_values(dataset, temp_table, final_table, join_field):
     DELETE FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{final_table}` final
     WHERE final.{join_field} IN (SELECT {join_field} FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{temp_table}`)
     """
+
 
 def beam_cleanup_statement(bucket):
     return "if gsutil -q stat gs://{}/beam_output/*; then gsutil rm gs://{}/beam_output/**; else echo " \

@@ -17,7 +17,8 @@ from dataflow_utils.dataflow_utils import generate_args, get_schema, JsonCoder
 
 def run(argv=None):
     parser = argparse.ArgumentParser()
-
+    parser.add_argument('--input', dest='input', required=True)
+    parser.add_argument('--avro_output', dest='avro_output', required=True)
     # parser.add_argument('--input',
     #                     dest='input',
     #                     default='gs://{}_qalert/activities/{}/{}/{}_activities.json'.format(os.environ['GCS_PREFIX'],
