@@ -3,8 +3,10 @@ from __future__ import absolute_import
 import argparse
 import re
 import json
+import os
 from datetime import datetime
 
+from apache_beam.options.pipeline_options import PipelineOptions
 from scourgify import normalize_address_record, exceptions
 from avro import schema
 from google.cloud import bigquery, storage
@@ -21,18 +23,28 @@ DEFAULT_DATAFLOW_ARGS = [
     '--save_main_session',
 ]
 
-# airflow template vars won't be available if you want to run this file as a one-off (outside the DAG) in development
-if 'EXECUTION_DATE' not in globals():
-    EXECUTION_DATE = datetime.now()
 
+def generate_args(job_name, bucket, argv, schema_name, runner='DataflowRunner'):
+    parser = argparse.ArgumentParser()
 
-def generate_args(job_name, bucket, runner):
+    parser.add_argument('--input', dest='input', required=True)
+    parser.add_argument('--avro_output', dest='avro_output', required=True)
+    known_args, pipeline_args = parser.parse_known_args(argv)
+
     arguments = DEFAULT_DATAFLOW_ARGS
     arguments.append('--job_name={}'.format(job_name))
     arguments.append('--runner={}'.format(runner))
     arguments.append('--staging_location=gs://{}/beam_output/staging'.format(bucket))
     arguments.append('--temp_location=gs://{}/beam_output/temp'.format(bucket))
-    return arguments
+    arguments.append('--setup_file={}'.format(os.environ['SETUP_PY_DATAFLOW']))
+    # ^this doesn't work when added to DEFAULT_DATFLOW_ARGS, for reasons unclear
+
+    pipeline_args.extend(arguments)
+    pipeline_options = PipelineOptions(pipeline_args)
+
+    avro_schema = get_schema(schema_name)
+
+    return known_args, pipeline_options, avro_schema
 
 
 def parse_bash_args():

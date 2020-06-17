@@ -8,12 +8,23 @@ from google.cloud import bigquery, storage
 
 dt = datetime.now()
 yesterday = datetime.combine(dt - timedelta(1), datetime.min.time())
+
 bq_client = bigquery.Client()
 storage_client = storage.Client()
 
-
-# TODO: When Airflow 2.0 is released, upgrade the package, upgrade the virtualenv to Python3,
-# and add the arg py_interpreter='python3' to DataFlowPythonOperator
+default_args = {
+    'depends_on_past': False,
+    'start_date': yesterday,
+    'email': os.environ['EMAIL'],
+    'email_on_failure': True,
+    'email_on_retry': False,
+    'retries': 1,
+    'retry_delay': timedelta(minutes=5),
+    'project_id': os.environ['GCLOUD_PROJECT'],
+    'dataflow_default_options': {
+        'project': os.environ['GCLOUD_PROJECT']
+    }
+}
 
 def get_ds_year(ds):
     return ds.split('-')[0]

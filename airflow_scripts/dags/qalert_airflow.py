@@ -10,27 +10,11 @@ from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOper
 from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 
 from dependencies import airflow_utils
-from dependencies.airflow_utils import yesterday, build_revgeo_query, filter_old_values, get_ds_year, get_ds_month
+from dependencies.airflow_utils import yesterday, build_revgeo_query, filter_old_values, get_ds_year, \
+    get_ds_month, default_args
 
 # TODO: When Airflow 2.0 is released, upgrade the package, sub in DataFlowPythonOperator for BashOperator,
 # and pass the argument 'py_interpreter=python3'
-
-default_args = {
-    'depends_on_past': False,
-    'start_date': yesterday,
-    'email': os.environ['EMAIL'],
-    'email_on_failure': True,
-    'email_on_retry': False,
-    'retries': 1,
-    'retry_delay': timedelta(minutes=5),
-    'project_id': os.environ['GCLOUD_PROJECT'],
-    'dataflow_default_options': {
-        'project': os.environ['GCLOUD_PROJECT']
-    }
-}
-
-# TODO: create Python callable to parse {{ ds }} var, or find jinja2 methods that will accomplish the same
-
 
 dag = DAG(
     'qalert',
