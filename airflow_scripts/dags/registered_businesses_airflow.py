@@ -2,41 +2,24 @@ from __future__ import absolute_import
 
 import os
 
-from airflow import DAG, configuration, models
+from airflow import DAG
 from airflow.operators.docker_operator import DockerOperator
+from airflow.operators.bash_operator import BashOperator
 from airflow.contrib.operators.dataflow_operator import DataFlowPythonOperator
 from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOperator
-from datetime import datetime, timedelta
+from airflow.contrib.operators.bigquery_operator import BigQueryOperator
+
 from dependencies import airflow_utils
-from dependencies.airflow_utils import yesterday
-
-
-execution_date = "{{ execution_date }}"
-prev_execution_date = "{{ prev_execution_date }}"
-
-
-default_args = {
-    'depends_on_past': False,
-    'start_date': yesterday,
-    'email': os.environ['EMAIL'],
-    'email_on_failure': True,
-    'email_on_retry': False,
-    'retries': 1,
-    'retry_delay': timedelta(minutes=5),
-    'project_id': os.environ['GCLOUD_PROJECT'],
-    'dataflow_default_options': {
-        'project': os.environ['GCLOUD_PROJECT'],
-        'staging_location': 'gs://pghpa_finance/staging',
-        'temp_location': 'gs://pghpa_finance/temp',
-        'runner': 'DataflowRunner',
-        'job_name': 'finance_open_data'
-    }
-}
+from dependencies.airflow_utils import get_ds_year, get_ds_month, default_args, geocode_address_query, build_revegeo_query
 
 dag = DAG(
-    'registered_businesses', default_args=default_args, schedule_interval='@monthly')
+    'registered_businesses',
+    default_args=default_args,
+    schedule_interval='@monthly',
+    user_defined_filters={'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year}
+)
 
-gcs_load_task = DockerOperator(
+registered_businesses_gcs = DockerOperator(
     task_id='registered_businesses_gcs',
     image='gcr.io/data-rivers/pgh-finance',
     api_version='auto',
@@ -49,27 +32,68 @@ gcs_load_task = DockerOperator(
     dag=dag
 )
 
-
-dataflow_task = DataFlowPythonOperator(
+registered_businesses_dataflow = BashOperator(
     task_id='registered_businesses_dataflow',
-    job_name='registered-businesses-dataflow_scripts',
-    py_file=(os.getcwd() + '/airflow_scripts/dags/dependencies/dataflow_scripts/registered_businesses_dataflow.py'),
+    bash_command="python {}dependencies/dataflow_scripts/registered_businesses_dataflow.py --input gs://{}_finance/"
+                 .format(os.environ['DAGS_PATH'], os.environ['GCS_PREFIX']) + "{{ ds|get_ds_year }}/{{ ds|get_ds_month "
+                 "}}/{{ ds }}_registered_businesses.json --avro_output " + "gs://{}_finance/avro_output/".format(
+                 os.environ['GCS_PREFIX']) + "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds }}/",
     dag=dag
 )
 
-
-bq_insert = GoogleCloudStorageToBigQueryOperator(
-    task_id='registered_businesses_bq_insert',
-    destination_project_dataset_table='{}:registered_businesses.registered_businesses'.format(os.environ['GCLOUD_PROJECT']),
+registered_businesses_bq = GoogleCloudStorageToBigQueryOperator(
+    task_id='registered_businesses_bq',
+    destination_project_dataset_table='{}:finance.registered_businesses_temp'.format(os.environ['GCLOUD_PROJECT']),
     bucket='{}_finance'.format(os.environ['GCS_PREFIX']),
-    source_objects=["avro_output/{}/{}/{}/*.avro".format(execution_date.strftime('%Y'),
-                                                         execution_date.strftime('%m').lower(),
-                                                         execution_date.strftime("%Y-%m-%d"))],
+    source_objects=["finance/avro_output/{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds }}/*.avro"],
     write_disposition='WRITE_APPEND',
     source_format='AVRO',
     time_partitioning={'type': 'DAY'},
     dag=dag
 )
 
+registered_businesses_revgeo_bq = BigQueryOperator(
+    task_id='registered_businesses_revgeo_bq',
+    sql=geocode_address_query('finance', 'registered_businesses_temp'),
+    destination_dataset_table='{}:finance.registered_businesses_revgeo_temp'.format(os.environ['GCLOUD_PROJECT']),
+    time_partitioning={'type': 'DAY'},
+    use_legacy_sql=False,
+    dag=dag
+)
 
-gcs_load_task >> dataflow_task
+# there are only about 20k businesses and the job is monthly, so fine to just overwrite the table every time
+
+registered_businesses_geo_bq = BigQueryOperator(
+    task_id='registered_businesses_geo_bq',
+    sql=build_revegeo_query('finance', 'registered_businesses_revgeo_temp'),
+    use_legacy_sql=False,
+    destination_dataset_table='{}:finance.registered_businesses'.format(os.environ['GCLOUD_PROJECT']),
+    write_disposition='WRITE_TRUNCATE',
+    time_partitioning={'type': 'DAY'},
+    dag=dag
+)
+
+registered_businesses_drop_temp = BigQueryOperator(
+    task_id='registered_businesses_drop_temp',
+    sql='DROP TABLE `{}.finance.registered_businesses_temp`'.format(os.environ['GCLOUD_PROJECT']),
+    use_legacy_sql=False,
+    dag=dag
+)
+
+registered_businesses_drop_revgeo_temp = BigQueryOperator(
+    task_id='registered_businesses_drop_temp',
+    sql='DROP TABLE `{}.finance.registered_businesses_revgeo_temp`'.format(os.environ['GCLOUD_PROJECT']),
+    use_legacy_sql=False,
+    dag=dag
+)
+
+registered_businesses_beam_cleanup = BashOperator(
+    task_id='registered_businesses_beam_cleanup',
+    bash_command=airflow_utils.beam_cleanup_statement('{}_finance'.format(os.environ['GCS_PREFIX'])),
+    dag=dag
+)
+
+registered_businesses_gcs >> registered_businesses_dataflow >> registered_businesses_bq >> \
+    registered_businesses_revgeo_bq >> registered_businesses_geo_bq >> (registered_businesses_drop_temp,
+                                                                        registered_businesses_drop_revgeo_temp,
+                                                                        registered_businesses_beam_cleanup)

@@ -70,24 +70,19 @@ def cleanup_beam_avro(bucket_name):
     print('Beam staging files deleted')
 
 
-def geocode_address(address):
-    query = """
+def geocode_address_query(dataset, temp_table):
+    query = f"""
     SELECT
-      geometry
+      {temp_table}.*,
+      addresses.long,
+      addresses.lat
     FROM
+      `{os.environ['GCLOUD_PROJECT']}.{dataset}.{temp_table}` AS {temp_table}
+    JOIN  
       geography.pittsburgh_addresses AS addresses
-    WHERE
-      normalized_address = {}
-    LIMIT
-        1 
-    """.format(address)
-    bq_client = bigquery.Client()
-    job_config = bigquery.QueryJobConfig()
-    query_job = bq_client.query(query)
-
-    result = query_job.result()
-    point = result[0]
-    return point
+    ON
+      {temp_table}.normalized_address = addresses.normalized_address 
+    """
 
 
 def build_revgeo_query(dataset, temp_table):
