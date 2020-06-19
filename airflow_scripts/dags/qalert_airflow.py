@@ -1,7 +1,6 @@
 from __future__ import absolute_import
 
 import os
-from datetime import datetime, timedelta
 
 from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
@@ -19,7 +18,7 @@ from dependencies.airflow_utils import yesterday, build_revgeo_query, filter_old
 dag = DAG(
     'qalert',
     default_args=default_args,
-    schedule_interval=timedelta(days=1),
+    schedule_interval='@daily',
     user_defined_filters={'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year}
 )
 

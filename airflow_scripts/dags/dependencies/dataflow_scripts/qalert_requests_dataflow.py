@@ -1,13 +1,11 @@
 from __future__ import absolute_import
 
-import argparse
 import logging
 import os
 
 import apache_beam as beam
 from apache_beam.io import ReadFromText
 from apache_beam.io.avroio import WriteToAvro
-from apache_beam.options.pipeline_options import PipelineOptions
 
 from dataflow_utils import dataflow_utils
 from dataflow_utils.dataflow_utils import generate_args, get_schema, JsonCoder
