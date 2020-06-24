@@ -6,6 +6,9 @@ import unittest
 from apache_beam.io import filebasedsource
 
 
+if not 'EXECUTION_DATE' in globals():
+    EXECUTION_DATE = datetime.now()
+
 def create_temp_file(self, contents):
     with tempfile.NamedTemporaryFile(delete=False) as f:
         f.write(contents.encode('utf-8'))

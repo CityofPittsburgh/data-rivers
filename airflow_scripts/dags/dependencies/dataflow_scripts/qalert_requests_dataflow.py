@@ -1,23 +1,14 @@
 from __future__ import absolute_import
 
-import argparse
-import json
 import logging
 import os
 
 import apache_beam as beam
-import avro
-import fastavro
-import dataflow_utils
-
 from apache_beam.io import ReadFromText
 from apache_beam.io.avroio import WriteToAvro
-from apache_beam.options.pipeline_options import PipelineOptions
-from apache_beam.options.pipeline_options import SetupOptions
-from avro import schema
-from datetime import datetime
 
-from dataflow_utils import generate_args, get_schema, JsonCoder
+from dataflow_utils import dataflow_utils
+from dataflow_utils.dataflow_utils import generate_args, get_schema, JsonCoder
 
 
 class GetStatus(beam.DoFn):
@@ -47,35 +38,20 @@ class CleanLatLong(beam.DoFn):
 
 
 def run(argv=None):
-    dt = datetime.now()
-    parser = argparse.ArgumentParser()
+    """
+    If you want to run just this file for rapid development, change runner to 'DirectRunner' and add
+    GCS paths for --input and --avro_output, e.g.
+    python qalert_requests_dataflow.py --input gs://pghpa_test_qalert/requests/2020/06/2020-06-17_requests.json
+    --avro_output gs://pghpa_test_qalert/requests/avro_output/2020/06/2020-06-17/
+    """
 
-    parser.add_argument('--input',
-                        dest='input',
-                        default='gs://{}_311/requests/{}/{}/{}_requests.json'.format(os.environ['GCS_PREFIX'],
-                                                                                                dt.strftime('%Y'),
-                                                                                                dt.strftime('%m').lower(),
-                                                                                                dt.strftime("%Y-%m-%d")),
-                        help='Input file to process.')
-    parser.add_argument('--avro_output',
-                        dest='avro_output',
-                        default='gs://{}_311/requests/avro_output/{}/{}/{}/avro_output'.format(os.environ['GCS_PREFIX'],
-                                                                                             dt.strftime('%Y'),
-                                                                                             dt.strftime('%m').lower(),
-                                                                                             dt.strftime("%Y-%m-%d")),
-                        help='Output directory to write avro files.')
-
-    known_args, pipeline_args = parser.parse_known_args(argv)
-
-    #TODO: run on on-prem network when route is opened
-    # Use runner=DataflowRunner to run in GCP environment, DirectRunner to run locally
-    pipeline_args.extend(generate_args('qalert-requests-dataflow',
-                                       '{}_311'.format(os.environ['GCS_PREFIX']),
-                                       'DirectRunner'))
-
-    avro_schema = get_schema('City_of_Pittsburgh_QAlert_Requests')
-
-    pipeline_options = PipelineOptions(pipeline_args)
+    known_args, pipeline_options, avro_schema = generate_args(
+        job_name='qalert-requests-dataflow',
+        bucket='{}_qalert'.format(os.environ['GCS_PREFIX']),
+        argv=argv,
+        schema_name='City_of_Pittsburgh_QAlert_Requests',
+        runner='DataflowRunner'
+    )
 
     with beam.Pipeline(options=pipeline_options) as p:
         # Read the text file[pattern] into a PCollection.

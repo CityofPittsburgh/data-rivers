@@ -6,19 +6,32 @@ import os
 from datetime import datetime, timedelta
 from google.cloud import bigquery, storage
 
-
 dt = datetime.now()
-yesterday = datetime.combine(datetime.today() - timedelta(1), datetime.min.time())
-week_ago = datetime.combine(datetime.today() - timedelta(7), datetime.min.time())
-last_day_prev_month = dt.replace(day=1) - timedelta(days=1)
-first_day_prev_month = dt.replace(day=1) - timedelta(days=last_day_prev_month.day)
+yesterday = datetime.combine(dt - timedelta(1), datetime.min.time())
 
-GOOGLE_APPLICATION_CREDENTIALS = os.environ['GOOGLE_APPLICATION_CREDENTIALS']
 bq_client = bigquery.Client()
 storage_client = storage.Client()
 
-#TODO: When Airflow 2.0 is released, upgrade the package, upgrade the virtualenv to Python3,
-# and add the arg py_interpreter='python3' to DataFlowPythonOperator
+default_args = {
+    'depends_on_past': False,
+    'start_date': yesterday,
+    'email': os.environ['EMAIL'],
+    'email_on_failure': True,
+    'email_on_retry': False,
+    'retries': 1,
+    'retry_delay': timedelta(minutes=5),
+    'project_id': os.environ['GCLOUD_PROJECT'],
+    'dataflow_default_options': {
+        'project': os.environ['GCLOUD_PROJECT']
+    }
+}
+
+def get_ds_year(ds):
+    return ds.split('-')[0]
+
+
+def get_ds_month(ds):
+    return ds.split('-')[1]
 
 
 def load_avro_to_bq(dataset, table, gcs_bucket, date_partition=False, partition_by=None):
@@ -57,24 +70,19 @@ def cleanup_beam_avro(bucket_name):
     print('Beam staging files deleted')
 
 
-def geocode_address(address):
-    query = """
+def geocode_address_query(dataset, temp_table):
+    return f"""
     SELECT
-      geometry
+      {temp_table}.*,
+      addresses.long,
+      addresses.lat
     FROM
+      `{os.environ['GCLOUD_PROJECT']}.{dataset}.{temp_table}` AS {temp_table}
+    JOIN  
       geography.pittsburgh_addresses AS addresses
-    WHERE
-      normalized_address = {}
-    LIMIT
-        1 
-    """.format(address)
-    bq_client = bigquery.Client()
-    job_config = bigquery.QueryJobConfig()
-    query_job = bq_client.query(query)
-
-    result = query_job.result()
-    point = result[0]
-    return point
+    ON
+      {temp_table}.normalized_address = addresses.normalized_address 
+    """
 
 
 def build_revgeo_query(dataset, temp_table):
@@ -88,7 +96,7 @@ def build_revgeo_query(dataset, temp_table):
         police_zones.zone AS police_zone,
         dpw_divisions.objectid AS dpw_division
     FROM
-      `{os.environ['GCP_PROJECT']}.{dataset}.{temp_table}` AS {temp_table}
+      `{os.environ['GCLOUD_PROJECT']}.{dataset}.{temp_table}` AS {temp_table}
     JOIN
       `data-rivers.geography.neighborhoods` AS neighborhoods
     ON
@@ -130,9 +138,10 @@ def build_revgeo_query(dataset, temp_table):
 
 def filter_old_values(dataset, temp_table, final_table, join_field):
     return f"""
-    DELETE FROM `{os.environ['GCP_PROJECT']}.{dataset}.{final_table}` final
-    WHERE final.{join_field} IN (SELECT {join_field} FROM `{os.environ['GCP_PROJECT']}.{dataset}.{temp_table}`)
+    DELETE FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{final_table}` final
+    WHERE final.{join_field} IN (SELECT {join_field} FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{temp_table}`)
     """
+
 
 def beam_cleanup_statement(bucket):
     return "if gsutil -q stat gs://{}/beam_output/*; then gsutil rm gs://{}/beam_output/**; else echo " \

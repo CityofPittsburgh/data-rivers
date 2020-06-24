@@ -1,10 +1,12 @@
 from __future__ import absolute_import
 
-import os
+import argparse
 import re
 import json
-
+import os
 from datetime import datetime
+
+from apache_beam.options.pipeline_options import PipelineOptions
 from scourgify import normalize_address_record, exceptions
 from avro import schema
 from google.cloud import bigquery, storage
@@ -12,31 +14,49 @@ from google.cloud import bigquery, storage
 dt = datetime.now()
 bq_client = bigquery.Client()
 storage_client = storage.Client()
-SETUP_FILE = os.path.join('../', 'setup.py')
 
 DEFAULT_DATAFLOW_ARGS = [
     '--project=data-rivers',
     '--subnetwork=https://www.googleapis.com/compute/v1/projects/data-rivers/regions/us-east1/subnetworks/default',
     '--region=us-east1',
     '--service_account_email=data-rivers@data-rivers.iam.gserviceaccount.com',
-    '--setup_file={}'.format(SETUP_FILE),
-    # '--setup_file={}'.format(os.environ['DATAFLOW_SETUP_FILE']),
-    '--save_main_session'
+    '--save_main_session',
 ]
 
 
-def generate_args(job_name, bucket, runner):
+def generate_args(job_name, bucket, argv, schema_name, runner='DataflowRunner'):
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument('--input', dest='input', required=True)
+    parser.add_argument('--avro_output', dest='avro_output', required=True)
+    known_args, pipeline_args = parser.parse_known_args(argv)
+
     arguments = DEFAULT_DATAFLOW_ARGS
     arguments.append('--job_name={}'.format(job_name))
     arguments.append('--runner={}'.format(runner))
     arguments.append('--staging_location=gs://{}/beam_output/staging'.format(bucket))
     arguments.append('--temp_location=gs://{}/beam_output/temp'.format(bucket))
-    return arguments
+    arguments.append('--setup_file={}'.format(os.environ['SETUP_PY_DATAFLOW']))
+    # ^this doesn't work when added to DEFAULT_DATFLOW_ARGS, for reasons unclear
+
+    pipeline_args.extend(arguments)
+    pipeline_options = PipelineOptions(pipeline_args)
+
+    avro_schema = get_schema(schema_name)
+
+    return known_args, pipeline_options, avro_schema
+
+
+def parse_bash_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--input', dest='input', required=True)
+    parser.add_argument('--avro_output', dest='avro_output', required=True)
 
 
 # monkey patch for avro schema hashing bug: https://issues.apache.org/jira/browse/AVRO-1737
 def hash_func(self):
     return hash(str(self))
+
 
 schema.RecordSchema.__hash__ = hash_func
 
@@ -77,13 +97,14 @@ def clean_csv_float(num):
     except ValueError:
         return None
 
+
 def clean_csv_boolean(boolean):
     try:
         if str(boolean).lower() == 'true':
             return True
         elif str(boolean).lower() == 'false':
             return False
-        else: 
+        else:
             return None
     except ValueError:
         return None

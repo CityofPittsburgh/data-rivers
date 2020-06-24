@@ -1,22 +1,17 @@
 from __future__ import absolute_import
 
 import argparse
-import json
 import logging
 import os
+from datetime import datetime
 
 import apache_beam as beam
-import avro
-import dataflow_utils
-
 from apache_beam.io import ReadFromText
 from apache_beam.io.avroio import WriteToAvro
 from apache_beam.options.pipeline_options import PipelineOptions
-from apache_beam.options.pipeline_options import SetupOptions
-from avro import schema
 
-from datetime import datetime
-from dataflow_utils import get_schema, generate_args, JsonCoder
+from dataflow_utils import dataflow_utils
+from dataflow_utils.dataflow_utils import generate_args, get_schema, JsonCoder
 
 
 class FormatColumnNames(beam.DoFn):
@@ -69,7 +64,9 @@ def run(argv=None):
     # Use runner=DataflowRunner to run in GCP environment, DirectRunner to run locally
     pipeline_args.extend(generate_args('computronix-trades-dataflow_scripts',
                                        '{}_computronix'.format(os.environ['GCS_PREFIX']),
-                                       'DirectRunner'))
+                                       'DataflowRunner'))
+
+    pipeline_args.append('--setup_file={}'.format(os.environ['SETUP_PY_DATAFLOW']))
 
     avro_schema = get_schema('trade_licenses_computronix')
 
@@ -83,7 +80,7 @@ def run(argv=None):
                 lines
                 | beam.ParDo(FormatColumnNames())
                 | beam.ParDo(ConvertTypes())
-                | beam.io.avroio.WriteToAvro(known_args.avro_output, schema=avro_schema, file_name_suffix='.avro', use_fastavro=True))
+                | WriteToAvro(known_args.avro_output, schema=avro_schema, file_name_suffix='.avro', use_fastavro=True))
 
 
 if __name__ == '__main__':

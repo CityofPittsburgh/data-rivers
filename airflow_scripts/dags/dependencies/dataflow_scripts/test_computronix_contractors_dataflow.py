@@ -10,8 +10,8 @@ import future.tests.base  # pylint: disable=unused-import
 
 from fastavro.validation import validate
 
-from dataflow_utils import get_schema
-from dataflow_test_utils import set_up
+from dataflow_utils.dataflow_utils import get_schema
+from dataflow_utils.dataflow_test_utils import set_up
 from computronix_contractors_dataflow import FormatColumnNames, ConvertTypes
 
 
@@ -60,6 +60,7 @@ class ComputronixTradesDataFlowTest(unittest.TestCase):
             "expiration_date": "2018-11-09T09:12:14-05:00"
         }
         self.assertEqual(sorted(expected), sorted(self.type_converted))
+
 
     def test_schema(self):
         self.assertTrue(validate(self.type_converted, self.SCHEMA))

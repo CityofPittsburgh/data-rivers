@@ -1,23 +1,15 @@
 from __future__ import absolute_import
 
 import argparse
-import json
 import logging
 import os
 
 import apache_beam as beam
-import avro
-import fastavro
-import dataflow_utils
-
 from apache_beam.io import ReadFromText
 from apache_beam.io.avroio import WriteToAvro
-from apache_beam.options.pipeline_options import PipelineOptions
-from apache_beam.options.pipeline_options import SetupOptions
-from avro import schema
 
-from datetime import datetime
-from dataflow_utils import get_schema, clean_csv_int, clean_csv_string, generate_args, normalize_address_record
+from dataflow_utils import dataflow_utils
+from dataflow_utils.dataflow_utils import get_schema, clean_csv_int, clean_csv_string, generate_args, normalize_address
 
 
 class ConvertToDicts(beam.DoFn):
@@ -46,43 +38,19 @@ class ConvertToDicts(beam.DoFn):
 
 class AddNormalizedAddress(beam.DoFn):
     def process(self, datum):
-        datum['normalized_address'] = normalize_address_record(datum['address_full'])
+        datum['normalized_address'] = normalize_address(datum['address_full'])
         return datum
 
 
 def run(argv=None):
-    dt = datetime.now()
-    parser = argparse.ArgumentParser()
 
-    parser.add_argument('--input',
-                        dest='input',
-                        default='gs://{}_finance/{}/{}/{}_registered_businesses.csv'
-                                .format(os.environ['GCS_PREFIX'],
-                                        dt.strftime('%Y'),
-                                        dt.strftime('%m').lower(),
-                                        dt.strftime("%Y-%m-%d")),
-                        help='Input file to process.')
-    parser.add_argument('--avro_output',
-                        dest='avro_output',
-                        default='gs://{}_finance/avro_output/{}/{}/{}/avro_output'
-                                .format(os.environ['GCS_PREFIX'],
-                                        dt.strftime('%Y'),
-                                        dt.strftime('%m').lower(),
-                                        dt.strftime("%Y-%m-%d")),
-                        help='Output directory to write avro files.')
-
-    known_args, pipeline_args = parser.parse_known_args(argv)
-
-    #TODO: run on on-prem network when route is opened
-
-    # Use runner=DataflowRunner to run in GCP environment, DirectRunner to run locally
-    pipeline_args.extend(generate_args('registered-businesses-dataflow_scripts',
-                                       '{}_finance'.format(os.environ['GCS_PREFIX']),
-                                       'DirectRunner'))
-
-    avro_schema = get_schema('registered_businesses')
-
-    pipeline_options = PipelineOptions(pipeline_args)
+    known_args, pipeline_options, avro_schema = generate_args(
+        job_name='registered-businesses-dataflow',
+        bucket='{}_finance'.format(os.environ['GCS_PREFIX']),
+        argv=argv,
+        schema_name='registered_businesses',
+        runner='DataflowRunner'
+    )
 
     with beam.Pipeline(options=pipeline_options) as p:
         # Read the text file[pattern] into a PCollection.
@@ -92,7 +60,7 @@ def run(argv=None):
                 lines
                 | beam.ParDo(ConvertToDicts())
                 | beam.ParDo(AddNormalizedAddress())
-                | beam.io.avroio.WriteToAvro(known_args.avro_output, schema=avro_schema, file_name_suffix='.avro', use_fastavro=True))
+                | WriteToAvro(known_args.avro_output, schema=avro_schema, file_name_suffix='.avro', use_fastavro=True))
 
 
 if __name__ == '__main__':
