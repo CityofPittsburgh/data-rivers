@@ -10,7 +10,7 @@ from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOper
 from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 
 from dependencies import airflow_utils
-from dependencies.airflow_utils import get_ds_year, get_ds_month, default_args, geocode_address_query, build_revegeo_query
+from dependencies.airflow_utils import get_ds_year, get_ds_month, default_args, geocode_address_query, build_revgeo_query
 
 dag = DAG(
     'registered_businesses',
@@ -27,6 +27,7 @@ registered_businesses_gcs = DockerOperator(
     environment={
         'ISAT_UN': os.environ['ISAT_UN'],
         'ISAT_PW': os.environ['ISAT_PW'],
+        'PASSWORD': os.environ['RSTUDIO_PW'],
         'GCS_AUTH_FILE': '/root/finance-open-data/data-rivers-service-acct.json'
     },
     dag=dag
@@ -46,7 +47,7 @@ registered_businesses_bq = GoogleCloudStorageToBigQueryOperator(
     destination_project_dataset_table='{}:finance.registered_businesses_temp'.format(os.environ['GCLOUD_PROJECT']),
     bucket='{}_finance'.format(os.environ['GCS_PREFIX']),
     source_objects=["finance/avro_output/{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds }}/*.avro"],
-    write_disposition='WRITE_APPEND',
+    write_disposition='WRITE_TRUNCATE',
     source_format='AVRO',
     time_partitioning={'type': 'DAY'},
     dag=dag
@@ -65,7 +66,7 @@ registered_businesses_revgeo_bq = BigQueryOperator(
 
 registered_businesses_geo_bq = BigQueryOperator(
     task_id='registered_businesses_geo_bq',
-    sql=build_revegeo_query('finance', 'registered_businesses_revgeo_temp'),
+    sql=build_revgeo_query('finance', 'registered_businesses_revgeo_temp'),
     use_legacy_sql=False,
     destination_dataset_table='{}:finance.registered_businesses'.format(os.environ['GCLOUD_PROJECT']),
     write_disposition='WRITE_TRUNCATE',

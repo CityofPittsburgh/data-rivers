@@ -38,8 +38,8 @@ dataflow_task = BashOperator(
     task_id='trash_cans_dataflow',
     bash_command="python {}dependencies/dataflow_scripts/trash_cans_dataflow.py --input gs://{}_trash_cans/"
                  .format(os.environ['DAGS_PATH'], os.environ['GCS_PREFIX']) + "{{ ds|get_ds_year }}/"
-                 "{{ ds|get_ds_month }}/{{ ds }}_requests.json --avro_output " + "gs://{}_trash_cans/avro_output/"
-                 .format(os.environ['GCS_PREFIX']) + "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds }}/",
+                 "{{ ds|get_ds_month }}/{{ ds }}_smart_trash_containers.csv --avro_output " + "gs://{}_trash_cans/"
+                 "avro_output/".format(os.environ['GCS_PREFIX']) + "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds }}/",
     dag=dag
 )
 

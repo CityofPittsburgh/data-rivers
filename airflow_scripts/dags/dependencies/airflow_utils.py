@@ -71,7 +71,7 @@ def cleanup_beam_avro(bucket_name):
 
 
 def geocode_address_query(dataset, temp_table):
-    query = f"""
+    return f"""
     SELECT
       {temp_table}.*,
       addresses.long,

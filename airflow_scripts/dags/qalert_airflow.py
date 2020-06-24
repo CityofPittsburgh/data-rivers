@@ -144,7 +144,7 @@ qalert_beam_cleanup = BashOperator(
     dag=dag
 )
 
-qalert_gcs >> qalert_requests_dataflow >> (qalert_requests_bq, beam_cleanup) >> qalert_requests_geo_join >> \
+qalert_gcs >> qalert_requests_dataflow >> (qalert_requests_bq, qalert_beam_cleanup) >> qalert_requests_geo_join >> \
     qalert_requests_bq_filter >> qalert_requests_bq_merge >> (qalert_bq_drop_temp, qalert_bq_drop_geo_temp)
 
 qalert_gcs >> qalert_activities_dataflow >> (qalert_activities_bq, qalert_beam_cleanup)
