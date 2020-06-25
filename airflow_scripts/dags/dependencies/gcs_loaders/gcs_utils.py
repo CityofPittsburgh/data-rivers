@@ -4,12 +4,13 @@ import os
 import logging
 import time
 import re
-
+import argparse
 import ciso8601
 import ndjson
 
 from google.cloud import storage, dlp_v2
 
+parser = argparse.ArgumentParser()
 
 storage_client = storage.Client()
 dlp = dlp_v2.DlpServiceClient()

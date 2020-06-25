@@ -3,14 +3,16 @@ import csv
 import os
 import warnings
 
-from datetime import datetime
+from gcs_utils import parser, storage_client, upload_file_gcs
 
-from gcs_utils import now, storage_client, upload_file_gcs
+
+parser.add_argument('--execution_date', dest='execution_date', required=True, help='DAG execution date (YYYY-MM-DD)')
+args = vars(parser.parse_args())
+
 
 warnings.filterwarnings('ignore', category=MySQLdb.Warning)
 bucket = '{}_otrs'.format(os.environ['GCS_PREFIX'])
 
-startTime = datetime.now()
 
 OTRScon = MySQLdb.connect(host=os.environ['OTRS_IP'], user=os.environ['OTRS_USER'], passwd=os.environ['OTRS_PW'],
                           db='otrs')
@@ -81,7 +83,7 @@ cursor_master.execute(
     LEFT JOIN article as a
         ON t.id = a.ticket_id AND a.article_sender_type_id <> 3
     
-    WHERE (t.create_time > '2013-01-01')
+    WHERE (t.create_time > '2018-05-01')
         and (t.queue_id <> 24)
         and (t.queue_id <> 3)
         and (t.ticket_state_id <> 9) # Exclude merged tickets.
@@ -95,8 +97,8 @@ with open('master.csv', 'w') as csv_file:
     csv_writer.writerow([i[0] for i in cursor_master.description])  # write headers
     csv_writer.writerows(cursor_master)
 
-upload_file_gcs(bucket, 'master.csv', 'tickets/{}/{}/{}_master.csv'.format(now.strftime('%Y'), now.strftime('%m').lower(),
-                                                                   now.strftime('%Y-%m-%d')))
+upload_file_gcs(bucket, 'master.csv', 'tickets/{}/{}/{}_master.csv'.format(args['execution_date'].split('-')[0],
+                                                     args['execution_date'].split('-')[1], args['execution_date']))
 cursor_master.close()
 
 cursor_moves = OTRScon.cursor()
@@ -105,7 +107,7 @@ cursor_moves.execute(
     """
     SELECT ticket_id, count(id) as 'moves'
     FROM otrs.ticket_history
-    WHERE create_time >= '2013-01-01' AND history_type_id = 16
+    WHERE create_time >= '2018-05-01' AND history_type_id = 16
     GROUP BY ticket_id;
     """
 )
@@ -115,9 +117,8 @@ with open('move_count.csv', 'w') as csv_file:
     csv_writer.writerow([i[0] for i in cursor_moves.description])
     csv_writer.writerows(cursor_moves)
 
-upload_file_gcs(bucket, 'move_count.csv', 'tickets/{}/{}/{}_move_count.csv'.format(now.strftime('%Y'),
-                                                                           now.strftime('%m').lower(),
-                                                                           now.strftime('%Y-%m-%d')))
+upload_file_gcs(bucket, 'move_count.csv', 'tickets/{}/{}/{}_move_count.csv'.format(args['execution_date'].split('-')[0],
+                                                     args['execution_date'].split('-')[1], args['execution_date']))
 
 cursor_moves.close()
 
@@ -131,7 +132,7 @@ cursor_owner.execute(
         ON t.id = th.ticket_id
         AND t.user_id = th.owner_id
     
-    WHERE t.create_time >= '2013-01-01'
+    WHERE t.create_time >= '2018-05-01'
         and (t.queue_id <> 24)
         and (t.queue_id <> 3)
         and (t.ticket_state_id <> 9) # Exclude merged tickets.
@@ -145,9 +146,8 @@ with open('owner_time.csv', 'w') as csv_file:
     csv_writer.writerow([i[0] for i in cursor_owner.description])
     csv_writer.writerows(cursor_owner)
 
-upload_file_gcs(bucket, 'owner_time.csv', 'tickets/{}/{}/{}_owner_time.csv'.format(now.strftime('%Y'),
-                                                                            now.strftime('%m').lower(),
-                                                                            now.strftime('%Y-%m-%d')))
+upload_file_gcs(bucket, 'owner_time.csv', 'tickets/{}/{}/{}_owner_time.csv'.format(args['execution_date'].split('-')[0],
+                                                     args['execution_date'].split('-')[1], args['execution_date']))
 cursor_owner.close()
 
 cursor_survey = OTRScon.cursor()
@@ -199,9 +199,8 @@ with open('survey_responses.csv', 'w') as csv_file:
     csv_writer.writerow([i[0] for i in cursor_survey.description])
     csv_writer.writerows(cursor_survey)
 
-upload_file_gcs(bucket, 'survey_responses.csv', 'surveys/{}/{}/{}_survey_responses.csv'.format(now.strftime('%Y'),
-                                                                                       now.strftime('%m').lower(),
-                                                                                       now.strftime('%Y-%m-%d')))
+upload_file_gcs(bucket, 'survey_responses.csv', 'surveys/{}/{}/{}_survey_responses.csv'.format(args['execution_date'].split('-')[0],
+                                                     args['execution_date'].split('-')[1], args['execution_date']))
 cursor_survey.close()
 
 cursor_survey2 = OTRScon.cursor()
@@ -241,9 +240,8 @@ with open('survey_responses_2.csv', 'w') as csv_file:
     csv_writer.writerow([i[0] for i in cursor_survey2.description])
     csv_writer.writerows(cursor_survey2)
 
-upload_file_gcs(bucket, 'survey_responses_2.csv', 'surveys/{}/{}/{}_survey_responses_2.csv'.format(now.strftime('%Y'),
-                                                                                         now.strftime('%m').lower(),
-                                                                                         now.strftime('%Y-%m-%d')))
+upload_file_gcs(bucket, 'survey_responses_2.csv', 'surveys/{}/{}/{}_survey_responses_2.csv'.format(args['execution_date'].split('-')[0],
+                                                     args['execution_date'].split('-')[1], args['execution_date']))
 cursor_survey2.close()
 
 cursor_history = OTRScon.cursor()
@@ -267,7 +265,7 @@ cursor_history.execute(
     ON th.state_id = st.id
 
     WHERE th.history_type_id IN (1,16,27) AND
-    t.create_time >= '2013-01-01' AND
+    t.create_time >= '2018-05-01' AND
     th.queue_id IN (6,7,12,15,16,42,43,45,46) #Default, HelpDesk, Needs Assigned, Tier_1, Andon, Director Review, Ordering, Staging
 
     ORDER BY th.ticket_id, th.create_time ASC;
@@ -279,9 +277,8 @@ with open('ticket_history.csv', 'w') as csv_file:
     csv_writer.writerow([i[0] for i in cursor_history.description])  # write headers
     csv_writer.writerows(cursor_history)
 
-upload_file_gcs(bucket, 'ticket_history.csv', 'tickets/{}/{}/{}_ticket_history.csv'.format(now.strftime('%Y'),
-                                                                                   now.strftime('%m').lower(),
-                                                                                   now.strftime('%Y-%m-%d')))
+upload_file_gcs(bucket, 'ticket_history.csv', 'tickets/{}/{}/{}_ticket_history.csv'.format(args['execution_date'].split('-')[0],
+                                                     args['execution_date'].split('-')[1], args['execution_date']))
 cursor_history.close()
 
 cursor_comms = OTRScon.cursor()
@@ -301,7 +298,7 @@ cursor_comms.execute(
     LEFT JOIN ticket_history AS th
     ON t.id = th.ticket_id AND t.queue_id = th.queue_id AND th.history_type_id IN (1,16)
 
-    WHERE t.create_time >= '2013-01-01'
+    WHERE t.create_time >= '2018-05-01'
     and (t.queue_id <> 24)
     and (t.queue_id <> 3)
     and (t.ticket_state_id <> 9) # Exclude merged tickets.
@@ -317,7 +314,7 @@ with open('comm_times.csv', 'w') as csv_file:
     csv_writer.writerow([i[0] for i in cursor_comms.description])  # write headers
     csv_writer.writerows(cursor_comms)
 
-upload_file_gcs(bucket, 'comm_times.csv', 'tickets/{}/{}/{}_comm_times.csv'.format(now.strftime('%Y'), now.strftime('%m').lower(),
-                                                                       now.strftime('%Y-%m-%d')))
+upload_file_gcs(bucket, 'comm_times.csv', 'tickets/{}/{}/{}_comm_times.csv'.format(args['execution_date'].split('-')[0],
+                                                     args['execution_date'].split('-')[1], args['execution_date']))
 
 cursor_comms.close()

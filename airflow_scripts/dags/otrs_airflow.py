@@ -11,13 +11,10 @@ from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 from airflow.operators.python_operator import PythonOperator
 from datetime import datetime, timedelta
 from dependencies import airflow_utils
-from dependencies.airflow_utils import yesterday, build_revgeo_query, filter_old_values
+from dependencies.airflow_utils import yesterday, build_revgeo_query, filter_old_values, get_ds_month, get_ds_year
 
 # TODO: When Airflow 2.0 is released, upgrade the package, upgrade the virtualenv to Python3,
 # and add the arg py_interpreter='python3' to DataFlowPythonOperator
-
-execution_date = "{{ execution_date }}"
-prev_execution_date = "{{ prev_execution_date }}"
 
 # We set the start_date of the DAG to the previous date, as defined in airflow_utils. This will
 # make the DAG immediately available for scheduling.
@@ -37,12 +34,16 @@ default_args = {
 }
 
 dag = DAG(
-    'otrs', default_args=default_args, schedule_interval=timedelta(days=1))
+    'otrs', 
+    default_args=default_args, 
+    schedule_interval='@daily',
+    user_defined_filters={'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year}
+)
 
 otrs_to_gcs = BashOperator(
     task_id='otrs_to_gcs',
     bash_command='python {}'.format(os.getcwd() + '/airflow_scripts/dags/dependencies/gcs_loaders'
-                                                  '/otrs_gcs.py'),
+                                                  '/otrs_gcs.py --execution_date {{ ds }}'),
     dag=dag
 )
 
@@ -56,7 +57,9 @@ gcs_to_csv = DockerOperator(
         'OTRS_USER': os.environ['OTRS_USER'],
         'OTRS_PW': os.environ['OTRS_PW'],
         'GCS_AUTH_FILE': '/root/otrs_gcs/data_rivers_key.json',
-        'GCS_PREFIX': os.environ['GCS_PREFIX']
+        'GCS_PREFIX': os.environ['GCS_PREFIX'],
+        'execution_date': '{{ ds }}',
+        'execution_month': '{{ ds|get_ds_year }}' + '/' + '{{ ds|get_ds_month }}'
     },
     dag=dag
 )
@@ -65,15 +68,19 @@ gcs_to_csv = DockerOperator(
 
 otrs_tickets_dataflow = BashOperator(
     task_id='otrs_tickets_dataflow',
-    bash_command='python {}'.format(os.getcwd() + '/airflow_scripts/dags/dependencies/dataflow_scripts'
-                                                  '/otrs_tickets_dataflow.py'),
+    bash_command="python {}dependencies/dataflow_scripts/otrs_tickets_dataflow.py --input gs://{}_otrs/tickets/"
+                 .format(os.environ['DAGS_PATH'], os.environ['GCS_PREFIX']) + "{{ ds|get_ds_year }}/"
+                 "{{ ds|get_ds_month }}/{{ ds }}_otrs_report_all.json --avro_output " + "gs://{}_otrs/tickets/avro_output/"
+                 .format(os.environ['GCS_PREFIX']) + "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds }}/",
     dag=dag
 )
 
 otrs_surveys_dataflow = BashOperator(
     task_id='otrs_surveys_dataflow',
-    bash_command='python {}'.format(os.getcwd() + '/airflow_scripts/dags/dependencies/dataflow_scripts'
-                                                  '/otrs_surveys_dataflow.py'),
+    bash_command="python {}dependencies/dataflow_scripts/otrs_surveys_dataflow.py --input gs://{}_otrs/surveys/"
+                 .format(os.environ['DAGS_PATH'], os.environ['GCS_PREFIX']) + "{{ ds|get_ds_year }}/"
+                 "{{ ds|get_ds_month }}/{{ ds }}_survey_final.json --avro_output " + "gs://{}_otrs/surveys/avro_output/"
+                 .format(os.environ['GCS_PREFIX']) + "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds }}/",
     dag=dag
 )
 
@@ -83,9 +90,7 @@ otrs_tickets_bq = GoogleCloudStorageToBigQueryOperator(
     task_id='otrs_tickets_bq',
     destination_project_dataset_table='{}:otrs.tickets'.format(os.environ['GCLOUD_PROJECT']),
     bucket='{}_otrs'.format(os.environ['GCS_PREFIX']),
-    source_objects=["tickets/avro_output/{}/{}/{}/*.avro".format(execution_date.strftime('%Y'),
-                                                                 execution_date.strftime('%m').lower(),
-                                                                 execution_date.strftime("%Y-%m-%d"))],
+    source_objects=["tickets/avro_output/{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds }}/*.avro"],
     write_disposition='WRITE_TRUNCATE',
     create_disposition='CREATE_IF_NEEDED',
     source_format='AVRO',
@@ -97,9 +102,7 @@ otrs_surveys_bq = GoogleCloudStorageToBigQueryOperator(
     task_id='otrs_surveys_bq',
     destination_project_dataset_table='{}:otrs.surveys'.format(os.environ['GCLOUD_PROJECT']),
     bucket='{}_otrs'.format(os.environ['GCS_PREFIX']),
-    source_objects=["surveys/avro_output/{}/{}/{}/*.avro".format(execution_date.strftime('%Y'),
-                                                                 execution_date.strftime('%m').lower(),
-                                                                 execution_date.strftime("%Y-%m-%d"))],
+    source_objects=["surveys/avro_output/{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds }}/*.avro"],
     write_disposition='WRITE_TRUNCATE',
     create_disposition='CREATE_IF_NEEDED',
     source_format='AVRO',
