@@ -23,7 +23,7 @@ dag = DAG(
 
 qalert_gcs = BashOperator(
     task_id='qalert_gcs',
-    bash_command='python {}'.format(os.environ['DAGS_PATH'] + 'dependencies/gcs_loaders/qalert_gcs.py --since {{ '
+    bash_command='python {}'.format(os.environ['DAGS_PATH'] + '/dependencies/gcs_loaders/qalert_gcs.py --since {{ '
                                                               'prev_ds }} --execution_date {{ ds }}'),
     dag=dag
 )
