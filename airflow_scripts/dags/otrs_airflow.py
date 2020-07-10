@@ -34,20 +34,20 @@ default_args = {
 }
 
 dag = DAG(
-    'otrs', 
-    default_args=default_args, 
+    'otrs',
+    default_args=default_args,
     schedule_interval='@daily',
     user_defined_filters={'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year}
 )
 
 otrs_to_gcs = BashOperator(
     task_id='otrs_to_gcs',
-    bash_command='python {}'.format(os.getcwd() + '/airflow_scripts/dags/dependencies/gcs_loaders'
-                                                  '/otrs_gcs.py --execution_date {{ ds }}'),
+    bash_command='python {}'.format(os.environ['DAGS_PATH'] + '/dependencies/gcs_loaders/otrs_gcs.py --execution_date '
+                                                              '{{ ds }}'),
     dag=dag
 )
 
-gcs_to_csv = DockerOperator(
+otrs_gcs_to_csv = DockerOperator(
     task_id='gcs_to_csv',
     image='gcr.io/data-rivers/pgh-otrs',
     api_version='auto',
@@ -69,22 +69,20 @@ gcs_to_csv = DockerOperator(
 otrs_tickets_dataflow = BashOperator(
     task_id='otrs_tickets_dataflow',
     bash_command="python {}dependencies/dataflow_scripts/otrs_tickets_dataflow.py --input gs://{}_otrs/tickets/"
-                 .format(os.environ['DAGS_PATH'], os.environ['GCS_PREFIX']) + "{{ ds|get_ds_year }}/"
-                 "{{ ds|get_ds_month }}/{{ ds }}_otrs_report_all.json --avro_output " + "gs://{}_otrs/tickets/avro_output/"
-                 .format(os.environ['GCS_PREFIX']) + "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds }}/",
+                     .format(os.environ['DAGS_PATH'], os.environ['GCS_PREFIX']) + "{{ ds|get_ds_year }}/"
+                                                                                  "{{ ds|get_ds_month }}/{{ ds }}_otrs_report_all.json --avro_output " + "gs://{}_otrs/tickets/avro_output/"
+                     .format(os.environ['GCS_PREFIX']) + "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds }}/",
     dag=dag
 )
 
 otrs_surveys_dataflow = BashOperator(
     task_id='otrs_surveys_dataflow',
     bash_command="python {}dependencies/dataflow_scripts/otrs_surveys_dataflow.py --input gs://{}_otrs/surveys/"
-                 .format(os.environ['DAGS_PATH'], os.environ['GCS_PREFIX']) + "{{ ds|get_ds_year }}/"
-                 "{{ ds|get_ds_month }}/{{ ds }}_survey_final.json --avro_output " + "gs://{}_otrs/surveys/avro_output/"
-                 .format(os.environ['GCS_PREFIX']) + "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds }}/",
+                     .format(os.environ['DAGS_PATH'], os.environ['GCS_PREFIX']) + "{{ ds|get_ds_year }}/"
+                                                                                  "{{ ds|get_ds_month }}/{{ ds }}_survey_final.json --avro_output " + "gs://{}_otrs/surveys/avro_output/"
+                     .format(os.environ['GCS_PREFIX']) + "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds }}/",
     dag=dag
 )
-
-## two avro files pushing to bigquery
 
 otrs_tickets_bq = GoogleCloudStorageToBigQueryOperator(
     task_id='otrs_tickets_bq',
@@ -110,13 +108,12 @@ otrs_surveys_bq = GoogleCloudStorageToBigQueryOperator(
     dag=dag
 )
 
-
 otrs_beam_cleanup = BashOperator(
     task_id='otrs_beam_cleanup',
     bash_command=airflow_utils.beam_cleanup_statement('{}_otrs'.format(os.environ['GCS_PREFIX'])),
     dag=dag
 )
 
-otrs_to_gcs >> gcs_to_csv >> otrs_tickets_dataflow >> (otrs_tickets_bq, otrs_beam_cleanup)
+otrs_to_gcs >> otrs_gcs_to_csv >> otrs_tickets_dataflow >> (otrs_tickets_bq, otrs_beam_cleanup)
 
-otrs_to_gcs >> gcs_to_csv >> otrs_surveys_dataflow >> (otrs_surveys_bq, otrs_beam_cleanup)
+otrs_to_gcs >> otrs_gcs_to_csv >> otrs_surveys_dataflow >> otrs_surveys_bq
