@@ -6,9 +6,11 @@ from gcs_utils import storage_client, json_to_gcs, time_to_seconds
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--since', dest='since', required=True, help='Start param for API pull (last successful DAG '
-                                                                 'run as YYYY-MM-DD)')
-parser.add_argument('--execution_date', dest='execution_date', required=True, help='DAG execution date (YYYY-MM-DD)')
+parser.add_argument('-s', '--since', dest='since', required=True,
+                    help='Start param for API pull '
+                         '(last successful DAG run as YYYY-MM-DD)')
+parser.add_argument('-e', '--execution_date', dest='execution_date',
+                    required=True, help='DAG execution date (YYYY-MM-DD)')
 args = vars(parser.parse_args())
 
 bucket = '{}_qalert'.format(os.environ['GCS_PREFIX'])
