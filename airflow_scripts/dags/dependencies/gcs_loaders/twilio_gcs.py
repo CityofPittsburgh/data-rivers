@@ -21,8 +21,6 @@
     reports in seperately.
 """
 
-##
-# imports
 import requests
 import json
 import time
@@ -35,9 +33,9 @@ from gcs_utils import storage_client, json_to_gcs
 ##
 # initialize the parser and gcs bucket
 parser = argparse.ArgumentParser()
-parser.add_argument('-e', '--execution_date', dest = 'execution_date',
-                    required = True,
-                    help = 'DAG execution date (YYYY-MM-DD)')
+parser.add_argument('-e', '--execution_date', dest='execution_date',
+                    required=True,
+                    help='DAG execution date (YYYY-MM-DD)')
 args = vars(parser.parse_args())
 
 bucket = '{}_twilio'.format(os.environ['GCS_PREFIX'])
@@ -64,6 +62,7 @@ URL_DL_BASE = "https://analytics.ytica.com/{}"
 
 DL_ATTEMPTS_PARAMS = {"max_attempts": 5, "time_sleep": 30}
 
+
 ##
 # create class to contain the error message used in download_report function
 class TwilioReportError(Exception):
@@ -87,7 +86,7 @@ def download_report(attempt_info, header, url_in):
 
     for attempts in range(attempt_info["max_attempts"]):
         api_fail = False
-        rsp = requests.get(url_in, headers = header)
+        rsp = requests.get(url_in, headers=header)
 
         # if download successful -> extract content and exit loop
         if rsp.status_code == 200:
@@ -123,15 +122,15 @@ def prep_report_download(wkspc_id, obj, url_rep, hd_uri, attempts, hd_dl,
     payload_uri = json.dumps({"report_req": {"report": "/gdc/md/{}/obj/{}".
                              format(wkspc_id, obj)}})
 
-    response_uri = requests.post(url_rep, headers = hd_uri, data = payload_uri)
+    response_uri = requests.post(url_rep, headers=hd_uri, data=payload_uri)
 
     # define the API request for the report download. Download is returned as a
     # list from function call
     curr_uri = response_uri.json()['uri']
     url_rep_dl = url_dl.format(curr_uri)
-    raw_dl_list = download_report(attempt_info = attempts,
-                                  header = hd_dl,
-                                  url_in = url_rep_dl)
+    raw_dl_list = download_report(attempt_info=attempts,
+                                  header=hd_dl,
+                                  url_in=url_rep_dl)
 
     # drop the empty row that is at the end of the downloaded list
     raw_dl_list = raw_dl_list[:-1]
@@ -155,7 +154,7 @@ def format_report_download(raw_report, conv_time):
     # pop off the column headers; initialize an empty DF (data) with the columns
     cols = raw_report.pop(0).replace('"', "").replace(" ", "_"). \
         lower().split(",")
-    data = pd.DataFrame(columns = cols)
+    data = pd.DataFrame(columns=cols)
 
     # for each remaining row of the raw list ->
     for r in raw_report:
@@ -193,7 +192,7 @@ def format_report_download(raw_report, conv_time):
         # while loop concludes when curr_vals (current row of the raw
         # download list) is empty; when while loop is done, put new_val in DF
         # and append to the growing data DF
-        data_to_add = pd.DataFrame([new_val], columns = cols)
+        data_to_add = pd.DataFrame([new_val], columns=cols)
         data = data.append(data_to_add)
 
     return data
@@ -225,8 +224,8 @@ def get_report(report_name, time_conversion, dl_attempts, url, url_dl_base,
                                      "remember": 0,
                                      "verify_level": 2}}
 
-    response_sst = requests.post(url["sst"], headers = header_sst,
-                                 data = json.dumps(payload_sst))
+    response_sst = requests.post(url["sst"], headers=header_sst,
+                                 data=json.dumps(payload_sst))
 
     token = {"sst": response_sst.json()['userLogin']['token']}
 
@@ -236,7 +235,7 @@ def get_report(report_name, time_conversion, dl_attempts, url, url_dl_base,
                  "Content-Type": "application/json",
                  "X-GDC-AuthSST": token["sst"]}
 
-    response_tt = requests.get(url["tt"], headers = header_tt)
+    response_tt = requests.get(url["tt"], headers=header_tt)
     token.update({"tt": response_tt.json()['userToken']['token']})
 
     ##
@@ -255,32 +254,29 @@ def get_report(report_name, time_conversion, dl_attempts, url, url_dl_base,
     # define the report URL
     url_report = url_report_base.format(workspace_id)
 
-    raw_summary_report = prep_report_download(wkspc_id = workspace_id,
-                                              obj = object_id["summary_report"],
-                                              url_rep = url_report,
-                                              hd_uri = header_uri,
-                                              attempts = dl_attempts,
-                                              hd_dl = header_dl,
-                                              url_dl = url_dl_base)
+    raw_summary_report = prep_report_download(wkspc_id=workspace_id,
+                                              obj=object_id["summary_report"],
+                                              url_rep=url_report,
+                                              hd_uri=header_uri,
+                                              attempts=dl_attempts,
+                                              hd_dl=header_dl,
+                                              url_dl=url_dl_base)
 
     ##
     # format the raw summary report (list) into a DF
     # function call to format report
-    formatted_summary_report = format_report_download(raw_report =
+    formatted_summary_report = format_report_download(raw_report=
                                                       raw_summary_report.copy(),
-                                                      conv_time =
+                                                      conv_time=
                                                       time_conversion.copy())
 
-    # set date as the index and alter the column names
-    formatted_summary_report.set_index('date', inplace = True)
-    formatted_summary_report.columns = ["handled_conversations",
+    formatted_summary_report.columns = ["date", "handled_conversations",
                                         "voicemails", "median_talk_time",
                                         "average_talk_time", "total_talk_time"]
 
     ##
     # write the summary report to a new line delim JSON
-    formatted_report = formatted_summary_report.to_dict(orient = "records")
-
+    formatted_report = formatted_summary_report.to_dict(orient="records")
 
     ##
     # upload formatted report to Google Cloud
@@ -299,28 +295,27 @@ def get_report(report_name, time_conversion, dl_attempts, url, url_dl_base,
 
 ##
 # get fully formatted service desk report
-report_serv_desk = get_report(report_name = REPORTS,
-                              time_conversion = TIME_CONV,
-                              dl_attempts = DL_ATTEMPTS_PARAMS,
-                              url = URLS,
-                              url_dl_base = URL_DL_BASE,
-                              workspace_id = WORKSPACE["service_desk"],
-                              targ_obj_id = ["119775"],
-                              url_report_base = URL_REP_BASE,
-                              workspace_name = "service_desk")
-
+report_serv_desk = get_report(report_name=REPORTS,
+                              time_conversion=TIME_CONV,
+                              dl_attempts=DL_ATTEMPTS_PARAMS,
+                              url=URLS,
+                              url_dl_base=URL_DL_BASE,
+                              workspace_id=WORKSPACE["service_desk"],
+                              targ_obj_id=["119775"],
+                              url_report_base=URL_REP_BASE,
+                              workspace_name="service_desk")
 
 ##
 # get fully formatted 311 report
-report_311 = get_report(report_name = REPORTS,
-                        time_conversion = TIME_CONV,
-                        dl_attempts = DL_ATTEMPTS_PARAMS,
-                        url = URLS,
-                        url_dl_base = URL_DL_BASE,
-                        workspace_id = WORKSPACE["311"],
-                        targ_obj_id = ["233466"],
-                        url_report_base = URL_REP_BASE,
-                        workspace_name = "311")
+report_311 = get_report(report_name=REPORTS,
+                        time_conversion=TIME_CONV,
+                        dl_attempts=DL_ATTEMPTS_PARAMS,
+                        url=URLS,
+                        url_dl_base=URL_DL_BASE,
+                        workspace_id=WORKSPACE["311"],
+                        targ_obj_id=["233466"],
+                        url_report_base=URL_REP_BASE,
+                        workspace_name="311")
 
 ##
 #

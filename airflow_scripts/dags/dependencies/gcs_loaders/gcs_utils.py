@@ -110,6 +110,9 @@ def upload_file_gcs(bucket_name, source_file_name, destination_blob_name):
 
 
 def json_to_gcs(path, json_object, bucket_name):
+    """
+    take list of dicts in memory and upload to GCS as newline JSON
+    """
     blob = storage.Blob(
         name=path,
         bucket=storage_client.get_bucket(bucket_name),
