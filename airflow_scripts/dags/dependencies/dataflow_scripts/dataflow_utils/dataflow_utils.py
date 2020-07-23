@@ -47,12 +47,6 @@ def generate_args(job_name, bucket, argv, schema_name, runner='DataflowRunner'):
     return known_args, pipeline_options, avro_schema
 
 
-def parse_bash_args():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--input', dest='input', required=True)
-    parser.add_argument('--avro_output', dest='avro_output', required=True)
-
-
 # monkey patch for avro schema hashing bug: https://issues.apache.org/jira/browse/AVRO-1737
 def hash_func(self):
     return hash(str(self))
@@ -69,10 +63,10 @@ def download_schema(bucket_name, source_blob_name, destination_file_name):
     blob.download_to_filename(destination_file_name)
 
 
-def get_schema(schema):
+def get_schema(schema_name):
     """Read avsc from cloud storage and return json object stored in memory"""
     bucket = storage_client.get_bucket('pghpa_avro_schemas')
-    blob = bucket.get_blob('{}.avsc'.format(schema))
+    blob = bucket.get_blob('{}.avsc'.format(schema_name))
     schema_string = blob.download_as_string()
     return json.loads(schema_string)
 
