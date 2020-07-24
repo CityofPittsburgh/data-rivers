@@ -255,6 +255,7 @@ Here are the resulting top five names for the POODLE STANDARD breed, sorted by d
  {'DogName': 'MASON', 'amount': '3'}]
 """
 
+
 def get_wprdc_data(resource_id, select_fields=['*'], where_clauses=None, group_by=None, order_by=None, limit=None):
     query = synthesize_query(resource_id, select_fields, where_clauses, group_by, order_by, limit)
     records = query_any_resource(resource_id, query)
