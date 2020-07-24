@@ -90,7 +90,7 @@ qalert_activities_bq = GoogleCloudStorageToBigQueryOperator(
 
 qalert_requests_bq = GoogleCloudStorageToBigQueryOperator(
     task_id='qalert_requests_bq',
-    destination_project_dataset_table='{}:qalert.requests_temp'.format(os.environ['GCLOUD_PROJECT']),
+    destination_project_dataset_table='{}:qalert.requests_raw'.format(os.environ['GCLOUD_PROJECT']),
     bucket='{}_qalert'.format(os.environ['GCS_PREFIX']),
     source_objects=["requests/avro_output/{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds }}/*.avro"],
     write_disposition='WRITE_APPEND',
@@ -101,54 +101,12 @@ qalert_requests_bq = GoogleCloudStorageToBigQueryOperator(
     dag=dag
 )
 
-qalert_requests_geo_join = BigQueryOperator(
-    task_id='qalert_requests_bq_geojoin',
-    sql=build_revgeo_query('qalert', 'requests_temp'),
-    use_legacy_sql=False,
-    destination_dataset_table='{}:qalert.requests_geo_temp'.format(os.environ['GCLOUD_PROJECT']),
-    write_disposition='WRITE_APPEND',
-    time_partitioning={'type': 'DAY'},
-    dag=dag
-)
-
-qalert_requests_bq_filter = BigQueryOperator(
-    task_id='qalert_requests_bq_filter',
-    sql=filter_old_values('qalert', 'requests_geo_temp', 'requests', 'id'),
-    use_legacy_sql=False,
-    dag=dag
-)
-
-qalert_requests_bq_merge = BigQueryOperator(
-    task_id='qalert_requests_bq_merge',
-    sql='SELECT * FROM {}.qalert.requests_geo_temp'.format(os.environ['GCLOUD_PROJECT']),
-    use_legacy_sql=False,
-    destination_dataset_table='{}:qalert.requests'.format(os.environ['GCLOUD_PROJECT']),
-    write_disposition='WRITE_APPEND',
-    time_partitioning={'type': 'DAY'},
-    dag=dag
-)
-
-qalert_bq_drop_temp = BigQueryOperator(
-    task_id='qalert_bq_drop_temp',
-    sql='DROP TABLE `{}.qalert.requests_temp`'.format(os.environ['GCLOUD_PROJECT']),
-    use_legacy_sql=False,
-    dag=dag
-)
-
-qalert_bq_drop_geo_temp = BigQueryOperator(
-    task_id='qalert_bq_drop_geo_temp',
-    sql='DROP TABLE `{}.qalert.requests_geo_temp`'.format(os.environ['GCLOUD_PROJECT']),
-    use_legacy_sql=False,
-    dag=dag
-)
-
 qalert_beam_cleanup = BashOperator(
     task_id='qalert_beam_cleanup',
     bash_command=airflow_utils.beam_cleanup_statement('{}_qalert'.format(os.environ['GCS_PREFIX'])),
     dag=dag
 )
 
-qalert_gcs >> qalert_requests_dataflow >> (qalert_requests_bq, qalert_beam_cleanup) >> qalert_requests_geo_join >> \
-    qalert_requests_bq_filter >> qalert_requests_bq_merge >> (qalert_bq_drop_temp, qalert_bq_drop_geo_temp)
+qalert_gcs >> qalert_requests_dataflow >> (qalert_requests_bq, qalert_beam_cleanup)
 
 qalert_gcs >> qalert_activities_dataflow >> (qalert_activities_bq, qalert_beam_cleanup)
