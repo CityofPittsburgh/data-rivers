@@ -14,12 +14,16 @@ from google.cloud import storage, dlp_v2
 from pprint import pprint
 
 parser = argparse.ArgumentParser()
+parser.add_argument('-e', '--execution_date', dest='execution_date',
+                    required=True, help='DAG execution date (YYYY-MM-DD)')
+args = vars(parser.parse_args())
 
 storage_client = storage.Client()
 dlp = dlp_v2.DlpServiceClient()
 project = os.environ['GCLOUD_PROJECT']
 
-WPRDC_API_HARD_LIMIT = 500001 # A limit set by the CKAN instance.
+WPRDC_API_HARD_LIMIT = 500001  # A limit set by the CKAN instance.
+
 
 def scrub_pii(field, data_objects):
     """You could reasonably make a case for doing this in the Dataflow portion of the DAG, but IMHO it's better to
@@ -197,7 +201,7 @@ def synthesize_query(resource_id, select_fields=['*'], where_clauses=None, group
     if where_clauses is not None:
         for clause in list(where_clauses):
             validate_where_clause(clause)
-        query += f" WHERE {', '.join(where_clauses)}"
+        query += f" WHERE {' AND '.join(where_clauses)}"
 
     if group_by is not None:
         query += f" GROUP BY {group_by}"
@@ -209,6 +213,7 @@ def synthesize_query(resource_id, select_fields=['*'], where_clauses=None, group
         except ValueError:
             print(f"Unable to cast the LIMIT parameter '{limit}' to an integer limit.")
         query += f" LIMIT {limit}"
+        
     return query
 
 
@@ -271,7 +276,6 @@ def get_wprdc_data(resource_id, select_fields=['*'], where_clauses=None, group_b
     # Clean out fields that no one needs.
     records = remove_fields(records, ['_full_text'])
     return records
-
 
 # TODO: function to convert CSV or SQL result to pandas df -> json_to_gcs
 
