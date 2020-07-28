@@ -4,19 +4,12 @@ import os
 import logging
 import time
 import re
-import argparse
 
 import ciso8601
 import ckanapi
 import ndjson
 
 from google.cloud import storage, dlp_v2
-from pprint import pprint
-
-parser = argparse.ArgumentParser()
-parser.add_argument('-e', '--execution_date', dest='execution_date',
-                    required=True, help='DAG execution date (YYYY-MM-DD)')
-args = vars(parser.parse_args())
 
 storage_client = storage.Client()
 dlp = dlp_v2.DlpServiceClient()
@@ -98,6 +91,21 @@ def time_to_seconds(t):
     return int(time.mktime(ts.timetuple()))
 
 
+def swap_field_names(datum, changes):
+    """
+    change/clean field names from GCS files
+
+    :param datum: dict
+    :param changes: list of tuples consisting of existing field name + name to which it should be changed
+    :return:
+    """
+    for change in changes:
+        datum[change[1]] = datum[change[0]]
+        del datum[change[0]]
+
+    return datum
+
+
 def upload_file_gcs(bucket_name, source_file_name, destination_blob_name):
     """Uploads a file to the bucket."""
     # bucket_name = "your-bucket-name"
@@ -176,7 +184,7 @@ def intersection(list1, list2):
     return list(set(list1) & set(list2))
 
 
-def validate_where_clause(where_clause):
+def validate_where_clauses(where_clause):
     """This function provides a little validation of a single where clause
     by ensuring that it contains an operator."""
     operators = ['=', '>', '<', '>=', '<=', '<>', '!=', 'BETWEEN', 'LIKE', 'IN']
@@ -199,10 +207,11 @@ def remove_fields(records, fields_to_remove):
 def synthesize_query(resource_id, select_fields=['*'], where_clauses=None, group_by=None, order_by=None, limit=None):
     query = f'SELECT {", ".join(select_fields)} FROM "{resource_id}"'
     if where_clauses is not None:
-        for clause in list(where_clauses):
-            validate_where_clause(clause)
-        query += f" WHERE {' AND '.join(where_clauses)}"
-
+        # for clause in list(where_clauses):
+        #     validate_where_clause(clause)
+        # query += f" WHERE {' AND '.join(where_clauses)}"
+        validate_where_clauses(where_clauses)
+        query += 'WHERE ' + where_clauses
     if group_by is not None:
         query += f" GROUP BY {group_by}"
     if order_by is not None:
@@ -213,7 +222,7 @@ def synthesize_query(resource_id, select_fields=['*'], where_clauses=None, group
         except ValueError:
             print(f"Unable to cast the LIMIT parameter '{limit}' to an integer limit.")
         query += f" LIMIT {limit}"
-        
+
     return query
 
 
@@ -262,6 +271,17 @@ Here are the resulting top five names for the POODLE STANDARD breed, sorted by d
 
 
 def get_wprdc_data(resource_id, select_fields=['*'], where_clauses=None, group_by=None, order_by=None, limit=None):
+    """
+    helper to construct query for CKAN API and return results as list of dictionaries
+
+    :param resource_id: str
+    :param select_fields: list
+    :param where_clauses: str
+    :param group_by: str
+    :param order_by: str
+    :param limit: int
+    :return: results as list of dictionaries
+    """
     query = synthesize_query(resource_id, select_fields, where_clauses, group_by, order_by, limit)
     records = query_any_resource(resource_id, query)
 
