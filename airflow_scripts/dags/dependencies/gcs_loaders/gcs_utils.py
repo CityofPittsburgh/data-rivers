@@ -91,19 +91,38 @@ def time_to_seconds(t):
     return int(time.mktime(ts.timetuple()))
 
 
-def swap_field_names(datum, changes):
+def swap_field_names(datum, name_changes):
     """
     change/clean field names from GCS files
 
     :param datum: dict
-    :param changes: list of tuples consisting of existing field name + name to which it should be changed
-    :return:
+    :param changes: tuple consisting of existing field name + name to which it should be changed
+    :return: dict with updated field name
     """
-    for change in changes:
+    for change in name_changes:
         datum[change[1]] = datum[change[0]]
         del datum[change[0]]
 
     return datum
+
+
+def filter_fields(results, relevant_fields, name_changes=None):
+    """
+    Remove unnecessary keys from results, optionally rename fields
+
+    :param results: list of dicts
+    :param relevant_fields: list of field names to preserve
+    :param name_changes: list of tuples comprising original field name + new name (optional)
+    :return: transformed list of dicts
+    """
+    trimmed_results = []
+    for result in results:
+        trimmed_result = {k: result[k] for k in relevant_fields}
+        if name_changes is not None:
+            trimmed_result = swap_field_names(trimmed_result, name_changes)
+        trimmed_results.append(trimmed_result)
+
+    return trimmed_results
 
 
 def execution_date_to_quarter(execution_date):
@@ -184,6 +203,8 @@ def json_to_gcs(path, json_object, bucket_name):
     )
     logging.info(
         'Successfully uploaded blob %r to bucket %r.', path, bucket_name)
+
+    print('Successfully uploaded blob {} to bucket {}'.format(path, bucket_name))
 
 
 def query_resource(site, query):
