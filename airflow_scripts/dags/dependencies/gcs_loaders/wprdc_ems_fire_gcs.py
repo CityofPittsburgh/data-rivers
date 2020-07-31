@@ -1,4 +1,5 @@
 import os
+import logging
 import argparse
 
 from gcs_utils import json_to_gcs, get_wprdc_data, swap_field_names
@@ -8,10 +9,12 @@ This DAG runs monthly, with a query downstream to filter duplicates from the fin
 location data is obscured to census block lat/long for privacy reasons. 
 """
 
-parser = argparse.ArgumentParser()
-parser.add_argument('-e', '--execution_date', dest='execution_date',
-                    required=True, help='DAG execution date (YYYY-MM-DD)')
-args = vars(parser.parse_args())
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-e', '--execution_date', dest='execution_date',
+                        required=True, help='DAG execution date (YYYY-MM-DD)')
+    args = vars(parser.parse_args())
+    logging.getLogger().setLevel(logging.INFO)
 
 bucket = '{}_ems_fire'.format(os.environ['GCS_PREFIX'])
 
@@ -25,8 +28,7 @@ RELEVANT_KEYS = [
                  'priority_desc',
                  'call_id_hash',
                  'census_block_group_center__x',
-                 'census_block_group_center__y'
-                ]
+                 'census_block_group_center__y']
 
 
 def execution_date_to_prev_quarter(execution_date):

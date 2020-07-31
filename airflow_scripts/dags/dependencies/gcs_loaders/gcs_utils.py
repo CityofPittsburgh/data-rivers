@@ -106,6 +106,49 @@ def swap_field_names(datum, changes):
     return datum
 
 
+def execution_date_to_quarter(execution_date):
+    """
+    :param execution_date: DAG execution date, passed through via Airflow template variable
+    :return: quarter, year as int (e.g. 'Q1', 2020)
+    """
+
+    split_date = execution_date.split('-')
+    year = split_date[0]
+    day = split_date[1] + '-' + split_date[2]
+    if '01-01' <= day < '04-01':
+        quarter = 'Q1'
+    elif '04-01' <= day < '07-01':
+        quarter = 'Q2'
+    elif '07-01' <= day < '10-01':
+        quarter = 'Q3'
+    else:
+        quarter = 'Q4'
+
+    return quarter, int(year)
+
+
+def execution_date_to_prev_quarter(execution_date):
+    """
+    :param execution_date: DAG execution date, passed through via Airflow template variable
+    :return: quarter, year as int (e.g. 'Q1', 2020)
+    """
+
+    split_date = execution_date.split('-')
+    year = split_date[0]
+    day = split_date[1] + '-' + split_date[2]
+    if '01-01' <= day < '04-01':
+        quarter = 'Q4'
+        year = int(year) - 1
+    elif '04-01' <= day < '07-01':
+        quarter = 'Q1'
+    elif '07-01' <= day < '10-01':
+        quarter = 'Q2'
+    else:
+        quarter = 'Q3'
+
+    return quarter, int(year)
+
+
 def upload_file_gcs(bucket_name, source_file_name, destination_blob_name):
     """Uploads a file to the bucket."""
     # bucket_name = "your-bucket-name"
