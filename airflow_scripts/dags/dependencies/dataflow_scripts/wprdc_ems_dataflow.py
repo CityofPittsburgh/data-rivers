@@ -8,16 +8,24 @@ from apache_beam.io import ReadFromText
 from apache_beam.io.avroio import WriteToAvro
 
 from dataflow_utils import dataflow_utils
-from dataflow_utils.dataflow_utils import get_schema, generate_args, JsonCoder
+from dataflow_utils.dataflow_utils import generate_args, JsonCoder
 
+
+# TODO: pass input/output buckets as params from DataflowPythonOperator in DAG
 
 def run(argv=None):
+    """
+    If you want to run just this file for rapid development, change runner to 'DirectRunner' and add
+    GCS paths for --input and --avro_output, e.g.
+    python qalert_requests_dataflow.py --input gs://pghpa_test_qalert/requests/2020/06/2020-06-17_requests.json
+    --avro_output gs://pghpa_test_qalert/requests/avro_output/2020/06/2020-06-17/
+    """
 
     known_args, pipeline_options, avro_schema = generate_args(
-        job_name='otrs-surveys-dataflow',
-        bucket='{}_otrs'.format(os.environ['GCS_PREFIX']),
+        job_name='wprdc-ems-dataflow',
+        bucket='{}_ems_fire'.format(os.environ['GCS_PREFIX']),
         argv=argv,
-        schema_name='City_of_Pittsburgh_OTRS_Survey',
+        schema_name='ems_calls',
         runner='DataflowRunner'
     )
 

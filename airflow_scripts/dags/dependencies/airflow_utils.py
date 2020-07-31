@@ -143,6 +143,12 @@ def filter_old_values(dataset, temp_table, final_table, join_field):
     """
 
 
+def dedup_table(dataset, table):
+    return f"""
+    SELECT DISTINCT * FROM `{dataset}.{table}`
+    """
+
+
 def beam_cleanup_statement(bucket):
     return "if gsutil -q stat gs://{}/beam_output/*; then gsutil rm gs://{}/beam_output/**; else echo " \
            "no beam output; fi".format(bucket, bucket)

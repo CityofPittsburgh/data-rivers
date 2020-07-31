@@ -61,7 +61,6 @@ class ComputronixTradesDataFlowTest(unittest.TestCase):
         }
         self.assertEqual(sorted(expected), sorted(self.type_converted))
 
-
     def test_schema(self):
         self.assertTrue(validate(self.type_converted, self.SCHEMA))
 
