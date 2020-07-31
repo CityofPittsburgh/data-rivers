@@ -93,10 +93,10 @@ def time_to_seconds(t):
 
 def swap_field_names(datum, name_changes):
     """
-    change/clean field names from GCS files
+    change/clean field names in result dict
 
     :param datum: dict
-    :param changes: tuple consisting of existing field name + name to which it should be changed
+    :param name_changes: tuple consisting of existing field name + name to which it should be changed
     :return: dict with updated field name
     """
     for change in name_changes:
