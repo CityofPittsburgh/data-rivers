@@ -87,6 +87,11 @@ def regex_filter(value):
 
 
 def time_to_seconds(t):
+    """
+    convert YYYY-MM-DD to seconds
+    :param t: date as YYYY-MM-DD (string)
+    :return: int (time in seconds)
+    """
     ts = ciso8601.parse_datetime(t)
     return int(time.mktime(ts.timetuple()))
 
