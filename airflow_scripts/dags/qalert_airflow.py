@@ -9,7 +9,7 @@ from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOper
 from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 
 from dependencies import airflow_utils
-from dependencies.airflow_utils import build_revgeo_query, filter_old_values, get_ds_year, get_ds_month, default_args
+from dependencies.airflow_utils import build_revgeo_query, dedup_table, get_ds_year, get_ds_month, default_args
 
 # TODO: When Airflow 2.0 is released, upgrade the package, sub in DataFlowPythonOperator for BashOperator,
 # and pass the argument 'py_interpreter=python3'
@@ -101,12 +101,33 @@ qalert_requests_bq = GoogleCloudStorageToBigQueryOperator(
     dag=dag
 )
 
+qalert_dedup_requests = BigQueryOperator(
+    task_id='qalert_dedup_requests',
+    sql=dedup_table('qalert', 'requests_raw'),
+    use_legacy_sql=False,
+    destination_dataset_table='{}:qalert.requests_raw'.format(os.environ['GCLOUD_PROJECT']),
+    write_disposition='WRITE_TRUNCATE',
+    time_partitioning={'type': 'DAY'},
+    dag=dag
+)
+
+qalert_requests_geojoin = BigQueryOperator(
+    task_id='qalert_geojoin',
+    sql=build_revgeo_query('qalert', 'requests_raw'),
+    use_legacy_sql=False,
+    destination_dataset_table='{}:qalert.requests'.format(os.environ['GCLOUD_PROJECT']),
+    write_disposition='WRITE_TRUNCATE',
+    time_partitioning={'type': 'DAY'},
+    dag=dag
+)
+
 qalert_beam_cleanup = BashOperator(
     task_id='qalert_beam_cleanup',
     bash_command=airflow_utils.beam_cleanup_statement('{}_qalert'.format(os.environ['GCS_PREFIX'])),
     dag=dag
 )
 
-qalert_gcs >> qalert_requests_dataflow >> (qalert_requests_bq, qalert_beam_cleanup)
+qalert_gcs >> qalert_requests_dataflow >> qalert_requests_bq >> qalert_dedup_requests >> \
+    (qalert_requests_geojoin, qalert_beam_cleanup)
 
 qalert_gcs >> qalert_activities_dataflow >> (qalert_activities_bq, qalert_beam_cleanup)
