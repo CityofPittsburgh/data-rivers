@@ -1,14 +1,16 @@
-import MySQLdb
 import csv
 import os
+import argparse
 import warnings
 
-from gcs_utils import parser, storage_client, upload_file_gcs
+import MySQLdb
+
+from gcs_utils import storage_client, upload_file_gcs
 
 
+parser = argparse.ArgumentParser()
 parser.add_argument('--execution_date', dest='execution_date', required=True, help='DAG execution date (YYYY-MM-DD)')
 args = vars(parser.parse_args())
-
 
 warnings.filterwarnings('ignore', category=MySQLdb.Warning)
 bucket = '{}_otrs'.format(os.environ['GCS_PREFIX'])

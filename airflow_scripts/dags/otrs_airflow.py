@@ -68,19 +68,19 @@ otrs_gcs_to_csv = DockerOperator(
 
 otrs_tickets_dataflow = BashOperator(
     task_id='otrs_tickets_dataflow',
-    bash_command="python {}dependencies/dataflow_scripts/otrs_tickets_dataflow.py --input gs://{}_otrs/tickets/"
-                     .format(os.environ['DAGS_PATH'], os.environ['GCS_PREFIX']) + "{{ ds|get_ds_year }}/"
-                                                                                  "{{ ds|get_ds_month }}/{{ ds }}_otrs_report_all.json --avro_output " + "gs://{}_otrs/tickets/avro_output/"
-                     .format(os.environ['GCS_PREFIX']) + "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds }}/",
+    bash_command="python {}/dependencies/dataflow_scripts/otrs_tickets_dataflow.py --input gs://{}_otrs/tickets/"
+                 .format(os.environ['DAGS_PATH'], os.environ['GCS_PREFIX']) + "{{ ds|get_ds_year }}/{{ ds|get_ds_month "
+                 "}}/{{ ds }}_otrs_report_all.json --avro_output " + "gs://{}_otrs/tickets/avro_output/"
+                 .format(os.environ['GCS_PREFIX']) + "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds }}/",
     dag=dag
 )
 
 otrs_surveys_dataflow = BashOperator(
     task_id='otrs_surveys_dataflow',
-    bash_command="python {}dependencies/dataflow_scripts/otrs_surveys_dataflow.py --input gs://{}_otrs/surveys/"
-                     .format(os.environ['DAGS_PATH'], os.environ['GCS_PREFIX']) + "{{ ds|get_ds_year }}/"
-                                                                                  "{{ ds|get_ds_month }}/{{ ds }}_survey_final.json --avro_output " + "gs://{}_otrs/surveys/avro_output/"
-                     .format(os.environ['GCS_PREFIX']) + "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds }}/",
+    bash_command="python {}/dependencies/dataflow_scripts/otrs_surveys_dataflow.py --input gs://{}_otrs/surveys/"
+                 .format(os.environ['DAGS_PATH'], os.environ['GCS_PREFIX']) + "{{ ds|get_ds_year }}/{{ ds|get_ds_month "
+                 "}}/{{ ds }}_survey_final.json --avro_output " + "gs://{}_otrs/surveys/avro_output/"
+                 .format(os.environ['GCS_PREFIX']) + "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds }}/",
     dag=dag
 )
 
