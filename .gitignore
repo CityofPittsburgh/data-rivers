@@ -105,16 +105,19 @@ venv.bak/
 .mypy_cache/
 
 .idea
+*/.idea
 airflow.cfg
 /airflow
 /airflow/logs/*
 /airflow/airflow.db
-/airflow_scripts/.idea
-/airflow_scripts/logs/*
-/airflow_scripts/airflow.db
+/dags/.idea
+/dags/logs
+/dags/logs/*
+/dags/airflow.db
 *.avsc
 .DS_Store
 data_rivers_key.json
 *.log
+
 
 list/

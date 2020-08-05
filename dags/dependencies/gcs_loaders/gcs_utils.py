@@ -2,7 +2,6 @@ from __future__ import print_function
 
 import os
 import logging
-import argparse
 import time
 import re
 
