@@ -339,7 +339,9 @@ Here are the resulting top five names for the POODLE STANDARD breed, sorted by d
 """
 
 
-def get_wprdc_data(resource_id, select_fields=['*'], where_clauses=None, group_by=None, order_by=None, limit=None):
+def get_wprdc_data(resource_id, select_fields=['*'], where_clauses=None,
+                   group_by=None, order_by=None, limit=None,
+                   fields_to_remove=None):
     """
     helper to construct query for CKAN API and return results as list of dictionaries
 
@@ -349,6 +351,7 @@ def get_wprdc_data(resource_id, select_fields=['*'], where_clauses=None, group_b
     :param group_by: str
     :param order_by: str
     :param limit: int
+    :param fields_to_remove: list
     :return: results as list of dictionaries
     """
     query = synthesize_query(resource_id, select_fields, where_clauses, group_by, order_by, limit)
@@ -363,7 +366,8 @@ def get_wprdc_data(resource_id, select_fields=['*'], where_clauses=None, group_b
         # 500001", so you can determine the actual hard limit that way.
 
     # Clean out fields that no one needs.
-    records = remove_fields(records, ['_full_text'])
+    records = remove_fields(records, ['_full_text', '_id'])
+    records = remove_fields(records, fields_to_remove)
     return records
 
 # TODO: function to convert CSV or SQL result to pandas df -> json_to_gcs
