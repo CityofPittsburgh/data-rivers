@@ -198,21 +198,20 @@ def execution_date_to_prev_quarter(execution_date):
 
 
 def upload_file_gcs(bucket_name, source_file_name, destination_blob_name):
-    """Uploads a file to the bucket."""
-    # bucket_name = "your-bucket-name"
-    # source_file_name = "local/path/to/file"
-    # destination_blob_name = "storage-object-name"
+    """
+    Uploads a file to the bucket.
+    param bucket_name:str = "your-bucket-name"
+    param source_file_name:str = "local/path/to/file"
+    param destination_blob_name:str = "storage-object-name"
+    """
 
     bucket = storage_client.bucket(bucket_name)
     blob = bucket.blob(destination_blob_name)
 
     blob.upload_from_filename(source_file_name)
 
-    print(
-        "File {} uploaded to {}.".format(
-            source_file_name, destination_blob_name
-        )
-    )
+    print("File {} uploaded to {}.".format(source_file_name, destination_blob_name))
+
     os.remove(source_file_name)
 
 
@@ -233,8 +232,7 @@ def json_to_gcs(path, json_object, bucket_name):
     logging.info(
         'Successfully uploaded blob %r to bucket %r.', path, bucket_name)
 
-    print(
-        'Successfully uploaded blob {} to bucket {}'.format(path, bucket_name))
+    print('Successfully uploaded blob {} to bucket {}'.format(path, bucket_name))
 
 
 def query_resource(site, query):
