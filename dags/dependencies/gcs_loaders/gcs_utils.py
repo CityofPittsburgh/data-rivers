@@ -102,16 +102,40 @@ def swap_field_names(datum, name_changes):
 
     :param datum: dict
     :param name_changes: tuple consisting of existing field name + name to which it should be changed
-    :return: dict with updated field name
+    :return: dict with updated field names
     """
-    for change in name_changes:
-        datum[change[1]] = datum[change[0]]
-        del datum[change[0]]
+    for name_change in name_changes:
+        datum[name_change[1]] = datum[name_change[0]]
+        del datum[name_change[0]]
 
     return datum
 
 
-def filter_fields(results, relevant_fields, name_changes=None):
+def change_data_types(datum, type_changes):
+    """
+    change data types
+
+    :param datum: dict
+    :param type_changes: list of tuples of the fields to change data type
+    :return: dict with updated data types
+    """
+    try:
+        for type_change in type_changes:
+            if type_change[1] is "float":
+                datum[type_change[0]] = float(datum[type_change[0]])
+            elif type_change[1] is "int":
+                datum[type_change[0]] = int(datum[type_change[0]])
+            elif type_change[1] is "str":
+                datum[type_change[0]] = str(datum[type_change[0]])
+            elif type_change[1] is "bool":
+                datum[type_change[0]] = bool(datum[type_change[0]])
+    except TypeError:
+        pass
+
+    return datum
+
+
+def filter_fields(results, relevant_fields, name_changes = None):
     """
     Remove unnecessary keys from results, optionally rename fields
 
@@ -174,21 +198,20 @@ def execution_date_to_prev_quarter(execution_date):
 
 
 def upload_file_gcs(bucket_name, source_file_name, destination_blob_name):
-    """Uploads a file to the bucket."""
-    # bucket_name = "your-bucket-name"
-    # source_file_name = "local/path/to/file"
-    # destination_blob_name = "storage-object-name"
+    """
+    Uploads a file to the bucket.
+    param bucket_name:str = "your-bucket-name"
+    param source_file_name:str = "local/path/to/file"
+    param destination_blob_name:str = "storage-object-name"
+    """
 
     bucket = storage_client.bucket(bucket_name)
     blob = bucket.blob(destination_blob_name)
 
     blob.upload_from_filename(source_file_name)
 
-    print(
-        "File {} uploaded to {}.".format(
-            source_file_name, destination_blob_name
-        )
-    )
+    print("File {} uploaded to {}.".format(source_file_name, destination_blob_name))
+
     os.remove(source_file_name)
 
 
@@ -275,10 +298,12 @@ def remove_fields(records, fields_to_remove):
 
 def synthesize_query(resource_id, select_fields=['*'], where_clauses=None, group_by=None, order_by=None, limit=None):
     query = f'SELECT {", ".join(select_fields)} FROM "{resource_id}"'
+
     if where_clauses is not None:
         # for clause in list(where_clauses):
         #     validate_where_clause(clause)
         # query += f" WHERE {' AND '.join(where_clauses)}"
+
         validate_where_clauses(where_clauses)
         query += 'WHERE ' + where_clauses
     if group_by is not None:
@@ -339,7 +364,8 @@ Here are the resulting top five names for the POODLE STANDARD breed, sorted by d
 """
 
 
-def get_wprdc_data(resource_id, select_fields=['*'], where_clauses=None, group_by=None, order_by=None, limit=None):
+def get_wprdc_data(resource_id, select_fields=['*'], where_clauses=None, group_by=None, order_by=None, limit=None,
+                   fields_to_remove=None):
     """
     helper to construct query for CKAN API and return results as list of dictionaries
 
@@ -349,6 +375,7 @@ def get_wprdc_data(resource_id, select_fields=['*'], where_clauses=None, group_b
     :param group_by: str
     :param order_by: str
     :param limit: int
+    :param fields_to_remove: list
     :return: results as list of dictionaries
     """
     query = synthesize_query(resource_id, select_fields, where_clauses, group_by, order_by, limit)
@@ -363,7 +390,8 @@ def get_wprdc_data(resource_id, select_fields=['*'], where_clauses=None, group_b
         # 500001", so you can determine the actual hard limit that way.
 
     # Clean out fields that no one needs.
-    records = remove_fields(records, ['_full_text'])
+    records = remove_fields(records, ['_full_text', '_id'])
+    records = remove_fields(records, fields_to_remove)
     return records
 
 # TODO: function to convert CSV or SQL result to pandas df -> json_to_gcs
