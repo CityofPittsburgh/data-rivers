@@ -27,9 +27,7 @@ for meter in parking_meters:
     cleaned_meter = change_data_types(meter, type_changes)
     cleaned_meters.append(cleaned_meter)
 
-json_to_gcs('meters/{}/{}/{}_meters.json'.format(args['execution_date'].
-                                                 split('-')[0],
-                                                 args['execution_date'].split(
-                                                     '-')[1],
+json_to_gcs('meters/{}/{}/{}_meters.json'.format(args['execution_date'].split('-')[0],
+                                                 args['execution_date'].split('-')[1],
                                                  args['execution_date']),
             cleaned_meters, bucket)

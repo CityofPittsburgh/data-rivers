@@ -28,8 +28,7 @@ def scrub_pii(field, data_objects):
             object[field] = get_dlp_redaction(object[field])
         # google's DLP API has a rate limit of 600 requests/minute
         # TODO: consider a different workaround here; not robust for large datasets
-        if data_objects.index(object) % 600 == 0 and data_objects.index(
-                object) != 0:
+        if data_objects.index(object) % 600 == 0 and data_objects.index(object) != 0:
             time.sleep(61)
 
     return data_objects
@@ -41,10 +40,8 @@ def get_dlp_redaction(uncleaned_string):
     parent = dlp.project_path(project)
 
     # Construct inspect configuration dictionary
-    info_types = ["EMAIL_ADDRESS", "FIRST_NAME", "LAST_NAME", "PHONE_NUMBER",
-                  "URL", "STREET_ADDRESS"]
-    inspect_config = {
-        "info_types": [{"name": info_type} for info_type in info_types]}
+    info_types = ["EMAIL_ADDRESS", "FIRST_NAME", "LAST_NAME", "PHONE_NUMBER", "URL", "STREET_ADDRESS"]
+    inspect_config = {"info_types": [{"name": info_type} for info_type in info_types]}
 
     # Construct deidentify configuration dictionary
     deidentify_config = {
@@ -68,9 +65,9 @@ def get_dlp_redaction(uncleaned_string):
     # Call the API
     response = dlp.deidentify_content(
         parent,
-        inspect_config = inspect_config,
-        deidentify_config = deidentify_config,
-        item = item,
+        inspect_config=inspect_config,
+        deidentify_config=deidentify_config,
+        item=item,
     )
 
     # add a regex filter for email/phone for some extra insurance
@@ -105,8 +102,7 @@ def swap_field_names(datum, name_changes):
 
     :param datum: dict
     :param name_changes: tuple consisting of existing field name + name to which it should be changed
-    :param type_changes: tuple of dtypes to convert field to
-    :return: dict with updated field name
+    :return: dict with updated field names
     """
     for name_change in name_changes:
         datum[name_change[1]] = datum[name_change[0]]
@@ -123,15 +119,19 @@ def change_data_types(datum, type_changes):
     :param type_changes: list of tuples of the fields to change data type
     :return: dict with updated data types
     """
-    for type_change in type_changes:
-        if type_change[2] is "float":
-            datum[type_change[1]] = float(datum[type_change[1]])
-        elif type_change[2] is "int":
-            datum[type_change[1]] = int(datum[type_change[1]])
-        elif type_change[2] is "str":
-            datum[type_change[1]] = str(datum[type_change[1]])
-        elif type_change[2] is "bool":
-            datum[type_change[1]] = bool(datum[type_change[1]])
+    try:
+        for type_change in type_changes:
+            if type_change[1] is "float":
+                datum[type_change[0]] = float(datum[type_change[0]])
+            elif type_change[1] is "int":
+                datum[type_change[0]] = int(datum[type_change[0]])
+            elif type_change[1] is "str":
+                datum[type_change[0]] = str(datum[type_change[0]])
+            elif type_change[1] is "bool":
+                datum[type_change[0]] = bool(datum[type_change[0]])
+    except TypeError:
+        pass
+
     return datum
 
 
@@ -221,14 +221,14 @@ def json_to_gcs(path, json_object, bucket_name):
     take list of dicts in memory and upload to GCS as newline JSON
     """
     blob = storage.Blob(
-        name = path,
-        bucket = storage_client.get_bucket(bucket_name),
+        name=path,
+        bucket=storage_client.get_bucket(bucket_name),
     )
     blob.upload_from_string(
         # dataflow needs newline-delimited json, so use ndjson
-        data = ndjson.dumps(json_object),
-        content_type = 'application/json',
-        client = storage_client,
+        data=ndjson.dumps(json_object),
+        content_type='application/json',
+        client=storage_client,
     )
     logging.info(
         'Successfully uploaded blob %r to bucket %r.', path, bucket_name)
@@ -240,7 +240,7 @@ def json_to_gcs(path, json_object, bucket_name):
 def query_resource(site, query):
     """Use the datastore_search_sql API endpoint to query a public CKAN resource."""
     ckan = ckanapi.RemoteCKAN(site)
-    response = ckan.action.datastore_search_sql(sql = query)
+    response = ckan.action.datastore_search_sql(sql=query)
     data = response['records']
     # Note that if a CKAN table field name is a Postgres reserved word (like
     # ALL or CAST or NEW), you get a not-very-useful error
@@ -261,17 +261,15 @@ def query_any_resource(resource_id, query):
     site = "https://data.wprdc.org"
     ckan = ckanapi.RemoteCKAN(site)
     # From resource ID, determine package ID.
-    package_id = ckan.action.resource_show(id = resource_id)['package_id']
+    package_id = ckan.action.resource_show(id=resource_id)['package_id']
     # From package ID, determine if the package is private.
-    private = ckan.action.package_show(id = package_id)['private']
+    private = ckan.action.package_show(id=package_id)['private']
     if private:
         print(
             "As of February 2018, CKAN still doesn't allow you to run a datastore_search_sql query on a private "
             "dataset. Sorry. See this GitHub issue if you want to know a little more: "
             "https://github.com/ckan/ckan/issues/1954")
-        raise ValueError(
-            "CKAN can't query private resources (like {}) yet.".format(
-                resource_id))
+        raise ValueError("CKAN can't query private resources (like {}) yet.".format(resource_id))
     else:
         return query_resource(site, query)
 
@@ -300,8 +298,7 @@ def remove_fields(records, fields_to_remove):
     return records
 
 
-def synthesize_query(resource_id, select_fields = ['*'], where_clauses = None,
-                     group_by = None, order_by = None, limit = None):
+def synthesize_query(resource_id, select_fields=['*'], where_clauses=None, group_by=None, order_by=None, limit=None):
     query = f'SELECT {", ".join(select_fields)} FROM "{resource_id}"'
 
     if where_clauses is not None:
@@ -319,8 +316,7 @@ def synthesize_query(resource_id, select_fields = ['*'], where_clauses = None,
         try:
             int(limit)
         except ValueError:
-            print(
-                f"Unable to cast the LIMIT parameter '{limit}' to an integer limit.")
+            print(f"Unable to cast the LIMIT parameter '{limit}' to an integer limit.")
         query += f" LIMIT {limit}"
 
     return query
@@ -370,9 +366,8 @@ Here are the resulting top five names for the POODLE STANDARD breed, sorted by d
 """
 
 
-def get_wprdc_data(resource_id, select_fields = ['*'], where_clauses = None,
-                   group_by = None, order_by = None, limit = None,
-                   fields_to_remove = None):
+def get_wprdc_data(resource_id, select_fields=['*'], where_clauses=None, group_by=None, order_by=None, limit=None,
+                   fields_to_remove=None):
     """
     helper to construct query for CKAN API and return results as list of dictionaries
 
@@ -385,8 +380,7 @@ def get_wprdc_data(resource_id, select_fields = ['*'], where_clauses = None,
     :param fields_to_remove: list
     :return: results as list of dictionaries
     """
-    query = synthesize_query(resource_id, select_fields, where_clauses,
-                             group_by, order_by, limit)
+    query = synthesize_query(resource_id, select_fields, where_clauses, group_by, order_by, limit)
     records = query_any_resource(resource_id, query)
 
     if len(records) == WPRDC_API_HARD_LIMIT:
