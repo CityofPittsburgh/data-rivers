@@ -13,7 +13,7 @@ from dataflow_utils import dataflow_utils
 from dataflow_utils.dataflow_utils import generate_args, get_schema, JsonCoder
 
 
-## TODO: pass input/output buckets as params from DataflowPythonOperator in DAG
+# TODO: pass input/output buckets as params from DataflowPythonOperator in DAG
 
 def run(argv=None):
     """

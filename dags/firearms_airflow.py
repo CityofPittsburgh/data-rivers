@@ -11,13 +11,10 @@ from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOper
 from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 from datetime import timedelta
 from dependencies import airflow_utils
-from dependencies.airflow_utils import yesterday, build_revgeo_query
+from dependencies.airflow_utils import yesterday, build_revgeo_query, get_ds_month, get_ds_year
 
 # TODO: When Airflow 2.0 is released, upgrade the package, upgrade the virtualenv to Python3,
 # and add the arg py_interpreter='python3' to DataFlowPythonOperator
-
-execution_date = "{{ execution_date }}"
-prev_execution_date = "{{ prev_execution_date }}"
 
 # We set the start_date of the DAG to the previous date, This will
 # make the DAG immediately available for scheduling.
@@ -37,7 +34,11 @@ default_args = {
 }
 
 dag = DAG(
-    'firearm_seizures', default_args=default_args, schedule_interval='@monthly')
+    'firearm_seizures',
+    default_args=default_args,
+    schedule_interval='@monthly',
+    user_defined_filters={'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year}
+)
 
 gcs_load = DockerOperator(
     task_id='firearms_gcs_docker',
@@ -48,7 +49,9 @@ gcs_load = DockerOperator(
         'APRS_UN': os.environ['APRS_UN'],
         'APRS_PW': os.environ['APRS_PW'],
         'GCS_AUTH_FILE': '/root/firearm-seizures-report/data-rivers-service-acct.json',
-        'GCS_PREFIX': os.environ['GCS_PREFIX']
+        'GCS_PREFIX': os.environ['GCS_PREFIX'],
+        'execution_date': '{{ ds }}',
+        'execution_month': '{{ ds|get_ds_year }}' + '/' + '{{ ds|get_ds_month }}'
     },
     dag=dag
 )
@@ -62,8 +65,21 @@ gcs_load = DockerOperator(
 
 dataflow_task = BashOperator(
     task_id='firearms_dataflow',
-    bash_command='python {}'.format(os.getcwd() + '/airflow_scripts/dags/dependencies/dataflow_scripts'
-                                                  '/firearms_dataflow.py'),
+    bash_command="python {}/dependencies/dataflow_scripts/firearms_dataflow.py --input gs://{}_firearms/"
+                 .format(os.environ['DAGS_PATH'], os.environ['GCS_PREFIX']) + "{{ ds|get_ds_year }}/{{ ds|get_ds_month "
+                 "}}/{{ ds }}_firearms.json --avro_output " + "gs://{}_firearms/avro_output/ "
+                 .format(os.environ['GCS_PREFIX']) + "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds }}/",
+    dag=dag
+)
+
+bq_insert = GoogleCloudStorageToBigQueryOperator(
+    task_id='firearms_bq_insert',
+    destination_project_dataset_table='{}:firearm_seizures.seizures'.format(os.environ['GCLOUD_PROJECT']),
+    bucket='{}_firearm_seizures'.format(os.environ['GCS_PREFIX']),
+    source_objects=["avro_output/{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds }}/*.avro"],
+    write_disposition='WRITE_TRUNCATE',
+    source_format='AVRO',
+    time_partitioning={'type': 'DAY'},
     dag=dag
 )
 
@@ -73,34 +89,4 @@ beam_cleanup = BashOperator(
     dag=dag
 )
 
-bq_insert_temp = GoogleCloudStorageToBigQueryOperator(
-    task_id='firearms_bq_insert',
-    destination_project_dataset_table='{}:firearm_seizures.seizures_temp'.format(os.environ['GCLOUD_PROJECT']),
-    bucket='{}_firearm_seizures'.format(os.environ['GCS_PREFIX']),
-    source_objects=["avro_output/{}/{}/{}/*.avro".format(execution_date.strftime('%Y'),
-                                                         execution_date.strftime('%m').lower(),
-                                                         execution_date.strftime("%Y-%m-%d"))],
-    write_disposition='WRITE_APPEND',
-    source_format='AVRO',
-    time_partitioning={'type': 'DAY'},
-    dag=dag
-)
-
-bq_geo_join = BigQueryOperator(
-    task_id='firearms_bq_geojoin',
-    sql=build_revgeo_query('firearm_seizures', 'seizures_temp'),
-    use_legacy_sql=False,
-    destination_dataset_table='{}:firearm_seizures.seizures'.format(os.environ['GCLOUD_PROJECT']),
-    write_disposition='WRITE_APPEND',
-    time_partitioning={'type': 'DAY'},
-    dag=dag
-)
-
-bq_drop_temp = BigQueryOperator(
-    task_id='firearms_bq_drop_temp',
-    sql='DROP TABLE `{}.firearm_seizures.seizures_temp`'.format(os.environ['GCLOUD_PROJECT']),
-    use_legacy_sql=False,
-    dag=dag
-)
-
-gcs_load >> dataflow_task >> (bq_insert_temp, beam_cleanup) >> bq_geo_join >> bq_drop_temp
+gcs_load >> dataflow_task >> (bq_insert, beam_cleanup)
