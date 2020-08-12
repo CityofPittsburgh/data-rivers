@@ -9,7 +9,7 @@ from airflow.contrib.operators.dataflow_operator import DataFlowPythonOperator
 from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOperator
 from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 from dependencies import airflow_utils
-from dependencies.airflow_utils import yesterday, build_revgeo_query, get_ds_month, get_ds_year, default_args
+from dependencies.airflow_utils import build_revgeo_query, get_ds_month, get_ds_year, default_args
 
 # TODO: When Airflow 2.0 is released, upgrade the package, upgrade the virtualenv to Python3,
 # and add the arg py_interpreter='python3' to DataFlowPythonOperator
@@ -63,6 +63,7 @@ bq_insert = GoogleCloudStorageToBigQueryOperator(
     source_objects=["avro_output/{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds }}/*.avro"],
     write_disposition='WRITE_APPEND',
     source_format='AVRO',
+    autodetect=True,
     time_partitioning={'type': 'DAY'},
     dag=dag
 )

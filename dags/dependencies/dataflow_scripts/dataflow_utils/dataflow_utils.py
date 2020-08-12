@@ -4,8 +4,11 @@ import argparse
 import re
 import json
 import os
-from datetime import datetime
 
+import apache_beam as beam
+
+from abc import ABC
+from datetime import datetime
 from apache_beam.options.pipeline_options import PipelineOptions
 from scourgify import normalize_address_record, exceptions
 from avro import schema
@@ -22,6 +25,12 @@ DEFAULT_DATAFLOW_ARGS = [
     '--service_account_email=data-rivers@data-rivers.iam.gserviceaccount.com',
     '--save_main_session',
 ]
+
+
+class ColumnsCamelToSnakeCase(beam.DoFn, ABC):
+    def process(self, datum):
+        cleaned_datum = {camel_to_snake_case(k): v for k, v in datum.items()}
+        yield cleaned_datum
 
 
 def generate_args(job_name, bucket, argv, schema_name, runner='DataflowRunner'):
@@ -69,6 +78,11 @@ def get_schema(schema_name):
     blob = bucket.get_blob('{}.avsc'.format(schema_name))
     schema_string = blob.download_as_string()
     return json.loads(schema_string)
+
+
+def camel_to_snake_case(val):
+    s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', val)
+    return re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1).lower()
 
 
 def clean_csv_string(string):

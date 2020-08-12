@@ -33,7 +33,7 @@ comm_ctrs_dataflow = BashOperator(
     task_id='comm_ctrs_dataflow',
     bash_command="python {}/dependencies/dataflow_scripts/comm_ctr_attendance_dataflow.py --input "
                  "gs://{}_community_centers/attendance/".format(os.environ['DAGS_PATH'], os.environ['GCS_PREFIX']) +
-                 "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds }}_attendance.csv --avro_output " +
+                 "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds }}_attendance.json --avro_output " +
                  "gs://{}_community_centers/attendance/avro_output/".format(os.environ['GCS_PREFIX']) +
                  "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds }}/",
     dag=dag
@@ -47,6 +47,7 @@ comm_ctrs_bq = GoogleCloudStorageToBigQueryOperator(
     write_disposition='WRITE_TRUNCATE',
     create_disposition='CREATE_IF_NEEDED',
     source_format='AVRO',
+    autodetect=True,
     time_partitioning={'type': 'DAY'},
     dag=dag
 )
