@@ -77,7 +77,6 @@ qalert_activities_bq = GoogleCloudStorageToBigQueryOperator(
     destination_project_dataset_table='{}:qalert.activities'.format(os.environ['GCLOUD_PROJECT']),
     bucket='{}_qalert'.format(os.environ['GCS_PREFIX']),
     source_objects=["activities/avro_output/{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds }}/*.avro"],
-
     write_disposition='WRITE_APPEND',
     create_disposition='CREATE_IF_NEEDED',
     source_format='AVRO',

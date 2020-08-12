@@ -40,7 +40,7 @@ def run(argv=None):
 
     known_args, pipeline_options, avro_schema = generate_args(
         job_name='firearms-dataflow',
-        bucket='{}_firearms'.format(os.environ['GCS_PREFIX']),
+        bucket='{}_firearm_seizures'.format(os.environ['GCS_PREFIX']),
         argv=argv,
         schema_name='firearm_seizures',
         runner='DataflowRunner'
