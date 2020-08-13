@@ -14,9 +14,6 @@ from dependencies.airflow_utils import build_revgeo_query, get_ds_month, get_ds_
 # TODO: When Airflow 2.0 is released, upgrade the package, upgrade the virtualenv to Python3,
 # and add the arg py_interpreter='python3' to DataFlowPythonOperator
 
-# We set the start_date of the DAG to the previous date, This will
-# make the DAG immediately available for scheduling.
-
 dag = DAG(
     'firearm_seizures',
     default_args=default_args,

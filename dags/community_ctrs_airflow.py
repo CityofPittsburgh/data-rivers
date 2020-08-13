@@ -12,11 +12,10 @@ from dependencies.airflow_utils import build_revgeo_query, filter_old_values, ge
 # TODO: When Airflow 2.0 is released, upgrade the package, upgrade the virtualenv to Python3,
 # and add the arg py_interpreter='python3' to DataFlowPythonOperator
 
-# We set the start_date of the DAG to the previous date, as defined in airflow_utils. This will
-# make the DAG immediately available for scheduling.
+# TODO: add facilities list (ideally once geocoder is hosted on GCP)
 
 dag = DAG(
-    'comm_ctrs',
+    'community_centers',
     default_args=default_args,
     schedule_interval='@weekly',
     user_defined_filters={'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year}
