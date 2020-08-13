@@ -8,6 +8,7 @@ import re
 import ciso8601
 import ckanapi
 import ndjson
+import pandas as pd
 
 from google.cloud import storage, dlp_v2
 
@@ -195,6 +196,31 @@ def execution_date_to_prev_quarter(execution_date):
         quarter = 'Q3'
 
     return quarter, int(year)
+
+
+def mssql_to_dict_list(conn, sql_query, date_col=None, date_format=None):
+    """
+    Execute mssql query and return list of dicts
+
+    :param conn: mssql connection
+    :param sql_query: str
+    :param date_col: str - dataframe column to be converted from datetime object to string
+    :param date_format: str (format for conversion of datetime object to date string)
+    :return: query results as list of dicts
+    """
+    cursor = conn.cursor()
+    cursor.execute(sql_query)
+    field_names = [i[0] for i in cursor.description]
+    results = [result for result in cursor]
+    df = pd.DataFrame(results)
+    df.columns = field_names
+
+    if date_col is not None:
+        df[date_col] = df[date_col].apply(lambda x: x.strftime('%Y-%m-%d'))
+
+    results_dict = df.to_dict('records')
+
+    return results_dict
 
 
 def upload_file_gcs(bucket_name, source_file_name, destination_blob_name):

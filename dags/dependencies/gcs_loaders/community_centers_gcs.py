@@ -1,13 +1,22 @@
-import pymssql
+import argparse
 import csv
 import os
 
-from gcs_utils import upload_file_gcs, now
+import pymssql
+
+from gcs_utils import mssql_to_dict_list, json_to_gcs
+
+parser = argparse.ArgumentParser()
+parser.add_argument('-e', '--execution_date', dest='execution_date',
+                    required=True, help='DAG execution date (YYYY-MM-DD)')
+args = vars(parser.parse_args())
+
 
 bucket = '{}_community_centers'.format(os.environ['GCS_PREFIX'])
 conn = pymssql.connect(host=os.environ['RECPRO_DB'], user=os.environ['RECPRO_UN'],
                        password=os.environ['RECPRO_PW'], database='recpro')
-cursor = conn.cursor()
+
+# TODO: centers query + geocode in airflow script
 
 attendance_query = """
                     SELECT CAST(DATEADD(DAY, DATEDIFF(DAY, 0, MemUse.Date_Time), 0) AS DATE) AS Date, 
@@ -21,17 +30,11 @@ attendance_query = """
                     ORDER BY Date DESC;
                  """
 
-cursor.execute(attendance_query)
-
-with open('daily_attendance.csv', 'w') as file:
-    writer = csv.writer(file, delimiter=',', lineterminator='\n', quotechar='"')
-    writer.writerow([i[0] for i in cursor.description])
-    writer.writerows(cursor)
-    for row in cursor:
-        writer.writerow(row)
-
-upload_file_gcs(bucket, 'daily_attendance.csv', 'attendance/{}/{}/{}_attendance.csv'.format(now.strftime('%Y'),
-                                                                                            now.strftime('%m').lower(),
-                                                                                            now.strftime("%Y-%m-%d")))
+attendance_results = mssql_to_dict_list(conn, attendance_query, date_col='Date', date_format='%y-%m-%d')
 
 conn.close()
+
+json_to_gcs('attendance/{}/{}/{}_attendance.json'.format(args['execution_date'].split('-')[0],
+                                                         args['execution_date'].split('-')[1],
+                                                         args['execution_date']),
+            attendance_results, bucket)
