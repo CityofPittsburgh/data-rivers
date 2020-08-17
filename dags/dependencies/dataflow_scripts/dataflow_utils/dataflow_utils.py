@@ -33,11 +33,60 @@ class ColumnsCamelToSnakeCase(beam.DoFn, ABC):
         yield cleaned_datum
 
 
+class ChangeDataTypes(beam.DoFn, ABC):
+    def __init__(self, type_changes):
+        self.type_changes = type_changes
+
+    def process(self, datum):
+        """
+        :param datum: dict
+        :param type_changes: list of tuples of the fields to change data type
+        :return: dict
+        """
+        try:
+            for type_change in self.type_changes:
+                if type_change[1] is "float":
+                    datum[type_change[0]] = float(datum[type_change[0]])
+                elif type_change[1] is "int":
+                    datum[type_change[0]] = int(datum[type_change[0]])
+                elif type_change[1] is "str":
+                    datum[type_change[0]] = str(datum[type_change[0]])
+                elif type_change[1] is "bool":
+                    datum[type_change[0]] = bool(datum[type_change[0]])
+        except TypeError:
+            pass
+
+        yield datum
+
+
+class SwapFieldNames(beam.DoFn, ABC):
+    def __init__(self, name_changes):
+        """
+        :param name_changes: list of tuples consisting of existing field name + name to which it should be changed
+        """
+        self.name_changes = name_changes
+
+    def process(self, datum):
+        """
+        change/clean field names in result dict
+
+        :param datum: dict
+        :param name_changes: tuple consisting of existing field name + name to which it should be changed
+        :return: dict with updated field names
+        """
+        for name_change in self.name_changes:
+            datum[name_change[1]] = datum[name_change[0]]
+            del datum[name_change[0]]
+
+        yield datum
+
+
 def generate_args(job_name, bucket, argv, schema_name, runner='DataflowRunner'):
     parser = argparse.ArgumentParser()
 
     parser.add_argument('--input', dest='input', required=True)
     parser.add_argument('--avro_output', dest='avro_output', required=True)
+
     known_args, pipeline_args = parser.parse_known_args(argv)
 
     arguments = DEFAULT_DATAFLOW_ARGS
