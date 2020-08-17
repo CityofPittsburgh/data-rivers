@@ -40,18 +40,18 @@ class ChangeDataTypes(beam.DoFn, ABC):
     def process(self, datum):
         """
         :param datum: dict
-        :param type_changes: list of tuples of the fields to change data type
+        :param type_changes: list of tuples of new data type + field to change
         :return: dict
         """
         try:
             for type_change in self.type_changes:
-                if type_change[1] is "float":
+                if type_change[1] == "float":
                     datum[type_change[0]] = float(datum[type_change[0]])
-                elif type_change[1] is "int":
+                elif type_change[1] == "int":
                     datum[type_change[0]] = int(datum[type_change[0]])
-                elif type_change[1] is "str":
+                elif type_change[1] == "str":
                     datum[type_change[0]] = str(datum[type_change[0]])
-                elif type_change[1] is "bool":
+                elif type_change[1] == "bool":
                     datum[type_change[0]] = bool(datum[type_change[0]])
         except TypeError:
             pass

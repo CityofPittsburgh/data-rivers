@@ -97,7 +97,7 @@ def time_to_seconds(t):
     return int(time.mktime(ts.timetuple()))
 
 
-def filter_fields(results, relevant_fields, name_changes=None):
+def filter_fields(results, relevant_fields):
     """
     Remove unnecessary keys from results, optionally rename fields
 
@@ -109,8 +109,6 @@ def filter_fields(results, relevant_fields, name_changes=None):
     trimmed_results = []
     for result in results:
         trimmed_result = {k: result[k] for k in relevant_fields}
-        if name_changes is not None:
-            trimmed_result = swap_field_names(trimmed_result, name_changes)
         trimmed_results.append(trimmed_result)
 
     return trimmed_results
