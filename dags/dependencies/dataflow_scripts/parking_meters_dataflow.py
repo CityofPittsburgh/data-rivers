@@ -26,7 +26,7 @@ def run(argv=None):
         bucket='{}_parking'.format(os.environ['GCS_PREFIX']),
         argv=argv,
         schema_name='parking_meters',
-        runner='DirectRunner'
+        runner='DataflowRunner'
     )
 
     with beam.Pipeline(options=pipeline_options) as p:
