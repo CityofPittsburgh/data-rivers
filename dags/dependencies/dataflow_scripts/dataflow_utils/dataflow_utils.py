@@ -34,15 +34,17 @@ class ColumnsCamelToSnakeCase(beam.DoFn, ABC):
 
 
 class ChangeDataTypes(beam.DoFn, ABC):
-    def process(self, datum, type_changes):
-        """
+    def __init__(self, type_changes):
+        self.type_changes = type_changes
 
+    def process(self, datum):
+        """
         :param datum: dict
         :param type_changes: list of tuples of the fields to change data type
         :return: dict
         """
         try:
-            for type_change in type_changes:
+            for type_change in self.type_changes:
                 if type_change[1] is "float":
                     datum[type_change[0]] = float(datum[type_change[0]])
                 elif type_change[1] is "int":
@@ -79,7 +81,7 @@ class SwapFieldNames(beam.DoFn, ABC):
         yield datum
 
 
-def generate_args(job_name, bucket, argv, schema_name, extra_args=None, runner='DataflowRunner'):
+def generate_args(job_name, bucket, argv, schema_name, runner='DataflowRunner'):
     parser = argparse.ArgumentParser()
 
     parser.add_argument('--input', dest='input', required=True)
@@ -94,10 +96,6 @@ def generate_args(job_name, bucket, argv, schema_name, extra_args=None, runner='
     arguments.append('--temp_location=gs://{}/beam_output/temp'.format(bucket))
     arguments.append('--setup_file={}'.format(os.environ['SETUP_PY_DATAFLOW']))
     # ^this doesn't work when added to DEFAULT_DATFLOW_ARGS, for reasons unclear
-
-    # if extra_args is not None:
-    #     for k, v in extra_args.items():
-    #         arguments.append('--{}={}'.format(k, v))
 
     pipeline_args.extend(arguments)
     pipeline_options = PipelineOptions(pipeline_args)

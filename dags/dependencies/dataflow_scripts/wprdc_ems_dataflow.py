@@ -6,7 +6,6 @@ import os
 import apache_beam as beam
 from apache_beam.io import ReadFromText
 from apache_beam.io.avroio import WriteToAvro
-from apache_beam.options.pipeline_options import StaticValueProvider
 
 from dataflow_utils import dataflow_utils
 from dataflow_utils.dataflow_utils import generate_args, JsonCoder, SwapFieldNames
@@ -27,7 +26,7 @@ def run(argv=None):
         bucket='{}_ems_fire'.format(os.environ['GCS_PREFIX']),
         argv=argv,
         schema_name='ems_calls',
-        runner='DirectRunner'
+        runner='DataflowRunner'
     )
 
     with beam.Pipeline(options=pipeline_options) as p:
