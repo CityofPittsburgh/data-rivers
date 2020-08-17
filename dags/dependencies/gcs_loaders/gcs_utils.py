@@ -97,45 +97,6 @@ def time_to_seconds(t):
     return int(time.mktime(ts.timetuple()))
 
 
-def swap_field_names(datum, name_changes):
-    """
-    change/clean field names in result dict
-
-    :param datum: dict
-    :param name_changes: tuple consisting of existing field name + name to which it should be changed
-    :return: dict with updated field names
-    """
-    for name_change in name_changes:
-        datum[name_change[1]] = datum[name_change[0]]
-        del datum[name_change[0]]
-
-    return datum
-
-
-def change_data_types(datum, type_changes):
-    """
-    change data types
-
-    :param datum: dict
-    :param type_changes: list of tuples of the fields to change data type
-    :return: dict with updated data types
-    """
-    try:
-        for type_change in type_changes:
-            if type_change[1] is "float":
-                datum[type_change[0]] = float(datum[type_change[0]])
-            elif type_change[1] is "int":
-                datum[type_change[0]] = int(datum[type_change[0]])
-            elif type_change[1] is "str":
-                datum[type_change[0]] = str(datum[type_change[0]])
-            elif type_change[1] is "bool":
-                datum[type_change[0]] = bool(datum[type_change[0]])
-    except TypeError:
-        pass
-
-    return datum
-
-
 def filter_fields(results, relevant_fields, name_changes=None):
     """
     Remove unnecessary keys from results, optionally rename fields
