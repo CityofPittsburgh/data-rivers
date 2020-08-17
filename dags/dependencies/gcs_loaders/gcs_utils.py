@@ -136,7 +136,7 @@ def change_data_types(datum, type_changes):
     return datum
 
 
-def filter_fields(results, relevant_fields, name_changes = None):
+def filter_fields(results, relevant_fields, name_changes=None):
     """
     Remove unnecessary keys from results, optionally rename fields
 
@@ -417,7 +417,9 @@ def get_wprdc_data(resource_id, select_fields=['*'], where_clauses=None, group_b
 
     # Clean out fields that no one needs.
     records = remove_fields(records, ['_full_text', '_id'])
-    records = remove_fields(records, fields_to_remove)
+    if fields_to_remove is not None:
+        records = remove_fields(records, fields_to_remove)
+
     return records
 
 # TODO: function to convert CSV or SQL result to pandas df -> json_to_gcs
