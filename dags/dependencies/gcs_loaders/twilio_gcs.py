@@ -1,3 +1,12 @@
+import requests
+import json
+import time
+import os
+import argparse
+
+import pandas as pd
+from gcs_utils import storage_client, json_to_gcs
+
 """ Download all TWILIO customer reports and load into GCS
     Coded by Jesse Wood July 2020.
 
@@ -21,14 +30,6 @@
     reports in seperately.
 """
 
-import requests
-import json
-import time
-import os
-import argparse
-
-import pandas as pd
-from gcs_utils import storage_client, json_to_gcs
 
 ##
 # initialize the parser and gcs bucket

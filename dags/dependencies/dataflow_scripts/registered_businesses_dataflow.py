@@ -1,45 +1,41 @@
 from __future__ import absolute_import
 
-import argparse
-import logging
 import os
+import logging
 
 import apache_beam as beam
+
+from abc import ABC
 from apache_beam.io import ReadFromText
 from apache_beam.io.avroio import WriteToAvro
+from apache_beam.options.value_provider import StaticValueProvider
 
 from dataflow_utils import dataflow_utils
-from dataflow_utils.dataflow_utils import get_schema, clean_csv_int, clean_csv_string, generate_args, normalize_address
+from dataflow_utils.dataflow_utils import generate_args, ColumnsToLowerCase, NormalizeAddress, JsonCoder
 
 
-class ConvertToDicts(beam.DoFn):
+class ParseAddress(beam.DoFn):
     def process(self, datum):
+        address_components = ['street_number', 'street_name', 'street_suffix', 'apt_no', 'misc_address_line', 'city',
+                              'state_code', 'zip']
 
-        acct_no, name, trade_name, desc_of_business, business_type, address_type, city, state, zip, data_created, \
-        business_start_date_in_pgh, address1, address2 = datum.split(',')
+        datum['address_full'] = ''
+        for component in address_components:
+            if datum[component]:
+                try:
+                    if component == 'street_number':
+                        datum[component] = int(datum[component])
 
-        address_full = clean_csv_string(address1) + ' ' + clean_csv_string(address2)
+                    if component == 'zip':
+                        datum['address_full'] += datum[component][0:5]
+                    else:
+                        datum['address_full'] += (str(datum[component]) + ' ')
+                except ValueError:
+                    pass
 
-        return [{
-            'acct_no': clean_csv_string(acct_no),
-            'name': clean_csv_string(name),
-            'trade_name': clean_csv_string(trade_name),
-            'desc_of_business': clean_csv_string(desc_of_business),
-            'business_type': clean_csv_string(business_type),
-            'address_type': clean_csv_string(address_type),
-            'city': clean_csv_string(city),
-            'state': clean_csv_string(state),
-            'zip': clean_csv_int(zip),
-            'date_created': clean_csv_string(data_created),
-            'business_start_date_in_pgh': clean_csv_string(business_start_date_in_pgh),
-            'address_full': address_full
-        }]
+            del datum[component]
 
-
-class AddNormalizedAddress(beam.DoFn):
-    def process(self, datum):
-        datum['normalized_address'] = normalize_address(datum['address_full'])
-        return datum
+        yield datum
 
 
 def run(argv=None):
@@ -48,18 +44,17 @@ def run(argv=None):
         job_name='registered-businesses-dataflow',
         bucket='{}_finance'.format(os.environ['GCS_PREFIX']),
         argv=argv,
-        schema_name='registered_businesses',
-        runner='DataflowRunner'
+        schema_name='registered_businesses'
     )
 
     with beam.Pipeline(options=pipeline_options) as p:
-        # Read the text file[pattern] into a PCollection.
-        lines = p | ReadFromText(known_args.input, skip_header_lines=1)
+        lines = p | ReadFromText(known_args.input, coder=JsonCoder())
 
         load = (
                 lines
-                | beam.ParDo(ConvertToDicts())
-                | beam.ParDo(AddNormalizedAddress())
+                | beam.ParDo(ColumnsToLowerCase())
+                | beam.ParDo(ParseAddress())
+                | beam.ParDo(NormalizeAddress(StaticValueProvider(str, 'address_full')))
                 | WriteToAvro(known_args.avro_output, schema=avro_schema, file_name_suffix='.avro', use_fastavro=True))
 
 

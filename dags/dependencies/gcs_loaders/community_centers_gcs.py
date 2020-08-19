@@ -1,10 +1,9 @@
-import argparse
-import csv
 import os
+import argparse
 
 import pymssql
 
-from gcs_utils import mssql_to_dict_list, json_to_gcs
+from gcs_utils import sql_to_dict_list, json_to_gcs
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-e', '--execution_date', dest='execution_date',
@@ -30,7 +29,7 @@ attendance_query = """
                     ORDER BY Date DESC;
                  """
 
-attendance_results = mssql_to_dict_list(conn, attendance_query, date_col='Date', date_format='%y-%m-%d')
+attendance_results = sql_to_dict_list(conn, attendance_query, date_col='Date', date_format='%y-%m-%d')
 
 conn.close()
 
