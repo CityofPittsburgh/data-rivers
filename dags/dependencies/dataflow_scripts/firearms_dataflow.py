@@ -42,8 +42,7 @@ def run(argv=None):
         job_name='firearms-dataflow',
         bucket='{}_firearm_seizures'.format(os.environ['GCS_PREFIX']),
         argv=argv,
-        schema_name='firearm_seizures',
-        runner='DataflowRunner'
+        schema_name='firearm_seizures'
     )
 
     with beam.Pipeline(options=pipeline_options) as p:

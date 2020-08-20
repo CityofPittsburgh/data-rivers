@@ -33,6 +33,12 @@ class ColumnsCamelToSnakeCase(beam.DoFn, ABC):
         yield cleaned_datum
 
 
+class ColumnsToLowerCase(beam.DoFn, ABC):
+    def process(self, datum):
+        cleaned_datum = {k.lower(): v for k, v in datum.items()}
+        yield cleaned_datum
+
+
 class ChangeDataTypes(beam.DoFn, ABC):
     def __init__(self, type_changes):
         self.type_changes = type_changes
@@ -60,10 +66,11 @@ class ChangeDataTypes(beam.DoFn, ABC):
 
 
 class SwapFieldNames(beam.DoFn, ABC):
+    """
+    :param name_changes: list of tuples consisting of existing field name + name to which it should be changed
+    :return dict (datum in pcollection)
+    """
     def __init__(self, name_changes):
-        """
-        :param name_changes: list of tuples consisting of existing field name + name to which it should be changed
-        """
         self.name_changes = name_changes
 
     def process(self, datum):
@@ -81,17 +88,33 @@ class SwapFieldNames(beam.DoFn, ABC):
         yield datum
 
 
-def generate_args(job_name, bucket, argv, schema_name, runner='DataflowRunner'):
+class NormalizeAddress(beam.DoFn, ABC):
+    """
+    intelligently parse/normalize address string according to USPS pub 28 and RESO guidelines
+
+    :param address_key: Beam StaticValueProvider (string)
+    :return: string
+    """
+    def __init__(self, address_key):
+        self.address_key = address_key
+
+    def process(self, datum):
+        datum['normalized_address'] = normalize_address(datum[self.address_key.get()])
+
+        yield datum
+
+
+def generate_args(job_name, bucket, argv, schema_name):
     parser = argparse.ArgumentParser()
 
     parser.add_argument('--input', dest='input', required=True)
     parser.add_argument('--avro_output', dest='avro_output', required=True)
+    parser.add_argument('--runner', '-r', dest='runner', default='DataflowRunner', required=False)
 
     known_args, pipeline_args = parser.parse_known_args(argv)
 
     arguments = DEFAULT_DATAFLOW_ARGS
     arguments.append('--job_name={}'.format(job_name))
-    arguments.append('--runner={}'.format(runner))
     arguments.append('--staging_location=gs://{}/beam_output/staging'.format(bucket))
     arguments.append('--temp_location=gs://{}/beam_output/temp'.format(bucket))
     arguments.append('--setup_file={}'.format(os.environ['SETUP_PY_DATAFLOW']))

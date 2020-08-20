@@ -17,8 +17,7 @@ def run(argv=None):
         job_name='otrs-surveys-dataflow',
         bucket='{}_otrs'.format(os.environ['GCS_PREFIX']),
         argv=argv,
-        schema_name='City_of_Pittsburgh_OTRS_Survey',
-        runner='DataflowRunner'
+        schema_name='City_of_Pittsburgh_OTRS_Survey'
     )
 
     with beam.Pipeline(options=pipeline_options) as p:

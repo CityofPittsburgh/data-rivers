@@ -39,18 +39,17 @@ class CleanLatLong(beam.DoFn):
 
 def run(argv=None):
     """
-    If you want to run just this file for rapid development, change runner to 'DirectRunner' and add
+    If you want to run just this file for rapid development, add the arg '-r DirectRunner' and add
     GCS paths for --input and --avro_output, e.g.
     python qalert_requests_dataflow.py --input gs://pghpa_test_qalert/requests/2020/06/2020-06-17_requests.json
-    --avro_output gs://pghpa_test_qalert/requests/avro_output/2020/06/2020-06-17/
+    --avro_output gs://pghpa_test_qalert/requests/avro_output/2020/06/2020-06-17/ -r DirectRunner
     """
 
     known_args, pipeline_options, avro_schema = generate_args(
         job_name='qalert-requests-dataflow',
         bucket='{}_qalert'.format(os.environ['GCS_PREFIX']),
         argv=argv,
-        schema_name='City_of_Pittsburgh_QAlert_Requests',
-        runner='DataflowRunner'
+        schema_name='City_of_Pittsburgh_QAlert_Requests'
     )
 
     with beam.Pipeline(options=pipeline_options) as p:

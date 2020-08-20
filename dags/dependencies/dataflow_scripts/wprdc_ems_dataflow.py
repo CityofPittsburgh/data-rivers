@@ -25,8 +25,7 @@ def run(argv=None):
         job_name='wprdc-ems-dataflow',
         bucket='{}_ems_fire'.format(os.environ['GCS_PREFIX']),
         argv=argv,
-        schema_name='ems_calls',
-        runner='DataflowRunner'
+        schema_name='ems_calls'
     )
 
     with beam.Pipeline(options=pipeline_options) as p:

@@ -17,8 +17,7 @@ def run(argv=None):
         job_name='comm-ctr-attendance-dataflow',
         bucket='{}_community_centers'.format(os.environ['GCS_PREFIX']),
         argv=argv,
-        schema_name='community_center_attendance',
-        runner='DataflowRunner'
+        schema_name='community_center_attendance'
     )
 
     with beam.Pipeline(options=pipeline_options) as p:

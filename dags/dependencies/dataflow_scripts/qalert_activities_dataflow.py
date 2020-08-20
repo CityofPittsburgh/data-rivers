@@ -27,8 +27,7 @@ def run(argv=None):
         job_name='qalert-activities-dataflow',
         bucket='{}_qalert'.format(os.environ['GCS_PREFIX']),
         argv=argv,
-        schema_name='City_of_Pittsburgh_QAlert_Activities',
-        runner='DataflowRunner'
+        schema_name='City_of_Pittsburgh_QAlert_Activities'
     )
 
     with beam.Pipeline(options=pipeline_options) as p:

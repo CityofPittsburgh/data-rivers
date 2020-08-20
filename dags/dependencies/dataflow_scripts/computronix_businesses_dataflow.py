@@ -61,8 +61,7 @@ def run(argv=None):
         job_name='computronix-businesses-dataflow',
         bucket='{}_computronix'.format(os.environ['GCS_PREFIX']),
         argv=argv,
-        schema_name='businesses_computronix',
-        runner='DataflowRunner'
+        schema_name='businesses_computronix'
     )
 
     with beam.Pipeline(options=pipeline_options) as p:
