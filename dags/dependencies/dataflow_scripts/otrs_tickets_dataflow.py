@@ -20,8 +20,7 @@ def run(argv=None):
         job_name='otrs-tickets-dataflow',
         bucket='{}_otrs'.format(os.environ['GCS_PREFIX']),
         argv=argv,
-        schema_name='City_of_Pittsburgh_OTRS_Ticket',
-        runner='DataflowRunner'
+        schema_name='City_of_Pittsburgh_OTRS_Ticket'
     )
 
     with beam.Pipeline(options=pipeline_options) as p:
