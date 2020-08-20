@@ -27,13 +27,12 @@ class ParseAddress(beam.DoFn):
                         datum[component] = int(datum[component])
 
                     if component == 'zip':
-                        datum['address_full'] += datum[component][0:5]
+                        datum['address_full'] += int(datum[component][0:5])
                     else:
                         datum['address_full'] += (str(datum[component]) + ' ')
+                        del datum[component]
                 except ValueError:
                     pass
-
-            del datum[component]
 
         yield datum
 
