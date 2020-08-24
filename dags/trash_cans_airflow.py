@@ -27,7 +27,7 @@ gcs_load = DockerOperator(
     api_version='auto',
     auto_remove=True,
     environment={
-        'KEY': os.environ['AIRFLOW_TRASH_CAN_KEY'],
+        'KEY': os.environ['TRASH_CAN_KEY'],
         'GCS_AUTH_FILE': '/root/trash-can-api/data-rivers-service-acct.json',
         'GCS_PREFIX': os.environ['GCS_PREFIX']
     },

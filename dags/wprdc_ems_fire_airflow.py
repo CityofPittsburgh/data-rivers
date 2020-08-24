@@ -95,7 +95,7 @@ wprdc_dedup_fire = BigQueryOperator(
 
 wprdc_ems_geojoin = BigQueryOperator(
     task_id='wprdc_ems_geojoin',
-    sql=build_revgeo_query('ems_fire_calls', 'ems_raw'),
+    sql=build_revgeo_query('ems_fire_calls', 'ems_raw', 'call_id_hash'),
     use_legacy_sql=False,
     destination_dataset_table='{}:ems_fire_calls.ems_calls'.format(os.environ['GCLOUD_PROJECT']),
     write_disposition='WRITE_TRUNCATE',
@@ -105,7 +105,7 @@ wprdc_ems_geojoin = BigQueryOperator(
 
 wprdc_fire_geojoin = BigQueryOperator(
     task_id='wprdc_fire_geojoin',
-    sql=build_revgeo_query('ems_fire_calls', 'fire_raw'),
+    sql=build_revgeo_query('ems_fire_calls', 'fire_raw', 'call_id_hash'),
     use_legacy_sql=False,
     destination_dataset_table='{}:ems_fire_calls.fire_calls'.format(os.environ['GCLOUD_PROJECT']),
     write_disposition='WRITE_TRUNCATE',
