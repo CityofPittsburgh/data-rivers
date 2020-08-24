@@ -9,7 +9,8 @@ from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOper
 from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 
 from dependencies import airflow_utils
-from dependencies.airflow_utils import build_revgeo_query, dedup_table, get_ds_year, get_ds_month, default_args
+from dependencies.airflow_utils import build_revgeo_query, dedup_table, get_ds_year, get_ds_month, default_args, \
+    filter_old_values
 
 # TODO: When Airflow 2.0 is released, upgrade the package, sub in DataFlowPythonOperator for BashOperator,
 # and pass the argument 'py_interpreter=python3'
@@ -68,7 +69,8 @@ qalert_activities_dataflow = BashOperator(
     bash_command="python {}/dependencies/dataflow_scripts/qalert_activities_dataflow.py --input gs://{}_qalert/"
                  "activities/".format(os.environ['DAGS_PATH'], os.environ['GCS_PREFIX']) + "{{ ds|get_ds_year }}/"
                  "{{ ds|get_ds_month }}/{{ ds }}_activities.json --avro_output " + "gs://{}_qalert/activities/"
-                 "avro_output/".format(os.environ['GCS_PREFIX']) + "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds }}/",
+                 "avro_output/".format(os.environ['GCS_PREFIX']) + "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/"
+                 "{{ ds }}/",
     dag=dag
 )
 
@@ -89,7 +91,7 @@ qalert_activities_bq = GoogleCloudStorageToBigQueryOperator(
 
 qalert_requests_bq = GoogleCloudStorageToBigQueryOperator(
     task_id='qalert_requests_bq',
-    destination_project_dataset_table='{}:qalert.requests_raw'.format(os.environ['GCLOUD_PROJECT']),
+    destination_project_dataset_table='{}:qalert.requests_temp'.format(os.environ['GCLOUD_PROJECT']),
     bucket='{}_qalert'.format(os.environ['GCS_PREFIX']),
     source_objects=["requests/avro_output/{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds }}/*.avro"],
     write_disposition='WRITE_APPEND',
@@ -100,19 +102,36 @@ qalert_requests_bq = GoogleCloudStorageToBigQueryOperator(
     dag=dag
 )
 
-qalert_dedup_requests = BigQueryOperator(
-    task_id='qalert_dedup_requests',
-    sql=dedup_table('qalert', 'requests_raw'),
+qalert_activities_dedup = BigQueryOperator(
+    task_id='qalert_activities_dedup',
+    sql=dedup_table('qalert', 'activities'),
+    use_legacy_sql=False,
+    destination_dataset_table='{}:qalert.activities'.format(os.environ['GCLOUD_PROJECT']),
+    write_disposition='WRITE_TRUNCATE',
+    time_partitioning={'type': 'DAY'},
+    dag=dag
+)
+
+qalert_requests_dedup = BigQueryOperator(
+    task_id='qalert_requests_bq_filter',
+    sql=filter_old_values('qalert', 'requests_temp', 'requests_raw', 'id'),
+    use_legacy_sql=False,
+    dag=dag
+)
+
+qalert_requests_bq_merge = BigQueryOperator(
+    task_id='qalert_requests_bq_merge',
+    sql='SELECT * FROM {}.qalert.requests_temp'.format(os.environ['GCLOUD_PROJECT']),
     use_legacy_sql=False,
     destination_dataset_table='{}:qalert.requests_raw'.format(os.environ['GCLOUD_PROJECT']),
-    write_disposition='WRITE_TRUNCATE',
+    write_disposition='WRITE_APPEND',
     time_partitioning={'type': 'DAY'},
     dag=dag
 )
 
 qalert_requests_geojoin = BigQueryOperator(
     task_id='qalert_geojoin',
-    sql=build_revgeo_query('qalert', 'requests_raw'),
+    sql=build_revgeo_query('qalert', 'requests_raw', 'id'),
     use_legacy_sql=False,
     destination_dataset_table='{}:qalert.requests'.format(os.environ['GCLOUD_PROJECT']),
     write_disposition='WRITE_TRUNCATE',
@@ -126,7 +145,7 @@ qalert_beam_cleanup = BashOperator(
     dag=dag
 )
 
-qalert_gcs >> qalert_requests_dataflow >> qalert_requests_bq >> qalert_dedup_requests >> \
-    (qalert_requests_geojoin, qalert_beam_cleanup)
+qalert_gcs >> qalert_requests_dataflow >> qalert_requests_bq >> (qalert_requests_dedup, qalert_beam_cleanup) >> \
+    qalert_requests_bq_merge >> qalert_requests_geojoin
 
-qalert_gcs >> qalert_activities_dataflow >> (qalert_activities_bq, qalert_beam_cleanup)
+qalert_gcs >> qalert_activities_dataflow >> (qalert_activities_bq, qalert_beam_cleanup) >> qalert_activities_dedup

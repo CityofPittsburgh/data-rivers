@@ -18,7 +18,7 @@ The Dataflow scripts validate datums against avro schemas, which we push to [thi
 
 The Dataflow scripts read the schemas from that bucket. Once any necessary transforms are completed and the data has been converted to avro, we upload it to a separate folder (`avro_output`) in the same bucket that houses the source JSON or CSV. Again, these filenames are time-bucketed using Airflow template variables.
 
-Once the avro files are in Cloud Storage, we move to the next step in the Airflow DAG: using Airflow's `GoogleCloudStoragetoBigQuery` operator to (you guessed it) insert the data into BigQuery. In cases where the data needs to be geocoded or reverse-geocoded, it's loaded into a temporary table. Subsequent DAG steps then use the `BigQueryOperator` and queries built via [helper functions](https://github.com/CityofPittsburgh/airflow_scripts/blob/master/airflow_scripts/dags/dependencies/airflow_utils.py#L60-L128) to join the data with location information (e.g. neighborhood, council district, police zone) in another temporary table. Finally, that temporary table is appended to the final table. 
+Once the avro files are in Cloud Storage, we move to the next step in the Airflow DAG: using Airflow's `GoogleCloudStoragetoBigQuery` operator to (you guessed it) insert the data into BigQuery. In cases where the data needs to be reverse-geocoded, we then use a function from `airflow_utils` to do so using SQL `GEOGRAPHY` operators and create a new table. (Note: We could simplify the DAGS by creating BigQuery views for the geo-joining portion, but Google BI Engine [doesn't support](https://cloud.google.com/bi-engine/docs/optimized-sql) `GEOGRAPHY` operators, and is very useful for reducing latency in dashboarding) 
 
 
 ## Running locally

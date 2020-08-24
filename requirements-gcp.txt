@@ -1,3 +1,5 @@
+# extra packages beyond those in composer image
+
 ciso8601==2.1.3
 ckanapi==4.3
 cython==0.29.17
@@ -5,13 +7,12 @@ docker==4.1.0
 email-validator==1.1.0
 geocoder==1.38.1
 google-cloud-dlp==0.14.0
-grpc-google-iam-v1==0.12.3
+jaydebeapi==1.2.3
 ndjson==0.2.0
-oauth2client==3.0.0
-oauthlib==3.0.1
+pip-conflict-checker==0.6.0
 pymssql==2.1.4
+pytest==4.6.9
 python-slugify==3.0.3
 text-unidecode==1.2
-typing===3.6.1
 usaddress-scourgify==0.1.11
 yaml-config==0.1.4

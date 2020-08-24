@@ -53,7 +53,7 @@ parking_meters_bq = GoogleCloudStorageToBigQueryOperator(
 
 parking_meters_geojoin = BigQueryOperator(
     task_id='parking_meters_geojoin',
-    sql=build_revgeo_query('parking_transactions', 'meters_raw'),
+    sql=build_revgeo_query('parking_transactions', 'meters_raw', 'id'),
     use_legacy_sql=False,
     destination_dataset_table='{}:parking_transactions.meters'.format(os.environ['GCLOUD_PROJECT']),
     write_disposition='WRITE_TRUNCATE',

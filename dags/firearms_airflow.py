@@ -67,7 +67,7 @@ bq_insert = GoogleCloudStorageToBigQueryOperator(
 
 bq_geojoin = BigQueryOperator(
     task_id='qalert_geojoin',
-    sql=build_revgeo_query('firearm_seizures', 'seizures_raw'),
+    sql=build_revgeo_query('firearm_seizures', 'seizures_raw', 'address'),
     use_legacy_sql=False,
     destination_dataset_table='{}:firearm_seizures.seizures'.format(os.environ['GCLOUD_PROJECT']),
     write_disposition='WRITE_APPEND',
