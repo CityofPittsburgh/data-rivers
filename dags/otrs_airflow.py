@@ -114,6 +114,6 @@ otrs_beam_cleanup = BashOperator(
     dag=dag
 )
 
-otrs_to_gcs >> otrs_gcs_to_csv >> otrs_tickets_dataflow >> (otrs_tickets_bq, otrs_beam_cleanup)
+otrs_to_gcs >> otrs_gcs_to_csv >> otrs_tickets_dataflow >> >> otrs_tickets_bq >> otrs_beam_cleanup
 
 otrs_to_gcs >> otrs_gcs_to_csv >> otrs_surveys_dataflow >> otrs_surveys_bq

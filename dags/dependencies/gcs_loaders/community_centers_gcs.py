@@ -3,7 +3,8 @@ import argparse
 
 import pymssql
 
-from gcs_utils import sql_to_dict_list, json_to_gcs
+from gcs_utils import json_to_gcs, sql_to_dict_list
+
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-e', '--execution_date', dest='execution_date',

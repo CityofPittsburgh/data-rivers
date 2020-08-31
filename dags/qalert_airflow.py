@@ -112,6 +112,11 @@ qalert_activities_dedup = BigQueryOperator(
     dag=dag
 )
 
+# the endpoint we use for requests returns new records for a given ID when the request is updated (e.g. closed)
+# therefore, to avoid duplicates, we pull the latest results and put them in requests_temp, delete the records
+# from requests_raw that share IDs with newer records in requests_temp, add the new records from requests_temp to
+# requests_raw, and finally reverse-geocode requests_raw to create the final requests table
+
 qalert_requests_dedup = BigQueryOperator(
     task_id='qalert_requests_bq_filter',
     sql=filter_old_values('qalert', 'requests_temp', 'requests_raw', 'id'),
