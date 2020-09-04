@@ -15,45 +15,6 @@ from dependencies.airflow_utils import build_revgeo_query, dedup_table, get_ds_y
 # TODO: When Airflow 2.0 is released, upgrade the package, sub in DataFlowPythonOperator for BashOperator,
 # and pass the argument 'py_interpreter=python3'
 
-# the endpoint we use for requests returns new records for a given ID when the request is updated (e.g. closed)
-# therefore, to avoid duplicates, we run this hacky query to filter out records for a given ID that
-
-
-requests_dedup_query = f"""
-                WITH
-                  dupes AS (
-                  SELECT
-                    id,
-                    MAX(lastActionUnix) AS last_update,
-                    CONCAT(CAST(id AS string), CAST(MAX(lastActionUnix) AS string)) AS id_and_update_time,
-                  FROM
-                    `{os.environ['GCLOUD_PROJECT']}.qalert.requests`
-                  GROUP BY
-                    id
-                  HAVING
-                    COUNT(id) > 1)
-                SELECT
-                  *
-                FROM
-                  `{os.environ['GCLOUD_PROJECT']}.qalert.requests`
-                WHERE
-                  id NOT IN (
-                  SELECT
-                    id
-                  FROM
-                    dupes)
-                  OR (id IN (
-                    SELECT
-                      id
-                    FROM
-                      dupes)
-                    AND CONCAT(CAST(id AS string), CAST(lastActionUnix AS string)) IN (
-                    SELECT
-                      id_and_update_time
-                    FROM
-                      dupes))
-             """
-
 dag = DAG(
     'qalert',
     default_args=default_args,
@@ -130,7 +91,7 @@ qalert_activities_bq = GoogleCloudStorageToBigQueryOperator(
 
 qalert_requests_bq = GoogleCloudStorageToBigQueryOperator(
     task_id='qalert_requests_bq',
-    destination_project_dataset_table='{}:qalert.requests_raw'.format(os.environ['GCLOUD_PROJECT']),
+    destination_project_dataset_table='{}:qalert.requests_temp'.format(os.environ['GCLOUD_PROJECT']),
     bucket='{}_qalert'.format(os.environ['GCS_PREFIX']),
     source_objects=["requests/avro_output/{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds }}/*.avro"],
     write_disposition='WRITE_APPEND',
@@ -151,6 +112,23 @@ qalert_activities_dedup = BigQueryOperator(
     dag=dag
 )
 
+qalert_requests_dedup = BigQueryOperator(
+    task_id='qalert_requests_bq_filter',
+    sql=filter_old_values('qalert', 'requests_temp', 'requests_raw', 'id'),
+    use_legacy_sql=False,
+    dag=dag
+)
+
+qalert_requests_bq_merge = BigQueryOperator(
+    task_id='qalert_requests_bq_merge',
+    sql='SELECT * FROM {}.qalert.requests_temp'.format(os.environ['GCLOUD_PROJECT']),
+    use_legacy_sql=False,
+    destination_dataset_table='{}:qalert.requests_raw'.format(os.environ['GCLOUD_PROJECT']),
+    write_disposition='WRITE_APPEND',
+    time_partitioning={'type': 'DAY'},
+    dag=dag
+)
+
 qalert_requests_geojoin = BigQueryOperator(
     task_id='qalert_geojoin',
     sql=build_revgeo_query('qalert', 'requests_raw', 'id'),
@@ -161,13 +139,10 @@ qalert_requests_geojoin = BigQueryOperator(
     dag=dag
 )
 
-qalert_requests_dedup = BigQueryOperator(
-    task_id='qalert_requests_dedup',
-    sql=requests_dedup_query,
+qalert_bq_drop_temp = BigQueryOperator(
+    task_id='qalert_bq_drop_temp',
+    sql='DROP TABLE `{}.qalert.requests_temp`'.format(os.environ['GCLOUD_PROJECT']),
     use_legacy_sql=False,
-    destination_dataset_table='{}:qalert.requests'.format(os.environ['GCLOUD_PROJECT']),
-    write_disposition='WRITE_TRUNCATE',
-    time_partitioning={'type': 'DAY'},
     dag=dag
 )
 
@@ -177,7 +152,7 @@ qalert_beam_cleanup = BashOperator(
     dag=dag
 )
 
-qalert_gcs >> qalert_requests_dataflow >> qalert_requests_bq >> (qalert_requests_geojoin, qalert_beam_cleanup) \
-    >> qalert_requests_dedup
+qalert_gcs >> qalert_requests_dataflow >> qalert_requests_bq >> (qalert_requests_dedup, qalert_beam_cleanup) >> \
+    qalert_requests_bq_merge >> qalert_requests_geojoin >> qalert_bq_drop_temp
 
 qalert_gcs >> qalert_activities_dataflow >> (qalert_activities_bq, qalert_beam_cleanup) >> qalert_activities_dedup

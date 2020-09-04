@@ -16,8 +16,6 @@ bucket = '{}_community_centers'.format(os.environ['GCS_PREFIX'])
 conn = pymssql.connect(host=os.environ['RECPRO_DB'], user=os.environ['RECPRO_UN'],
                        password=os.environ['RECPRO_PW'], database='recpro')
 
-# TODO: centers query + geocode in airflow script
-
 attendance_query = """
                     SELECT CAST(DATEADD(DAY, DATEDIFF(DAY, 0, MemUse.Date_Time), 0) AS DATE) AS Date, 
                            Center.Name as CenterName, COUNT(MemUse.CardNumber) AttendanceCount   
