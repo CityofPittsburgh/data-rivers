@@ -139,6 +139,13 @@ qalert_requests_geojoin = BigQueryOperator(
     dag=dag
 )
 
+qalert_bq_drop_temp = BigQueryOperator(
+    task_id='qalert_bq_drop_temp',
+    sql='DROP TABLE `{}.qalert.requests_temp`'.format(os.environ['GCLOUD_PROJECT']),
+    use_legacy_sql=False,
+    dag=dag
+)
+
 qalert_beam_cleanup = BashOperator(
     task_id='qalert_beam_cleanup',
     bash_command=airflow_utils.beam_cleanup_statement('{}_qalert'.format(os.environ['GCS_PREFIX'])),
@@ -146,6 +153,6 @@ qalert_beam_cleanup = BashOperator(
 )
 
 qalert_gcs >> qalert_requests_dataflow >> qalert_requests_bq >> (qalert_requests_dedup, qalert_beam_cleanup) >> \
-    qalert_requests_bq_merge >> qalert_requests_geojoin
+    qalert_requests_bq_merge >> qalert_requests_geojoin >> qalert_bq_drop_temp
 
 qalert_gcs >> qalert_activities_dataflow >> (qalert_activities_bq, qalert_beam_cleanup) >> qalert_activities_dedup

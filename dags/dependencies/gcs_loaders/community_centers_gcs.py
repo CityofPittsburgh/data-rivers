@@ -3,7 +3,8 @@ import argparse
 
 import pymssql
 
-from gcs_utils import sql_to_dict_list, json_to_gcs
+from gcs_utils import json_to_gcs, sql_to_dict_list
+
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-e', '--execution_date', dest='execution_date',
@@ -14,8 +15,6 @@ args = vars(parser.parse_args())
 bucket = '{}_community_centers'.format(os.environ['GCS_PREFIX'])
 conn = pymssql.connect(host=os.environ['RECPRO_DB'], user=os.environ['RECPRO_UN'],
                        password=os.environ['RECPRO_PW'], database='recpro')
-
-# TODO: centers query + geocode in airflow script
 
 attendance_query = """
                     SELECT CAST(DATEADD(DAY, DATEDIFF(DAY, 0, MemUse.Date_Time), 0) AS DATE) AS Date, 
