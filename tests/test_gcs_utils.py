@@ -3,9 +3,7 @@ from __future__ import division
 
 import os
 import sys
-
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-import logging
 import unittest
 
 # patches unittest.TestCase to be python3 compatible
@@ -13,6 +11,8 @@ import future.tests.base  # pylint: disable=unused-import
 
 from dags.dependencies.gcs_loaders import gcs_utils
 
+
+# TODO: mock mssql and oracle db connections, queries, results
 
 class TestGcsUtils(unittest.TestCase):
 
@@ -30,6 +30,18 @@ class TestGcsUtils(unittest.TestCase):
 
     def test_time_to_seconds(self):
         self.assertEqual(gcs_utils.time_to_seconds('2020-09-06'), 1599350400)
+
+    def test_filter_fields(self):
+        result = [{'city': 'pittsburgh', 'state': 'pa'}, {'city': 'new york', 'state': 'ny'}]
+        relevant_fields = ['state']
+        expected = [{'state': 'pa'}, {'state': 'ny'}]
+        self.assertEqual(gcs_utils.filter_fields(result, relevant_fields), expected)
+
+    def test_execution_date_to_quarter(self):
+        self.assertEqual(gcs_utils.execution_date_to_quarter('2020-09-06'), ('Q3', 2020))
+
+    def test_execution_date_to_prev_quarter(self):
+        self.assertEqual(gcs_utils.execution_date_to_prev_quarter('2020-09-06'), ('Q2', 2020))
 
 
 if __name__ == '__main__':
