@@ -1,6 +1,5 @@
 # extra packages beyond those in composer image
 
-ciso8601==2.1.3
 ckanapi==4.3
 cython==0.29.17
 docker==4.1.0

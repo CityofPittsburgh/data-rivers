@@ -1,3 +1,6 @@
+from __future__ import absolute_import
+from __future__ import division
+
 import os
 import unittest
 from airflow.models import DagBag
@@ -32,3 +35,7 @@ class TestDagIntegrity(unittest.TestCase):
             if 'example_dags' not in dag.filepath:
                 emails = dag.default_args.get('email', [])
                 self.assertEqual(os.environ['EMAIL'], emails)
+
+
+if __name__ == '__main__':
+    unittest.main()
