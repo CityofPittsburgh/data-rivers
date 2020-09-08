@@ -3,10 +3,12 @@ from __future__ import absolute_import
 import logging
 import os
 
+import pendulum
 from datetime import datetime, timedelta
 from google.cloud import bigquery, storage
 
-dt = datetime.now()
+local_tz = pendulum.timezone('America/New_York')
+dt = datetime.now(tz=local_tz)
 yesterday = datetime.combine(dt - timedelta(1), datetime.min.time())
 
 bq_client = bigquery.Client()

@@ -1,3 +1,6 @@
+from __future__ import absolute_import
+from __future__ import division
+
 import os
 import unittest
 from airflow.models import DagBag
@@ -29,6 +32,10 @@ class TestDagIntegrity(unittest.TestCase):
 
     def test_alert_email_present(self):
         for dag_id, dag in self.dagbag.dags.items():
-            emails = dag.default_args.get('email', [])
-            msg = 'Alert email not set for DAG {id}'.format(id=dag_id)
-            self.assertIn(os.environ['EMAIL'], emails, msg)
+            if 'example_dags' not in dag.filepath:
+                emails = dag.default_args.get('email', [])
+                self.assertEqual(os.environ['EMAIL'], emails)
+
+
+if __name__ == '__main__':
+    unittest.main()

@@ -5,11 +5,12 @@ import logging
 import time
 import re
 
-import ciso8601
 import ckanapi
 import ndjson
+import pytz
 import pandas as pd
 
+from datetime import datetime
 from google.cloud import storage, dlp_v2
 
 storage_client = storage.Client()
@@ -80,7 +81,7 @@ def get_dlp_redaction(uncleaned_string):
 def regex_filter(value):
     """Regex filter for phone and email address patterns. phone_regex is a little greedy so be careful passing
     through fields with ID numbers and so forth"""
-    phone_regex = '(\d{3}[-\.]\d{3}[-\.]\d{4}|\(\d{3}\)*\d{3}[-\.]\d{4}|\d{3}[-\.]\d{4})'
+    phone_regex = '(\d{3}[-\.]\d{3}[-\.]\d{4}|\(\d{3}\)*\d{3}[-\.]\d{4}|\d{3}[-\.]\d{4})|\d{10}'
     email_regex = '\S+@\S+'
     value = re.sub(phone_regex, '#########', value)
     value = re.sub(email_regex, '####', value)
@@ -89,12 +90,12 @@ def regex_filter(value):
 
 def time_to_seconds(t):
     """
-    convert YYYY-MM-DD to seconds
+    convert YYYY-MM-DD (UTC) to seconds
     :param t: date as YYYY-MM-DD (string)
-    :return: int (time in seconds)
+    :return: int (time in seconds, 12:00 AM UTC)
     """
-    ts = ciso8601.parse_datetime(t)
-    return int(time.mktime(ts.timetuple()))
+    ts = datetime.strptime(t, '%Y-%m-%d')
+    return int(ts.replace(tzinfo=pytz.UTC).timestamp())
 
 
 def filter_fields(results, relevant_fields):
