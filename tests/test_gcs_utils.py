@@ -1,18 +1,19 @@
 from __future__ import absolute_import
 from __future__ import division
+# patches unittest.TestCase to be python3 compatible
+import future.tests.base  # pylint: disable=unused-import
 
 import os
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import unittest
+import mock
 
-# patches unittest.TestCase to be python3 compatible
-import future.tests.base  # pylint: disable=unused-import
-
+from google.cloud import storage
 from dags.dependencies.gcs_loaders import gcs_utils
 
 
-# TODO: mock mssql and oracle db connections, queries, results
+# TODO: mock mssql and oracle db connections, queries, results; mock google DLP
 
 class TestGcsUtils(unittest.TestCase):
 
