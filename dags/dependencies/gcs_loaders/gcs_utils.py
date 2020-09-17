@@ -98,21 +98,36 @@ def time_to_seconds(t):
     return int(ts.replace(tzinfo=pytz.UTC).timestamp())
 
 
-def filter_fields(results, relevant_fields):
+def filter_fields(results, relevant_fields, round_coords=False, coord_fields=None):
     """
     Remove unnecessary keys from results, optionally rename fields
 
     :param results: list of dicts
     :param relevant_fields: list of field names to preserve
-    :param name_changes: list of tuples comprising original field name + new name (optional)
+    :param round_coords: boolean (true if there are lat/long fields in the result that we want to round for privacy
+    :param coord_fields: tuple (field names for lat and long)
     :return: transformed list of dicts
     """
     trimmed_results = []
     for result in results:
         trimmed_result = {k: result[k] for k in relevant_fields}
+        if round_coords:
+            trimmed_result = roll_up_coords(trimmed_result, coord_fields)
         trimmed_results.append(trimmed_result)
 
     return trimmed_results
+
+
+def roll_up_coords(datum, coord_fields):
+    """
+    Takes a datum with lat + long fields and trims those fields to 3 decimal places (200-meter radius) for privacy
+    :param datum: dict
+    :param coord_fields: tuple (lat field name + long field name)
+    :return: dict
+    """
+    datum[coord_fields[0]] = round(float(datum[coord_fields[0]]), 3)
+    datum[coord_fields[1]] = round(float(datum[coord_fields[1]]), 3)
+    return datum
 
 
 def execution_date_to_quarter(execution_date):
@@ -387,8 +402,6 @@ def get_wprdc_data(resource_id, select_fields=['*'], where_clauses=None, group_b
         records = remove_fields(records, fields_to_remove)
 
     return records
-
-# TODO: function to convert CSV or SQL result to pandas df -> json_to_gcs
 
 # TODO: helper to convert geojson -> ndjson
 
