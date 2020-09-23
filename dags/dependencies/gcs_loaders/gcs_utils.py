@@ -98,21 +98,24 @@ def time_to_seconds(t):
     return int(ts.replace(tzinfo=pytz.UTC).timestamp())
 
 
-def filter_fields(results, relevant_fields, round_coords=False, coord_fields=None):
+def filter_fields(results, relevant_fields, add_fields=True):
     """
     Remove unnecessary keys from results, optionally rename fields
 
     :param results: list of dicts
     :param relevant_fields: list of field names to preserve
-    :param round_coords: boolean (true if there are lat/long fields in the result that we want to round for privacy
-    :param coord_fields: tuple (field names for lat and long)
+    :param add_fields: (boolean/optional) preserve or remove the values passed in the relevant_fields parameter.
+    In the case that there are many fields we want to keep and just a few we want to remove, it's more useful to pass
+    add_fields=False and then pass the fields we want to remove in the relevant_fields param. Defaults to True
+
     :return: transformed list of dicts
     """
     trimmed_results = []
     for result in results:
-        trimmed_result = {k: result[k] for k in relevant_fields}
-        if round_coords:
-            trimmed_result = roll_up_coords(trimmed_result, coord_fields)
+        if add_fields:
+            trimmed_result = {k: result[k] for k in relevant_fields}
+        else:
+            trimmed_result = {k: result[k] for k in result if k not in relevant_fields}
         trimmed_results.append(trimmed_result)
 
     return trimmed_results
@@ -121,6 +124,7 @@ def filter_fields(results, relevant_fields, round_coords=False, coord_fields=Non
 def roll_up_coords(datum, coord_fields):
     """
     Takes a datum with lat + long fields and trims those fields to 3 decimal places (200-meter radius) for privacy
+
     :param datum: dict
     :param coord_fields: tuple (lat field name + long field name)
     :return: dict

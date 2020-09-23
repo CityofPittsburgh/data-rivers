@@ -3,6 +3,7 @@ from __future__ import absolute_import
 import argparse
 import logging
 import os
+from abc import ABC
 
 import apache_beam as beam
 from apache_beam.io import ReadFromText
@@ -10,10 +11,8 @@ from apache_beam.io.avroio import WriteToAvro
 from apache_beam.options.pipeline_options import PipelineOptions
 
 from dataflow_utils import dataflow_utils
-from dataflow_utils.dataflow_utils import generate_args, get_schema, JsonCoder
+from dataflow_utils.dataflow_utils import JsonCoder, SwapFieldNames, GetDateStrings, generate_args, get_schema
 
-
-# TODO: pass input/output buckets as params from DataflowPythonOperator in DAG
 
 def run(argv=None):
     """
@@ -31,11 +30,16 @@ def run(argv=None):
     )
 
     with beam.Pipeline(options=pipeline_options) as p:
-        # Read the text file[pattern] into a PCollection.
+
+        field_name_swaps = [('actDateUnix', 'activityDateUnix'), ('codeDesc', 'activityType'), ('code', 'activityCode')]
+        date_conversions = [('activityDateUnix', 'activityDate')]
+
         lines = p | ReadFromText(known_args.input, coder=JsonCoder())
 
         load = (
                 lines
+                | beam.ParDo(SwapFieldNames(field_name_swaps))
+                | beam.ParDo(GetDateStrings(date_conversions))
                 | WriteToAvro(known_args.avro_output, schema=avro_schema, file_name_suffix='.avro', use_fastavro=True))
 
 
