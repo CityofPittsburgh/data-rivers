@@ -16,7 +16,7 @@ bucket = '{}_parking'.format(os.environ['GCS_PREFIX'])
 parking_meters = get_wprdc_data(
     resource_id='9ed126cc-3c06-496e-bd08-b7b6b14b4109',
     fields_to_remove=["_geom", "guid", "_the_geom_webmercator"]
-)
+)   
 
 parking_transactions = get_wprdc_data(
     resource_id='1ad5394f-d158-46c1-9af7-90a9ef4e0ce1',

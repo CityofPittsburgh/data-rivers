@@ -22,7 +22,7 @@ def run(argv=None):
 
     known_args, pipeline_options, avro_schema = generate_args(
         job_name='parking-transactions-dataflow',
-        bucket='{}_parking_transactions'.format(os.environ['GCS_PREFIX']),
+        bucket='{}_parking'.format(os.environ['GCS_PREFIX']),
         argv=argv,
         schema_name='parking_transactions'
     )

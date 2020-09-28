@@ -67,12 +67,25 @@ parking_beam_cleanup = BashOperator(
     dag=dag
 )
 
+# TODO: this is being coping below to determine if line 77 "_meters" is correct
+
+# parking_transactions_dataflow = BashOperator(
+#     task_id='parking_transactions_dataflow',
+#     bash_command="python {}/dependencies/dataflow_scripts/parking_transactions_dataflow"
+#                  ".py --input gs://{}_parking/transactions/"
+#                  .format(os.environ['DAGS_PATH'], os.environ['GCS_PREFIX']) + "{{ ds|get_ds_year }}/"
+#                  "{{ ds|get_ds_month }}/{{ ds }}_meters.json --avro_output "
+#                  + "gs://{}_parking/transactions/avro_output/"
+#                  .format(os.environ['GCS_PREFIX']) + "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds }}/",
+#     dag=dag
+# )
+
 parking_transactions_dataflow = BashOperator(
     task_id='parking_transactions_dataflow',
     bash_command="python {}/dependencies/dataflow_scripts/parking_transactions_dataflow"
                  ".py --input gs://{}_parking/transactions/"
                  .format(os.environ['DAGS_PATH'], os.environ['GCS_PREFIX']) + "{{ ds|get_ds_year }}/"
-                 "{{ ds|get_ds_month }}/{{ ds }}_meters.json --avro_output "
+                 "{{ ds|get_ds_month }}/{{ ds }}_transactions.json --avro_output "
                  + "gs://{}_parking/transactions/avro_output/"
                  .format(os.environ['GCS_PREFIX']) + "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds }}/",
     dag=dag

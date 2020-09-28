@@ -27,6 +27,16 @@ DEFAULT_DATAFLOW_ARGS = [
 ]
 
 
+class JsonCoder(object):
+    """A JSON coder interpreting each line as a JSON string."""
+
+    def encode(self, x):
+        return json.dumps(x)
+
+    def decode(self, x):
+        return json.loads(x)
+
+
 class ColumnsCamelToSnakeCase(beam.DoFn, ABC):
     def process(self, datum):
         cleaned_datum = {camel_to_snake_case(k): v for k, v in datum.items()}
@@ -68,22 +78,32 @@ class ChangeDataTypes(beam.DoFn, ABC):
 class SwapFieldNames(beam.DoFn, ABC):
     """
     :param name_changes: list of tuples consisting of existing field name + name to which it should be changed
-    :return dict (datum in pcollection)
+    :return dict with updated field names (datum in pcollection)
     """
+
     def __init__(self, name_changes):
         self.name_changes = name_changes
 
     def process(self, datum):
-        """
-        change/clean field names in result dict
-
-        :param datum: dict
-        :param name_changes: tuple consisting of existing field name + name to which it should be changed
-        :return: dict with updated field names
-        """
         for name_change in self.name_changes:
             datum[name_change[1]] = datum[name_change[0]]
             del datum[name_change[0]]
+
+        yield datum
+
+
+class GetDateStrings(beam.DoFn, ABC):
+    """
+    :param date_conversions: list of tuples consisting of existing field name + name for converted string field
+    :return dict (datum in pcollection)
+    """
+
+    def __init__(self, date_conversions):
+        self.date_conversions = date_conversions
+
+    def process(self, datum):
+        for conversion in self.date_conversions:
+            datum[conversion[1]] = unix_to_date_string(datum[conversion[0]])
 
         yield datum
 
@@ -95,6 +115,7 @@ class NormalizeAddress(beam.DoFn, ABC):
     :param address_key: Beam StaticValueProvider (string)
     :return: string
     """
+
     def __init__(self, address_key):
         self.address_key = address_key
 
@@ -105,6 +126,20 @@ class NormalizeAddress(beam.DoFn, ABC):
 
 
 def generate_args(job_name, bucket, argv, schema_name):
+    """
+    generate arguments for DataFlow jobs (invoked in DataFlow scripts prior to execution)
+
+    :param job_name: name for DataFlow job (string)
+    :param bucket: Google Cloud Storage bucket to which avro files will be uploaded (string)
+    :param argv: arg parser object (this will always be passed as 'argv=argv' in DataFlow scripts)
+    :param schema_name: Name of avro schema file in Google Cloud Storage against which datums will be validated
+    :return: known_args (arg parser values), Beam PipelineOptions instance, avro_schemas stored as dict in memory
+
+    Add --runner='DirectRunner' to execute a script locally for rapid development, e.g.
+    python qalert_activities_dataflow.py --input gs://pghpa_test_qalert/activities/2020/09/2020-09-23_activities.json
+    --avro_output gs://pghpa_test_qalert/activities/avro_output/2020/09/2020-09-23/ --runner DirectRunner
+
+    """
     parser = argparse.ArgumentParser()
 
     parser.add_argument('--input', dest='input', required=True)
@@ -117,6 +152,7 @@ def generate_args(job_name, bucket, argv, schema_name):
     arguments.append('--job_name={}'.format(job_name))
     arguments.append('--staging_location=gs://{}/beam_output/staging'.format(bucket))
     arguments.append('--temp_location=gs://{}/beam_output/temp'.format(bucket))
+    arguments.append('--runner={}'.format(vars(known_args)['runner']))
     arguments.append('--setup_file={}'.format(os.environ['SETUP_PY_DATAFLOW']))
     # ^this doesn't work when added to DEFAULT_DATFLOW_ARGS, for reasons unclear
 
@@ -210,11 +246,10 @@ def normalize_address(address):
         return address
 
 
-class JsonCoder(object):
-    """A JSON coder interpreting each line as a JSON string."""
-
-    def encode(self, x):
-        return json.dumps(x)
-
-    def decode(self, x):
-        return json.loads(x)
+def unix_to_date_string(unix_date):
+    """
+    return human-readable date from unix timestamp
+    :param unix_date: int
+    :return: string
+    """
+    return datetime.fromtimestamp(unix_date).strftime('%Y-%m-%d %H:%M:%S')
