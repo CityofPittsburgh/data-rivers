@@ -82,7 +82,7 @@ parking_transactions_bq = GoogleCloudStorageToBigQueryOperator(
     destination_project_dataset_table='{}:parking_transactions.payment_raw'.format(os.environ['GCLOUD_PROJECT']),
     bucket='{}_parking'.format(os.environ['GCS_PREFIX']),
     source_objects=["meters/avro_output/{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds }}/*.avro"],
-    write_disposition='WRITE_TRUNCATE',
+    write_disposition='WRITE_APPEND',
     create_disposition='CREATE_IF_NEEDED',
     source_format='AVRO',
     autodetect=True,
@@ -96,7 +96,7 @@ parking_transactions_geojoin = BigQueryOperator(
     use_legacy_sql=False,
     destination_dataset_table='{}:parking_transactions.payment'.format(
         os.environ['GCLOUD_PROJECT']),
-    write_disposition='WRITE_TRUNCATE',
+    write_disposition='WRITE_APPEND',
     time_partitioning={'type': 'DAY'},
     dag=dag
 )
