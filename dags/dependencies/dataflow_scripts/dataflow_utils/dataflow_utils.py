@@ -51,14 +51,10 @@ class ColumnsToLowerCase(beam.DoFn, ABC):
 
 class ChangeDataTypes(beam.DoFn, ABC):
     def __init__(self, type_changes):
+        """:param type_changes: list of tuples of new data type + field to change"""
         self.type_changes = type_changes
 
     def process(self, datum):
-        """
-        :param datum: dict
-        :param type_changes: list of tuples of new data type + field to change
-        :return: dict
-        """
         try:
             for type_change in self.type_changes:
                 if type_change[1] == "float":
@@ -76,12 +72,9 @@ class ChangeDataTypes(beam.DoFn, ABC):
 
 
 class SwapFieldNames(beam.DoFn, ABC):
-    """
-    :param name_changes: list of tuples consisting of existing field name + name to which it should be changed
-    :return dict with updated field names (datum in pcollection)
-    """
 
     def __init__(self, name_changes):
+        """:param name_changes: list of tuples consisting of existing field name + name to which it should be changed"""
         self.name_changes = name_changes
 
     def process(self, datum):
@@ -93,12 +86,9 @@ class SwapFieldNames(beam.DoFn, ABC):
 
 
 class GetDateStrings(beam.DoFn, ABC):
-    """
-    :param date_conversions: list of tuples consisting of existing field name + name for converted string field
-    :return dict (datum in pcollection)
-    """
 
     def __init__(self, date_conversions):
+        """:param date_conversions: list of tuples with existing field name + name for converted string field"""
         self.date_conversions = date_conversions
 
     def process(self, datum):
