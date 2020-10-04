@@ -4,7 +4,6 @@ import os
 
 from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
-from airflow.contrib.operators.dataflow_operator import DataFlowPythonOperator
 from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOperator
 from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 
@@ -24,23 +23,10 @@ dag = DAG(
 
 qalert_gcs = BashOperator(
     task_id='qalert_gcs',
-    bash_command='python {}'.format(os.environ['DAGS_PATH'] + '/dependencies/gcs_loaders/qalert_gcs.py --since {{ '
+    bash_command='python {}'.format(os.environ['DAGS_PATH'] + '/dependencies/gcs_loaders/qalert_gcs.pyz --since {{ '
                                                               'prev_ds }} --execution_date {{ ds }}'),
     dag=dag
 )
-
-# qalert_requests_dataflow = DataFlowPythonOperator(
-#     task_id='qalert_requests_dataflow',
-#     job_name='qalert_requests_dataflow',
-#     py_file=(os.environ['DAGS_PATH'] + '/dependencies/dataflow_scripts/qalert_requests_dataflow.py'),
-#     options={
-#         "input": ("gs://{}_qalert/requests/".format(os.environ['GCS_PREFIX']) +
-#                   "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds }}_requests.json"),
-#         "avro_output": ("gs://{}_qalert/requests/avro_output/".format(os.environ['GCS_PREFIX']) +
-#                         "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds }}")
-#     },
-#     dag=dag
-# )
 
 qalert_requests_dataflow = BashOperator(
     task_id='qalert_requests_dataflow',
@@ -50,19 +36,6 @@ qalert_requests_dataflow = BashOperator(
                  .format(os.environ['GCS_PREFIX']) + "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds }}/",
     dag=dag
 )
-
-# qalert_activities_dataflow = DataFlowPythonOperator(
-#     task_id='qalert_activities_dataflow',
-#     job_name='qalert_activities_dataflow',
-#     py_file=(os.environ['DAGS_PATH'] + '/dependencies/dataflow_scripts/qalert_activities_dataflow.py'),
-#     options={
-#         "input": ("gs://{}_qalert/activities/".format(os.environ['GCS_PREFIX']) +
-#                   "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds }}_activities.json"),
-#         "avro_output": ("gs://{}_qalert/activities/avro_output/".format(os.environ['GCS_PREFIX']) +
-#                         "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds }}")
-#     },
-#     dag=dag
-# )
 
 qalert_activities_dataflow = BashOperator(
     task_id='qalert_activities_dataflow',
@@ -86,8 +59,6 @@ qalert_activities_bq = GoogleCloudStorageToBigQueryOperator(
     time_partitioning={'type': 'DAY'},
     dag=dag
 )
-
-# ^maybe a bug in this operator; you should not have to specify autodetect with an avro source
 
 qalert_requests_bq = GoogleCloudStorageToBigQueryOperator(
     task_id='qalert_requests_bq',

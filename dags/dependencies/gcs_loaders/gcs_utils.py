@@ -24,13 +24,13 @@ def scrub_pii(field, data_objects):
     """You could reasonably make a case for doing this in the Dataflow portion of the DAG, but IMHO it's better to
     catch PII before it even gets to Cloud Storage; if we filter it at the Dataflow stage it won't make it to BigQuery,
     but will still be in GCS -- james 2/6/20"""
-    for object in data_objects:
+    for data_object in data_objects:
         # make sure comments field isn't empty; otherwise DLP API throws an error
-        if object[field].strip(' '):
-            object[field] = get_dlp_redaction(object[field])
+        if data_object[field].strip(' '):
+            data_object[field] = get_dlp_redaction(data_object[field])
         # google's DLP API has a rate limit of 600 requests/minute
         # TODO: consider a different workaround here; not robust for large datasets
-        if data_objects.index(object) % 600 == 0 and data_objects.index(object) != 0:
+        if data_objects.index(data_object) % 600 == 0 and data_objects.index(data_object) != 0:
             time.sleep(61)
 
     return data_objects

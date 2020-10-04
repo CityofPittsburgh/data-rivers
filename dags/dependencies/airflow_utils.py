@@ -2,10 +2,13 @@ from __future__ import absolute_import
 
 import logging
 import os
+import urllib
 
 import pendulum
 from datetime import datetime, timedelta
 from google.cloud import bigquery, storage
+from operators.ms_teams_webhook_operator import MSTeamsWebhookOperator
+
 
 local_tz = pendulum.timezone('America/New_York')
 dt = datetime.now(tz=local_tz)
@@ -14,19 +17,50 @@ yesterday = datetime.combine(dt - timedelta(1), datetime.min.time())
 bq_client = bigquery.Client()
 storage_client = storage.Client()
 
+
+def on_failure(context):
+    dag_id = context['dag_run'].dag_id
+
+    task_id = context['task_instance'].task_id
+    context['task_instance'].xcom_push(key=dag_id, value=True)
+
+    logs_url = "{}/admin/airflow/log?dag_id={}&task_id={}&execution_date={}".format(
+        os.environ['AIRFLOW_WEB_SERVER'], dag_id, task_id, context['ts'])
+    utc_time = logs_url.split('T')[-1]
+    logs_url = logs_url.replace(utc_time, urllib.parse.quote(utc_time))
+
+    if os.environ['GCLOUD_PROJECT'] == 'data-rivers':
+        teams_notification = MSTeamsWebhookOperator(
+            task_id="msteams_notify_failure",
+            trigger_rule="all_done",
+            message="`{}` has failed on task: `{}`".format(dag_id, task_id),
+            button_text="View log",
+            button_url=logs_url,
+            subtitle="View log: {}".format(logs_url),
+            theme_color="FF0000",
+            http_conn_id='msteams_webhook_url')
+
+        teams_notification.execute(context)
+    else:
+        pass
+
+
 default_args = {
     'depends_on_past': False,
     'start_date': yesterday,
     'email': os.environ['EMAIL'],
     'email_on_failure': True,
     'email_on_retry': False,
-    'retries': 1,
+    'retries': 0,
+    # 'retries': 1,
     'retry_delay': timedelta(minutes=5),
     'project_id': os.environ['GCLOUD_PROJECT'],
+    'on_failure_callback': on_failure,
     'dataflow_default_options': {
         'project': os.environ['GCLOUD_PROJECT']
     }
 }
+
 
 def get_ds_year(ds):
     return ds.split('-')[0]

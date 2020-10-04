@@ -114,6 +114,8 @@ airflow.cfg
 /dags/logs
 /dags/logs/*
 /dags/airflow.db
+airflow-webserver.pid
+unittests.cfg
 *.avsc
 .DS_Store
 data_rivers_key.json
