@@ -5,6 +5,7 @@ import logging
 import time
 import re
 
+import requests
 import ckanapi
 import ndjson
 import pytz
@@ -98,21 +99,45 @@ def time_to_seconds(t):
     return int(ts.replace(tzinfo=pytz.UTC).timestamp())
 
 
-def filter_fields(results, relevant_fields):
+def filter_fields(results, relevant_fields, add_fields=True):
     """
     Remove unnecessary keys from results, optionally rename fields
 
     :param results: list of dicts
     :param relevant_fields: list of field names to preserve
-    :param name_changes: list of tuples comprising original field name + new name (optional)
+    :param add_fields: (boolean/optional) preserve or remove the values passed in the relevant_fields parameter.
+    In the case that there are many fields we want to keep and just a few we want to remove, it's more useful to pass
+    add_fields=False and then pass the fields we want to remove in the relevant_fields param. Defaults to True
+
     :return: transformed list of dicts
     """
     trimmed_results = []
     for result in results:
-        trimmed_result = {k: result[k] for k in relevant_fields}
+        if add_fields:
+            trimmed_result = {k: result[k] for k in relevant_fields}
+        else:
+            trimmed_result = {k: result[k] for k in result if k not in relevant_fields}
         trimmed_results.append(trimmed_result)
-
     return trimmed_results
+
+
+def upload_trash_can_data(endpoints):
+    for endpoint in endpoints:
+        if endpoint['date_param']:
+            res = requests.get(
+                BASE_URL + '/' + endpoint['path'] + '/' + os.environ['TRASH_CAN_KEY'] + '/' + get_api_date(
+                    execution_date))
+        else:
+            res = requests.get(BASE_URL + '/' + endpoint['path'] + '/' + os.environ['TRASH_CAN_KEY'])
+        if endpoint['filter_list']:
+            data = filter_fields(res.json(), relevant_fields=endpoint['filter_list'], add_fields = False)
+            json_to_gcs('{}/{}/{}/{}_{}.json'.format(endpoint['path'].lower(), args['execution_date'].split('-')[0],
+                                                     args['execution_date'].split('-')[1], args['execution_date']),
+                        data, bucket)
+        else:
+            json_to_gcs('{}/{}/{}/{}_{}.json'.format(endpoint['path'].lower(), args['execution_date'].split('-')[0],
+                                                     args['execution_date'].split('-')[1], args['execution_date']),
+                        res.json(), bucket)
 
 
 def execution_date_to_quarter(execution_date):
