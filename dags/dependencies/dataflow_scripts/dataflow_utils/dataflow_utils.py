@@ -51,7 +51,7 @@ class ColumnsToLowerCase(beam.DoFn, ABC):
 
 class ChangeDataTypes(beam.DoFn, ABC):
     def __init__(self, type_changes):
-        """:param type_changes: list of tuples of new data type + field to change"""
+        """:param type_changes: list of tuples of field to change + new data type"""
         self.type_changes = type_changes
 
     def process(self, datum):
@@ -68,7 +68,7 @@ class ChangeDataTypes(beam.DoFn, ABC):
         except TypeError:
             pass
 
-        yield datum
+        yield datum 
 
 
 class SwapFieldNames(beam.DoFn, ABC):
@@ -88,29 +88,13 @@ class SwapFieldNames(beam.DoFn, ABC):
 class GetDateStrings(beam.DoFn, ABC):
 
     def __init__(self, date_conversions):
-        """:param date_conversions: list of tuples with existing field name + name for converted string field"""
+        """:param date_conversions: list of tuples with existing field name + name for converted string field. 
+       this function converts unix timestamps (integer type) to UTC timestamps (string type)"""
         self.date_conversions = date_conversions
 
     def process(self, datum):
         for conversion in self.date_conversions:
             datum[conversion[1]] = unix_to_date_string(datum[conversion[0]])
-
-        yield datum
-
-
-class NormalizeAddress(beam.DoFn, ABC):
-    """
-    intelligently parse/normalize address string according to USPS pub 28 and RESO guidelines
-
-    :param address_key: Beam StaticValueProvider (string)
-    :return: string
-    """
-
-    def __init__(self, address_key):
-        self.address_key = address_key
-
-    def process(self, datum):
-        datum['normalized_address'] = normalize_address(datum[self.address_key.get()])
 
         yield datum
 
@@ -214,26 +198,6 @@ def clean_csv_boolean(boolean):
             return None
     except ValueError:
         return None
-
-
-def normalize_address(address):
-    text2number = {"ZERO": "0", "ONE": "1", "TWO": "2", "THREE": "3", "FOUR": "4", "FIVE": "5", "SIX": "6",
-                   "SEVEN": "7",
-                   "EIGHT": "8", "NINE": "9", "TEN": "10", "FIRST": "1ST", "SECOND": "2ND", "THIRD": "3RD",
-                   "FOURTH": "4TH",
-                   "FIFTH": "5TH", "SIXTH": "6TH", "SEVENTH": "7TH", "EIGHTH": "8TH", "NINTH": "9TH", "TENTH": "10TH"}
-    try:
-        normalized_string = ""
-        pattern = re.compile(r'\b(' + '|'.join(text2number.keys()) + r')\b')
-        address_num = pattern.sub(lambda x: text2number[x.group()], address)
-        normalized_dict = normalize_address_record(address_num)
-        for k, v in normalized_dict.items():
-            if v:
-                normalized_string += (str(v) + ' ')
-        normalized_string = normalized_string.strip()
-        return normalized_string
-    except exceptions.UnParseableAddressError:  # use original address if unparseable
-        return address
 
 
 def unix_to_date_string(unix_date):
