@@ -102,7 +102,6 @@ def time_to_seconds(t):
 def filter_fields(results, relevant_fields, add_fields=True):
     """
     Remove unnecessary keys from results, optionally rename fields
-
     :param results: list of dicts
     :param relevant_fields: list of field names to preserve
     :param add_fields: (boolean/optional) preserve or remove the values passed in the relevant_fields parameter.
@@ -125,7 +124,6 @@ def filter_fields(results, relevant_fields, add_fields=True):
 def roll_up_coords(datum, coord_fields):
     """
     Takes a datum with lat + long fields and trims those fields to 3 decimal places (200-meter radius) for privacy
-
     :param datum: dict
     :param coord_fields: tuple (lat field name + long field name)
     :return: dict
@@ -181,7 +179,6 @@ def execution_date_to_prev_quarter(execution_date):
 def sql_to_dict_list(conn, sql_query, db='mssql', date_col=None, date_format=None):
     """
     Execute sql query and return list of dicts
-
     :param conn: sql db connection
     :param sql_query: str
     :param db: database type (cursor result syntax differs)
@@ -357,10 +354,8 @@ The query parameters sent to the get_wprdc_data function look like this:
 {'resource_id': 'f8ab32f7-44c7-43ca-98bf-c1b444724598',
  'select_fields': ['*'],
  'where_clauses': ['"DogName" LIKE \'DOGZ%\'']}
-
 The resulting query is:
 SELECT * FROM "f8ab32f7-44c7-43ca-98bf-c1b444724598" WHERE "DogName" LIKE 'DOGZ%'
-
 The field names should usually be surrounded by double quotes (unless they are snake case field names), and string values need to be surrounded by single quotes.
 Executing the query fetches 1 record.
 The first record looks like this:
@@ -374,7 +369,6 @@ The first record looks like this:
  '_geom': None,
  '_id': 27210,
  '_the_geom_webmercator': None}
-
 Here's another query, just getting dog names that contain 'CAT':
 SELECT "DogName" AS name FROM "f8ab32f7-44c7-43ca-98bf-c1b444724598" WHERE "DogName" LIKE '%CAT%'
 The returned list of records looks like this:
@@ -384,7 +378,6 @@ The returned list of records looks like this:
  {'name': 'CATALINA'},
  {'name': 'CATEY'},
  {'name': 'GRAYSON MERCATORIS'}]
-
 Finally, let's test some other query elements. Here's the query:
 SELECT COUNT("DogName") AS amount, "DogName" FROM "f8ab32f7-44c7-43ca-98bf-c1b444724598" WHERE "Breed" = 'POODLE STANDARD' GROUP BY "DogName" ORDER BY amount DESC LIMIT 5
 Here are the resulting top five names for the POODLE STANDARD breed, sorted by decreasing frequency:
@@ -400,7 +393,6 @@ def get_wprdc_data(resource_id, select_fields=['*'], where_clauses=None, group_b
                    fields_to_remove=None):
     """
     helper to construct query for CKAN API and return results as list of dictionaries
-
     :param resource_id: str
     :param select_fields: list
     :param where_clauses: str
