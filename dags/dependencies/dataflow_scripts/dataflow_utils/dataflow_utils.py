@@ -4,6 +4,7 @@ import argparse
 import re
 import json
 import os
+import pytz
 
 import apache_beam as beam
 
@@ -92,8 +93,8 @@ class GetDateStrings(beam.DoFn, ABC):
         self.date_conversions = date_conversions
 
     def process(self, datum):
-        for conversion in self.date_conversions:
-            datum[conversion[1]] = unix_to_date_string(datum[conversion[0]])
+        for column in self.date_column_names:
+            datum[column[1]] = unix_to_date_string(datum[column[0]])
 
         yield datum
 
@@ -205,4 +206,4 @@ def unix_to_date_string(unix_date):
     :param unix_date: int
     :return: string
     """
-    return datetime.fromtimestamp(unix_date).strftime('%Y-%m-%d %H:%M:%S')
+    return pytz.timezone('America/New_York').localize(datetime.fromtimestamp(unix_date)).strftime('%Y-%m-%d %H:%M:%S %Z')
