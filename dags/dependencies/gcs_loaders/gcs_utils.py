@@ -5,7 +5,6 @@ import logging
 import time
 import re
 
-import requests
 import ckanapi
 import ndjson
 import pytz
@@ -25,13 +24,13 @@ def scrub_pii(field, data_objects):
     """You could reasonably make a case for doing this in the Dataflow portion of the DAG, but IMHO it's better to
     catch PII before it even gets to Cloud Storage; if we filter it at the Dataflow stage it won't make it to BigQuery,
     but will still be in GCS -- james 2/6/20"""
-    for object in data_objects:
+    for data_object in data_objects:
         # make sure comments field isn't empty; otherwise DLP API throws an error
-        if object[field].strip(' '):
-            object[field] = get_dlp_redaction(object[field])
+        if data_object[field].strip(' '):
+            data_object[field] = get_dlp_redaction(data_object[field])
         # google's DLP API has a rate limit of 600 requests/minute
         # TODO: consider a different workaround here; not robust for large datasets
-        if data_objects.index(object) % 600 == 0 and data_objects.index(object) != 0:
+        if data_objects.index(data_object) % 600 == 0 and data_objects.index(data_object) != 0:
             time.sleep(61)
 
     return data_objects
@@ -102,13 +101,11 @@ def time_to_seconds(t):
 def filter_fields(results, relevant_fields, add_fields=True):
     """
     Remove unnecessary keys from results, optionally rename fields
-
     :param results: list of dicts
     :param relevant_fields: list of field names to preserve
     :param add_fields: (boolean/optional) preserve or remove the values passed in the relevant_fields parameter.
     In the case that there are many fields we want to keep and just a few we want to remove, it's more useful to pass
     add_fields=False and then pass the fields we want to remove in the relevant_fields param. Defaults to True
-
     :return: transformed list of dicts
     """
     trimmed_results = []
@@ -118,26 +115,20 @@ def filter_fields(results, relevant_fields, add_fields=True):
         else:
             trimmed_result = {k: result[k] for k in result if k not in relevant_fields}
         trimmed_results.append(trimmed_result)
+
     return trimmed_results
 
 
-def upload_trash_can_data(endpoints):
-    for endpoint in endpoints:
-        if endpoint['date_param']:
-            res = requests.get(
-                BASE_URL + '/' + endpoint['path'] + '/' + os.environ['TRASH_CAN_KEY'] + '/' + get_api_date(
-                    execution_date))
-        else:
-            res = requests.get(BASE_URL + '/' + endpoint['path'] + '/' + os.environ['TRASH_CAN_KEY'])
-        if endpoint['filter_list']:
-            data = filter_fields(res.json(), relevant_fields=endpoint['filter_list'], add_fields = False)
-            json_to_gcs('{}/{}/{}/{}_{}.json'.format(endpoint['path'].lower(), args['execution_date'].split('-')[0],
-                                                     args['execution_date'].split('-')[1], args['execution_date']),
-                        data, bucket)
-        else:
-            json_to_gcs('{}/{}/{}/{}_{}.json'.format(endpoint['path'].lower(), args['execution_date'].split('-')[0],
-                                                     args['execution_date'].split('-')[1], args['execution_date']),
-                        res.json(), bucket)
+def roll_up_coords(datum, coord_fields):
+    """
+    Takes a datum with lat + long fields and trims those fields to 3 decimal places (200-meter radius) for privacy
+    :param datum: dict
+    :param coord_fields: tuple (lat field name + long field name)
+    :return: dict
+    """
+    datum[coord_fields[0]] = round(float(datum[coord_fields[0]]), 3)
+    datum[coord_fields[1]] = round(float(datum[coord_fields[1]]), 3)
+    return datum
 
 
 def execution_date_to_quarter(execution_date):
@@ -186,7 +177,6 @@ def execution_date_to_prev_quarter(execution_date):
 def sql_to_dict_list(conn, sql_query, db='mssql', date_col=None, date_format=None):
     """
     Execute sql query and return list of dicts
-
     :param conn: sql db connection
     :param sql_query: str
     :param db: database type (cursor result syntax differs)
@@ -342,10 +332,8 @@ The query parameters sent to the get_wprdc_data function look like this:
 {'resource_id': 'f8ab32f7-44c7-43ca-98bf-c1b444724598',
  'select_fields': ['*'],
  'where_clauses': ['"DogName" LIKE \'DOGZ%\'']}
-
 The resulting query is:
 SELECT * FROM "f8ab32f7-44c7-43ca-98bf-c1b444724598" WHERE "DogName" LIKE 'DOGZ%'
-
 The field names should usually be surrounded by double quotes (unless they are snake case field names), and string values need to be surrounded by single quotes.
 Executing the query fetches 1 record.
 The first record looks like this:
@@ -359,7 +347,6 @@ The first record looks like this:
  '_geom': None,
  '_id': 27210,
  '_the_geom_webmercator': None}
-
 Here's another query, just getting dog names that contain 'CAT':
 SELECT "DogName" AS name FROM "f8ab32f7-44c7-43ca-98bf-c1b444724598" WHERE "DogName" LIKE '%CAT%'
 The returned list of records looks like this:
@@ -369,7 +356,6 @@ The returned list of records looks like this:
  {'name': 'CATALINA'},
  {'name': 'CATEY'},
  {'name': 'GRAYSON MERCATORIS'}]
-
 Finally, let's test some other query elements. Here's the query:
 SELECT COUNT("DogName") AS amount, "DogName" FROM "f8ab32f7-44c7-43ca-98bf-c1b444724598" WHERE "Breed" = 'POODLE STANDARD' GROUP BY "DogName" ORDER BY amount DESC LIMIT 5
 Here are the resulting top five names for the POODLE STANDARD breed, sorted by decreasing frequency:
@@ -385,7 +371,6 @@ def get_wprdc_data(resource_id, select_fields=['*'], where_clauses=None, group_b
                    fields_to_remove=None):
     """
     helper to construct query for CKAN API and return results as list of dictionaries
-
     :param resource_id: str
     :param select_fields: list
     :param where_clauses: str
@@ -412,8 +397,6 @@ def get_wprdc_data(resource_id, select_fields=['*'], where_clauses=None, group_b
         records = remove_fields(records, fields_to_remove)
 
     return records
-
-# TODO: function to convert CSV or SQL result to pandas df -> json_to_gcs
 
 # TODO: helper to convert geojson -> ndjson
 
