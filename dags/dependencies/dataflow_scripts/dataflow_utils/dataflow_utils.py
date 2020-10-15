@@ -4,6 +4,7 @@ import argparse
 import re
 import json
 import os
+import pytz
 
 import apache_beam as beam
 
@@ -87,13 +88,13 @@ class SwapFieldNames(beam.DoFn, ABC):
 
 class GetDateStrings(beam.DoFn, ABC):
 
-    def __init__(self, date_conversions):
-        """:param date_conversions: list of tuples with existing field name + name for converted string field"""
-        self.date_conversions = date_conversions
+    def __init__(self, date_column_names):
+        """:param date_column_names: list of tuples with existing field name + name for new converted string field"""
+        self.date_column_names = date_column_names
 
     def process(self, datum):
-        for conversion in self.date_conversions:
-            datum[conversion[1]] = unix_to_date_string(datum[conversion[0]])
+        for column in self.date_column_names:
+            datum[column[1]] = unix_to_date_string(datum[column[0]])
 
         yield datum
 
@@ -110,7 +111,7 @@ class NormalizeAddress(beam.DoFn, ABC):
         self.address_key = address_key
 
     def process(self, datum):
-        datum['normalized_address'] = normalize_address(datum[self.address_key.get()])
+        datum['normalized_address'] = normalize_address(datum[self.address_key])
 
         yield datum
 
@@ -242,4 +243,4 @@ def unix_to_date_string(unix_date):
     :param unix_date: int
     :return: string
     """
-    return datetime.fromtimestamp(unix_date).strftime('%Y-%m-%d %H:%M:%S')
+    return pytz.timezone('America/New_York').localize(datetime.fromtimestamp(unix_date)).strftime('%Y-%m-%d %H:%M:%S %Z')

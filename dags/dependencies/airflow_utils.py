@@ -41,6 +41,7 @@ def on_failure(context):
             http_conn_id='msteams_webhook_url')
 
         teams_notification.execute(context)
+        return
     else:
         pass
 
