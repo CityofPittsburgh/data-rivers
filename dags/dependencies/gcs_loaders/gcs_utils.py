@@ -106,6 +106,7 @@ def filter_fields(results, relevant_fields, add_fields=True):
     :param add_fields: (boolean/optional) preserve or remove the values passed in the relevant_fields parameter.
     In the case that there are many fields we want to keep and just a few we want to remove, it's more useful to pass
     add_fields=False and then pass the fields we want to remove in the relevant_fields param. Defaults to True
+
     :return: transformed list of dicts
     """
     trimmed_results = []

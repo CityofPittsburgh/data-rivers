@@ -8,8 +8,9 @@ from apache_beam.io import ReadFromText
 from apache_beam.io.avroio import WriteToAvro
 
 from dataflow_utils import dataflow_utils
-from dataflow_utils.dataflow_utils import JsonCoder, SwapFieldNames, GetDateStrings, generate_args, get_schema
+from dataflow_utils.dataflow_utils import generate_args, JsonCoder
 
+# TODO: pass input/output buckets as params from DataflowPythonOperator in DAG
 
 def run(argv=None):
     """
@@ -20,23 +21,18 @@ def run(argv=None):
     """
 
     known_args, pipeline_options, avro_schema = generate_args(
-        job_name='qalert-activities-dataflow',
-        bucket='{}_qalert'.format(os.environ['GCS_PREFIX']),
+        job_name='parking-transactions-dataflow',
+        bucket='{}_parking'.format(os.environ['GCS_PREFIX']),
         argv=argv,
-        schema_name='City_of_Pittsburgh_QAlert_Activities'
+        schema_name='parking_transactions'
     )
 
     with beam.Pipeline(options=pipeline_options) as p:
-
-        field_name_swaps = [('actDateUnix', 'activityDateUnix'), ('codeDesc', 'activityType'), ('code', 'activityCode')]
-        date_conversions = [('activityDateUnix', 'activityDate')]
 
         lines = p | ReadFromText(known_args.input, coder=JsonCoder())
 
         load = (
                 lines
-                | beam.ParDo(SwapFieldNames(field_name_swaps))
-                | beam.ParDo(GetDateStrings(date_conversions))
                 | WriteToAvro(known_args.avro_output, schema=avro_schema, file_name_suffix='.avro', use_fastavro=True))
 
 

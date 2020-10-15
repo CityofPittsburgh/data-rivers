@@ -8,19 +8,19 @@ from apache_beam.io import ReadFromText
 from apache_beam.io.avroio import WriteToAvro
 
 from dataflow_utils import dataflow_utils
-from dataflow_utils.dataflow_utils import generate_args, get_schema, JsonCoder
+from dataflow_utils.dataflow_utils import JsonCoder, SwapFieldNames, GetDateStrings, generate_args, get_schema
 
 
 class GetStatus(beam.DoFn):
     def process(self, datum):
         status = ''
-        if datum['status'] == 0:
+        if datum['statusCode'] == 0:
             status = 'open'
-        elif datum['status'] == 1:
+        elif datum['statusCode'] == 1:
             status = 'closed'
-        elif datum['status'] == 3:
-            status == 'in progress'
-        elif datum['status'] == 4:
+        elif datum['statusCode'] == 3:
+            status = 'in progress'
+        elif datum['statusCode'] == 4:
             status = 'on hold'
         else:
             pass
@@ -28,12 +28,14 @@ class GetStatus(beam.DoFn):
         yield datum
 
 
-class CleanLatLong(beam.DoFn):
+class GetClosedDate(beam.DoFn):
     def process(self, datum):
-        datum['lat'] = datum['latitude']
-        datum['long'] = datum['longitude']
-        datum.pop('latitude')
-        datum.pop('longitude')
+        if datum['status'] == 'closed':
+            datum['closedOn'] = datum['lastAction']
+            datum['closedOnUnix'] = datum['lastActionUnix']
+        else:
+            datum['closedOn'] = None
+            datum['closedOnUnix'] = None
         yield datum
 
 
@@ -53,13 +55,24 @@ def run(argv=None):
     )
 
     with beam.Pipeline(options=pipeline_options) as p:
-        # Read the text file[pattern] into a PCollection.
+
+        date_conversions = [('lastActionUnix', 'lastAction'), ('addDateUnix', 'createDate')]
+        field_name_swaps = [('addDateUnix', 'createDateUnix'),
+                            ('status', 'statusCode'),
+                            ('latitude', 'lat'),
+                            ('longitude', 'long'),
+                            ('master', 'masterRequestId'),
+                            ('typeId', 'requestTypeId'),
+                            ('typeName', 'requestType')]
+
         lines = p | ReadFromText(known_args.input, coder=JsonCoder())
 
         load = (
                 lines
+                | beam.ParDo(GetDateStrings(date_conversions))
+                | beam.ParDo(SwapFieldNames(field_name_swaps))
                 | beam.ParDo(GetStatus())
-                | beam.ParDo(CleanLatLong())
+                | beam.ParDo(GetClosedDate())
                 | WriteToAvro(known_args.avro_output, schema=avro_schema, file_name_suffix='.avro', use_fastavro=True))
 
 

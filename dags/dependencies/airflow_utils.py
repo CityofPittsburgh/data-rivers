@@ -2,10 +2,13 @@ from __future__ import absolute_import
 
 import logging
 import os
+import urllib
 
 import pendulum
 from datetime import datetime, timedelta
 from google.cloud import bigquery, storage
+from operators.ms_teams_webhook_operator import MSTeamsWebhookOperator
+
 
 local_tz = pendulum.timezone('America/New_York')
 dt = datetime.now(tz=local_tz)
@@ -13,6 +16,34 @@ yesterday = datetime.combine(dt - timedelta(1), datetime.min.time())
 
 bq_client = bigquery.Client()
 storage_client = storage.Client()
+
+
+def on_failure(context):
+    dag_id = context['dag_run'].dag_id
+
+    task_id = context['task_instance'].task_id
+    context['task_instance'].xcom_push(key=dag_id, value=True)
+
+    logs_url = "{}/admin/airflow/log?dag_id={}&task_id={}&execution_date={}".format(
+        os.environ['AIRFLOW_WEB_SERVER'], dag_id, task_id, context['ts'])
+    utc_time = logs_url.split('T')[-1]
+    logs_url = logs_url.replace(utc_time, urllib.parse.quote(utc_time))
+
+    if os.environ['GCLOUD_PROJECT'] == 'data-rivers':
+        teams_notification = MSTeamsWebhookOperator(
+            task_id="msteams_notify_failure",
+            trigger_rule="all_done",
+            message="`{}` has failed on task: `{}`".format(dag_id, task_id),
+            button_text="View log",
+            button_url=logs_url,
+            subtitle="View log: {}".format(logs_url),
+            theme_color="FF0000",
+            http_conn_id='msteams_webhook_url')
+
+        teams_notification.execute(context)
+    else:
+        pass
+
 
 default_args = {
     'depends_on_past': False,
@@ -23,10 +54,12 @@ default_args = {
     'retries': 1,
     'retry_delay': timedelta(minutes=5),
     'project_id': os.environ['GCLOUD_PROJECT'],
+    'on_failure_callback': on_failure,
     'dataflow_default_options': {
         'project': os.environ['GCLOUD_PROJECT']
     }
 }
+
 
 def get_ds_year(ds):
     return ds.split('-')[0]
@@ -36,21 +69,21 @@ def get_ds_month(ds):
     return ds.split('-')[1]
 
 
-def build_revgeo_query(dataset, temp_table, id_field):
+def build_revgeo_query(dataset, raw_table, id_field):
     """
     Take a table with lat/long values and reverse-geocode it into a new a final table. Use UNION to include rows that
     can't be reverse-geocoded in the final table. SELECT DISTINCT in both cases to remove duplicates.
 
     :param dataset: BigQuery dataset (string)
-    :param temp_table: non-reverse geocoded table (string)
+    :param raw_table: non-reverse geocoded table (string)
     :param id_field: field in table to use for deduplication
     :return: string to be passed through as arg to BigQueryOperator
     """
     return f"""
-    WITH {temp_table}_geo AS 
+    WITH {raw_table}_geo AS 
     (
        SELECT DISTINCT
-          {temp_table}.*,
+          {raw_table}.*,
           neighborhoods.hood AS neighborhood,
           council_districts.council AS council_district,
           wards.ward,
@@ -58,33 +91,33 @@ def build_revgeo_query(dataset, temp_table, id_field):
           police_zones.zone AS police_zone,
           dpw_divisions.objectid AS dpw_division 
        FROM
-          `{os.environ['GCLOUD_PROJECT']}.{dataset}.{temp_table}` AS {temp_table} 
+          `{os.environ['GCLOUD_PROJECT']}.{dataset}.{raw_table}` AS {raw_table} 
           JOIN
              `data-rivers.geography.neighborhoods` AS neighborhoods 
-             ON ST_CONTAINS(neighborhoods.geometry, ST_GEOGPOINT({temp_table}.long, {temp_table}.lat)) 
+             ON ST_CONTAINS(neighborhoods.geometry, ST_GEOGPOINT({raw_table}.long, {raw_table}.lat)) 
           JOIN
              `data-rivers.geography.council_districts` AS council_districts 
-             ON ST_CONTAINS(council_districts.geometry, ST_GEOGPOINT({temp_table}.long, {temp_table}.lat)) 
+             ON ST_CONTAINS(council_districts.geometry, ST_GEOGPOINT({raw_table}.long, {raw_table}.lat)) 
           JOIN
              `data-rivers.geography.wards` AS wards 
-             ON ST_CONTAINS(wards.geometry, ST_GEOGPOINT({temp_table}.long, {temp_table}.lat)) 
+             ON ST_CONTAINS(wards.geometry, ST_GEOGPOINT({raw_table}.long, {raw_table}.lat)) 
           JOIN
              `data-rivers.geography.fire_zones` AS fire_zones 
-             ON ST_CONTAINS(fire_zones.geometry, ST_GEOGPOINT({temp_table}.long, {temp_table}.lat)) 
+             ON ST_CONTAINS(fire_zones.geometry, ST_GEOGPOINT({raw_table}.long, {raw_table}.lat)) 
           JOIN
              `data-rivers.geography.police_zones` AS police_zones 
-             ON ST_CONTAINS(police_zones.geometry, ST_GEOGPOINT({temp_table}.long, {temp_table}.lat)) 
+             ON ST_CONTAINS(police_zones.geometry, ST_GEOGPOINT({raw_table}.long, {raw_table}.lat)) 
           JOIN
              `data-rivers.geography.dpw_divisions` AS dpw_divisions 
-             ON ST_CONTAINS(dpw_divisions.geometry, ST_GEOGPOINT({temp_table}.long, {temp_table}.lat))
+             ON ST_CONTAINS(dpw_divisions.geometry, ST_GEOGPOINT({raw_table}.long, {raw_table}.lat))
     )
     SELECT
        * 
     FROM
-       {temp_table}_geo 
+       {raw_table}_geo 
     UNION ALL
     SELECT DISTINCT
-       {temp_table}.*,
+       {raw_table}.*,
        CAST(NULL AS string) AS neighborhood,
        NULL AS council_district,
        NULL AS ward,
@@ -92,14 +125,14 @@ def build_revgeo_query(dataset, temp_table, id_field):
        NULL AS police_zone,
        NULL AS dpw_division 
     FROM
-       `{os.environ['GCLOUD_PROJECT']}.{dataset}.{temp_table}` AS {temp_table} 
+       `{os.environ['GCLOUD_PROJECT']}.{dataset}.{raw_table}` AS {raw_table} 
     WHERE
-       {temp_table}.{id_field} NOT IN 
+       {raw_table}.{id_field} NOT IN 
        (
           SELECT
              {id_field} 
           FROM
-             {temp_table}_geo
+             {raw_table}_geo
        )
     """
 

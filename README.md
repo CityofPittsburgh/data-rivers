@@ -8,6 +8,9 @@ Requirements: Python 3.7.x, access to city GCP account, JSON file with Data Rive
 [Apache Beam documentation](https://beam.apache.org/documentation/)
 
 ## Architecture
+
+![](https://raw.githubusercontent.com/CityofPittsburgh/data-rivers/master/data_rivers_architecture.png?raw=true)
+
 The [DAGs](https://airflow.apache.org/docs/stable/concepts.html#dags) in this project share a common structure. First, they load data (either via queries to third-party APIs or on-prem JDBC databases) to Google Cloud Storage, in JSON or CSV format. For many data sources (particularly those on-prem), there exist R scripts from our legacy system to do the data extraction. To avoid duplicating this work, we've packaged a number of these scripts in Docker images stored privately on Google Container Registry. We use Airflow's `DockerOperator` to invoke those scripts, which in some cases return CSV and in others newline-delimited JSON (Beam requires newline-delimited). 
 
 Where legacy loading scripts don't exist, we load data via Python scripts [stored in this project](https://github.com/CityofPittsburgh/airflow_scripts/tree/master/airflow_scripts/dags/dependencies/gcs_loaders). Whenever possible, we load data as newline-delimited JSON, which is easier to work with downstream. We use Airflow's template variables for DAG execution date to bucket these files by time (e.g. `gs://pghpa_computronix/businesses/2020/02/2020-02-07_business_licenses.json`). That values are stored retroactively, so if we need to rerun a job from the previous week, the files will still get routed to the appropriate time buckets.

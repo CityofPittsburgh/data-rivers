@@ -9,7 +9,7 @@ from gcs_utils import storage_client, upload_file_gcs
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--execution_date', dest='execution_date', required=True, help='DAG execution date (YYYY-MM-DD)')
+parser.add_argument('-e', '--execution_date', dest='execution_date', required=True, help='DAG execution date (YYYY-MM-DD)')
 args = vars(parser.parse_args())
 
 warnings.filterwarnings('ignore', category=MySQLdb.Warning)
@@ -17,7 +17,7 @@ bucket = '{}_otrs'.format(os.environ['GCS_PREFIX'])
 
 
 OTRScon = MySQLdb.connect(host=os.environ['OTRS_IP'], user=os.environ['OTRS_USER'], passwd=os.environ['OTRS_PW'],
-                          db='otrs')
+                          db='otrs', port=3306)
 
 cursor_master = OTRScon.cursor()
 
