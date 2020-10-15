@@ -51,7 +51,7 @@ class ColumnsToLowerCase(beam.DoFn, ABC):
 
 class ChangeDataTypes(beam.DoFn, ABC):
     def __init__(self, type_changes):
-        """:param type_changes: list of tuples of field to change + new data type"""
+        """:param type_changes: list of tuples; each tuple consists of the field we want to change and the new data type we want for its value"""
         self.type_changes = type_changes
 
     def process(self, datum):
@@ -88,8 +88,7 @@ class SwapFieldNames(beam.DoFn, ABC):
 class GetDateStrings(beam.DoFn, ABC):
 
     def __init__(self, date_conversions):
-        """:param date_conversions: list of tuples with existing field name + name for converted string field. 
-       this function converts unix timestamps (integer type) to UTC timestamps (string type)"""
+        """:param date_conversions: list of tuples; each tuple consists of an existing field name + a name for the new date-string field."""
         self.date_conversions = date_conversions
 
     def process(self, datum):
@@ -202,7 +201,7 @@ def clean_csv_boolean(boolean):
 
 def unix_to_date_string(unix_date):
     """
-    return human-readable date from unix timestamp
+    this function converts unix timestamps (integer type) to human readable UTC timestamps (string type)
     :param unix_date: int
     :return: string
     """
