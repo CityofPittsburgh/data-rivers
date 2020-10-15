@@ -1,13 +1,8 @@
 # setup library imports
-import io
-import time
-import json
 import os
 import argparse
-import copy
 
 import requests
-import pandas as pd
 from gcs_utils import filter_fields, json_to_gcs
 
 parser = argparse.ArgumentParser()
@@ -27,13 +22,13 @@ CONTAINERS_COLUMNS = ['AssignmentDate','Bin2Content','CalculatedBin2PercentFull'
                 'IsThresholdLevelReachedForBin2', 'LastCheckinDateBeforeCollectionEventForBin2',
                 'LastTimeDoor1Opened','LastTimeDoor2Opened','LastWeight2BeforeCollectionEvent','State','Weight2']
 
-CONTAINERS_HISTORY_DATA_COLUMNS=['Bin2Content', 'CalculatedBin2PercentFull','CalculatedBin2PercentFullBeforeCollectionEvent', 'CellSignalStrength',
+CONTAINERS_HISTORY_DATA_COLUMNS = ['Bin2Content', 'CalculatedBin2PercentFull','CalculatedBin2PercentFullBeforeCollectionEvent', 'CellSignalStrength',
                           'IsCollectionEventForBin2', 'IsHighestThresholdLevelReachedForBin2','IsThresholdLevelReachedForBin2','LastCheckinDateBeforeCollectionEventForBin2',
                            'LastTimeDoor2Opened', 'LastWeight2BeforeCollectionEvent','State', 'Weight2']
 
-GROUPS_DATA_COLUMNS=['SpikeEmailAlertThreshold']
+GROUPS_DATA_COLUMNS = ['SpikeEmailAlertThreshold']
 
-ALERT_DATA_HISTORY_COLUMNS=['MeId', 'LastUpdatedDate', 'DismissedDate', 'DismissedByEmail']
+ALERT_DATA_HISTORY_COLUMNS = ['MeId', 'LastUpdatedDate', 'DismissedDate', 'DismissedByEmail']
 
 #endpoints is a list of dictionaries used by the upload_trash_can_data function to push API data to associated buckets
 endpoints = [{'path': 'ContainersData', 'date_param': True, 'filter_list': CONTAINERS_COLUMNS},
@@ -48,8 +43,8 @@ endpoints = [{'path': 'ContainersData', 'date_param': True, 'filter_list': CONTA
 
 # reformats exection date passed from command line argument to one that is required by GCS
 def get_api_date(execution_date):
-    temp= execution_date.split("-")
-    return temp[1]+"-"+temp[2]+"-"+temp[0]
+    temp = execution_date.split("-")
+    return temp[1] + "-" + temp[2] + "-" + temp[0]
 
 def upload_trash_can_data(endpoints):
     for endpoint in endpoints:
