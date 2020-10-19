@@ -18,6 +18,7 @@ storage_client = storage.Client()
 dlp = dlp_v2.DlpServiceClient()
 project = os.environ['GCLOUD_PROJECT']
 
+COMPUTRONIX_BASE_URL = 'https://staff.onestoppgh.pittsburghpa.gov/pghprod/odata/odata/'
 WPRDC_API_HARD_LIMIT = 500001  # A limit set by the CKAN instance.
 
 
@@ -262,6 +263,41 @@ def geocode_address(address):
         pass
 
     return cleaned_address_with_coords
+
+
+def get_computronix_odata(endpoint, params=None, expand_fields=None):
+    """
+    Hit the Computronix odata feed and loop through all result pages, storing results in a list of dicts
+    :param endpoint (str): API endpoint, e.g. 'DOMIPERMIT'
+    :param params (list): params for odata query, e.g. ['$orderby=CREATEDDATE%20desc', '$top=1000']
+    :param expand_fields (list): fields in odata results to expand, e.g. ['ADDRESS']
+    :return: list of dicts
+    """
+    records = []
+    more_links = True
+    odata_url = COMPUTRONIX_BASE_URL + endpoint
+
+    if params or expand_fields:
+        odata_url += '?'
+    if params:
+        for param in params:
+            odata_url += F'{param}&'
+    if expand_fields:
+        for field in expand_fields:
+            odata_url += F'$expand={field}&'
+
+    while more_links:
+        try:
+            res = requests.get(odata_url)
+            records.extend(res.json()['value'])
+            if '@odata.nextLink' in res.json().keys():
+                odata_url = res.json()['@odata.nextLink']
+            else:
+                more_links = False
+        except requests.exceptions.RequestException:
+            more_links = False
+
+    return records
 
 
 def query_resource(site, query):
