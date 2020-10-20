@@ -102,7 +102,7 @@ def time_to_seconds(t):
 
 def filter_fields(results, relevant_fields, add_fields=True):
     """
-    Remove unnecessary keys from results, optionally rename fields
+    Remove unnecessary keys from results or filter for only those you want depending on add_fields arg
     :param results: list of dicts
     :param relevant_fields: list of field names to preserve
     :param add_fields: (boolean/optional) preserve or remove the values passed in the relevant_fields parameter.
@@ -283,9 +283,9 @@ def get_computronix_odata(endpoint, params=None, expand_fields=None):
         for param in params:
             odata_url += F'{param}&'
     if expand_fields:
+        odata_url += F'$expand='
         for field in expand_fields:
-            odata_url += F'$expand={field}&'
-
+            odata_url += F'{field},'
     while more_links:
         try:
             res = requests.get(odata_url)
