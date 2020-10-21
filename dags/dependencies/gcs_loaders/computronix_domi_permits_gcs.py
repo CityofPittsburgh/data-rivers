@@ -2,7 +2,7 @@ import requests
 import os
 import argparse
 
-from gcs_utils import storage_client, json_to_gcs, get_computronix_odata
+from gcs_utils import storage_client, json_to_gcs, get_computronix_odata, filter_fields
 
 
 parser = argparse.ArgumentParser()
@@ -19,50 +19,30 @@ RELEVANT_FIELDS = [
     'PARENTJOBID',
     'PERMITTYPEPERMITTYPE',
     'WORKDESCRIPTION',
+    'TYPEOFWORK',
     'TYPEOFWORKDESCRIPTION',
     'APPLICANTCUSTOMFORMATTEDNAME',
     'ALLCONTRACTORSNAME',
     'ADDRESS',
-    'DOMISTREETCLOSURE'
+    'LOCATION',
+    'PERMITTYPE',
+    'PROJECT',
+    'DOMISTREETCLOSURE',
     'COMMERCIALORRESIDENTIAL',
     'COMPLETEDDATE',
-    'FROMDATE',
-    'TODATE',
-    'FROMSTREET',
-    'TOSTREET',
-    'FULLCLOSURE',
-    'PARKINGLANE',
-    'METEREDPARKING',
-    'TRAVELLANE',
-    'SIDEWALK',
-    'WEEKDAYWORKHOURS',
-    'WEEKENDWORKHOURS',
-    'DETOUR',
     'ROADCLOSURE',
     'ROADCLOSURESTARTDATE',
     'ROADCLOSUREENDDATE',
-    'ROADCUTAREA',
-    'ROADCUTDEPTH',
-    'ROADCUTLENGTH',
-    'ROADCUTWIDTH',
     'ROWOCCUPANCYSTARTDATE',
     'ROWOCCUPANCYENDDATE',
     'ROWOCCUPANCYTYPE',
-    'SHOULDERCUTAREA',
-    'SHOULDERCUTDEPTH',
-    'SHOULDERCUTLENGTH',
-    'SHOULDERCUTWIDTH',
-    'SIDEWALKLENGTH',
-    'SIDEWALKWIDTH',
     'NEWEXISTING',
     'NOPARKINGAUTHORIZATION',
     'NUMBEROFDUMPSTERS',
     'NUMBEROFMACHINES',
     'SPECIALPERMITINSTRUCTIONS',
-    'PRIMARYSTREET',
     'APPLICANTCUSTOMEROBJECTID',
     'STATUSDESCRIPTION',
-    'STREETTREEWITHINAREAOFWORK',
     'EFFECTIVEDATE',
     'EXPIRATIONDATE'
 ]
@@ -73,17 +53,13 @@ EXPAND_FIELDS = [
     'PERMITTYPE',
     'PROJECT',
     'TYPEOFWORK',
-    'DOMIPERMITCURBCUTXREF',
-    'DOMIPERMITPOLEXREF',
-    'DOMIPERMITTREEXREF',
-    'DOMISTREETCLOSURE',
-    'PERMITWORKSCOPEXREF',
-    'JOBPARCELXREF'
+    'DOMISTREETCLOSURE'
 ]
 
 domi_permits = get_computronix_odata('DOMIPERMIT', expand_fields=EXPAND_FIELDS)
+trimmed_permits = filter_fields(domi_permits, RELEVANT_FIELDS)
 
 json_to_gcs('domi_permits/{}/{}/{}_domi_permits.json'.format(args['execution_date'].split('-')[0],
                                                              args['execution_date'].split('-')[1],
                                                              args['execution_date']),
-            domi_permits, bucket)
+            trimmed_permits, bucket)
