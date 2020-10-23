@@ -1,4 +1,5 @@
-# extra packages beyond those in composer image
+# Extra packages required beyond those in the standard Composer/Airflow image. Installed in production
+# via the "pypi packages" tab of the Composer web UI.
 
 ckanapi==4.3
 cython==0.29.17
@@ -13,5 +14,4 @@ pymssql==2.1.4
 pytest==4.6.9
 python-slugify==3.0.3
 text-unidecode==1.2
-usaddress-scourgify==0.1.11
 yaml-config==0.1.4

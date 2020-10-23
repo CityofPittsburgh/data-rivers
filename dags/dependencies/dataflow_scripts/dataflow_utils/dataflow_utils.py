@@ -93,7 +93,7 @@ class GetDateStrings(beam.DoFn, ABC):
         self.date_conversions = date_conversions
 
     def process(self, datum):
-        for column in self.date_column_names:
+        for column in self.date_conversions:
             datum[column[1]] = unix_to_date_string(datum[column[0]])
 
         yield datum
