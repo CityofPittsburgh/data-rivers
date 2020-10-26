@@ -2,13 +2,14 @@ from __future__ import absolute_import
 
 import logging
 import os
+import requests
 
 import apache_beam as beam
 from apache_beam.io import ReadFromText
 from apache_beam.io.avroio import WriteToAvro
 
 import dataflow_utils
-from dataflow_utils.dataflow_utils import JsonCoder, SwapFieldNames, generate_args, get_schema
+from dataflow_utils.dataflow_utils import JsonCoder, SwapFieldNames, generate_args, get_schema, geocode_address
 
 
 class ParseNestedFields(beam.DoFn):
@@ -58,6 +59,22 @@ class ParseNestedFields(beam.DoFn):
         yield datum
 
 
+class GeocodeAddress(beam.DoFn):
+    """
+    Geocode if datum has address but no lat/long
+    """
+    def process(self, datum):
+
+        if datum['ADDRESS'] and (not datum['lat'] or not datum['long']):
+            coords = geocode_address(datum['ADDRESS'])
+            datum['lat'] = coords['lat']
+            datum['long'] = coords['long']
+        else:
+            pass
+
+        yield datum
+
+
 def run(argv=None):
 
     known_args, pipeline_options, avro_schema = generate_args(
@@ -84,6 +101,7 @@ def run(argv=None):
                 lines
                 | beam.ParDo(ParseNestedFields())
                 | beam.ParDo(SwapFieldNames(field_name_swaps))
+                | beam.ParDo(GeocodeAddress())
                 | WriteToAvro(known_args.avro_output, schema=avro_schema, file_name_suffix='.avro', use_fastavro=True))
 
 

@@ -7,6 +7,7 @@ import os
 import pytz
 
 import apache_beam as beam
+import requests
 
 from abc import ABC
 from datetime import datetime
@@ -207,3 +208,23 @@ def unix_to_date_string(unix_date):
     :return: string
     """
     return pytz.timezone('America/New_York').localize(datetime.fromtimestamp(unix_date)).strftime('%Y-%m-%d %H:%M:%S %Z')
+
+
+def geocode_address(address):
+    coords = {'lat': None, 'long': None}
+    if 'pittsburgh' not in address.lower():
+        address = address + 'pittsburgh'
+    try:
+        res = requests.get(F"http://gisdata.alleghenycounty.us/arcgis/rest/services/Geocoders/Composite/GeocodeServer/"
+                           F"findAddressCandidates?Street=&City=&State=&ZIP=&SingleLine="
+                           F"{address.replace(',', '').replace('#', '')}&category=&outFields=&maxLocations=&outSR="
+                           F"4326&searchExtent=&location=&distance=&magicKey=&f=pjson")
+        if len(res.json()['candidates']):
+            coords['lat'] = res.json()['candidates'][0]['location']['y']
+            coords['long'] = res.json()['candidates'][0]['location']['x']
+        else:
+            pass
+    except requests.exceptions.RequestException as e:
+        pass
+
+    return coords
