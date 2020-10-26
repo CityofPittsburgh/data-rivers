@@ -102,7 +102,7 @@ def time_to_seconds(t):
 
 def filter_fields(results, relevant_fields, add_fields=True):
     """
-    Remove unnecessary keys from results, optionally rename fields
+    Remove unnecessary keys from results or filter for only those you want depending on add_fields arg
     :param results: list of dicts
     :param relevant_fields: list of field names to preserve
     :param add_fields: (boolean/optional) preserve or remove the values passed in the relevant_fields parameter.
@@ -245,26 +245,6 @@ def json_to_gcs(path, json_object_list, bucket_name):
     print('Successfully uploaded blob {} to bucket {}'.format(path, bucket_name))
 
 
-def geocode_address(address):
-    cleaned_address_with_coords = {'x': None, 'y': None, 'cleaned_address': None}
-    if 'pittsburgh' not in address.lower():
-        address = address + 'pittsburgh'
-    try:
-        res = requests.get(F"http://gisdata.alleghenycounty.us/arcgis/rest/services/Geocoders/Composite/GeocodeServer/"
-                           F"findAddressCandidates?Street=&City=&State=&ZIP=&SingleLine={address}&category="
-                           F"&outFields=&maxLocations=&outSR=4326&searchExtent=&location=&distance=&magicKey=&f=pjson")
-        if len(res.json()['candidates']):
-            cleaned_address_with_coords['x'] = res.json()['candidates'][0]['x']
-            cleaned_address_with_coords['y'] = res.json()['candidates'][0]['y']
-            cleaned_address_with_coords['cleaned_address'] = res.json()['candidates'][0]['address']
-        else:
-            pass
-    except requests.exceptions.RequestException as e:
-        pass
-
-    return cleaned_address_with_coords
-
-
 def get_computronix_odata(endpoint, params=None, expand_fields=None):
     """
     Hit the Computronix odata feed and loop through all result pages, storing results in a list of dicts
@@ -283,9 +263,9 @@ def get_computronix_odata(endpoint, params=None, expand_fields=None):
         for param in params:
             odata_url += F'{param}&'
     if expand_fields:
+        odata_url += F'$expand='
         for field in expand_fields:
-            odata_url += F'$expand={field}&'
-
+            odata_url += F'{field},'
     while more_links:
         try:
             res = requests.get(odata_url)

@@ -32,9 +32,9 @@ qalert_gcs = BashOperator(
 qalert_requests_dataflow = BashOperator(
     task_id='qalert_requests_dataflow',
     bash_command="python {}/dependencies/dataflow_scripts/qalert_requests_dataflow.py --input gs://{}_qalert/requests/"
-                     .format(os.environ['DAGS_PATH'], os.environ['GCS_PREFIX']) + "{{ ds|get_ds_year }}/"
-                                                                                  "{{ ds|get_ds_month }}/{{ ds }}_requests.json --avro_output " + "gs://{}_qalert/requests/avro_output/"
-                     .format(os.environ['GCS_PREFIX']) + "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds }}/",
+                 .format(os.environ['DAGS_PATH'], os.environ['GCS_PREFIX']) + "{{ ds|get_ds_year }}/"
+                 "{{ ds|get_ds_month }}/{{ ds }}_requests.json --avro_output " + "gs://{}_qalert/requests/avro_output/"
+                 .format(os.environ['GCS_PREFIX']) + "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds }}/",
     dag=dag
 )
 
@@ -42,10 +42,9 @@ qalert_activities_dataflow = BashOperator(
     task_id='qalert_activities_dataflow',
     bash_command="python {}/dependencies/dataflow_scripts/qalert_activities_dataflow.py --input gs://{}_qalert/"
                  "activities/".format(os.environ['DAGS_PATH'], os.environ['GCS_PREFIX']) + "{{ ds|get_ds_year }}/"
-                                                                                           "{{ ds|get_ds_month }}/{{ ds }}_activities.json --avro_output " + "gs://{}_qalert/activities/"
-                                                                                                                                                             "avro_output/".format(
-        os.environ['GCS_PREFIX']) + "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/"
-                                    "{{ ds }}/",
+                 "{{ ds|get_ds_month }}/{{ ds }}_activities.json --avro_output " + "gs://{}_qalert/activities/"
+                 "avro_output/".format(os.environ['GCS_PREFIX']) + "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/"
+                 "{{ ds }}/",
     dag=dag
 )
 
