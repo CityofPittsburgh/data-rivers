@@ -17,31 +17,6 @@ ACCESS_SCOPE = 'search_records get_records get_record_asis get_record_addresses 
                'get_record_contacts get_record get_ref_modules get_record_owners get_record_inspections get_assets ' \
                'get_inspections get_record_related'
 EXPAND_FIELDS = 'addresses,parcels,professionals,contacts,owners,customForms,customTables,assets'
-EXCLUDE_FIELDS = [
-    'module',
-    'serviceProviderCode',
-    'undistributedCost',
-    'totalJobCost',
-    'recordClass',
-    'reportedChannel',
-    'closedByDepartment',
-    'estimatedProductionUnit',
-    'actualProductionUnit',
-    'createdByCloning',
-    'closedByUser',
-    'trackingId',
-    'initiatedProduct',
-    'createdBy',
-    'value',
-    'balance',
-    'booking',
-    'infraction',
-    'misdemeanor',
-    'offenseWitnessed',
-    'defendantSignature',
-    'parcels',
-    'contacts'
-]
 
 oauth_body = {
     'grant_type': 'password',

@@ -250,38 +250,71 @@ def geocode_address(datum, address):
     try:
         datum['lat'] = coords['lat']
         datum['long'] = coords['long']
-    except KeyError:
+    except TypeError:
         datum['lat'] = None
         datum['long'] = None
 
 
 def extract_field(datum, source_field, nested_field, new_field_name):
     """
+    In cases where datum contains nested dicts, traverse to nested dict and extract a value for reassignment to a new
+    non-nested field
+
     :param datum: datum in PCollection
-    :param source_field: name of field containing nested values
+    :param source_field: name of field containing desired nested value
     :param nested_field: name of field nested within source_field dict the value of which we want to extract
     and assign its value to new_field_name
     :param new_field_name: name for new field we're creating with the value of nested_field
-    :return: datum in PCollection
+    :return: datum in PCollection (dict)
     """
-    if datum[source_field] and nested_field in datum[source_field]:
+    try:
         datum[new_field_name] = datum[source_field][nested_field]
-    else:
+    except KeyError:
         datum[new_field_name] = None
 
+    return datum
 
-def filter_fields(datum, relevant_fields, add_fields=True):
+
+def extract_field_from_nested_list(datum, source_field, list_index, nested_field, new_field_name):
+    """
+    In cases where datum contains values consisting of lists of dicts, isolate a nested dict within a list and extract
+    a value for reassignment to a new non-nested field
+
+    :param datum: datum in PCollection (dict)
+    :param source_field: name of field containing desired nested value (str)
+    :param list_index: index of relevant nested list contained within source_field (int)
+    :param nested_field: name of field nested within the desired list of dicts contained within source_field (str)
+    :param new_field_name: name for new field we're creating with the value of nested_field (str)
+    :return: datum in PCollection (dict)
+    """
+    try:
+        datum[new_field_name] = datum[source_field][list_index][nested_field]
+    except KeyError:
+        datum[new_field_name] = None
+
+    return datum
+
+
+def filter_fields(datum, relevant_fields, exclude_relevant_fields=True):
     """
     :param datum: datum in PCollection (dict)
     :param relevant_fields: list of fields to drop or to preserve (dropping all others) (list)
-    :param add_fields: preserve or drop relevant fields arg. we add this as an option because in some cases the list
+    :param exclude_relevant_fields: preserve or drop relevant fields arg. we add this as an option because in some cases the list
     of fields we want to preserve is much longer than the list of those we want to drop, and vice verse, so having this
     option allows us to make the hard-coded RELEVANT_FIELDS arg in the dataflow script as terse as possible (bool)
     :return:
     """
-    if add_fields:
-        datum = {k: datum[k] for k in relevant_fields}
+    fields_for_deletion = []
+    if exclude_relevant_fields:
+        for k, v in datum.items():
+            if k in relevant_fields:
+                fields_for_deletion.append(k)
     else:
-        datum = {k: datum[k] for k in datum if k not in relevant_fields}
+        for k, v in datum.items():
+            if k not in relevant_fields:
+                fields_for_deletion.append(k)
+
+    for field in fields_for_deletion:
+        datum.pop(field, None)
 
     return datum
