@@ -87,6 +87,16 @@ class SwapFieldNames(beam.DoFn, ABC):
         yield datum
 
 
+class FilterFields(beam.DoFn):
+    def __init__(self, relevant_fields, preserve_fields=True):
+        self.relevant_fields = relevant_fields
+        self.preserve_fields = preserve_fields
+
+    def process(self, datum):
+        datum = filter_fields(datum, self.relevant_fields, self.preserve_fields)
+        yield datum
+
+
 class GetDateStrings(beam.DoFn, ABC):
 
     def __init__(self, date_conversions):
@@ -96,6 +106,17 @@ class GetDateStrings(beam.DoFn, ABC):
     def process(self, datum):
         for column in self.date_conversions:
             datum[column[1]] = unix_to_date_string(datum[column[0]])
+
+        yield datum
+
+
+class GeocodeAddress(beam.DoFn):
+
+    def __init__(self, address_field):
+        self.address_field = address_field
+
+    def process(self, datum):
+        geocode_address(datum, self.address_field)
 
         yield datum
 
@@ -210,10 +231,10 @@ def unix_to_date_string(unix_date):
     return pytz.timezone('America/New_York').localize(datetime.fromtimestamp(unix_date)).strftime('%Y-%m-%d %H:%M:%S %Z')
 
 
-def geocode_address(address):
+def geocode_address(datum, address):
     coords = {'lat': None, 'long': None}
     if 'pittsburgh' not in address.lower():
-        address = address + 'pittsburgh'
+        address += ' pittsburgh'
     try:
         res = requests.get(F"http://gisdata.alleghenycounty.us/arcgis/rest/services/Geocoders/Composite/GeocodeServer/"
                            F"findAddressCandidates?Street=&City=&State=&ZIP=&SingleLine="
@@ -226,5 +247,41 @@ def geocode_address(address):
             pass
     except requests.exceptions.RequestException as e:
         pass
+    try:
+        datum['lat'] = coords['lat']
+        datum['long'] = coords['long']
+    except KeyError:
+        datum['lat'] = None
+        datum['long'] = None
 
-    return coords
+
+def extract_field(datum, source_field, nested_field, new_field_name):
+    """
+    :param datum: datum in PCollection
+    :param source_field: name of field containing nested values
+    :param nested_field: name of field nested within source_field dict the value of which we want to extract
+    and assign its value to new_field_name
+    :param new_field_name: name for new field we're creating with the value of nested_field
+    :return: datum in PCollection
+    """
+    if datum[source_field] and nested_field in datum[source_field]:
+        datum[new_field_name] = datum[source_field][nested_field]
+    else:
+        datum[new_field_name] = None
+
+
+def filter_fields(datum, relevant_fields, add_fields=True):
+    """
+    :param datum: datum in PCollection (dict)
+    :param relevant_fields: list of fields to drop or to preserve (dropping all others) (list)
+    :param add_fields: preserve or drop relevant fields arg. we add this as an option because in some cases the list
+    of fields we want to preserve is much longer than the list of those we want to drop, and vice verse, so having this
+    option allows us to make the hard-coded RELEVANT_FIELDS arg in the dataflow script as terse as possible (bool)
+    :return:
+    """
+    if add_fields:
+        datum = {k: datum[k] for k in relevant_fields}
+    else:
+        datum = {k: datum[k] for k in datum if k not in relevant_fields}
+
+    return datum
