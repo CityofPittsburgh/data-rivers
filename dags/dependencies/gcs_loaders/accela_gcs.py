@@ -1,5 +1,4 @@
 import os
-import time
 import argparse
 import requests
 import logging
@@ -10,6 +9,8 @@ from gcs_utils import json_to_gcs, filter_fields, execution_date_to_prev_quarter
 parser = argparse.ArgumentParser()
 parser.add_argument('-e', '--execution_date', dest='execution_date',
                     required=True, help='DAG execution date (YYYY-MM-DD)')
+parser.add_argument('-p', '--prev_execution_date', dest='prev_execution_date',
+                    required=True, help='Previous DAG execution date (YYYY-MM-DD)')
 args = vars(parser.parse_args())
 
 BASE_URL = 'https://apis.accela.com/v4/records'
@@ -67,7 +68,7 @@ def get_all_record_ids(api_token):
                 params={'limit': 1000,
                         'offset': offset,
                         'module': 'PublicWorks',
-                        'updateDateFrom': args['execution_date']
+                        'updateDateFrom': args['prev_execution_date']
                 })
 
             for record in res.json()['result']:
@@ -115,6 +116,6 @@ enriched_records = []
 for record_id in record_ids:
     enriched_records.append(enrich_record(record_id, api_token))
 
-json_to_gcs('publicworks/{}/{}/{}_permits.json'.format(args['execution_date'].split('-')[0],
-                                                       args['execution_date'].split('-')[1], args['execution_date']),
+json_to_gcs('permits/{}/{}/{}_permits.json'.format(args['execution_date'].split('-')[0],
+                                                   args['execution_date'].split('-')[1], args['execution_date']),
             enriched_records, bucket)
