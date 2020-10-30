@@ -22,27 +22,55 @@ class ParseNestedFields(beam.DoFn):
         datum['type'] = datum['permit_type']
         datum.pop('permit_type', None)
 
-        extract_field_from_nested_list(datum, 'customForms', 1, 'Valid Date (From)', 'from_date')
-        extract_field_from_nested_list(datum, 'customForms', 1, 'Valid Date (To)', 'to_date')
-        extract_field_from_nested_list(datum, 'customForms', 1, 'Restoration Date', 'restoration_date')
-        extract_field_from_nested_list(datum, 'customForms', 1, 'Location', 'street_or_location')
-        extract_field_from_nested_list(datum, 'customForms', 1, 'From', 'from_street')
-        extract_field_from_nested_list(datum, 'customForms', 1, 'To', 'to_street')
-        datum.pop('customForms', None)
+        if 'Traffic Obstruction' in datum['type']:
 
-        extract_field_from_nested_list(datum, 'professionals', 0, 'businessName', 'business_name')
-        try:
-            datum['license_type'] = datum['professionals'][0]['licenseType']['text']
-        except KeyError:
+            extract_field_from_nested_list(datum, 'customForms', 0, 'Date (From)', 'from_date')
+            extract_field_from_nested_list(datum, 'customForms', 0, 'Date (To)', 'to_date')
+            datum['restoration_date'] = None
+
+            try:
+                datum['street_or_location'] = datum['customTables'][0]['rows'][0]['fields']['Street']
+                datum['from_street'] = datum['customTables'][0]['rows'][0]['fields']['From']
+                datum['to_street'] = datum['customTables'][0]['rows'][0]['fields']['To']
+            except KeyError:
+                datum['street_or_location'] = None
+                datum['from_street'] = None
+                datum['to_street'] = None
+
+            extract_field_from_nested_list(datum, 'contacts', 0, 'organizationName', 'business_name')
             datum['license_type'] = None
-        datum.pop('professionals', None)
+
+        else:
+
+            extract_field_from_nested_list(datum, 'customForms', 1, 'Valid Date (From)', 'from_date')
+            extract_field_from_nested_list(datum, 'customForms', 1, 'Valid Date (To)', 'to_date')
+            extract_field_from_nested_list(datum, 'customForms', 1, 'Restoration Date', 'restoration_date')
+            extract_field_from_nested_list(datum, 'customForms', 1, 'Location', 'street_or_location')
+            extract_field_from_nested_list(datum, 'customForms', 1, 'From', 'from_street')
+            extract_field_from_nested_list(datum, 'customForms', 1, 'To', 'to_street')
+
+            extract_field_from_nested_list(datum, 'professionals', 0, 'businessName', 'business_name')
+            try:
+                datum['license_type'] = datum['professionals'][0]['licenseType']['text']
+            except KeyError:
+                datum['license_type'] = None
 
         extract_field_from_nested_list(datum, 'addresses', 0, 'streetAddress', 'street_address')
         extract_field_from_nested_list(datum, 'addresses', 0, 'city', 'city')
         extract_field_from_nested_list(datum, 'addresses', 0, 'postalCode', 'postal_code')
         datum['address'] = F"{datum['street_address']} {datum['city']} PA {datum['postal_code']}"
-        address_fields_to_remove = ['street_address', 'city', 'postal_code', 'addresses']
-        for field in address_fields_to_remove:
+
+        fields_to_remove = ['street_address',
+                            'city',
+                            'postal_code',
+                            'addresses',
+                            'professionals',
+                            'customTables',
+                            'customForms',
+                            'contacts',
+                            'permit_type']
+
+        for field in fields_to_remove:
             datum.pop(field, None)
 
         yield datum
@@ -82,7 +110,6 @@ def run(argv=None):
             'offenseWitnessed',
             'defendantSignature',
             'parcels',
-            'contacts',
             'id'
         ]
 

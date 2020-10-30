@@ -241,7 +241,6 @@ def geocode_address(datum, address_field):
                            F"findAddressCandidates?Street=&City=&State=&ZIP=&SingleLine="
                            F"{address.replace(',', '').replace('#', '')}&category=&outFields=&maxLocations=&outSR="
                            F"4326&searchExtent=&location=&distance=&magicKey=&f=pjson")
-        import pdb; pdb.set_trace()
         if len(res.json()['candidates']):
             coords['lat'] = res.json()['candidates'][0]['location']['y']
             coords['long'] = res.json()['candidates'][0]['location']['x']
@@ -255,6 +254,8 @@ def geocode_address(datum, address_field):
     except TypeError:
         datum['lat'] = None
         datum['long'] = None
+
+    return datum
 
 
 def extract_field(datum, source_field, nested_field, new_field_name):
