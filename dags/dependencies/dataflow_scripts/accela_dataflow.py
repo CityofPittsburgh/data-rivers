@@ -15,12 +15,6 @@ from dataflow_utils.dataflow_utils import JsonCoder, SwapFieldNames, ColumnsCame
 class ParseNestedFields(beam.DoFn):
 
     def process(self, datum):
-        extract_field(datum, 'type', 'text', 'permit_type')
-        # we want to call this single field 'type', but we need to get rid of the existing 'type' field
-        # before we can do that
-        datum.pop('type', None)
-        datum['type'] = datum['permit_type']
-        datum.pop('permit_type', None)
 
         if 'Traffic Obstruction' in datum['type']:
 
@@ -55,6 +49,16 @@ class ParseNestedFields(beam.DoFn):
             except KeyError:
                 datum['license_type'] = None
 
+        extract_field(datum, 'type', 'text', 'permit_type')
+        # we want to call this single field 'type', but we need to get rid of the existing 'type' field
+        # before we can do that
+        datum.pop('type', None)
+        datum['type'] = datum['permit_type']
+
+        extract_field(datum, 'status', 'text', 'status_type')
+        datum.pop('status', None)
+        datum['status'] = datum['status_type']
+
         extract_field_from_nested_list(datum, 'addresses', 0, 'streetAddress', 'street_address')
         extract_field_from_nested_list(datum, 'addresses', 0, 'city', 'city')
         extract_field_from_nested_list(datum, 'addresses', 0, 'postalCode', 'postal_code')
@@ -68,7 +72,8 @@ class ParseNestedFields(beam.DoFn):
                             'customTables',
                             'customForms',
                             'contacts',
-                            'permit_type']
+                            'permit_type',
+                            'status_type']
 
         for field in fields_to_remove:
             datum.pop(field, None)
@@ -110,7 +115,10 @@ def run(argv=None):
             'offenseWitnessed',
             'defendantSignature',
             'parcels',
-            'id'
+            'id',
+            'statusDate',
+            'jobValue',
+            'reportedDate'
         ]
 
         address_field = 'address'

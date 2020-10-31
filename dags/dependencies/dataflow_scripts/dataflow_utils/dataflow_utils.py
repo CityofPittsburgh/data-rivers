@@ -74,7 +74,6 @@ class ChangeDataTypes(beam.DoFn, ABC):
 
 
 class SwapFieldNames(beam.DoFn, ABC):
-
     def __init__(self, name_changes):
         """:param name_changes: list of tuples consisting of existing field name + name to which it should be changed"""
         self.name_changes = name_changes
@@ -88,19 +87,21 @@ class SwapFieldNames(beam.DoFn, ABC):
 
 
 class FilterFields(beam.DoFn):
-    def __init__(self, relevant_fields, preserve_fields=True):
+    def __init__(self, relevant_fields, exclude_relevant_fields=True):
         self.relevant_fields = relevant_fields
-        self.preserve_fields = preserve_fields
+        self.exclude_relevant_fields = exclude_relevant_fields
 
     def process(self, datum):
-        datum = filter_fields(datum, self.relevant_fields, self.preserve_fields)
+        datum = filter_fields(datum, self.relevant_fields, self.exclude_relevant_fields)
         yield datum
 
 
 class GetDateStrings(beam.DoFn, ABC):
-
     def __init__(self, date_conversions):
-        """:param date_conversions: list of tuples; each tuple consists of an existing field name + a name for the new date-string field."""
+        """
+        :param date_conversions: list of tuples; each tuple consists of an existing field name + a name for the
+        new date-string field.
+        """
         self.date_conversions = date_conversions
 
     def process(self, datum):

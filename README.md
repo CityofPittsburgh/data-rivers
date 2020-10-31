@@ -25,8 +25,13 @@ Once the avro files are in Cloud Storage, we move to the next step in the Airflo
 
 
 ## Running locally
-As a start, you'll need to [install and configure](https://airflow.apache.org/docs/stable/installation.html) Apache Airflow. 
-Once you've done so, you can trigger tasks or entire DAGs locally via `airflow run my_dag my_task YYYY-MM-DD` or `airflow trigger_dag my_dag`. To view progress/logging in the Airflow web UI, you'll need to run the processes `airflow webserver` (which shows on port 8080) and `airflow scheduler` in two separate terminal windows. Make sure you have the proper `.env` values available in the shell sessions from which you run those commands, and that you've activated this project's virtualenv in those sessions.
+As a start, you'll need to [install and configure](https://airflow.apache.org/docs/stable/installation.html) Apache Airflow. Create your
+virtual environment by running `pip install -r requirements.txt` and `pip install -r requirements.txt`. Then,
+navigate to `/dags/dependences/dataflow_scripts` and run `python setup.py install` to install the local `dataflow_utils`
+module. We recommend using [`pyenv`](https://github.com/pyenv/pyenv) and [`pyenv-virtualenv`](https://github.com/pyenv/pyenv-virtualenv) to manage your virtual environments. 
+
+
+Once you've created your virtual environment and installed Airflow, you can trigger tasks or entire DAGs locally via `airflow run my_dag my_task YYYY-MM-DD` or `airflow trigger_dag my_dag`. To view progress/logging in the Airflow web UI, you'll need to run the processes `airflow webserver` (which shows on port 8080) and `airflow scheduler` in two separate terminal windows. Make sure you have the proper `.env` values available in the shell sessions from which you run those commands, and that you've activated this project's virtualenv in those sessions.
 
 Note that when running DAGs locally that use a `DockerOperator` or `GKEPodOperator` (the GCP flavor of Docker), the jobs will fail if you haven't pulled the relevant images from Google Container Registry to your machine. Example pull command: `docker pull gcr.io/data-rivers/pgh-trash-can-api`
 
