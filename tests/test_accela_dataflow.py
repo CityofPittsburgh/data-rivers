@@ -3,13 +3,8 @@ from __future__ import division
 
 # patches unittest.TestCase to be python3 compatible
 import future.tests.base  # pylint: disable=unused-import
-
-import os
-import sys
 import logging
 import unittest
-import collections
-# sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from dags.dependencies.dataflow_scripts import accela_dataflow
 from test_utils import sort_dict
@@ -414,9 +409,10 @@ class TestAccelaDataflow(unittest.TestCase):
         'reportedDate'
     ]
 
-    def test_parse_nested_fields_opening_permit(self):
-        ff = accela_dataflow.FilterFields(self.exclude_fields)
-        pnf = accela_dataflow.ParseNestedFields()
+    ff = accela_dataflow.FilterFields(exclude_fields)
+    pnf = accela_dataflow.ParseNestedFields()
+
+    def test_parse_fields_opening_permit(self):
         expected = {
                     "customId": "DPW2006625",
                     "type": "Opening Permit",
@@ -438,15 +434,38 @@ class TestAccelaDataflow(unittest.TestCase):
                     "publicOwned": False,
                     "status": "Closed"
                 }
-        filtered_opening_permit = next(ff.process(self.opening_permit))
-        parsed = next(pnf.process(filtered_opening_permit))
-
+        filtered_opening_permit = next(self.ff.process(self.opening_permit))
+        parsed = next(self.pnf.process(filtered_opening_permit))
         self.assertEqual(sort_dict(expected), sort_dict(parsed))
 
-    # def parse_nested_fields_obstruction_permit(self):
-    #     pnf = accela_dataflow.ParseNestedFields()
-    #     expected =
-    #     self.assertEqual(expected, pnf(self.obstruction_permit))
+    # TODO: test obstruction permit, obscure real names in test
+
+    def test_parse_fields_obstruction_permit(self):
+        expected = {
+                    "customId": "DPW2004367",
+                    "type": "Traffic Obstruction Permit",
+                    "openedDate": "2020-02-28 00:00:00",
+                    "closedDate": None,
+                    "from_date": "2020-03-01",
+                    "to_date": "2020-12-31",
+                    "restoration_date": None,
+                    "description": "TEMPORARY CURB CUT DURING CONSTRUCTION -- REPLACE BACK TO EXISTING AFTER PROJECT "
+                                   "SI FINISHED",
+                    "address": "3025 E CARSON ST PITTSBURGH PA 15203",
+                    "street_or_location": "3025 E CARSON ST",
+                    "from_street": "HOT METAL ST",
+                    "to_street": "SARAH ST",
+                    "business_name": "TURNER CONSTRUCTION",
+                    "license_type": None,
+                    "updateDate": "2020-10-28 22:09:30",
+                    "totalFee": 0.0,
+                    "totalPay": 0.0,
+                    "publicOwned": False,
+                    "status": None
+                  }
+        filtered_obstruction_permit = next(self.ff.process(self.obstruction_permit))
+        parsed = next(self.pnf.process(filtered_obstruction_permit))
+        self.assertEqual(sort_dict(expected), sort_dict(parsed))
 
 
 if __name__ == '__main__':
