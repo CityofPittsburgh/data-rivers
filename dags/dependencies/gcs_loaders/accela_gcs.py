@@ -15,8 +15,8 @@ args = vars(parser.parse_args())
 
 BASE_URL = 'https://apis.accela.com/v4/records'
 ACCESS_SCOPE = 'search_records get_records get_record_asis get_record_addresses get_record_professionals ' \
-               'get_record_contacts get_record get_ref_modules get_record_owners get_record_inspections get_assets ' \
-               'get_inspections get_record_related'
+               'get_record_contacts get_record get_ref_modules get_settings_modules ' \
+               'get_record_workflow_task_histories get_record_documents '
 EXPAND_FIELDS = 'addresses,parcels,professionals,contacts,owners,customForms,customTables,assets'
 
 oauth_body = {
@@ -70,6 +70,10 @@ def get_all_record_ids(api_token):
                         'module': 'PublicWorks',
                         'updateDateFrom': args['prev_execution_date']
                 })
+
+            if res.status_code == 200 and 'result' not in res.json():
+                logging.info('** No new permits since last update; this DAG run will therefore fail, which is fine **')
+                break
 
             for record in res.json()['result']:
                 record_ids.append(record['value'])

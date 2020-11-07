@@ -1,6 +1,7 @@
 from __future__ import absolute_import
 
 import argparse
+import logging
 import re
 import json
 import os
@@ -12,7 +13,6 @@ import requests
 from abc import ABC
 from datetime import datetime
 from apache_beam.options.pipeline_options import PipelineOptions
-from scourgify import normalize_address_record, exceptions
 from avro import schema
 from google.cloud import bigquery, storage
 
@@ -53,7 +53,10 @@ class ColumnsToLowerCase(beam.DoFn, ABC):
 
 class ChangeDataTypes(beam.DoFn, ABC):
     def __init__(self, type_changes):
-        """:param type_changes: list of tuples; each tuple consists of the field we want to change and the new data type we want for its value"""
+        """
+        :param type_changes: list of tuples; each tuple consists of the field we want to change and the new data
+        type we want for its value
+        """
         self.type_changes = type_changes
 
     def process(self, datum):
@@ -92,8 +95,11 @@ class FilterFields(beam.DoFn):
         self.exclude_relevant_fields = exclude_relevant_fields
 
     def process(self, datum):
-        datum = filter_fields(datum, self.relevant_fields, self.exclude_relevant_fields)
-        yield datum
+        if datum is not None:
+            datum = filter_fields(datum, self.relevant_fields, self.exclude_relevant_fields)
+            yield datum
+        else:
+            logging.info('got NoneType datum')
 
 
 class GetDateStrings(beam.DoFn, ABC):
@@ -293,7 +299,7 @@ def extract_field_from_nested_list(datum, source_field, list_index, nested_field
     """
     try:
         datum[new_field_name] = datum[source_field][list_index][nested_field]
-    except KeyError:
+    except (KeyError, IndexError):
         datum[new_field_name] = None
 
     return datum
