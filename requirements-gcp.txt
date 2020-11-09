@@ -7,6 +7,7 @@ docker==4.1.0
 email-validator==1.1.0
 geocoder==1.38.1
 google-cloud-dlp==0.14.0
+google-resumable-media==1.1.0
 jaydebeapi==1.2.3
 ndjson==0.2.0
 pip-conflict-checker==0.6.0

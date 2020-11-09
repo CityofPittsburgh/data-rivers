@@ -118,27 +118,6 @@ qalert_bq_drop_temp = BigQueryOperator(
     dag=dag
 )
 
-qalert_pothole_table = BigQueryOperator(
-    task_id='qalert_pothole_table',
-    sql='SELECT * FROM `{}.qalert.requests` WHERE requestType = "Potholes" AND status = "open"'
-        .format(os.environ['GCLOUD_PROJECT']),
-    use_legacy_sql=False,
-    destination_dataset_table='{}:qalert.open_potholes'.format(os.environ['GCLOUD_PROJECT']),
-    write_disposition='WRITE_TRUNCATE',
-    create_disposition='CREATE_IF_NEEDED',
-    dag=dag
-)
-
-qalert_pothole_gcs_export = BigQueryToCloudStorageOperator(
-    task_id='qalert_pothole_gcs_export',
-    source_project_dataset_table='{}:qalert.open_potholes'.format(os.environ['GCLOUD_PROJECT']),
-    destination_cloud_storage_uris=['gs://{}_qalert/requests/potholes/open-potholes.json'
-                                    .format(os.environ['GCS_PREFIX'])],
-    export_format='NEWLINE_DELIMITED_JSON',
-
-    dag=dag
-)
-
 qalert_beam_cleanup = BashOperator(
     task_id='qalert_beam_cleanup',
     bash_command=airflow_utils.beam_cleanup_statement('{}_qalert'.format(os.environ['GCS_PREFIX'])),
@@ -146,7 +125,6 @@ qalert_beam_cleanup = BashOperator(
 )
 
 qalert_gcs >> qalert_requests_dataflow >> qalert_requests_bq >> qalert_requests_dedup >> qalert_requests_bq_merge >> \
-    qalert_requests_geojoin >> qalert_pothole_table >> qalert_pothole_gcs_export >> qalert_bq_drop_temp >> \
-    qalert_beam_cleanup
+    qalert_requests_geojoin >> qalert_bq_drop_temp >> qalert_beam_cleanup
 
 qalert_gcs >> qalert_activities_dataflow >> qalert_activities_bq >> qalert_activities_dedup >> qalert_beam_cleanup

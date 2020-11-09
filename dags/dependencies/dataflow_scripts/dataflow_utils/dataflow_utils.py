@@ -1,6 +1,7 @@
 from __future__ import absolute_import
 
 import argparse
+import logging
 import re
 import json
 import os
@@ -12,7 +13,6 @@ import requests
 from abc import ABC
 from datetime import datetime
 from apache_beam.options.pipeline_options import PipelineOptions
-from scourgify import normalize_address_record, exceptions
 from avro import schema
 from google.cloud import bigquery, storage
 
@@ -53,7 +53,10 @@ class ColumnsToLowerCase(beam.DoFn, ABC):
 
 class ChangeDataTypes(beam.DoFn, ABC):
     def __init__(self, type_changes):
-        """:param type_changes: list of tuples; each tuple consists of the field we want to change and the new data type we want for its value"""
+        """
+        :param type_changes: list of tuples; each tuple consists of the field we want to change and the new data
+        type we want for its value
+        """
         self.type_changes = type_changes
 
     def process(self, datum):
@@ -74,7 +77,6 @@ class ChangeDataTypes(beam.DoFn, ABC):
 
 
 class SwapFieldNames(beam.DoFn, ABC):
-
     def __init__(self, name_changes):
         """:param name_changes: list of tuples consisting of existing field name + name to which it should be changed"""
         self.name_changes = name_changes
@@ -87,15 +89,41 @@ class SwapFieldNames(beam.DoFn, ABC):
         yield datum
 
 
-class GetDateStrings(beam.DoFn, ABC):
+class FilterFields(beam.DoFn):
+    def __init__(self, relevant_fields, exclude_relevant_fields=True):
+        self.relevant_fields = relevant_fields
+        self.exclude_relevant_fields = exclude_relevant_fields
 
+    def process(self, datum):
+        if datum is not None:
+            datum = filter_fields(datum, self.relevant_fields, self.exclude_relevant_fields)
+            yield datum
+        else:
+            logging.info('got NoneType datum')
+
+
+class GetDateStrings(beam.DoFn, ABC):
     def __init__(self, date_conversions):
-        """:param date_conversions: list of tuples; each tuple consists of an existing field name + a name for the new date-string field."""
+        """
+        :param date_conversions: list of tuples; each tuple consists of an existing field name + a name for the
+        new date-string field.
+        """
         self.date_conversions = date_conversions
 
     def process(self, datum):
         for column in self.date_conversions:
             datum[column[1]] = unix_to_date_string(datum[column[0]])
+
+        yield datum
+
+
+class GeocodeAddress(beam.DoFn):
+
+    def __init__(self, address_field):
+        self.address_field = address_field
+
+    def process(self, datum):
+        geocode_address(datum, self.address_field)
 
         yield datum
 
@@ -210,10 +238,11 @@ def unix_to_date_string(unix_date):
     return pytz.timezone('America/New_York').localize(datetime.fromtimestamp(unix_date)).strftime('%Y-%m-%d %H:%M:%S %Z')
 
 
-def geocode_address(address):
+def geocode_address(datum, address_field):
     coords = {'lat': None, 'long': None}
+    address = datum[address_field]
     if 'pittsburgh' not in address.lower():
-        address = address + 'pittsburgh'
+        address += ' pittsburgh'
     try:
         res = requests.get(F"http://gisdata.alleghenycounty.us/arcgis/rest/services/Geocoders/Composite/GeocodeServer/"
                            F"findAddressCandidates?Street=&City=&State=&ZIP=&SingleLine="
@@ -226,5 +255,76 @@ def geocode_address(address):
             pass
     except requests.exceptions.RequestException as e:
         pass
+    try:
+        datum['lat'] = coords['lat']
+        datum['long'] = coords['long']
+    except TypeError:
+        datum['lat'] = None
+        datum['long'] = None
 
-    return coords
+    return datum
+
+
+def extract_field(datum, source_field, nested_field, new_field_name):
+    """
+    In cases where datum contains nested dicts, traverse to nested dict and extract a value for reassignment to a new
+    non-nested field
+
+    :param datum: datum in PCollection
+    :param source_field: name of field containing desired nested value
+    :param nested_field: name of field nested within source_field dict the value of which we want to extract
+    and assign its value to new_field_name
+    :param new_field_name: name for new field we're creating with the value of nested_field
+    :return: datum in PCollection (dict)
+    """
+    try:
+        datum[new_field_name] = datum[source_field][nested_field]
+    except KeyError:
+        datum[new_field_name] = None
+
+    return datum
+
+
+def extract_field_from_nested_list(datum, source_field, list_index, nested_field, new_field_name):
+    """
+    In cases where datum contains values consisting of lists of dicts, isolate a nested dict within a list and extract
+    a value for reassignment to a new non-nested field
+
+    :param datum: datum in PCollection (dict)
+    :param source_field: name of field containing desired nested value (str)
+    :param list_index: index of relevant nested list contained within source_field (int)
+    :param nested_field: name of field nested within the desired list of dicts contained within source_field (str)
+    :param new_field_name: name for new field we're creating with the value of nested_field (str)
+    :return: datum in PCollection (dict)
+    """
+    try:
+        datum[new_field_name] = datum[source_field][list_index][nested_field]
+    except (KeyError, IndexError):
+        datum[new_field_name] = None
+
+    return datum
+
+
+def filter_fields(datum, relevant_fields, exclude_relevant_fields=True):
+    """
+    :param datum: datum in PCollection (dict)
+    :param relevant_fields: list of fields to drop or to preserve (dropping all others) (list)
+    :param exclude_relevant_fields: preserve or drop relevant fields arg. we add this as an option because in some cases the list
+    of fields we want to preserve is much longer than the list of those we want to drop, and vice verse, so having this
+    option allows us to make the hard-coded RELEVANT_FIELDS arg in the dataflow script as terse as possible (bool)
+    :return:
+    """
+    fields_for_deletion = []
+    if exclude_relevant_fields:
+        for k, v in datum.items():
+            if k in relevant_fields:
+                fields_for_deletion.append(k)
+    else:
+        for k, v in datum.items():
+            if k not in relevant_fields:
+                fields_for_deletion.append(k)
+
+    for field in fields_for_deletion:
+        datum.pop(field, None)
+
+    return datum

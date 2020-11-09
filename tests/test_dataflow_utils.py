@@ -7,7 +7,7 @@ import os
 import sys
 import unittest
 
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from dags.dependencies.dataflow_scripts.dataflow_utils import dataflow_utils
 
@@ -49,6 +49,20 @@ class TestDataflowUtils(unittest.TestCase):
         expected = {'unix_timestamp': 1602619169, 'string_timestamp': '2020-10-13 15:59:29 EDT'}
         gds = dataflow_utils.GetDateStrings(date_column_names)
         self.assertEqual(next(gds.process(datum)), expected)
+
+    def test_filter_fields(self):
+        datum = {'city': 'pittsburgh', 'state': 'pa'}
+        relevant_fields = 'state'
+        expected = {'city': 'pittsburgh'}
+        ff = dataflow_utils.FilterFields(relevant_fields)
+        self.assertEqual(next(ff.process(datum)), expected)
+
+    def test_filter_fields_exclude(self):
+        datum = {'city': 'pittsburgh', 'state': 'pa'}
+        relevant_fields = 'state'
+        expected = {'state': 'pa'}
+        ff = dataflow_utils.FilterFields(relevant_fields, exclude_relevant_fields=False)
+        self.assertEqual(next(ff.process(datum)), expected)
 
 
 if __name__ == '__main__':

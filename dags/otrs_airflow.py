@@ -64,7 +64,7 @@ otrs_gcs_to_csv = DockerOperator(
     dag=dag
 )
 
-## two dataflow for tickets and surveys (similar to finance)
+# two dataflow for tickets and surveys (similar to finance)
 
 otrs_tickets_dataflow = BashOperator(
     task_id='otrs_tickets_dataflow',
