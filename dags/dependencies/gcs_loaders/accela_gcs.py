@@ -93,11 +93,9 @@ def enrich_record(record_id, api_token):
     :param api_token: (str) api token returned by get_token
     :return: (dict) JSON object with permit data
     """
-    print(record_id)
     res = requests.get(F"{BASE_URL}/{record_id}",
                        headers={'Authorization': api_token},
                        params={'expand': EXPAND_FIELDS})
-    count = 0
     try:
         if res.status_code == 200:
             return res.json()['result'][0]
@@ -107,8 +105,6 @@ def enrich_record(record_id, api_token):
                                headers={'Authorization': api_token},
                                params={'expand': EXPAND_FIELDS})
             return res.json()['result'][0]
-    except requests.exceptions.SSLError:
-        import pdb; pdb.set_trace()
     except requests.exceptions.RequestException:
         pass
 

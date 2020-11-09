@@ -8,10 +8,8 @@ from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOperator
 
 from dependencies import airflow_utils
-from dependencies.airflow_utils import get_ds_year, get_ds_month, default_args, build_revgeo_query
+from dependencies.airflow_utils import get_ds_year, get_ds_month, default_args, build_revgeo_query, filter_old_values
 
-# TODO: When Airflow 2.0 is released, upgrade the package, sub in DataFlowPythonOperator for BashOperator,
-# and pass the argument 'py_interpreter=python3'
 
 dag = DAG(
     'accela_permits',
@@ -27,50 +25,43 @@ accela_permits_gcs = BashOperator(
     dag=dag
 )
 
-# accela_permits_dataflow = BashOperator(
-#     task_id='accela_permits_dataflow',
-#     bash_command="python {}/dependencies/dataflow_scripts/accela_dataflow.py --input gs://{}_"
-#                  "accela/permits/".format(os.environ['DAGS_PATH'], os.environ['GCS_PREFIX']) +
-#                  "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds }}_permits.json --avro_output " +
-#                  "gs://{}_accela/permits/avro_output/".format(os.environ['GCS_PREFIX']) +
-#                  "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds }}/",
-#     dag=dag
-# )
-
-YEAR = '2016'
-
 accela_permits_dataflow = BashOperator(
     task_id='accela_permits_dataflow',
     bash_command="python {}/dependencies/dataflow_scripts/accela_dataflow.py --input gs://{}_"
-                 "accela/backfill/publicworks/".format(os.environ['DAGS_PATH'], os.environ['GCS_PREFIX']) +
-                 "public_works_{}.json --avro_output ".format(YEAR) +
-                 "gs://{}_accela/backfill/publicworks/avro_output/{}/".format(os.environ['GCS_PREFIX'], YEAR),
+                 "accela/permits/".format(os.environ['DAGS_PATH'], os.environ['GCS_PREFIX']) +
+                 "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds }}_permits.json --avro_output " +
+                 "gs://{}_accela/permits/avro_output/".format(os.environ['GCS_PREFIX']) +
+                 "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds }}/",
     dag=dag
 )
 
-# accela_permits_bq = GoogleCloudStorageToBigQueryOperator(
-#     task_id='accela_permits_bq',
-#     destination_project_dataset_table='{}:accela.permits_raw'.format(os.environ['GCLOUD_PROJECT']),
-#     bucket='{}_accela'.format(os.environ['GCS_PREFIX']),
-#     source_objects=["permits/avro_output/{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds }}/*.avro"],
-#     write_disposition='WRITE_APPEND',
-#     create_disposition='CREATE_IF_NEEDED',
-#     time_partitioning={'type': 'DAY'},
-#     source_format='AVRO',
-#     autodetect=True,
-#     dag=dag
-# )
-
-accela_permits_bq = GoogleCloudStorageToBigQueryOperator(
-    task_id='accela_permits_bq',
-    destination_project_dataset_table='{}:accela.permits_raw'.format(os.environ['GCLOUD_PROJECT']),
+accela_permits_bq_load = GoogleCloudStorageToBigQueryOperator(
+    task_id='accela_permits_bq_load',
+    destination_project_dataset_table='{}:accela.permits_temp'.format(os.environ['GCLOUD_PROJECT']),
     bucket='{}_accela'.format(os.environ['GCS_PREFIX']),
-    source_objects=["backfill/publicworks/avro_output/{}/*.avro".format(YEAR)],
+    source_objects=["permits/avro_output/{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds }}/*.avro"],
     write_disposition='WRITE_APPEND',
     create_disposition='CREATE_IF_NEEDED',
     time_partitioning={'type': 'DAY'},
     source_format='AVRO',
     autodetect=True,
+    dag=dag
+)
+
+accela_permits_dedup = BigQueryOperator(
+    task_id='qalert_requests_bq_filter',
+    sql=filter_old_values('accela', 'permits_temp', 'permits_raw', 'id'),
+    use_legacy_sql=False,
+    dag=dag
+)
+
+accela_permits_bq_merge = BigQueryOperator(
+    task_id='accela_permits_bq_merge',
+    sql='SELECT * FROM {}.accela.permits_temp'.format(os.environ['GCLOUD_PROJECT']),
+    use_legacy_sql=False,
+    destination_dataset_table='{}:accela.permits_raw'.format(os.environ['GCLOUD_PROJECT']),
+    write_disposition='WRITE_APPEND',
+    time_partitioning={'type': 'DAY'},
     dag=dag
 )
 
@@ -84,16 +75,18 @@ accela_permits_geojoin = BigQueryOperator(
     dag=dag
 )
 
+accela_bq_drop_temp = BigQueryOperator(
+    task_id='accela_bq_drop_temp',
+    sql='DROP TABLE `{}.accela.permits_temp`'.format(os.environ['GCLOUD_PROJECT']),
+    use_legacy_sql=False,
+    dag=dag
+)
+
 accela_permits_beam_cleanup = BashOperator(
     task_id='accela_permits_beam_cleanup',
     bash_command=airflow_utils.beam_cleanup_statement('{}_accela'.format(os.environ['GCS_PREFIX'])),
     dag=dag
 )
 
-# TODO: add steps to create temp table and remove ids from existing table that exist in that temp table from
-# the permanent table before then appending the temp table to the permanent table (same pattern as qalert dag)
-
-# accela_permits_gcs >> accela_permits_dataflow >> accela_permits_bq >> >> accela_permits_geojoin >> \
-#     accela_permits_beam_cleanup
-
-accela_permits_dataflow >> accela_permits_bq >> accela_permits_geojoin >> accela_permits_beam_cleanup
+accela_permits_gcs >> accela_permits_dataflow >> accela_permits_bq_load >> accela_permits_dedup >> \
+    accela_permits_bq_merge >> accela_permits_geojoin >> accela_bq_drop_temp >> accela_permits_beam_cleanup
