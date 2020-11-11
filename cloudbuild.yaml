@@ -8,8 +8,5 @@ steps:
 - name: gcr.io/google.com/cloudsdktool/cloud-sdk
   id: Deploy
   entrypoint: bash
-  args: [ '-c', 'if [ "$BRANCH_NAME" == "master" ]; then echo "$BRANCH_NAME" && gsutil -m rsync -d -r
-        ./dags gs://${_COMPOSER_BUCKET}/dags && gsutil -m rsync -d -r ./plugins gs://${_COMPOSER_BUCKET}/plugins;
+  args: [ '-c', 'if [ "$BRANCH_NAME" == "master" ]; then echo "$BRANCH_NAME" && make deploy;
         else echo "Working on $BRANCH_NAME"; fi']
-substitutions:
-    _COMPOSER_BUCKET: us-east1-data-rivers-8605f7ab-bucket
