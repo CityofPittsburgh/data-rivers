@@ -119,6 +119,7 @@ unittests.cfg
 *.avsc
 .DS_Store
 data_rivers_key.json
+composer_kube_config
 *.log
 
 

@@ -11,6 +11,9 @@ from dataflow_utils.dataflow_utils import generate_args, ChangeDataTypes, JsonCo
 
 
 class CleanPKs(beam.DoFn):
+    """
+    For whatever weird reason, some IDs in this data are negative numbers, so we make them all positive in this step
+    """
     def process(self, datum):
         datum['PK'] = abs(datum['PK'])
         yield datum

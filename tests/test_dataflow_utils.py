@@ -7,8 +7,6 @@ import os
 import sys
 import unittest
 
-# sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
 from dags.dependencies.dataflow_scripts.dataflow_utils import dataflow_utils
 
 
