@@ -38,7 +38,7 @@ police_blotter_30_day_dataflow = BashOperator(
 
 police_blotter_30_day_bq = GoogleCloudStorageToBigQueryOperator(
     task_id='police_blotter_30_day_bq_load',
-    destination_project_dataset_table='{}:public_safety.30_day_blotter_raw'.format(os.environ['GCLOUD_PROJECT']),
+    destination_project_dataset_table='{}:public_safety.30_day_blotter'.format(os.environ['GCLOUD_PROJECT']),
     bucket='{}_police'.format(os.environ['GCS_PREFIX']),
     source_objects=["30_day_blotter/avro_output/{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds }}/*.avro"],
     write_disposition='WRITE_TRUNCATE',
