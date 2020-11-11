@@ -1,11 +1,14 @@
 # Data Rivers
-Apache Airflow + Beam ETL scripts for the City of Pittsburgh's data pipelines, orchestrated with Google Cloud Composer.
+Apache Airflow + Beam ETL scripts for the City of Pittsburgh's data pipelines, orchestrated with Google Cloud Composer
+(Google's hosted version of the open-source Airflow project) and Dataflow (Google's hosted version of the open-source
+Apache Beam project).
 
 Requirements: Python 3.7.x, access to city GCP account, JSON file with Data Rivers service account key (stored in the project root as `data_rivers_key.json` but excluded from version control for security reasons via `.gitignore`)
 
-[Apache Airflow documentation](https://airflow.apache.org/docs/stable/)
-
-[Apache Beam documentation](https://beam.apache.org/documentation/)
+- [Google Cloud Composer documentation](https://cloud.google.com/composer/docs/concepts/overview)
+- [Apache Airflow documentation](https://airflow.apache.org/docs/stable/)
+- [Google Dataflow documentation](https://cloud.google.com/dataflow/docs/quickstarts)
+- [Apache Beam documentation](https://beam.apache.org/documentation/)
 
 ## Architecture
 
@@ -34,12 +37,20 @@ If you're working on a branch and you're adding a new environment variable, make
 name of that variable, and add the value to the environment variables used by our production cluster by navigating 
 [here](https://console.cloud.google.com/composer/environments/detail/us-east1/data-rivers/variables?authuser=1&project=data-rivers).
 
-## Running locally
+## Dependencies/running locally
 As a start, you'll need to [install and configure](https://airflow.apache.org/docs/stable/installation.html) Apache Airflow. Create your
-virtual environment by running `pip install -r requirements.txt` and `pip install -r requirements.txt`. Then,
+virtual environment by running `pip install -r requirements.txt` and `pip install -r requirements-gcp.txt`. Then,
 navigate to `/dags/dependences/dataflow_scripts` and run `python setup.py install` to install the local `dataflow_utils`
 module. We recommend using [`pyenv`](https://github.com/pyenv/pyenv) and [`pyenv-virtualenv`](https://github.com/pyenv/pyenv-virtualenv) to manage your virtual environments. 
 
+We have separate requirements files (`requirements.txt` and `requirements-gcp.txt`) because the Cloud Composer machines
+come with a standard set of Python libraries, which are listed in `requirements.txt`. It's important to keep this file
+in sync with the package versions for the particular Airflow version we're running (as of November 2020, that's 1.10.10)
+in order to avoid version conflicts between your local development environment and production. The package versions can 
+be found on [this page](https://cloud.google.com/composer/docs/concepts/versioning/composer-versions) (find the current 
+project version in the table and click "Package list for Python 3"). Apart from those standard packages, we have the 
+additional packages specific to this project listed in `requirements-gcp.txt`. When you need to add a new package,
+specify it in `requirements-gcp.txt` and install it on the production cluster from [this page](https://console.cloud.google.com/composer/environments/detail/us-east1/data-rivers/packages?authuser=1&project=data-rivers).
 
 Once you've created your virtual environment and installed Airflow, you can trigger tasks or entire DAGs locally via `airflow run my_dag my_task YYYY-MM-DD` or `airflow trigger_dag my_dag`. To view progress/logging in the Airflow web UI, you'll need to run the processes `airflow webserver` (which shows on port 8080) and `airflow scheduler` in two separate terminal windows. Make sure you have the proper `.env` values available in the shell sessions from which you run those commands, and that you've activated this project's virtualenv in those sessions.
 
@@ -73,8 +84,40 @@ the image `gcr.io/data-rivers/airflow` from [our Google Container Registry]
 (https://console.cloud.google.com/gcr/images/data-rivers?project=data-rivers) and recreate one of the same name by 
 following the instructions [here](https://github.com/GoogleCloudPlatform/cloud-builders-community/tree/master/airflow).
 
-## VPN/Kubernetes configuration
-Our production environment runs on a Google Kubernetes Engine cluster, as is standard for Cloud Composer projects.
+## Networking/Kubernetes configuration
+Our production environment runs on a Google Kubernetes Engine cluster, as is standard for Cloud Composer projects. You can
+view the GKE cluster configuration [here](https://console.cloud.google.com/kubernetes/list?authuser=1&project=data-rivers), 
+and the Composer configuration [here](https://console.cloud.google.com/composer/environments?authuser=1&project=data-rivers).
+
+This project pulls data from a number of sources within the city's internal network (e.g. Public Safety and Finance databases). 
+Consequently, it has to utilize a Virtual Private Connection that allows it access behind our firewall. The configuration
+ for that network (`pgh-on-prem-vpn`) can be viewed [here](https://console.cloud.google.com/networking/networks/details/pgh-on-prem-vpn?project=data-rivers&authuser=1&pageTab=SUBNETS&networkDetailsFirewallTablesize=20&networkDetailsRoutesTablesize=20&peeringTablesize=50&networkDetailsProxyOnlySubnetworkTablesize=20&ipRangesTablesize=50&privateConnectionTablesize=50).
+  
+The cluster machines don't have individual public IP addresses; instead, we utilize 
+[IP address masquerading](https://cloud.google.com/kubernetes-engine/docs/how-to/ip-masquerade-agent) so that they 
+appear to communicate from a single IP address (instructions for determining that IP address are below). This is useful
+because when we need to gain access to a new, protected data source (e.g. non-public vendor API such as the QScend's
+311 feed), only that single cluster IP needs to be whitelisted. We've configured IP masquerading based on the 
+workflows outlined [here](https://cloud.google.com/kubernetes-engine/docs/how-to/ip-masquerade-agent#config_agent_configmap)
+and [here](https://cloud.google.com/kubernetes-engine/docs/how-to/ip-masquerade-agent). The scripts we utilized in
+that process can be found [here](https://github.com/CityofPittsburgh/data-rivers-schemas/tree/master/gke_configuration).
+If you need to adjust this setup (which you hopefully shouldn't need to), consult AJ and the network team. 
+
+As of November 2020, the network team has a plan in place to set up an interconnect between our network and Google Cloud 
+that would obviate the need for the current VPC (consult AJ and team on the timing for that). It would likely be more 
+straightforward to go that route if possible, however it may necessitate spinning up a new Cloud Composer environment,
+re-adding the environment variables and PyPi packages, and getting the new cluster IP whitelisted with whatever
+third-party/vendor sources necessitate that. 
+
+To test whether the production cluster can access a particular data source, navigate to the `data-rivers` 
+[VM instances dashboard](https://console.cloud.google.com/compute/instances?authuser=1&project=data-rivers). Find an
+instance that includes the text `data-rivers-default-pool` in the same and click the "SSH" button on the righthand side.
+That will open up a terminal for the VM in a new window. Test whether you can hit a particular endpoint or database
+by typing `curl -i someurl.com` and seeing whether it successfully returns data and a `200` status response. If yes,
+the relevant DAG should work in production; if not, work with the vendor, our network team, or whomever else manages the
+data source you're trying to access. If it's an internal source behind the city firewall, consult AJ and the network team
+to see whether the VPN or firewall need to be adjusted. If it's a vendor API, have them whitelist the cluster IP address, 
+which can be found by entering `curl icanhazip.com` in that same terminal window for the VM.  
 
 ## Backfilling data
 When you write and deploy a new DAG, there will often be historical data that you'll want to load to BigQuery. The best way I
