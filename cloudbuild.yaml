@@ -2,7 +2,7 @@ steps:
 - name: 'gcr.io/data-rivers/airflow'
   volumes:
     - name: 'vol1'
-      path: '/persistent_volume'
+      path: /persistent_volume
   id: 'install_dataflow_utils'
   entrypoint: python
   args:
@@ -11,7 +11,7 @@ steps:
 - name: 'gcr.io/data-rivers/airflow'
   volumes:
     - name: 'vol1'
-      path: '/persistent_volume'
+      path: /persistent_volume
   id: 'install_requirements'
   waitFor:
     - 'install_dataflow_utils'
@@ -22,7 +22,7 @@ steps:
 - name: 'gcr.io/data-rivers/airflow'
   volumes:
     - name: 'vol1'
-      path: '/persistent_volume'
+      path: /persistent_volume
   id: 'tests'
   waitFor:
     - 'install_requirements'
