@@ -47,8 +47,6 @@ police_blotter_30_day_bq = GoogleCloudStorageToBigQueryOperator(
     dag=dag
 )
 
-#TODO: BigQueryOperator to rev-geocode based on tract
-
 police_blotter_30_day_beam_cleanup = BashOperator(
     task_id='police_blotter_30_day_beam_cleanup',
     bash_command=airflow_utils.beam_cleanup_statement('{}_police'.format(os.environ['GCS_PREFIX'])),

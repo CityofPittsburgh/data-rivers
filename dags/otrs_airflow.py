@@ -2,14 +2,12 @@ from __future__ import absolute_import
 
 import os
 
-from airflow import DAG, configuration, models
+from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
 from airflow.operators.docker_operator import DockerOperator
-from airflow.contrib.operators.dataflow_operator import DataFlowPythonOperator
 from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOperator
-from airflow.contrib.operators.bigquery_operator import BigQueryOperator
-from airflow.operators.python_operator import PythonOperator
-from datetime import datetime, timedelta
+from airflow.contrib.operators.gcp_container_operator import GKEPodOperator
+from datetime import timedelta
 from dependencies import airflow_utils
 from dependencies.airflow_utils import yesterday, build_revgeo_query, filter_old_values, get_ds_month, get_ds_year
 
@@ -64,7 +62,10 @@ otrs_gcs_to_csv = DockerOperator(
     dag=dag
 )
 
-# two dataflow for tickets and surveys (similar to finance)
+#TODO: Rewrite the script executed via the DockerOperator
+# (https://github.com/CityofPittsburgh/OTRS_Dashboard/blob/master/ETL%20Scripts/OTRS_gcp.R)
+# as a Python script executed within this project via BashOperator; the DockerOperator won't work in production
+# because we need a separate cluster and the VPN doesn't have space for another
 
 otrs_tickets_dataflow = BashOperator(
     task_id='otrs_tickets_dataflow',

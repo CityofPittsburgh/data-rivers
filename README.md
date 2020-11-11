@@ -41,12 +41,28 @@ Consult `env.example` for the necessary environment variables (talk to James or 
 
 You'll see that we use the variables `GCLOUD_PROJECT` and `GCS_PREFIX` throughout the scripts. In your local environment, these should be set to `data-rivers-testing` and `pghpa_test`, respectively (this is extremely important). In the production environment (hosted via Cloud Composer), the variables are set to `data-rivers` and `pghpa`. This gives us a testing sandbox for local development while walling off the production environment from code that hasn't yet been merged and deployed from `master`.
 
+## Backfilling data
+When you write and deploy a new DAG, there will often be historical data that you'll want to load to BigQuery. The best way I
+(James, Nov. 2020) have found to do this is to run a one-off script to download the historical data into a directory named
+`/backfill` in a Google Cloud Storage bucket. Then, on your local machine, adjust the relevant DAG file to comment out the
+GCS load step from the beginning and hard-code the path to the `/backfill` folder into the arguments passed to the Dataflow step.
+From there, run the DAG from your terminal with `airflow trigger_dag your_dag`. That will load the historical data to BigQuery.
+Once you've confirmed it's there, you can uncomment the initial GCS step in the DAG.
+
+The backfills will typically be either `SELECT *` statements hitting on-prem databases, or API calls (possibly fired off in a loop
+if rate limits pose a challenge for high-volume historical datasets). These backfill scripts will typically be one-offs,
+so they don't need to be committed to this repo; if you want to store them for the team for reference, you can put them
+[here](https://github.com/CityofPittsburgh/data-rivers-schemas/tree/master/scripts).
+
 ## Schema migrations
 You'll occasionally want to update the schema for a dataset (adding or subtracting fields). The best way to do this is as follows:
 - Update the .avsc file in [data-rivers-schemas](https://github.com/CityofPittsburgh/data-rivers-schemas) with the additional column(s) or redactions
 - If necessary, [edit the relevant table schemas](https://cloud.google.com/bigquery/docs/managing-table-schemas#console) via the BigQuery console (do this first in `data-rivers-testing`)
-- Refactor the relevant dataflow file if needed (e.g. change field names, change data types)
+- Refactor the relevant Dataflow file if needed (e.g. change field names, change data types)
 - Profit
+
+## Error alerting
+Join the "Airflow errors" channel on Microsoft Teams to get alerts when production DAGs fail, including links to the relevant error logs.
 
 ## Tests
 Write tests for every new Dataflow script. You can execute the entire test suite by running `pytest` from the project root (please do so before making any new pull requests).

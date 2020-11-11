@@ -6,7 +6,6 @@ from airflow import DAG
 from airflow.operators.docker_operator import DockerOperator
 from airflow.operators.bash_operator import BashOperator
 from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOperator
-from airflow.contrib.operators.dataflow_operator import DataFlowPythonOperator
 from dependencies import airflow_utils
 from dependencies.airflow_utils import build_revgeo_query, get_ds_month, get_ds_year, default_args
 
@@ -22,7 +21,6 @@ computronix_gcs = DockerOperator(
     task_id='computronix_gcs',
     image='gcr.io/data-rivers/pgh-computronix',
     api_version='auto',
-    auto_remove=True,
     environment={
         'GCS_AUTH_FILE': '/root/odata-computronix/data-rivers-service-acct.json',
         'GCS_PREFIX': os.environ['GCS_PREFIX'],
@@ -31,6 +29,10 @@ computronix_gcs = DockerOperator(
     },
     dag=dag
 )
+
+#TODO: Rewrite the script executed by this DockerOperator
+# (https://github.com/CityofPittsburgh/OData-Computronix/blob/master/contractors_gcp.R) in Python and execute via
+# BashOperator
 
 computronix_trades_dataflow = BashOperator(
     task_id='computronix_trades_dataflow',
