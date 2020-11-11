@@ -73,6 +73,9 @@ We'll most likely want to do the next update when Airflow 2.0 is released in a C
 that by consulting [this page](https://cloud.google.com/composer/docs/concepts/versioning/composer-versions) and
 looking for the latest version.
 
+It may be possible to get around this problem in the future by deploying this project within a Docker container pointing
+to the image we want; I (James) will leave that to future developers on this project to determine. 
+
 ## Tests/Deployment
 Write tests for every new Dataflow script. You can execute the entire test suite by running `pytest` from the project root 
 (please do so before making any new pull requests).
@@ -83,7 +86,10 @@ there's a failure, click "Details", then on the next page, scroll down and click
 Build" to examine the logs and see what went wrong. 
 
 Cloud Build automatically copies the repository to Cloud Storage when changes are merged to the `master` branch. The configuration
-for this is stored in `cloudbuild.yaml`; this file then runs the `deploy` command defined in the `Makefile`.
+for this is stored in `cloudbuild.yaml`; this file then runs the `deploy` command defined in the `Makefile`. Note that 
+the `Makefile` only copies `.py` and `.jar` files, in order to avoid copying logs and other junk into the GCS bucket. If
+you end up adding an additional file type to the project that's necessary in production, add a step in the `Makefile` 
+to copy files with that extension.
 
 You can check out our Cloud Build setup [here](https://console.cloud.google.com/cloud-build/dashboard?authuser=1&project=data-rivers)
 (you must be logged in with your GCP Google account). There you'll see the configuration of our triggers, as well as 

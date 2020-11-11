@@ -6,15 +6,11 @@ steps:
   - -c
   - 'pip install pytest && pip install -r requirements.txt && pip install -r requirements-gcp.txt'
 - name: 'gcr.io/data-rivers/airflow'
-  id: debug
-  entrypoint: bash
-  args:
-  - 'echo $PWD'
-- name: 'gcr.io/data-rivers/airflow'
   id: Install dataflow_utils
   entrypoint: python
   args:
-    - '/workspace/dags/dependencies/dataflow_scripts/setup.py install'
+    - '/workspace/dags/dependencies/dataflow_scripts/setup.py'
+    - 'install'
 - name: 'gcr.io/data-rivers/airflow'
   id: Run tests
   entrypoint: python
