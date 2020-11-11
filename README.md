@@ -67,4 +67,4 @@ Join the "Airflow errors" channel on Microsoft Teams to get alerts when producti
 ## Tests
 Write tests for every new Dataflow script. You can execute the entire test suite by running `pytest` from the project root (please do so before making any new pull requests).
 
-CI/CD = work in progress
+CI/CD = work in progress.
