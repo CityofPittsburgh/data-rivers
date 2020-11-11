@@ -18,7 +18,7 @@ steps:
   entrypoint: /bin/sh
   args:
     - -c
-    - 'pip install -r requirements.txt && pip install -r requirements-gcp.txt && pytest'
+    - 'pip install -r requirements.txt && pip install -r requirements-gcp.txt'
 - name: 'gcr.io/data-rivers/airflow'
   volumes:
     - name: 'vol1'
@@ -33,6 +33,8 @@ steps:
     - 'GCLOUD_PROJECT=data-rivers'
 - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
   id: 'deploy_if_master'
+  waitFor:
+    - 'tests'
   entrypoint: bash
   args:
     - -c
