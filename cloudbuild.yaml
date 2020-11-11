@@ -9,7 +9,7 @@ steps:
   id: Install dataflow_utils
   entrypoint: python
   args:
-    - './dags/dependencies/dataflow_scripts/setup.py install'
+    - '/workspace/dags/dependencies/dataflow_scripts/setup.py install'
 - name: 'gcr.io/data-rivers/airflow'
   id: Run tests
   entrypoint: python
