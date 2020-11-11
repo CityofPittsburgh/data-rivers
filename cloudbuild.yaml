@@ -1,14 +1,17 @@
 steps:
 - name: 'gcr.io/data-rivers/airflow'
+  volumes:
+    - name: 'vol1'
+      path: '/persistent_volume'
   id: Install dataflow_utils
   entrypoint: python
   args:
     - '/workspace/dags/dependencies/dataflow_scripts/setup.py'
     - 'install'
+- name: 'gcr.io/data-rivers/airflow'
   volumes:
     - name: 'vol1'
       path: '/persistent_volume'
-- name: 'gcr.io/data-rivers/airflow'
   id: Install reqs + test
   entrypoint: /bin/sh
   args:
@@ -20,7 +23,7 @@ steps:
     - name: 'vol1'
       path: '/persistent_volume'
 - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
-  id: Deploy
+  id: Deploy if master
   entrypoint: bash
   args:
     - -c
