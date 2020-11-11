@@ -156,5 +156,7 @@ You'll occasionally want to update the schema for a dataset (adding or subtracti
 - Refactor the relevant Dataflow file if needed (e.g. change field names, change data types)
 - Profit
 
-## Error alerting
-Join the "Airflow errors" channel on Microsoft Teams to get alerts when production DAGs fail, including links to the relevant error logs.
+## Monitoring/Error alerting
+Our Airflow UI—from which you can monitor the progress of our DAGs, view error logs, and rerun them if necessary—can be
+found [here](https://k080a0b524de69e4fp-tp.appspot.com/admin/). Join the "Airflow errors" channel on Microsoft Teams to get alerts when production DAGs fail, including links to the 
+relevant error logs.

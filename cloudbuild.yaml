@@ -1,22 +1,16 @@
 steps:
 - name: 'gcr.io/data-rivers/airflow'
-  id: Install requirements
-  entrypoint: /bin/sh
-  args:
-  - -c
-  - 'pip install pytest && pip install -r requirements.txt && pip install -r requirements-gcp.txt'
-- name: 'gcr.io/data-rivers/airflow'
   id: Install dataflow_utils
   entrypoint: python
   args:
     - '/workspace/dags/dependencies/dataflow_scripts/setup.py'
     - 'install'
 - name: 'gcr.io/data-rivers/airflow'
-  id: Run tests
-  entrypoint: python
+  id: Install requirements
+  entrypoint: /bin/sh
   args:
-    - -m
-    - 'pytest'
+  - -c
+  - 'pip install -r requirements.txt && pip install -r requirements-gcp.txt && pytest'
 - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
   id: Deploy
   entrypoint: bash
