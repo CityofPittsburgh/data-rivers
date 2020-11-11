@@ -23,6 +23,16 @@ The Dataflow scripts read the schemas from that bucket. Once any necessary trans
 
 Once the avro files are in Cloud Storage, we move to the next step in the Airflow DAG: using Airflow's `GoogleCloudStoragetoBigQuery` operator to (you guessed it) insert the data into BigQuery. In cases where the data needs to be reverse-geocoded, we then use a function from `airflow_utils` to do so using SQL `GEOGRAPHY` operators and create a new table. (Note: We could simplify the DAGS by creating BigQuery views for the geo-joining portion, but Google BI Engine [doesn't support](https://cloud.google.com/bi-engine/docs/optimized-sql) `GEOGRAPHY` operators, and is very useful for reducing latency in dashboarding) 
 
+## Environment variables
+You'll need a file called `data_rivers_key.json` in your root folder in order to interact with GCP (this file is excluded
+from version control via `.gitignore`). Consult a team member to get a copy of this file as well the most up-to-date
+version of the `.env` file. It's **EXTREMELY IMPORTANT** that these values never be shared publicly or inadvertnetly
+committed to this repository. You can share them securely using [privnote.com](privnote.com), which allows you to 
+generate one-time, expiring URLs.
+
+If you're working on a branch and you're adding a new environment variable, make sure to update `env.example` with the
+name of that variable, and add the value to the environment variables used by our production cluster by navigating 
+[here](https://console.cloud.google.com/composer/environments/detail/us-east1/data-rivers/variables?authuser=1&project=data-rivers).
 
 ## Running locally
 As a start, you'll need to [install and configure](https://airflow.apache.org/docs/stable/installation.html) Apache Airflow. Create your
@@ -47,8 +57,8 @@ Write tests for every new Dataflow script. You can execute the entire test suite
 
 We have [Google Cloud Build](https://cloud.google.com/cloud-build) linked to this repository, which will run the test 
 suite on any new pull request. Don't merge a PR before you get a green dot to the left of the blue Cloud Build icon. If
-there's a failure, click "Details", then on the next page, "View more details on Google Cloud Build" to examine the logs
-and see what went wrong. 
+there's a failure, click "Details", then on the next page, scroll down and click  "View more details on Google Cloud 
+Build" to examine the logs and see what went wrong. 
 
 Cloud Build automatically copies the repository to Cloud Storage when changes are merged to the `master` branch. The configuration
 for this is stored in `cloudbuild.yaml`; this file then runs the `deploy` command defined in the `Makefile`.
@@ -56,6 +66,15 @@ for this is stored in `cloudbuild.yaml`; this file then runs the `deploy` comman
 You can check out our Cloud Build setup [here](https://console.cloud.google.com/cloud-build/dashboard?authuser=1&project=data-rivers)
 (you must be logged in with your GCP Google account). There you'll see the configuration of our triggers, as well as 
 a build history with helpfully verbose logging. 
+
+Cloud Build uses Docker images to load a container and run its tests. At present, the container that runs the first step
+of the build uses Airflow 1.10 (our version as of November 2020). When the time comes to upgrade to Airflow 2.0, delete
+the image `gcr.io/data-rivers/airflow` from [our Google Container Registry]
+(https://console.cloud.google.com/gcr/images/data-rivers?project=data-rivers) and recreate one of the same name by 
+following the instructions [here](https://github.com/GoogleCloudPlatform/cloud-builders-community/tree/master/airflow).
+
+## VPN/Kubernetes configuration
+Our production environment runs on a Google Kubernetes Engine cluster, as is standard for Cloud Composer projects.
 
 ## Backfilling data
 When you write and deploy a new DAG, there will often be historical data that you'll want to load to BigQuery. The best way I
