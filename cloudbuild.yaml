@@ -4,7 +4,8 @@ steps:
   entrypoint: /bin/sh
   args:
   - -c
-  - 'pip install pytest && pip install -r requirements.txt && pytest tests/test_*.py'
+  - 'pip install pytest && pip install -r requirements.txt && pytest tests/test_*.py && \
+     cd ./dags/dependencies/dataflow_scripts && python setup.py install'
 - name: gcr.io/google.com/cloudsdktool/cloud-sdk
   id: Deploy
   entrypoint: bash
