@@ -26,8 +26,9 @@ steps:
   id: 'tests'
   waitFor:
     - 'install_requirements'
-  entrypoint: /bin/sh
+  entrypoint: python
   args:
+    - -m
     - 'pytest'
   env:
     - 'GCLOUD_PROJECT=data-rivers'
