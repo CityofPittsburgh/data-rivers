@@ -41,6 +41,22 @@ Consult `env.example` for the necessary environment variables (talk to James or 
 
 You'll see that we use the variables `GCLOUD_PROJECT` and `GCS_PREFIX` throughout the scripts. In your local environment, these should be set to `data-rivers-testing` and `pghpa_test`, respectively (this is extremely important). In the production environment (hosted via Cloud Composer), the variables are set to `data-rivers` and `pghpa`. This gives us a testing sandbox for local development while walling off the production environment from code that hasn't yet been merged and deployed from `master`.
 
+## Tests/Deployment
+Write tests for every new Dataflow script. You can execute the entire test suite by running `pytest` from the project root 
+(please do so before making any new pull requests).
+
+We have [Google Cloud Build](https://cloud.google.com/cloud-build) linked to this repository, which will run the test 
+suite on any new pull request. Don't merge a PR before you get a green dot to the left of the blue Cloud Build icon. If
+there's a failure, click "Details", then on the next page, "View more details on Google Cloud Build" to examine the logs
+and see what went wrong. 
+
+Cloud Build automatically copies the repository to Cloud Storage when changes are merged to the `master` branch. The configuration
+for this is stored in `cloudbuild.yaml`; this file then runs the `deploy` command defined in the `Makefile`.
+
+You can check out our Cloud Build setup [here](https://console.cloud.google.com/cloud-build/dashboard?authuser=1&project=data-rivers)
+(you must be logged in with your GCP Google account). There you'll see the configuration of our triggers, as well as 
+a build history with helpfully verbose logging. 
+
 ## Backfilling data
 When you write and deploy a new DAG, there will often be historical data that you'll want to load to BigQuery. The best way I
 (James, Nov. 2020) have found to do this is to run a one-off script to download the historical data into a directory named
@@ -63,8 +79,3 @@ You'll occasionally want to update the schema for a dataset (adding or subtracti
 
 ## Error alerting
 Join the "Airflow errors" channel on Microsoft Teams to get alerts when production DAGs fail, including links to the relevant error logs.
-
-## Tests
-Write tests for every new Dataflow script. You can execute the entire test suite by running `pytest` from the project root (please do so before making any new pull requests).
-
-CI/CD = work in progress.

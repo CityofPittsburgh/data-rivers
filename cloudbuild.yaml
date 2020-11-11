@@ -5,8 +5,8 @@ steps:
   args:
   - -c
   - 'pip install pytest && pip install -r requirements.txt && pip install -r requirements-gcp.txt && \
-     python ./dags/dependencies/dataflow_scripts/setup.py install && pytest'
-- name: gcr.io/google.com/cloudsdktool/cloud-sdk
+     python3 ./dags/dependencies/dataflow_scripts/setup.py install && pytest'
+- name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
   id: Deploy
   entrypoint: bash
   args: [ '-c', 'if [ "$BRANCH_NAME" == "master" ]; then echo "$BRANCH_NAME" && make deploy;
