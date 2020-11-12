@@ -7,7 +7,7 @@ import logging
 import unittest
 
 from dags.dependencies.dataflow_scripts import accela_dataflow
-from dataflow_utils import sort_dict
+from dataflow_utils.dataflow_utils import sort_dict
 
 
 class TestAccelaDataflow(unittest.TestCase):
