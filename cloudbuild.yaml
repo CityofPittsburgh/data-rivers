@@ -1,41 +1,47 @@
 steps:
-- name: 'gcr.io/data-rivers/airflow'
-  volumes:
-    - name: 'vol1'
-      path: /persistent_volume
-  id: 'install_dataflow_utils'
-  entrypoint: python
-  args:
-    - '/workspace/dags/dependencies/dataflow_scripts/setup.py'
-    - 'install'
-- name: 'gcr.io/data-rivers/airflow'
-  volumes:
-    - name: 'vol1'
-      path: /persistent_volume
-  id: 'install_requirements'
-  waitFor:
-    - 'install_dataflow_utils'
+- name: 'python:3.7'
+  id: 'install reqs'
   entrypoint: /bin/sh
   args:
     - -c
-    - 'pip install -r requirements.txt && pip install -r requirements-gcp.txt'
-- name: 'gcr.io/data-rivers/airflow'
-  volumes:
-    - name: 'vol1'
-      path: /persistent_volume
-  id: 'tests'
-  waitFor:
-    - 'install_requirements'
-  entrypoint: python
-  args:
-    - -m
-    - 'pytest'
+    - 'python -m venv .venv/datarivers && . .venv/datarivers/bin/activate && pip install -r requirements.txt &&
+       pip install -r requirements-gcp.txt && python /workspace/dags/dependencies/dataflow_scripts/setup.py install
+       && pytest'
   env:
     - 'GCLOUD_PROJECT=data-rivers'
+
+
+#- name: 'gcr.io/data-rivers/airflow'
+#  volumes:
+#    - name: 'vol1'
+#      path: /persistent_volume
+#  id: 'install_dataflow_utils'
+#  entrypoint: python
+#  args:
+#    - '/workspace/dags/dependencies/dataflow_scripts/setup.py'
+#    - 'install'
+#- name: 'gcr.io/data-rivers/airflow'
+#  volumes:
+#    - name: 'vol1'
+#      path: /persistent_volume
+#  id: 'install_requirements'
+#  entrypoint: /bin/sh
+#  args:
+#    - -c
+#    - 'pip install -r requirements.txt && pip install -r requirements-gcp.txt'
+#- name: 'gcr.io/data-rivers/airflow'
+#  volumes:
+#    - name: 'vol1'
+#      path: /persistent_volume
+#  id: 'tests'
+#  entrypoint: python
+#  args:
+#    - -m
+#    - 'pytest'
+#  env:
+#    - 'GCLOUD_PROJECT=data-rivers'
 - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
   id: 'deploy_if_master'
-  waitFor:
-    - 'tests'
   entrypoint: bash
   args:
     - -c
