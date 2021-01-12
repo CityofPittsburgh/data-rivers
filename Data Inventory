@@ -1,0 +1,13 @@
+Data Inventory 
+
+Permits from the Accela cloud-based software system are uploaded via the accela_airflow.py DAG
+Attendance at PGH community centers is uploaded via the community_ctrs_airflow.py DAG
+Dept. of Mobility and Infrastructre (DOMI) permits and licenses are uploaded via the computronix_domi_permits_airflow.py computronix_licenses_airflow.py and DAGs
+An inventory of Pittsburgh Bureau of Police firearms seizures are uploaded via the firearms_airflow.py DAG
+Help Desk ticket submissions from the OTRS cloud-based ITSM are uploaded via the otrs_airflow.py DAG
+The location of all parking meters and history of the transactions at those meters is uploaded via the parking_authority_airflow.py DAG
+Initial crime incident reports for the last 30 days are uploaded via the police_blotter_30_day_airflow.py DAG (see data-rivers/dags/dependencies/gcs_loaders/police_blotter_30_day_gcs.py for a more complete description of this data)
+Data from all 311 ticket submissions are uploaded via the qalert_airflow.py DAG
+Information about all businesses registered with the city of PGH are uploaded via the registered_businesses_airflow.py DAG
+Telephonic Help Desk ticket submissions that are managed by Twilio (system adopted in response to demands created by COVID19) are uploaded via the twilio_airflow.py DAG
+Information about calls to EMS and Fire are uploaded via the wprdc_ems_fire_airflow.py DAG
