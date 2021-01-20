@@ -41,6 +41,9 @@ Consult `env.example` for the necessary environment variables (talk to James or 
 
 You'll see that we use the variables `GCLOUD_PROJECT` and `GCS_PREFIX` throughout the scripts. In your local environment, these should be set to `data-rivers-testing` and `pghpa_test`, respectively (this is extremely important). In the production environment (hosted via Cloud Composer), the variables are set to `data-rivers` and `pghpa`. This gives us a testing sandbox for local development while walling off the production environment from code that hasn't yet been merged and deployed from `master`.
 
+## Deploying
+Deploys are handled with a basic `Makefile`, which copies files up to the Google Cloud Storage bucket used by Cloud Composer. Deploy with `make deploy`. CI/CD = work in progress.
+
 ## Backfilling data
 When you write and deploy a new DAG, there will often be historical data that you'll want to load to BigQuery. The best way I
 (James, Nov. 2020) have found to do this is to run a one-off script to download the historical data into a directory named
@@ -65,6 +68,4 @@ You'll occasionally want to update the schema for a dataset (adding or subtracti
 Join the "Airflow errors" channel on Microsoft Teams to get alerts when production DAGs fail, including links to the relevant error logs.
 
 ## Tests
-Write tests for every new Dataflow script. You can execute the entire test suite by running `pytest` from the project root (please do so before making any new pull requests).
-
-CI/CD = work in progress.
+Write tests for every new Dataflow script, and GCS load script where applicable. You can execute the entire test suite by running `pytest` from the project root (please do so before making any new pull requests).
