@@ -8,7 +8,6 @@ import pandas as pd
 from gcs_utils import storage_client, json_to_gcs
 
 """ Download all TWILIO customer reports and load into GCS
-    Coded by Jesse Wood July 2020.
 
     This script will download all TWILIO customer reports and load the resulting
     data into Google Cloud. This is accomplished with a single function call
