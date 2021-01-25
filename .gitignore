@@ -108,6 +108,8 @@ venv.bak/
 */.idea
 airflow.cfg
 /airflow
+*.db 
+/logs
 /airflow/logs/*
 /airflow/airflow.db
 /dags/.idea
