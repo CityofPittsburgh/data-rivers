@@ -10,7 +10,7 @@ dill==0.3.1.1
 fastavro==0.21.24
 funcsigs==1.0.2
 grpc-google-iam-v1==0.12.3
-httplib2==0.17.0
+httplib2==0.19.0
 kubernetes==11.0.0
 marshmallow==2.19.5
 marshmallow-sqlalchemy==0.18.0
