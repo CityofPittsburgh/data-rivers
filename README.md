@@ -42,7 +42,13 @@ Consult `env.example` for the necessary environment variables (talk to James or 
 You'll see that we use the variables `GCLOUD_PROJECT` and `GCS_PREFIX` throughout the scripts. In your local environment, these should be set to `data-rivers-testing` and `pghpa_test`, respectively (this is extremely important). In the production environment (hosted via Cloud Composer), the variables are set to `data-rivers` and `pghpa`. This gives us a testing sandbox for local development while walling off the production environment from code that hasn't yet been merged and deployed from `master`.
 
 ## Deploying
-Deploys are handled with a basic `Makefile`, which copies files up to the Google Cloud Storage bucket used by Cloud Composer. Deploy with `make deploy`. CI/CD = work in progress.
+Deploys are handled with a basic `Makefile`, which copies files up to the Google Cloud Storage bucket used by Cloud Composer. Deploy with `make deploy`.
+
+Note that for now (2/26/21), the `Makefile` has the `cp` directory paths hardcoded (e.g. `gsutil cp -r ./dags/dependencies/dataflow_scripts/*.py gs://us-east1-data-rivers-8605f7ab-bucket/dags/dependencies/dataflow_scripts && \`). This is because
+Google Cloud Storage isn't actually a file system; rather, it parses filenames and looks for `/` characters, then cleverly treats such file paths as though they were part of a directory system for the purpose of code imports and display in the GCP UI. 
+
+There's definitely a better way of doing this——it's a very brittle approach because if you change the directory structure at any point, you'll need to change the `Makefile` along with it to ensure that all files are copied up to Cloud Storage correctly. That's an easy thing to forget, so future data engineers would be well-advised to come up with a system that can copy files recursively while preserving their file paths within the new filename; That is, for a file `/dags/dependencies/gcs_loaders/some_script.py,
+copy it to the destination `gs://your-dag-bucket/dags/dependencies/gcs_loader/some_script.py`. Ideally this would come within a deploy flow specified in `cloudbuild.yaml` that would run the test suite on every pull request + merge to `master`, and on every merge to `master`, automatically run the `Makefile` to copy up all the files.
 
 ## Backfilling data
 When you write and deploy a new DAG, there will often be historical data that you'll want to load to BigQuery. The best way I
