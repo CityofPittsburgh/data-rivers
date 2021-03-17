@@ -6,6 +6,7 @@ import re
 import json
 import os
 import pytz
+import math
 
 import apache_beam as beam
 import requests
@@ -62,14 +63,19 @@ class ChangeDataTypes(beam.DoFn, ABC):
     def process(self, datum):
         try:
             for type_change in self.type_changes:
-                if type_change[1] == "float":
-                    datum[type_change[0]] = float(datum[type_change[0]])
-                elif type_change[1] == "int":
-                    datum[type_change[0]] = int(datum[type_change[0]])
-                elif type_change[1] == "str":
-                    datum[type_change[0]] = str(datum[type_change[0]])
-                elif type_change[1] == "bool":
-                    datum[type_change[0]] = bool(datum[type_change[0]])
+                if math.isnan(datum[type_change[0]]
+                    datum[type_change[0]] = None
+                try:
+                    if type_change[1] == "float":
+                        datum[type_change[0]] = float(datum[type_change[0]])
+                    elif type_change[1] == "int":
+                        datum[type_change[0]] = int(datum[type_change[0]])
+                    elif type_change[1] == "str":
+                        datum[type_change[0]] = str(datum[type_change[0]])
+                    elif type_change[1] == "bool":
+                        datum[type_change[0]] = bool(datum[type_change[0]])
+                except ValueError:   
+                    datum[type_change[0]] = None
         except TypeError:
             pass
 

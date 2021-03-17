@@ -123,6 +123,6 @@ unittests.cfg
 data_rivers_key.json
 composer_kube_config
 *.log
-
+.vscode/
 
 list/

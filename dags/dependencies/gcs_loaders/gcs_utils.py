@@ -1,5 +1,6 @@
 from __future__ import print_function
 
+import argparse
 import os
 import logging
 import time
@@ -10,6 +11,7 @@ import ndjson
 import pytz
 import requests
 import pandas as pd
+import jaydebeapi
 
 from datetime import datetime
 from google.cloud import storage, dlp_v2
@@ -435,6 +437,27 @@ def get_wprdc_data(resource_id, select_fields=['*'], where_clauses=None, group_b
         records = remove_fields(records, fields_to_remove)
 
     return records
+
+def prms_setup():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-e', '--execution_date', dest='execution_date',
+                       required=True, help='DAG execution date (YYYY-MM-DD)')
+    parser.add_argument('-s', '--prev_execution_date', dest='prev_execution_date',
+                    required=True, help='Previous DAG execution date (YYYY-MM-DD)')
+    args = vars(parser.parse_args())
+    execution_year = args['execution_date'].split('-')[0]
+    execution_month = args['execution_date'].split('-')[1]
+    execution_date = args['execution_date']
+    bucket = '{}_police'.format(os.environ['GCS_PREFIX'])
+
+    conn = jaydebeapi.connect("oracle.jdbc.OracleDriver",
+                              os.environ['APRS_DB'],
+                              [os.environ['APRS_UN'], os.environ['APRS_PW']],
+                              os.environ['DAGS_PATH'] + "/dependencies/gcs_loaders/ojdbc6.jar")
+                              
+    return args, execution_year, execution_month, execution_date, bucket, conn
+
+
 
 # TODO: helper to convert geojson -> ndjson
 
