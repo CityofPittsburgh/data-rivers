@@ -33,7 +33,7 @@ police_demographics_dataflow = BashOperator(
     dag=dag
 )
 
-# this table gets overrwritten since it will contain newly hired officers and ALL previously employed officers. It would be possible to first search officers that are already in the database, and only add officers that are not present.  However, this is unnecessarily complicated at the present. 
+# this table gets overrwritten since it will contain newly hired officers and ALL previously employed officers. It would be possible to first search officers that are already in the database, and only add officers that are not present.  However, this is unnecessarily complicated at the present (April 2021). 
 
 police_demographics_bq = GoogleCloudStorageToBigQueryOperator(
     task_id='police_demographics_bq_load',
