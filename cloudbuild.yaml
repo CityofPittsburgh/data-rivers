@@ -1,12 +1,18 @@
 steps:
-- name: 'docker.io/library/python:3.7'
-  id: Test
+- name: 'python:3.7'
+  id: 'tests'
   entrypoint: /bin/sh
   args:
-  - -c
-  - 'pip install pytest && pip install -r requirements.txt && pytest tests/test_*.py'
-- name: gcr.io/google.com/cloudsdktool/cloud-sdk
-  id: Deploy
+    - -c
+    - 'python -m venv .venv/datarivers && . .venv/datarivers/bin/activate && pip install -r requirements.txt &&
+       pip install -r requirements-gcp.txt && python /workspace/dags/dependencies/dataflow_scripts/setup.py install
+       && pytest'
+  env:
+    - 'GCLOUD_PROJECT=data-rivers'
+- name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+  id: 'deploy_if_master'
   entrypoint: bash
-  args: [ '-c', 'if [ "$BRANCH_NAME" == "master" ]; then echo "$BRANCH_NAME" && make deploy;
-        else echo "Working on $BRANCH_NAME"; fi']
+  args:
+    - -c
+    - 'if [ "$BRANCH_NAME" == "master" ]; then echo "$BRANCH_NAME" && make deploy;
+        else echo "Working on $BRANCH_NAME"; fi'

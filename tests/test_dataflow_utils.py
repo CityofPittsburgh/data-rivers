@@ -12,7 +12,6 @@ class TestDataflowUtils(unittest.TestCase):
     def test_columns_camel_to_snake_case(self):
         datum = {'exampleColumn': 'foo', 'anotherExample': 'bar'}
         expected = {'example_column': 'foo', 'another_example': 'bar'}
-        # ccsc = ColumnsCamelToSnakeCase()
         ccsc = dataflow_utils.ColumnsCamelToSnakeCase()
         self.assertEqual(next(ccsc.process(datum)), expected)
 
