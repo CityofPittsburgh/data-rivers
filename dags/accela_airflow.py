@@ -5,6 +5,7 @@ import os
 from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
 from airflow.contrib.operators.bigquery_operator import BigQueryOperator
+from airflow.contrib.operators.bigquery_to_gcs import BigQueryToCloudStorageOperator
 from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOperator
 
 from dependencies import airflow_utils
@@ -70,7 +71,7 @@ accela_permits_geojoin = BigQueryOperator(
     sql=build_revgeo_query('accela', 'permits_raw', 'id'),
     use_legacy_sql=False,
     destination_dataset_table='{}:accela.permits'.format(os.environ['GCLOUD_PROJECT']),
-    write_disposition='WRITE_APPEND',
+    write_disposition='WRITE_TRUNCATE',
     time_partitioning={'type': 'DAY'},
     dag=dag
 )
@@ -88,5 +89,12 @@ accela_permits_beam_cleanup = BashOperator(
     dag=dag
 )
 
+accela_wprdc_export = BigQueryToCloudStorageOperator(
+  task_id='accela_wprdc_export',
+  source_project_dataset_table='{}:accela.permits'.format(os.environ['GCLOUD_PROJECT']),
+  destination_cloud_storage_uris='gs://{}_wprdc/accela_permits.csv'.format(os.environ['GCS_PREFIX']),
+  dag=dag
+)
+
 accela_permits_gcs >> accela_permits_dataflow >> accela_permits_bq_load >> accela_permits_dedup >> \
-    accela_permits_bq_merge >> accela_permits_geojoin >> accela_bq_drop_temp >> accela_permits_beam_cleanup
+    accela_permits_bq_merge >> accela_permits_geojoin >> accela_bq_drop_temp >> accela_permits_beam_cleanup >> accela_wprdc_export
