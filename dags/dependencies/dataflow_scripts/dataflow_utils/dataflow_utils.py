@@ -63,7 +63,7 @@ class ChangeDataTypes(beam.DoFn, ABC):
     def process(self, datum):
         try:
             for type_change in self.type_changes:
-                if math.isnan(datum[type_change[0]])
+                if math.isnan(datum[type_change[0]]):
                     datum[type_change[0]] = None
                 try:
                     if type_change[1] == "float":
