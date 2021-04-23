@@ -3,6 +3,7 @@ from __future__ import division
 # patches unittest.TestCase to be python3 compatible
 import future.tests.base  # pylint: disable=unused-import
 import unittest
+import numpy as np
 
 from dataflow_utils import dataflow_utils
 
@@ -24,12 +25,15 @@ class TestDataflowUtils(unittest.TestCase):
 
     
     def test_change_data_types(self):
-        datum = {'count': '1', 'zip': 15213}
-        type_changes = [("count", 'int'), ("zip", 'str')]
-        expected = {'count': 1, 'zip': '15213'}
+        datum = {'count': '1', 'zip': 15213, 'temp': 72, 'day': 31.1,
+                 'bool1': 'TRUE', 'bool2': 1, 'NaN1': np.nan, 'NaN2': np.nan, 'NaN3': np.nan}
+        type_changes = [("count", 'int'), ("zip", 'str'), ("temp", 'float'),
+                        ("day", 'int'), ("bool1", 'bool'), ("bool2", 'bool'),
+                        ("NaN1", 'float'), ("NaN2", 'int'), ("NaN3", 'str')]
+        expected = {'count': 1, 'zip': '15213', 'temp': 72.0, 'day': 31,
+                    'bool1': True, 'bool2': True, 'NaN1': None, 'NaN2': None, 'NaN3': None}
         cdt = dataflow_utils.ChangeDataTypes(type_changes)
         self.assertEqual(next(cdt.process(datum)), expected)
-
 
     def test_swap_field_names(self):
         datum = {'exampleColumn': 'foo', 'anotherExample': 'bar'}
