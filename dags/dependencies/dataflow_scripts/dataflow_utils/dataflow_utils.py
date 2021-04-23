@@ -66,6 +66,7 @@ class ChangeDataTypes(beam.DoFn, ABC):
                 if type(datum[type_change[0]]) == int or type(datum[type_change[0]]) == float:
                     if math.isnan(datum[type_change[0]]):
                         datum[type_change[0]] = None
+                        continue
                 try:
                     if type_change[1] == "float":
                         datum[type_change[0]] = float(datum[type_change[0]])
