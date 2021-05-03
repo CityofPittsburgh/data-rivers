@@ -21,8 +21,8 @@ args = vars(parser.parse_args())
 bucket = '{}_police'.format(os.environ['GCS_PREFIX'])
 
 conn = jaydebeapi.connect("oracle.jdbc.OracleDriver",
-                          os.environ['APRS_DB'],
-                          [os.environ['APRS_UN'], os.environ['APRS_PW']],
+                          os.environ['RMSPROD_DB'],
+                          [os.environ['RMSPROD_UN'], os.environ['RMSPROD_PW']],
                           os.environ['DAGS_PATH'] + "/dependencies/gcs_loaders/ojdbc6.jar")
 
 #TODO: use args['prev_execution_date'] param to limit this query temporally
