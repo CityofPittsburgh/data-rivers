@@ -65,7 +65,7 @@ class GeocodeAddress(beam.DoFn):
     def process(self, datum):
 
         if datum['ADDRESS'] and (not datum['lat'] or not datum['long']):
-            coords = geocode_address(datum['ADDRESS'])
+            coords = geocode_address(datum, 'ADDRESS')
             datum['lat'] = coords['lat']
             datum['long'] = coords['long']
         else:
@@ -98,6 +98,7 @@ def run(argv=None):
 
         load = (
                 lines
+                ### Set up new dataflow_util to handle incorrectly formatted addresses
                 | beam.ParDo(ParseNestedFields())
                 | beam.ParDo(SwapFieldNames(field_name_swaps))
                 | beam.ParDo(GeocodeAddress())
