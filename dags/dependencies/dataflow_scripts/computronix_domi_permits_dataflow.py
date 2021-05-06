@@ -98,7 +98,6 @@ def run(argv=None):
 
         load = (
                 lines
-                ### Set up new dataflow_util to handle incorrectly formatted addresses
                 | beam.ParDo(ParseNestedFields())
                 | beam.ParDo(SwapFieldNames(field_name_swaps))
                 | beam.ParDo(GeocodeAddress())
