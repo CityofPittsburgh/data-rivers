@@ -34,20 +34,20 @@ class TestDataflowUtils(unittest.TestCase):
         datum_1 = {"ADDRESS": "5939 5TH AVE, Pittsburgh, PA 15232"}
         address_field_1 = "ADDRESS"
         expected_1 = {"ADDRESS": "5939 5TH AVE, Pittsburgh, PA 15232", 'lat': 40.4519734, 'long': -79.9246062}
-        tga_1 = dataflow_utils.geocode_address(datum_1, address_field_1)
-        tga_1['lat'] = round(tga_1['lat'], 7)
-        tga_1['long'] = round(tga_1['long'], 7)
-        self.assertEqual(tga_1, expected_1)
+        gca_1 = dataflow_utils.geocode_address(datum_1, address_field_1)
+        gca_1['lat'] = round(gca_1['lat'], 7)
+        gca_1['long'] = round(gca_1['long'], 7)
+        self.assertEqual(gca_1, expected_1)
 
         datum_2 = {"ADDRESS": "9999 500TH AVE, PA 15"}
         expected_2 = {"ADDRESS": "9999 500TH AVE, PA 15", 'lat': None, 'long': None}
-        tga_2 = dataflow_utils.geocode_address(datum_2, address_field_1)
-        self.assertEqual(tga_2, expected_2)
+        gca_2 = dataflow_utils.geocode_address(datum_2, address_field_1)
+        self.assertEqual(gca_2, expected_2)
 
         ### Add test case for incorrectly-formatted address
         datum_3 = {"ADDRESS": "PITTSBURGH 12"}
-        tga_3 = dataflow_utils.geocode_address(datum_3, address_field_1)
-        print(tga_3)
+        gca_3 = dataflow_utils.geocode_address(datum_3, address_field_1)
+        print(gca_3)
 
         try:
             dataflow_utils.geocode_address(datum_1[address_field_1])
