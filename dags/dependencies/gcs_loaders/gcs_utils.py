@@ -438,7 +438,7 @@ def get_wprdc_data(resource_id, select_fields=['*'], where_clauses=None, group_b
 
     return records
 
-def prms_setup():
+def rmsprod_setup():
     parser = argparse.ArgumentParser()
     parser.add_argument('-e', '--execution_date', dest='execution_date',
                        required=True, help='DAG execution date (YYYY-MM-DD)')
@@ -451,8 +451,8 @@ def prms_setup():
     bucket = '{}_police'.format(os.environ['GCS_PREFIX'])
 
     conn = jaydebeapi.connect("oracle.jdbc.OracleDriver",
-                              os.environ['APRS_DB'],
-                              [os.environ['APRS_UN'], os.environ['APRS_PW']],
+                              os.environ['RMSPROD_DB'],
+                              [os.environ['RMSPROD_UN'], os.environ['RMSPROD_PW']],
                               os.environ['DAGS_PATH'] + "/dependencies/gcs_loaders/ojdbc6.jar")
                               
     return args, execution_year, execution_month, execution_date, bucket, conn

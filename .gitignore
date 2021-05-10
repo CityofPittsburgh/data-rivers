@@ -112,6 +112,7 @@ airflow.cfg
 /logs
 /airflow/logs/*
 /airflow/airflow.db
+~/pgh-gov/data-rivers/airflow.db
 /dags/.idea
 /dags/logs
 /dags/logs/*
@@ -123,6 +124,5 @@ unittests.cfg
 data_rivers_key.json
 composer_kube_config
 *.log
-.vscode/
-
+.vscode/*
 list/
