@@ -2,9 +2,9 @@ import os
 import argparse
 
 
-from gcs_utils import sql_to_dict_list, json_to_gcs, prms_setup
+from gcs_utils import sql_to_dict_list, json_to_gcs, rmsprod_setup
 
-args, year, month, date, bucket, conn = prms_setup()
+args, year, month, date, bucket, conn = rmsprod_setup()
 
 demographics_query = """
 SELECT

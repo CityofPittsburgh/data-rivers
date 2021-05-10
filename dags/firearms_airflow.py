@@ -27,8 +27,8 @@ gcs_load = DockerOperator(
     api_version='auto',
     auto_remove=True,
     environment={
-        'APRS_UN': os.environ['APRS_UN'],
-        'APRS_PW': os.environ['APRS_PW'],
+        'RMSPROD_UN': os.environ['RMSPROD_UN'],
+        'RMSPROD_PW': os.environ['RMSPROD_PW'],
         'GCS_AUTH_FILE': '/root/firearm-seizures-report/data-rivers-service-acct.json',
         'GCS_PREFIX': os.environ['GCS_PREFIX'],
         'execution_date': '{{ ds }}',

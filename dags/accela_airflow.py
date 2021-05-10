@@ -89,6 +89,10 @@ accela_permits_beam_cleanup = BashOperator(
     dag=dag
 )
 
+# The wprdc_export step places the full permits table into the export bucket. The data in the bucket are overwritten
+# every DAG run. This is to ensure that if their extraction pipelines temporarily stop running, the entire dataset
+# will be present and they will not need to backfill.
+
 accela_wprdc_export = BigQueryToCloudStorageOperator(
   task_id='accela_wprdc_export',
   source_project_dataset_table='{}:accela.permits'.format(os.environ['GCLOUD_PROJECT']),
