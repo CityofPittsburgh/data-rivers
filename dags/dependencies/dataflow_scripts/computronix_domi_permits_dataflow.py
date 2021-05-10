@@ -65,7 +65,7 @@ class GeocodeAddress(beam.DoFn):
     def process(self, datum):
 
         if datum['ADDRESS'] and (not datum['lat'] or not datum['long']):
-            coords = geocode_address(datum['ADDRESS'])
+            coords = geocode_address(datum, 'ADDRESS')
             datum['lat'] = coords['lat']
             datum['long'] = coords['long']
         else:
