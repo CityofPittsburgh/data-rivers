@@ -26,12 +26,12 @@ class TestDataflowUtils(unittest.TestCase):
     
     def test_change_data_types(self):
         datum = {'count': '1', 'zip': 15213, 'temp': 72, 'day': 31.1,
-                 'bool1': 'TRUE', 'bool2': 1, 'NaN1': np.nan, 'NaN2': np.nan, 'NaN3': np.nan}
+                 'bool1': 'TRUE', 'bool2': 1, 'nan_float': np.nan, 'nan_int': np.nan, 'nan_str': np.nan}
         type_changes = [("count", 'int'), ("zip", 'str'), ("temp", 'float'),
                         ("day", 'int'), ("bool1", 'bool'), ("bool2", 'bool'),
-                        ("NaN1", 'float'), ("NaN2", 'int'), ("NaN3", 'str')]
+                        ("nan_float", 'float'), ("nan_int", 'int'), ("nan_str", 'str')]
         expected = {'count': 1, 'zip': '15213', 'temp': 72.0, 'day': 31,
-                    'bool1': True, 'bool2': True, 'NaN1': None, 'NaN2': None, 'NaN3': None}
+                    'bool1': True, 'bool2': True, 'nan_float': None, 'nan_int': None, 'nan_str': None}
         cdt = dataflow_utils.ChangeDataTypes(type_changes)
         self.assertEqual(next(cdt.process(datum)), expected)
 
@@ -48,11 +48,6 @@ class TestDataflowUtils(unittest.TestCase):
         expected_2 = {"ADDRESS": "9999 500TH AVE, PA 15", 'lat': None, 'long': None}
         gca_2 = dataflow_utils.geocode_address(datum_2, address_field_1)
         self.assertEqual(gca_2, expected_2)
-
-        ### Add test case for incorrectly-formatted address
-        datum_3 = {"ADDRESS": "PITTSBURGH 12"}
-        gca_3 = dataflow_utils.geocode_address(datum_3, address_field_1)
-        print(gca_3)
 
         try:
             dataflow_utils.geocode_address(datum_1[address_field_1])
