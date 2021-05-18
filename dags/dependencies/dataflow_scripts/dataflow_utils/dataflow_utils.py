@@ -16,6 +16,7 @@ from datetime import datetime
 from apache_beam.options.pipeline_options import PipelineOptions
 from avro import schema
 from google.cloud import bigquery, storage
+from dateutil import parser
 
 dt = datetime.now()
 bq_client = bigquery.Client()
@@ -28,6 +29,14 @@ DEFAULT_DATAFLOW_ARGS = [
     '--service_account_email=data-rivers@data-rivers.iam.gserviceaccount.com',
     '--save_main_session',
 ]
+
+TZ_CONVERTER = {'East': 'US/Eastern', 'Eastern': 'US/Eastern', 'Pittsburgh': 'US/Eastern',
+                'Pennsylvania': 'US/Eastern', 'New York': 'US/Eastern', 'America/New_York': 'US/Eastern',
+                'EST': 'US/Eastern', 'EDT': 'US/Eastern', 'US/Eastern': 'US/Eastern',
+                'Mountain': 'America/Denver', 'MST': 'America/Denver', 'America/Denver': 'America/Denver',
+                'Europe': 'Europe/London', 'EU': 'Europe/London', 'London': 'Europe/London', 'UK': 'Europe/London',
+                'England': 'Europe/London', 'Britain': 'Europe/London', 'Europe/London': 'Europe/London',
+                'Universal': 'UTC', 'Standard': 'UTC', 'GMT': 'UTC', 'UTC': 'UTC'}
 
 
 class JsonCoder(object):
@@ -76,12 +85,12 @@ class ChangeDataTypes(beam.DoFn, ABC):
                         datum[type_change[0]] = str(datum[type_change[0]])
                     elif type_change[1] == "bool":
                         datum[type_change[0]] = bool(datum[type_change[0]])
-                except ValueError:   
+                except ValueError:
                     datum[type_change[0]] = None
         except TypeError:
             pass
 
-        yield datum 
+        yield datum
 
 
 class SwapFieldNames(beam.DoFn, ABC):
@@ -132,6 +141,30 @@ class GeocodeAddress(beam.DoFn):
 
     def process(self, datum):
         geocode_address(datum, self.address_field)
+
+        yield datum
+
+
+class StandardizeTimes(beam.DoFn, ABC):
+    def __init__(self, time_changes):
+        """
+
+        """
+        self.time_changes = time_changes
+
+    def process(self, datum):
+        for time_change in self.time_changes:
+            parse_dt = parser.parse(datum[time_change[0]])
+            clean_dt = parse_dt.replace(tzinfo=None)
+            conv_tz = TZ_CONVERTER[time_change[1]]
+            loc_time = pytz.timezone(conv_tz).localize(clean_dt, is_dst=None)
+
+            utc_conv = loc_time.astimezone(tz=pytz.utc)
+            est_conv = loc_time.astimezone(tz=pytz.timezone('US/Eastern'))
+            unix_conv = utc_conv.timestamp()
+            datum.update({'{}_UTC'.format(time_change[0]): utc_conv,
+                          '{}_EST'.format(time_change[0]): est_conv,
+                          '{}_UNIX'.format(time_change[0]): unix_conv})
 
         yield datum
 
@@ -243,7 +276,8 @@ def unix_to_date_string(unix_date):
     :param unix_date: int
     :return: string
     """
-    return pytz.timezone('America/New_York').localize(datetime.fromtimestamp(unix_date)).strftime('%Y-%m-%d %H:%M:%S %Z')
+    return pytz.timezone('America/New_York').localize(datetime.fromtimestamp(unix_date)).strftime(
+        '%Y-%m-%d %H:%M:%S %Z')
 
 
 def geocode_address(datum, address_field):
