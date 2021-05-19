@@ -58,7 +58,7 @@ Note that when running DAGs locally that use a `DockerOperator` or `GKEPodOperat
 
 A lot of these images are pretty bulky, so if you're working on a machine with limited disk space, it may make sense to delete them (via the `docker rmi` command) once you've completed your work, then re-pull as needed.
 
-Consult `env.example` for the necessary environment variables (talk to James or Sihan to get these). We recommend installing [`autoenv`](https://github.com/inishchith/autoenv) via homebrew so that your system sources environment variables automatically when you enter the directory.
+Consult `env.example` for the necessary environment variables (talk to your teammates to get these). We recommend installing [`autoenv`](https://github.com/inishchith/autoenv) via homebrew so that your system sources environment variables automatically when you enter the directory.
 
 You'll see that we use the variables `GCLOUD_PROJECT` and `GCS_PREFIX` throughout the scripts. In your local environment, these should be set to `data-rivers-testing` and `pghpa_test`, respectively (this is extremely important). In the production environment (hosted via Cloud Composer), the variables are set to `data-rivers` and `pghpa`. This gives us a testing sandbox for local development while walling off the production environment from code that hasn't yet been merged and deployed from `master`.
 
