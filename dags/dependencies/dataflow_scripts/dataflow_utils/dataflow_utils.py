@@ -30,13 +30,10 @@ DEFAULT_DATAFLOW_ARGS = [
     '--save_main_session',
 ]
 
-TZ_CONVERTER = {'East': 'US/Eastern', 'Eastern': 'US/Eastern', 'Pittsburgh': 'US/Eastern',
-                'Pennsylvania': 'US/Eastern', 'New York': 'US/Eastern', 'America/New_York': 'US/Eastern',
-                'EST': 'US/Eastern', 'EDT': 'US/Eastern', 'US/Eastern': 'US/Eastern',
-                'Mountain': 'America/Denver', 'MST': 'America/Denver', 'America/Denver': 'America/Denver',
-                'Europe': 'Europe/London', 'EU': 'Europe/London', 'London': 'Europe/London', 'UK': 'Europe/London',
-                'England': 'Europe/London', 'Britain': 'Europe/London', 'Europe/London': 'Europe/London',
-                'Universal': 'UTC', 'Standard': 'UTC', 'GMT': 'UTC', 'UTC': 'UTC'}
+TZ_CONVERTER =      dict.fromkeys(['East', 'Eastern', 'Pittsburgh', 'Pennsylvania', 'New York', 'America/New_York','US/Eastern', 'EDT', 'EST'], 'US/Eastern')
+TZ_CONVERTER.update(dict.fromkeys(['Mountain', 'MST', 'America/Denver'], 'America/Denver'))
+TZ_CONVERTER.update(dict.fromkeys(['Europe', 'EU', 'London', 'UK', 'England', 'Britain', 'Europe/London'], 'Europe/London'))
+TZ_CONVERTER.update(dict.fromkeys(['Universal', 'Standard', 'GMT', 'UTC'], 'UTC'))
 
 
 class JsonCoder(object):
@@ -162,9 +159,9 @@ class StandardizeTimes(beam.DoFn, ABC):
             utc_conv = loc_time.astimezone(tz=pytz.utc)
             est_conv = loc_time.astimezone(tz=pytz.timezone('US/Eastern'))
             unix_conv = utc_conv.timestamp()
-            datum.update({'{}_UTC'.format(time_change[0]): utc_conv,
-                          '{}_EST'.format(time_change[0]): est_conv,
-                          '{}_UNIX'.format(time_change[0]): unix_conv})
+            datum.update({'{}_UTC'.format(time_change[0]): str(utc_conv),
+                          '{}_EST'.format(time_change[0]): str(est_conv),
+                          '{}_UNIX'.format(time_change[0]): unix_conv })
 
         yield datum
 
