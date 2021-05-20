@@ -276,8 +276,10 @@ def unix_to_date_string(unix_date):
     :param unix_date: int
     :return: string
     """
-    return pytz.timezone('America/New_York').localize(datetime.fromtimestamp(unix_date)).strftime(
-        '%Y-%m-%d %H:%M:%S %Z')
+    dt_object = datetime.fromtimestamp(unix_date)
+    utc_conv = dt_object.astimezone(tz=pytz.utc)
+    est_conv = dt_object.astimezone(tz=pytz.timezone('US/Eastern'))
+    return str(utc_conv), str(est_conv)
 
 
 def geocode_address(datum, address_field):
