@@ -39,23 +39,13 @@ class TestDataflowUtils(unittest.TestCase):
         self.assertEqual(next(cdt.process(datum)), expected)
 
     def test_geocode_address(self):
-        datum_1 = {"ADDRESS": "5939 5TH AVE, Pittsburgh, PA 15232"}
-        address_field_1 = "ADDRESS"
-        expected_1 = {"ADDRESS": "5939 5TH AVE, Pittsburgh, PA 15232", 'lat': 40.4519734, 'long': -79.9246062}
-        gca_1 = dataflow_utils.geocode_address(datum_1, address_field_1)
-        gca_1['lat'] = round(gca_1['lat'], 7)
-        gca_1['long'] = round(gca_1['long'], 7)
-        self.assertEqual(gca_1, expected_1)
-
-        datum_2 = {"ADDRESS": "9999 500TH AVE, PA 15"}
-        expected_2 = {"ADDRESS": "9999 500TH AVE, PA 15", 'lat': None, 'long': None}
-        gca_2 = dataflow_utils.geocode_address(datum_2, address_field_1)
-        self.assertEqual(gca_2, expected_2)
-
-        try:
-            dataflow_utils.geocode_address(datum_1[address_field_1])
-        except TypeError:
-            pass
+        datum = [{'ADDRESS': '5939 5TH AVE, Pittsburgh, PA 15232'}, {'ADDRESS': '9999 500TH AVE, PA'}, {'ADDRESS': '3214 jo hammer scuaire, pittsburgh 15'}]
+        address_field = 'ADDRESS'
+        expected = [{'ADDRESS': '5939 Fifth Ave, Pittsburgh, PA 15232, USA', 'lat': 40.4519661, 'long': -79.924539},
+                    {'ADDRESS': '9999 500TH AVE, PA', 'lat': None, 'long': None},
+                    {'ADDRESS': '3214 Joe Hammer Square, Pittsburgh, PA 15213, USA', 'lat': 40.4349491, 'long': -79.9615974}]
+        gca = dataflow_utils.GeocodeAddress(address_field)
+        self.assertEqual(next(gca.process(datum)), expected)
 
     def test_swap_field_names(self):
         datum = {'exampleColumn': 'foo', 'anotherExample': 'bar'}
