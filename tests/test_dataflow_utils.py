@@ -31,6 +31,21 @@ class TestDataflowUtils(unittest.TestCase):
         cdt = dataflow_utils.ChangeDataTypes(type_changes)
         self.assertEqual(next(cdt.process(datum)), expected)
 
+    def test_standardize_dep_names(self):
+        datum = ['firdptmt', 'Unassigned', 'innovation & performance',
+                 'parks & rec', 'policedptmt', 'CPRB', 'TBD', 'public safty']
+        regex = [(r'(?i)^inno.*$', 'Innovation'),
+                 (r'(?i)^TBD*$', 'Undetermined Dept/BRM'),
+                 (r'(?i)^public saf.*$', 'Public Safety'),
+                 (r'(?i)^Unassigned$', 'Undetermined Dept/BRM'),
+                 (r'(?i)^park.*$', 'Parks'),
+                 (r'(?i)^fir.*$', 'Fire'),
+                 (r'(?i)^police^.*(?<!board\.)$', 'Police'),
+                 (r'(?i)^CPRB.*$', 'Police Review Board')]
+        expected = ['Fire', 'Undetermined Dept/BRM', 'Innovation', 'Parks', 'Police',
+                    'Police Review Board', 'Undetermined Dept/BRM', 'Public Safety']
+        sdn = dataflow_utils.StandardizeDepNames(regex)
+        self.assertEqual(next(sdn.process(datum)), expected)
 
     def test_swap_field_names(self):
         datum = {'exampleColumn': 'foo', 'anotherExample': 'bar'}
