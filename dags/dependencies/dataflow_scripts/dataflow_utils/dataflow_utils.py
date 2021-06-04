@@ -131,19 +131,18 @@ class GeocodeAddress(beam.DoFn):
 class StandardizeDepNames(beam.DoFn, ABC):
     def __init__(self, regex_replacements):
         """
-        :param department_field: name of column that contains the name of the department a device belongs to
-        :param regex_replacements: list of department name string segments with the corresponding values they should be converted to
+        :param regex_replacements: list of tuples where each pair includes a regular expression to find the department
+        and its corresponding string value
+        :datum: dataframe where we standardize the various department names stored under the column named 'Department'
         """
         self.regex_replacements = regex_replacements
 
     def process(self, datum):
-        datum_result = [re.sub(regex[0], regex[1], val) for regex in self.regex_replacements for val in datum]
-        # for val in datum:
-        #     for regex in self.regex_replacements:
-        #         val = val.replace(regex[0], regex[1], True)
-        #datum['department'] = datum['department'].fillna('Undetermined Dept/BRM')
+        for regex in self.regex_replacements:
+            datum['Department'] = datum['Department'].replace(to_replace=regex[0], value=regex[1], regex=True)
+        datum['Department'] = datum['Department'].fillna('Undetermined Dept/BRM')
 
-        yield datum_result
+        yield datum
 
 def generate_args(job_name, bucket, argv, schema_name):
     """
