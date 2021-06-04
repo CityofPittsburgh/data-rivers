@@ -40,13 +40,14 @@ class TestDataflowUtils(unittest.TestCase):
                  (r'(?i)^Unassigned$', 'Undetermined Dept/BRM'),
                  (r'(?i)^park.*$', 'Parks'),
                  (r'(?i)^fir.*$', 'Fire'),
-                 (r'(?i)^police^.*$', 'Police'),
+                 (r'(?i)^police.*(?<!board\.)$', 'Police'),
                  (r'(?i)^CPRB.*$', 'Police Review Board')]
         expected = pd.DataFrame(['Fire', 'Undetermined Dept/BRM', 'Innovation', 'Parks', 'Police',
                                  'Police Review Board', 'Undetermined Dept/BRM', 'Public Safety'],
                                 columns=['Department'])
         sdn = dataflow_utils.StandardizeDepNames(regex)
-        self.assertTrue(expected.equals(next(sdn.process(datum))))
+        output = next(sdn.process(datum))
+        self.assertTrue(expected.equals(output))
 
     def test_swap_field_names(self):
         datum = {'exampleColumn': 'foo', 'anotherExample': 'bar'}
