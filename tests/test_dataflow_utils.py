@@ -3,6 +3,7 @@ from __future__ import division
 # patches unittest.TestCase to be python3 compatible
 import future.tests.base  # pylint: disable=unused-import
 import unittest
+import pandas as pd
 
 from dataflow_utils import dataflow_utils
 
@@ -16,14 +17,12 @@ class TestDataflowUtils(unittest.TestCase):
         ccsc = dataflow_utils.ColumnsCamelToSnakeCase()
         self.assertEqual(next(ccsc.process(datum)), expected)
 
-
     def test_columns_to_lower_case(self):
         datum = {'Example_Column': 'foo', 'anotherExample': 'bar', 'With a Space': 'foo'}
         expected = {'example_column': 'foo', 'anotherexample': 'bar', 'with a space': 'foo'}
         clc = dataflow_utils.ColumnsToLowerCase()
         self.assertEqual(next(clc.process(datum)), expected)
 
-    
     def test_change_data_types(self):
         datum = {'count': '1', 'zip': 15213}
         type_changes = [("count", 'int'), ("zip", 'str')]
@@ -32,20 +31,22 @@ class TestDataflowUtils(unittest.TestCase):
         self.assertEqual(next(cdt.process(datum)), expected)
 
     def test_standardize_dep_names(self):
-        datum = ['firdptmt', 'Unassigned', 'innovation & performance',
-                 'parks & rec', 'policedptmt', 'CPRB', 'TBD', 'public safty']
+        datum = pd.DataFrame(['firdptmt', 'Unassigned', 'innovation & performance',
+                              'parks & rec', 'policedpmt', 'CPRB', 'TBD', 'public safty'],
+                             columns=['Department'])
         regex = [(r'(?i)^inno.*$', 'Innovation'),
                  (r'(?i)^TBD*$', 'Undetermined Dept/BRM'),
                  (r'(?i)^public saf.*$', 'Public Safety'),
                  (r'(?i)^Unassigned$', 'Undetermined Dept/BRM'),
                  (r'(?i)^park.*$', 'Parks'),
                  (r'(?i)^fir.*$', 'Fire'),
-                 (r'(?i)^police^.*(?<!board\.)$', 'Police'),
+                 (r'(?i)^police^.*$', 'Police'),
                  (r'(?i)^CPRB.*$', 'Police Review Board')]
-        expected = ['Fire', 'Undetermined Dept/BRM', 'Innovation', 'Parks', 'Police',
-                    'Police Review Board', 'Undetermined Dept/BRM', 'Public Safety']
+        expected = pd.DataFrame(['Fire', 'Undetermined Dept/BRM', 'Innovation', 'Parks', 'Police',
+                                 'Police Review Board', 'Undetermined Dept/BRM', 'Public Safety'],
+                                columns=['Department'])
         sdn = dataflow_utils.StandardizeDepNames(regex)
-        self.assertEqual(next(sdn.process(datum)), expected)
+        self.assertTrue(expected.equals(next(sdn.process(datum))))
 
     def test_swap_field_names(self):
         datum = {'exampleColumn': 'foo', 'anotherExample': 'bar'}
