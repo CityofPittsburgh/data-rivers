@@ -87,13 +87,13 @@ class TestDataflowUtils(unittest.TestCase):
 
     def test_standardize_times(self):
         datum = {'openedDate': 'Fri July 19 03:21:55 UTC 2019', 'closedDate': '2021-05-01 01:44:00-04:00'}
-        params = [('openedDate', 'Mountain'), ('closedDate', 'UTC')]
+        params = [('openedDate', 'America/Denver'), ('closedDate', 'UTC')]
         expected = datum.copy()
-        expected.update(dict(openedDate_UTC=parser.parse('2019-07-19 09:21:55+00:00'),
-                             openedDate_EST=parser.parse('2019-07-19 05:21:55-04:00'),
+        expected.update(dict(openedDate_UTC='2019-07-19 09:21:55+00:00',
+                             openedDate_EST='2019-07-19 05:21:55-04:00',
                              openedDate_UNIX=1563528115.0,
-                             closedDate_UTC=parser.parse('2021-05-01 01:44:00+00:00'),
-                             closedDate_EST=parser.parse('2021-04-30 21:44:00-04:00'),
+                             closedDate_UTC='2021-05-01 01:44:00+00:00',
+                             closedDate_EST='2021-04-30 21:44:00-04:00',
                              closedDate_UNIX=1619833440.0))
         tst = dataflow_utils.StandardizeTimes(params)
         self.assertEqual(next(tst.process(datum)), expected)
@@ -109,8 +109,7 @@ class TestDataflowUtils(unittest.TestCase):
 
         for i in range(0, 8):
             datetime_ -= datetime.timedelta(minutes=5000)
-            conv_tz = dataflow_utils.TZ_CONVERTER[time_zones_[i]]
-            loc_time = pytz.timezone(conv_tz).localize(datetime_, is_dst=None)
+            loc_time = pytz.timezone(time_zones_[i]).localize(datetime_, is_dst=None)
             formatted_loc_time = loc_time.strftime(dt_formats[i])
             datum = {'openedDate': formatted_loc_time}
             param = [('openedDate', time_zones_[i])]

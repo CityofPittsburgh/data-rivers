@@ -30,12 +30,6 @@ DEFAULT_DATAFLOW_ARGS = [
     '--save_main_session',
 ]
 
-TZ_CONVERTER =      dict.fromkeys(['East', 'Eastern', 'Pittsburgh', 'Pennsylvania', 'New York', 'America/New_York','US/Eastern', 'EDT', 'EST'], 'US/Eastern')
-TZ_CONVERTER.update(dict.fromkeys(['Mountain', 'MST', 'America/Denver'], 'America/Denver'))
-TZ_CONVERTER.update(dict.fromkeys(['Europe', 'EU', 'London', 'UK', 'England', 'Britain', 'Europe/London'], 'Europe/London'))
-TZ_CONVERTER.update(dict.fromkeys(['Universal', 'Standard', 'GMT', 'UTC'], 'UTC'))
-
-
 class JsonCoder(object):
     """A JSON coder interpreting each line as a JSON string."""
 
@@ -145,7 +139,12 @@ class GeocodeAddress(beam.DoFn):
 class StandardizeTimes(beam.DoFn, ABC):
     def __init__(self, time_changes):
         """
-
+        :param time_changes: list of tuples; each tuple consists of an existing field name containing date strings +
+        the name of the timezone the given date string belongs to.
+        The function takes in date string values and standardizes them to datetimes in UTC, EST, and Unix.
+        formats. It is powerful enough to handle datetimes in a variety of timezones and string formats.
+        The user must provide a timezone name contained within pytz.all_timezones.
+        A list of accepted timezones can be found on https://en.wikipedia.org/wiki/List_of_tz_database_time_zones#List
         """
         self.time_changes = time_changes
 
@@ -153,15 +152,18 @@ class StandardizeTimes(beam.DoFn, ABC):
         for time_change in self.time_changes:
             parse_dt = parser.parse(datum[time_change[0]])
             clean_dt = parse_dt.replace(tzinfo=None)
-            conv_tz = TZ_CONVERTER[time_change[1]]
-            loc_time = pytz.timezone(conv_tz).localize(clean_dt, is_dst=None)
-
-            utc_conv = loc_time.astimezone(tz=pytz.utc)
-            est_conv = loc_time.astimezone(tz=pytz.timezone('US/Eastern'))
-            unix_conv = utc_conv.timestamp()
-            datum.update({'{}_UTC'.format(time_change[0]): str(utc_conv),
-                          '{}_EST'.format(time_change[0]): str(est_conv),
-                          '{}_UNIX'.format(time_change[0]): unix_conv })
+            try:
+                pytz.all_timezones.index(time_change[1])
+            except ValueError:
+                pass
+            else:
+                loc_time = pytz.timezone(time_change[1]).localize(clean_dt, is_dst=None)
+                utc_conv = loc_time.astimezone(tz=pytz.utc)
+                est_conv = loc_time.astimezone(tz=pytz.timezone('US/Eastern'))
+                unix_conv = utc_conv.timestamp()
+                datum.update({'{}_UTC'.format(time_change[0]): str(utc_conv),
+                              '{}_EST'.format(time_change[0]): str(est_conv),
+                              '{}_UNIX'.format(time_change[0]): unix_conv})
 
         yield datum
 
