@@ -159,10 +159,10 @@ class StandardizeTimes(beam.DoFn, ABC):
             else:
                 loc_time = pytz.timezone(time_change[1]).localize(clean_dt, is_dst=None)
                 utc_conv = loc_time.astimezone(tz=pytz.utc)
-                est_conv = loc_time.astimezone(tz=pytz.timezone('US/Eastern'))
+                east_conv = loc_time.astimezone(tz=pytz.timezone('US/Eastern'))
                 unix_conv = utc_conv.timestamp()
                 datum.update({'{}_UTC'.format(time_change[0]): str(utc_conv),
-                              '{}_EST'.format(time_change[0]): str(est_conv),
+                              '{}_EAST'.format(time_change[0]): str(east_conv),
                               '{}_UNIX'.format(time_change[0]): unix_conv})
 
         yield datum

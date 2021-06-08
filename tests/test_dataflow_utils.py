@@ -90,61 +90,61 @@ class TestDataflowUtils(unittest.TestCase):
         params = [('openedDate', 'America/Denver'), ('closedDate', 'UTC')]
         expected = datum.copy()
         expected.update(dict(openedDate_UTC='2019-07-19 09:21:55+00:00',
-                             openedDate_EST='2019-07-19 05:21:55-04:00',
+                             openedDate_EAST='2019-07-19 05:21:55-04:00',
                              openedDate_UNIX=1563528115.0,
                              closedDate_UTC='2021-05-01 01:44:00+00:00',
-                             closedDate_EST='2021-04-30 21:44:00-04:00',
+                             closedDate_EAST='2021-04-30 21:44:00-04:00',
                              closedDate_UNIX=1619833440.0))
         tst = dataflow_utils.StandardizeTimes(params)
         self.assertEqual(next(tst.process(datum)), expected)
 
     def test_standardize_times_with_api(self):
         # replacing the second and microsecond ensures that the unix timestamp is not a floating point number
-        datetime_         = datetime.datetime.now().replace(second=0, microsecond=0)
+        datetime_ = datetime.datetime.now().replace(second=0, microsecond=0)
 
         # Pre-defining a list of different acceptable time zones and date time formats to ensure our function is capable
         # of handling any input format
-        time_zones_       = ['America/Denver', 'America/New_York', 'UTC', 'Europe/London', 'America/New_York', 'GMT',
-                             'America/Denver', 'Europe/London']
-        dt_formats        = ["%Y-%m-%dT%H:%M:%S", "%Y/%m/%d %H:%M:%S %z", "%Y.%m.%d %H:%M:%S", "%a %B %d %H:%M:%S %Z %Y"
-                             , "%a %B %d %H:%M:%S %Y", "%c", "%d %b, %Y %H:%M:%S", "%m/%d/%Y, %H:%M:%S"]
+        time_zones_ = ['America/Denver', 'America/New_York', 'UTC', 'Europe/London', 'America/New_York', 'GMT',
+                       'America/Denver', 'Europe/London']
+        dt_formats = ["%Y-%m-%dT%H:%M:%S", "%Y/%m/%d %H:%M:%S %z", "%Y.%m.%d %H:%M:%S", "%a %B %d %H:%M:%S %Z %Y",
+                      "%a %B %d %H:%M:%S %Y", "%c", "%d %b, %Y %H:%M:%S", "%m/%d/%Y, %H:%M:%S"]
 
         # API Endpoints
-        date_to_unix_     = "https://showcase.api.linx.twenty57.net/UnixTime/tounix"
+        date_to_unix_ = "https://showcase.api.linx.twenty57.net/UnixTime/tounix"
         unix_to_timezone_ = "https://showcase.api.linx.twenty57.net/UnixTime/fromunixtimestamp"
 
         for i in range(0, 8):
             # We subtract a timedelta of 5000 minutes to ensure we have a different combination of hour/minute/day and
             # date for every iteration
-            datetime_         -= datetime.timedelta(minutes=5000)
+            datetime_ -= datetime.timedelta(minutes=5000)
 
             # To find the UTC-EST offset we first localize the current time to eastern zone and then calculate the
             # offset. This is done only to ensures we take into account the daylight savings time
-            _loc_time          = pytz.timezone("America/New_York").localize(datetime_, is_dst=None)
-            est_utc_offset     = str(int(_loc_time.utcoffset().total_seconds() / 60 / 60))
+            _loc_time = pytz.timezone("America/New_York").localize(datetime_, is_dst=None)
+            east_utc_offset = str(int(_loc_time.utcoffset().total_seconds() / 60 / 60))
 
             # Finally we localize the datetime object to the test timezones which are defined above
-            loc_time           = pytz.timezone(time_zones_[i]).localize(datetime_, is_dst=None)
+            loc_time = pytz.timezone(time_zones_[i]).localize(datetime_, is_dst=None)
             formatted_loc_time = loc_time.strftime(dt_formats[i])
-            datum              = {'openedDate': formatted_loc_time}
-            param              = [('openedDate', time_zones_[i])]
+            datum = {'openedDate': formatted_loc_time}
+            param = [('openedDate', time_zones_[i])]
 
             # API calls to get the unix timestamp, eastern time and UTC time respectively for the given datetime object
             api_request_unix = requests.get(url=date_to_unix_,
                                             params={'date': loc_time})
-            api_request_est  = requests.post(url=unix_to_timezone_,
-                                             json={"UnixTimeStamp": api_request_unix.json(), "Timezone":est_utc_offset})
-            api_request_utc  = requests.post(url=unix_to_timezone_,
-                                             json={"UnixTimeStamp": api_request_unix.json(), "Timezone": ""})
+            api_request_east = requests.post(url=unix_to_timezone_,
+                                             json={"UnixTimeStamp": api_request_unix.json(), "Timezone": east_utc_offset})
+            api_request_utc = requests.post(url=unix_to_timezone_,
+                                            json={"UnixTimeStamp": api_request_unix.json(), "Timezone": ""})
 
             # Formatting the output the way it would be returned from the dataflow_utils function
             utc_time = datetime.datetime.strptime(str(api_request_utc.json()['Datetime']), "%Y-%m-%dT%H:%M:%S%z")
-            est_time = datetime.datetime.strptime(str(api_request_est.json()['Datetime']), "%Y-%m-%dT%H:%M:%S%z")
+            east_time = datetime.datetime.strptime(str(api_request_east.json()['Datetime']), "%Y-%m-%dT%H:%M:%S%z")
 
             expected = dict(openedDate=str(formatted_loc_time),
                             openedDate_UNIX=float(api_request_unix.json()),
                             openedDate_UTC=str(utc_time),
-                            openedDate_EST=str(est_time))
+                            openedDate_EAST=str(east_time))
 
             # Test our expected output against the values returned from dataflow utils standardize times
             tst = dataflow_utils.StandardizeTimes(param)
