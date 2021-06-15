@@ -141,10 +141,11 @@ class StandardizeTimes(beam.DoFn, ABC):
         """
         :param time_changes: list of tuples; each tuple consists of an existing field name containing date strings +
         the name of the timezone the given date string belongs to.
-        The function takes in date string values and standardizes them to datetimes in UTC, EST, and Unix.
+        The function takes in date string values and standardizes them to datetimes in UTC, Eastern, and Unix.
         formats. It is powerful enough to handle datetimes in a variety of timezones and string formats.
         The user must provide a timezone name contained within pytz.all_timezones.
-        A list of accepted timezones can be found on https://en.wikipedia.org/wiki/List_of_tz_database_time_zones#List
+        As of June 2021, a list of accepted timezones can be found on https://en.wikipedia.org/wiki/List_of_tz_database_time_zones#List
+        Please note that the timezone names are subject to change and the code would have to be updated accordingly. (JF)
         """
         self.time_changes = time_changes
 
@@ -159,7 +160,7 @@ class StandardizeTimes(beam.DoFn, ABC):
             else:
                 loc_time = pytz.timezone(time_change[1]).localize(clean_dt, is_dst=None)
                 utc_conv = loc_time.astimezone(tz=pytz.utc)
-                east_conv = loc_time.astimezone(tz=pytz.timezone('US/Eastern'))
+                east_conv = loc_time.astimezone(tz=pytz.timezone('America/New_York'))
                 unix_conv = utc_conv.timestamp()
                 datum.update({'{}_UTC'.format(time_change[0]): str(utc_conv),
                               '{}_EAST'.format(time_change[0]): str(east_conv),

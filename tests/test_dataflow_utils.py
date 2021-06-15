@@ -86,6 +86,17 @@ class TestDataflowUtils(unittest.TestCase):
         self.assertEqual(next(ff.process(datum)), expected)
 
     def test_standardize_times(self):
+        """
+        Author : Jason Ficorilli
+        Date   : June 2021
+        This test function confirms that the StandardizeTimes utility function will successfully strip the
+        timezone from a timestring input and instead localize the times using the timezone name
+        provided by the developer.
+        This test case was developed with the purpose of verifying that StandardizeTimes would still work if
+        provided with conflicting information. The two timestrings provided in the datum dictionary include
+        timezone definitions (UTC, -04:00) that contradict the timezone names that are passed into the
+        StandardizeTimes utility function (America/Denver, UTC).
+        """
         datum = {'openedDate': 'Fri July 19 03:21:55 UTC 2019', 'closedDate': '2021-05-01 01:44:00-04:00'}
         params = [('openedDate', 'America/Denver'), ('closedDate', 'UTC')]
         expected = datum.copy()
@@ -99,6 +110,14 @@ class TestDataflowUtils(unittest.TestCase):
         self.assertEqual(next(tst.process(datum)), expected)
 
     def test_standardize_times_with_api(self):
+        """
+        Author : Pranav Banthia
+        Date   : June 2021
+        For this test function, we use the current date which is datetime.now() as the starting point and then subtract
+        a random timedelta from it to have multiple combinations of date/hour/minute values.
+        Every timestamp is formatted in a different timezone/datetime format to ensure robustness of our dataflow util
+        function. Since we have randomly generated timestamps, we use a third part API to create our expected test string.
+        """
         # replacing the second and microsecond ensures that the unix timestamp is not a floating point number
         datetime_ = datetime.datetime.now().replace(second=0, microsecond=0)
 
@@ -116,7 +135,7 @@ class TestDataflowUtils(unittest.TestCase):
         for i in range(0, 8):
             # We subtract a timedelta of 5000 minutes to ensure we have a different combination of hour/minute/day and
             # date for every iteration
-            datetime_ -= datetime.timedelta(minutes=5000)
+            datetime_ -= datetime.timedelta(minutes=np.random.randint(low = 1000, high = 50000))
 
             # To find the UTC-EST offset we first localize the current time to eastern zone and then calculate the
             # offset. This is done only to ensures we take into account the daylight savings time
