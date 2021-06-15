@@ -16,6 +16,7 @@ from datetime import datetime
 from apache_beam.options.pipeline_options import PipelineOptions
 from avro import schema
 from google.cloud import bigquery, storage
+from dateutil import parser
 
 dt = datetime.now()
 bq_client = bigquery.Client()
@@ -28,7 +29,6 @@ DEFAULT_DATAFLOW_ARGS = [
     '--service_account_email=data-rivers@data-rivers.iam.gserviceaccount.com',
     '--save_main_session',
 ]
-
 
 class JsonCoder(object):
     """A JSON coder interpreting each line as a JSON string."""
@@ -76,12 +76,12 @@ class ChangeDataTypes(beam.DoFn, ABC):
                         datum[type_change[0]] = str(datum[type_change[0]])
                     elif type_change[1] == "bool":
                         datum[type_change[0]] = bool(datum[type_change[0]])
-                except ValueError:   
+                except ValueError:
                     datum[type_change[0]] = None
         except TypeError:
             pass
 
-        yield datum 
+        yield datum
 
 
 class SwapFieldNames(beam.DoFn, ABC):
@@ -132,6 +132,39 @@ class GeocodeAddress(beam.DoFn):
 
     def process(self, datum):
         geocode_address(datum, self.address_field)
+
+        yield datum
+
+
+class StandardizeTimes(beam.DoFn, ABC):
+    def __init__(self, time_changes):
+        """
+        :param time_changes: list of tuples; each tuple consists of an existing field name containing date strings +
+        the name of the timezone the given date string belongs to.
+        The function takes in date string values and standardizes them to datetimes in UTC, Eastern, and Unix.
+        formats. It is powerful enough to handle datetimes in a variety of timezones and string formats.
+        The user must provide a timezone name contained within pytz.all_timezones.
+        As of June 2021, a list of accepted timezones can be found on https://en.wikipedia.org/wiki/List_of_tz_database_time_zones#List
+        Please note that the timezone names are subject to change and the code would have to be updated accordingly. (JF)
+        """
+        self.time_changes = time_changes
+
+    def process(self, datum):
+        for time_change in self.time_changes:
+            parse_dt = parser.parse(datum[time_change[0]])
+            clean_dt = parse_dt.replace(tzinfo=None)
+            try:
+                pytz.all_timezones.index(time_change[1])
+            except ValueError:
+                pass
+            else:
+                loc_time = pytz.timezone(time_change[1]).localize(clean_dt, is_dst=None)
+                utc_conv = loc_time.astimezone(tz=pytz.utc)
+                east_conv = loc_time.astimezone(tz=pytz.timezone('America/New_York'))
+                unix_conv = utc_conv.timestamp()
+                datum.update({'{}_UTC'.format(time_change[0]): str(utc_conv),
+                              '{}_EAST'.format(time_change[0]): str(east_conv),
+                              '{}_UNIX'.format(time_change[0]): unix_conv})
 
         yield datum
 
@@ -243,7 +276,10 @@ def unix_to_date_string(unix_date):
     :param unix_date: int
     :return: string
     """
-    return pytz.timezone('America/New_York').localize(datetime.fromtimestamp(unix_date)).strftime('%Y-%m-%d %H:%M:%S %Z')
+    dt_object = datetime.fromtimestamp(unix_date)
+    utc_conv = dt_object.astimezone(tz=pytz.utc)
+    est_conv = dt_object.astimezone(tz=pytz.timezone('US/Eastern'))
+    return str(utc_conv), str(est_conv)
 
 
 def geocode_address(datum, address_field):
