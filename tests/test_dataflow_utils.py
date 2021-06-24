@@ -77,6 +77,28 @@ class TestDataflowUtils(unittest.TestCase):
         ff = dataflow_utils.FilterFields(relevant_fields, exclude_relevant_fields=False)
         self.assertEqual(next(ff.process(datum)), expected)
 
+    def test_anonymize_vip_names(self):
+        wireless_number = ["412-506-2224", "412-123-7631", "412-636-8839"]
+        assigned = ["MAYOR BILL PEDUTO", "KARINA RICKS", "MCNULTY TIM"]
+        assigned_lastname = ["WILSON", "RICKS", "JONES"]
+
+        datum = pd.DataFrame({"wirelessnumber": wireless_number,
+                              "assignedto": assigned,
+                              "assignedto_lastname": assigned_lastname})
+
+        masked_wireless_number = ["xxx-xxx-xx24", "xxx-xxx-xx31", "xxx-xxx-xx39"]
+        masked_assigned = ['By Request'] * len(assigned)
+        masked_assigned_lastname = ['By Request'] * len(assigned_lastname)
+
+        expected = pd.DataFrame({"wirelessnumber": masked_wireless_number,
+                                 "assignedto": masked_assigned,
+                                 "assignedto_lastname": masked_assigned_lastname})
+
+        vip = dataflow_utils.AnonymizeVIPNames()
+        output = next(vip.process(datum))
+        output = output.drop(columns=["VIP"])
+        self.assertTrue(expected.equals(output))
+
 
 if __name__ == '__main__':
     unittest.main()

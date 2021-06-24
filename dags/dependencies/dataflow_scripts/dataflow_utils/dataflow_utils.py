@@ -6,7 +6,7 @@ import re
 import json
 import os
 import pytz
-
+import numpy as np
 import apache_beam as beam
 import requests
 
@@ -143,6 +143,26 @@ class StandardizeDepNames(beam.DoFn, ABC):
         datum['Department'] = datum['Department'].fillna('Undetermined Dept/BRM')
 
         yield datum
+
+
+class AnonymizeVIPNames(beam.DoFn, ABC):
+    def __init__(self):
+        bucket = storage_client.get_bucket("dashboards_reports")
+        blob = bucket.get_blob("wireless_cost_usage_dashboard/vip_list.csv")
+        vip_list =   blob.download_as_string()
+        self.vip_list = list(str(vip_list, "utf-8").split("\r\n"))
+
+    def process(self, datum):
+        # Label VIP Records
+        datum["VIP"] = datum.apply(lambda x: int(x['assignedto'] in self.vip_list), axis=1)
+
+        # Mask VIP Names
+        datum['assignedto'] = np.where((datum["VIP"] == 1), 'By Request', datum['assignedto'])
+        datum['assignedto_lastname'] = np.where((datum["VIP"] == 1), 'By Request', datum['assignedto_lastname'])
+        datum['wirelessnumber'] = np.where((datum["VIP"] == 1), "xxx-xxx-xx" + datum['wirelessnumber'].str[-2:], datum['wirelessnumber'])
+
+        yield datum
+
 
 def generate_args(job_name, bucket, argv, schema_name):
     """
