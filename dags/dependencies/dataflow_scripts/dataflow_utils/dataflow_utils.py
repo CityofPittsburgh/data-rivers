@@ -5,6 +5,8 @@ import logging
 import re
 import json
 import os
+
+import pandas as pd
 import pytz
 import numpy as np
 import apache_beam as beam
@@ -146,11 +148,11 @@ class StandardizeDepNames(beam.DoFn, ABC):
 
 
 class AnonymizeVIPNames(beam.DoFn, ABC):
-    def __init__(self):
+    def __init__(self, provider):
         bucket = storage_client.get_bucket("dashboards_reports")
-        blob = bucket.get_blob("wireless_cost_usage_dashboard/vip_list.csv")
-        vip_list =   blob.download_as_string()
-        self.vip_list = list(str(vip_list, "utf-8").split("\r\n"))
+        blob = bucket.get_blob("wireless_cost_usage_dashboard/vip_list.json")
+        vip_dict = json.loads(blob.download_as_string())
+        self.vip_list = vip_dict.get(provider, [])
 
     def process(self, datum):
         # Label VIP Records

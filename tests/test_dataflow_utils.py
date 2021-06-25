@@ -78,27 +78,51 @@ class TestDataflowUtils(unittest.TestCase):
         self.assertEqual(next(ff.process(datum)), expected)
 
     def test_anonymize_vip_names(self):
-        wireless_number = ["412-506-2224", "412-123-7631", "412-636-8839"]
-        assigned = ["MAYOR BILL PEDUTO", "KARINA RICKS", "MCNULTY TIM"]
-        assigned_lastname = ["WILSON", "RICKS", "JONES"]
+        providers = {
+                    "Verizon": {
+                                "assignedto": ["MARTY LAMAR", "CHRIS HORNSTEIN", "ANUPAMA JAIN"],
+                                "assignedto_lastname": ["LAMAR", "HORNSTEIN", "JAIN"],
+                                "wirelessnumber": ["412-506-2224", "412-123-7631", "412-636-8839"]
+                    },
+                    "Sprint": {
+                               "assignedto": ["COUNCILMAN KRAUS"],
+                               "assignedto_lastname": ["KRAUS"],
+                               "wirelessnumber": ["412-937-1234"]
+                    },
+                    "AT&T": {
+                             "assignedto": ["JANET MANUEL", "DARRYL JONES", "RONALD ROMANO"],
+                             "assignedto_lastname": ["MANUEL", "JONES", "ROMANO"],
+                             "wirelessnumber": ["412-182- 9184", "412-771-1833", "412-123-9903"]
+                    }
+        }
 
-        datum = pd.DataFrame({"wirelessnumber": wireless_number,
-                              "assignedto": assigned,
-                              "assignedto_lastname": assigned_lastname})
+        result = {
+                     "Verizon": {
+                                 "assignedto": ['By Request', 'By Request', 'By Request'],
+                                 "assignedto_lastname": ['By Request', 'By Request', 'By Request'],
+                                 "wirelessnumber": ["xxx-xxx-xx24", "xxx-xxx-xx31", "xxx-xxx-xx39"]
+                     },
+                     "Sprint": {
+                                 "assignedto": ["By Request"],
+                                 "assignedto_lastname": ["By Request"],
+                                 "wirelessnumber": ["xxx-xxx-xx34"]
+                     },
+                     "AT&T": {
+                               "assignedto": ['By Request', 'By Request', 'By Request'],
+                               "assignedto_lastname": ['By Request', 'By Request', 'By Request'],
+                               "wirelessnumber": ["xxx-xxx-xx84", "xxx-xxx-xx33", "xxx-xxx-xx03"]
+                     }
+         }
 
-        masked_wireless_number = ["xxx-xxx-xx24", "xxx-xxx-xx31", "xxx-xxx-xx39"]
-        masked_assigned = ['By Request'] * len(assigned)
-        masked_assigned_lastname = ['By Request'] * len(assigned_lastname)
+        for provider in providers.keys():
+            datum = pd.DataFrame(providers.get(provider, {}))
+            expected = pd.DataFrame(result.get(provider, {}))
 
-        expected = pd.DataFrame({"wirelessnumber": masked_wireless_number,
-                                 "assignedto": masked_assigned,
-                                 "assignedto_lastname": masked_assigned_lastname})
-
-        vip = dataflow_utils.AnonymizeVIPNames()
-        output = next(vip.process(datum))
-        output = output.drop(columns=["VIP"])
-        self.assertTrue(expected.equals(output))
-
+            vip = dataflow_utils.AnonymizeVIPNames(provider)
+            output = next(vip.process(datum))
+            output = output.drop(columns=["VIP"])
+            self.assertTrue(expected.equals(output))
+            
 
 if __name__ == '__main__':
     unittest.main()
