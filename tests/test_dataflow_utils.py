@@ -169,6 +169,12 @@ class TestDataflowUtils(unittest.TestCase):
             tst = dataflow_utils.StandardizeTimes(param)
             self.assertEqual(next(tst.process(datum)), expected)
 
+    def test_lat_long_reformat(self):
+        lat, long = 45.18492716, 130.8153100
+        expected_lat, expected_long = 45.1849, 130.8153
+        lat_reformat, long_reformat = dataflow_utils.lat_long_reformat(lat, long, meter_accuracy=30)
+        self.assertTupleEqual((expected_lat, expected_long), (lat_reformat, long_reformat))
+
 
 if __name__ == '__main__':
     unittest.main()
