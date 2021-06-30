@@ -169,6 +169,28 @@ class TestDataflowUtils(unittest.TestCase):
             tst = dataflow_utils.StandardizeTimes(param)
             self.assertEqual(next(tst.process(datum)), expected)
 
+    def test_anonymize_block_address(self):
+        """
+        Author : Pranav Banthia
+        Date   : June 30 2021
+        This function performs unit testing on the anonymize block number dataflow util helper. accuracies specify the
+        different number of digits in the block num that we wished to mask every time
+        """
+        accuracies = [10, 100, 1000]
+        datum = ["513 N. Neville St, Apt A1, Pittsburgh", "5565 Fifth Avenue, Apt D206, Pittsburgh"]
+        anon_addresses = [dataflow_utils.anonymize_address_block(address, accuracy)
+                          for address in datum
+                          for accuracy in accuracies]
+
+        expected = [("513", "N. Neville St", 510),
+                    ("513", "N. Neville St", 500),
+                    ("513", "N. Neville St", 0),
+                    ("5565", "Fifth Avenue", 5560),
+                    ("5565", "Fifth Avenue", 5500),
+                    ("5565", "Fifth Avenue", 5000)]
+
+        self.assertEqual(expected, anon_addresses)
+
 
 if __name__ == '__main__':
     unittest.main()
