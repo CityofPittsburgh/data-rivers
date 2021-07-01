@@ -169,6 +169,15 @@ class TestDataflowUtils(unittest.TestCase):
             tst = dataflow_utils.StandardizeTimes(param)
             self.assertEqual(next(tst.process(datum)), expected)
 
+    def test_reformat_phone_number(self):
+        # US Phone Number
+        datum = ["+1(412)-6368126", "+1-4126268126", "14126368126", "412-636-8126", "412,636,8126", "412.636/8126"
+                 "412+636+8126", "$ 4 1 2 6 3 6 8 1 2 6 /"]
+        expected = "+1-412-636-8126"
+        for num in datum:
+            num = dataflow_utils.reformat_phone_numbers(number=num)
+            self.assertTrue(num, expected)
+
 
 if __name__ == '__main__':
     unittest.main()
