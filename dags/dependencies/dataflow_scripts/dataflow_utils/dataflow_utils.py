@@ -408,8 +408,8 @@ def anonymize_address_block(address, accuracy=100):
     
     # return the stripped street name if present, else return empty string
     street_name = street_name[0] if street_name else ""
-
-    # anon_block_num = round(int(block_num), -str(accuracy).count("0"))  can include if we need floor/ceil operations
+    
+    # anonymize block
     anon_block_num = (int(block_num)//accuracy) * accuracy
 
     return block_num, street_name, anon_block_num
