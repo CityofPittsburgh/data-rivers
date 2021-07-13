@@ -400,9 +400,13 @@ def anonymize_address_block(address, accuracy=100):
                output -> 123, Main Street, 100  (depicting 100th block of main street)
     """
     block_num = re.findall(r"^[0-9]*", address)
-    block_num = block_num[0] if block_num else ""  # Return integer ??
+    
+    # return the stripped number if present, else return empty string
+    block_num = block_num[0] if block_num else ""
 
     street_name = re.findall(r"[^\d](.+?),", address)
+    
+    # return the stripped street name if present, else return empty string
     street_name = street_name[0] if street_name else ""
 
     # anon_block_num = round(int(block_num), -str(accuracy).count("0"))  can include if we need floor/ceil operations
