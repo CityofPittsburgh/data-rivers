@@ -171,12 +171,20 @@ class TestDataflowUtils(unittest.TestCase):
 
     def test_reformat_phone_number(self):
         # US Phone Number
-        datum = ["+1(412)-6368126", "+1-4126268126", "14126368126", "412-636-8126", "412,636,8126", "412.636/8126"
+        datum = ["+1(412)-6368126", "+1-4126368126", "14126368126", "412-636-8126", "412,636,8126", "412.636/8126",
                  "412+636+8126", "$ 4 1 2 6 3 6 8 1 2 6 /"]
-        expected = "+1-412-636-8126"
+        expected = "+1 (412) 636-8126"
         for num in datum:
             num = dataflow_utils.reformat_phone_numbers(number=num)
-            self.assertTrue(num, expected)
+            self.assertEqual(num, expected)
+
+        # International Phone Number
+        datum = ["+44 7911 123456", "+44(791)-1123456", "+44-7911123456", "447911123456", "44-791-112-3456",
+                 "44,791,112,3456", "44.791.112/3456", "+44+791+112+3456", "$ 4 4 7 9 1 1 1 2 3 4 5 6 /"]
+        expected = "+44 (791) 112-3456"
+        for num in datum:
+            num = dataflow_utils.reformat_phone_numbers(number=num)
+            self.assertEqual(num, expected)
 
 
 if __name__ == '__main__':
