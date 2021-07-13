@@ -389,7 +389,7 @@ def sort_dict(d):
 
 def reformat_phone_numbers(number: str):
     """
-    Method to standardize phone number format.
+    Method to standardize phone number format according to North American Number Plan.
     Step 1 - Filter out only the digits by cleaning the input string
             Remove commas, punctuations, leading/lagging white spaces, special characters and alphabets
     Step 2 - Separate the country code and area code from the phone number. Default country code is +1
@@ -399,6 +399,6 @@ def reformat_phone_numbers(number: str):
     regex = r'\d{4}$|\d{3}'
 
     if len(digits) > 10:
-        return "+" + digits[:-10] + "-" + "%s-%s-%s" % tuple(re.findall(regex, digits[-10:]))
+        return "+" + digits[:-10] + " (%s) %s-%s" % tuple(re.findall(regex, digits[-10:]))
     else:
-        return "+1-" + "%s-%s-%s" % tuple(re.findall(regex, digits))
+        return "+1" + " (%s) %s-%s" % tuple(re.findall(regex, digits))
