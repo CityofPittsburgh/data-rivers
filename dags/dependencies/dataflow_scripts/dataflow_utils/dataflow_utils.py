@@ -31,6 +31,7 @@ DEFAULT_DATAFLOW_ARGS = [
     '--save_main_session',
 ]
 
+
 class JsonCoder(object):
     """A JSON coder interpreting each line as a JSON string."""
 
@@ -388,6 +389,32 @@ def sort_dict(d):
     return dict(sorted(d.items()))
 
 
+def lat_long_reformat(lat: float, long: float, meter_accuracy=200):
+    """
+    :param lat  - Latitude  dtype float
+    :param long - Longitude dtype float
+    :param meter_accuracy - desired meter accuracy of the lat-long coordinates after rounding the decimals. Default 200m
+
+    var: decimal_to_meter_converter - Dictionary of Accuracy versus decimal places whose values represent the number of
+         decimal points and key gives a range of accuracy in metres. http://wiki.gis.com/wiki/index.php/Decimal_degrees
+
+    This helper rounds off decimal places from extremely long latitude and longitude coordinates. The exact precision
+    is defined by the meter accuracy variable passed by the user
+    """
+    accuracy_converter = {
+                          (5000, 14999): 1,
+                          (500, 4999): 2,
+                          (50, 499): 3,
+                          (5, 49): 4,
+                          (0, 4): 5
+                         }
+    
+    for (k1, k2) in accuracy_converter:
+        if k1 <= meter_accuracy <= k2:
+            acc = accuracy_converter[(k1, k2)]
+    return round(lat, acc), round(long, acc)
+
+  
 def anonymize_address_block(address, accuracy=100):
     """
     :param address - complete address along with street name and block number
@@ -413,3 +440,4 @@ def anonymize_address_block(address, accuracy=100):
     anon_block_num = (int(block_num)//accuracy) * accuracy
 
     return block_num, street_name, anon_block_num
+
