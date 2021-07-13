@@ -407,7 +407,7 @@ def lat_long_reformat(lat: float, long: float, meter_accuracy=200):
                           (5, 49): 4,
                           (0, 4): 5
                          }
-    acc = 3  # default 200m
+    
     for (k1, k2) in accuracy_converter:
         if k1 <= meter_accuracy <= k2:
             acc = accuracy_converter[(k1, k2)]
