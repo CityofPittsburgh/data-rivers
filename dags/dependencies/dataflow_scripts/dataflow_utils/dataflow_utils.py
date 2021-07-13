@@ -389,6 +389,25 @@ def sort_dict(d):
     return dict(sorted(d.items()))
 
 
+def reformat_phone_numbers(number: str):
+    """
+    :param number - Non formatted phone number with/without country code
+
+    Method to standardize phone number format according to North American Number Plan.
+    Step 1 - Filter out only the digits by cleaning the input string
+            Remove commas, punctuations, leading/lagging white spaces, special characters and alphabets
+    Step 2 - Separate the country code and area code from the phone number. Default country code is +1
+    Step 3 - Format it into +x (xxx) xxx-xxxx     +CountryCode (AreaCode) xxx-xxxx
+    """
+    digits = "".join(re.findall(r'\d+', number))
+    regex = r'\d{4}$|\d{3}'
+
+    if len(digits) > 10:
+        return "+" + digits[:-10] + " (%s) %s-%s" % tuple(re.findall(regex, digits[-10:]))
+    else:
+        return "+1" + " (%s) %s-%s" % tuple(re.findall(regex, digits))
+
+      
 def lat_long_reformat(lat: float, long: float, meter_accuracy=200):
     """
     :param lat  - Latitude  dtype float
@@ -440,4 +459,3 @@ def anonymize_address_block(address, accuracy=100):
     anon_block_num = (int(block_num)//accuracy) * accuracy
 
     return block_num, street_name, anon_block_num
-
