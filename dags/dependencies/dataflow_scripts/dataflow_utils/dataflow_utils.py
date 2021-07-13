@@ -7,6 +7,7 @@ import json
 import os
 import pytz
 import math
+import re
 
 import apache_beam as beam
 import requests
@@ -29,6 +30,7 @@ DEFAULT_DATAFLOW_ARGS = [
     '--service_account_email=data-rivers@data-rivers.iam.gserviceaccount.com',
     '--save_main_session',
 ]
+
 
 class JsonCoder(object):
     """A JSON coder interpreting each line as a JSON string."""
@@ -404,3 +406,56 @@ def reformat_phone_numbers(number: str):
         return "+" + digits[:-10] + " (%s) %s-%s" % tuple(re.findall(regex, digits[-10:]))
     else:
         return "+1" + " (%s) %s-%s" % tuple(re.findall(regex, digits))
+
+      
+def lat_long_reformat(lat: float, long: float, meter_accuracy=200):
+    """
+    :param lat  - Latitude  dtype float
+    :param long - Longitude dtype float
+    :param meter_accuracy - desired meter accuracy of the lat-long coordinates after rounding the decimals. Default 200m
+
+    var: decimal_to_meter_converter - Dictionary of Accuracy versus decimal places whose values represent the number of
+         decimal points and key gives a range of accuracy in metres. http://wiki.gis.com/wiki/index.php/Decimal_degrees
+
+    This helper rounds off decimal places from extremely long latitude and longitude coordinates. The exact precision
+    is defined by the meter accuracy variable passed by the user
+    """
+    accuracy_converter = {
+                          (5000, 14999): 1,
+                          (500, 4999): 2,
+                          (50, 499): 3,
+                          (5, 49): 4,
+                          (0, 4): 5
+                         }
+    
+    for (k1, k2) in accuracy_converter:
+        if k1 <= meter_accuracy <= k2:
+            acc = accuracy_converter[(k1, k2)]
+    return round(lat, acc), round(long, acc)
+
+  
+def anonymize_address_block(address, accuracy=100):
+    """
+    :param address - complete address along with street name and block number
+    :param accuracy - default 100, this variables determines the number of digits to be masked in the block number
+
+    From a given address we extract the block number and street name. User specified number of trailing digits can be
+    masked off from the block number to anonymize and hide sensitive information.
+
+    example     input -> Address = 123 Main Street, Pittsburgh   Accuracy - 100
+               output -> 123, Main Street, 100  (depicting 100th block of main street)
+    """
+    block_num = re.findall(r"^[0-9]*", address)
+    
+    # return the stripped number if present, else return empty string
+    block_num = block_num[0] if block_num else ""
+
+    street_name = re.findall(r"[^\d](.+?),", address)
+    
+    # return the stripped street name if present, else return empty string
+    street_name = street_name[0] if street_name else ""
+    
+    # anonymize block
+    anon_block_num = (int(block_num)//accuracy) * accuracy
+
+    return block_num, street_name, anon_block_num

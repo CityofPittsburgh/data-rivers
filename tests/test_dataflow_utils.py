@@ -169,6 +169,7 @@ class TestDataflowUtils(unittest.TestCase):
             tst = dataflow_utils.StandardizeTimes(param)
             self.assertEqual(next(tst.process(datum)), expected)
 
+
     def test_reformat_phone_number(self):
         # US Phone Number
         datum = ["+1(412)-6368126", "+1-4126368126", "14126368126", "412-636-8126", "412,636,8126", "412.636/8126",
@@ -185,6 +186,36 @@ class TestDataflowUtils(unittest.TestCase):
         for num in datum:
             num = dataflow_utils.reformat_phone_numbers(number=num)
             self.assertEqual(num, expected)
+
+            
+    def test_lat_long_reformat(self):
+        lat, long = 45.18492716, 130.8153100
+        expected_lat, expected_long = 45.1849, 130.8153
+        lat_reformat, long_reformat = dataflow_utils.lat_long_reformat(lat, long, meter_accuracy=30)
+        self.assertTupleEqual((expected_lat, expected_long), (lat_reformat, long_reformat))
+
+        
+    def test_anonymize_block_address(self):
+        """
+        Author : Pranav Banthia
+        Date   : June 30 2021
+        This function performs unit testing on the anonymize block number dataflow util helper. accuracies specify the
+        different number of digits in the block num that we wished to mask every time
+        """
+        accuracies = [10, 100, 1000]
+        datum = ["513 N. Neville St, Apt A1, Pittsburgh", "5565 Fifth Avenue, Apt D206, Pittsburgh"]
+        anon_addresses = [dataflow_utils.anonymize_address_block(address, accuracy)
+                          for address in datum
+                          for accuracy in accuracies]
+
+        expected = [("513", "N. Neville St", 510),
+                    ("513", "N. Neville St", 500),
+                    ("513", "N. Neville St", 0),
+                    ("5565", "Fifth Avenue", 5560),
+                    ("5565", "Fifth Avenue", 5500),
+                    ("5565", "Fifth Avenue", 5000)]
+
+        self.assertEqual(expected, anon_addresses)
 
 
 if __name__ == '__main__':
