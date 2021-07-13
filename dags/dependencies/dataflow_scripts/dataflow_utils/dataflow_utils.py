@@ -7,6 +7,7 @@ import json
 import os
 import pytz
 import math
+import re
 
 import apache_beam as beam
 import requests
@@ -385,3 +386,30 @@ def sort_dict(d):
     :return: dict sorted by key
     """
     return dict(sorted(d.items()))
+
+
+def anonymize_address_block(address, accuracy=100):
+    """
+    :param address - complete address along with street name and block number
+    :param accuracy - default 100, this variables determines the number of digits to be masked in the block number
+
+    From a given address we extract the block number and street name. User specified number of trailing digits can be
+    masked off from the block number to anonymize and hide sensitive information.
+
+    example     input -> Address = 123 Main Street, Pittsburgh   Accuracy - 100
+               output -> 123, Main Street, 100  (depicting 100th block of main street)
+    """
+    block_num = re.findall(r"^[0-9]*", address)
+    
+    # return the stripped number if present, else return empty string
+    block_num = block_num[0] if block_num else ""
+
+    street_name = re.findall(r"[^\d](.+?),", address)
+    
+    # return the stripped street name if present, else return empty string
+    street_name = street_name[0] if street_name else ""
+    
+    # anonymize block
+    anon_block_num = (int(block_num)//accuracy) * accuracy
+
+    return block_num, street_name, anon_block_num
