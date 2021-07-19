@@ -4,6 +4,8 @@ import argparse
 import logging
 import re
 import json
+
+
 import os
 import pytz
 import math
@@ -294,9 +296,15 @@ def geocode_address(datum, address_field):
         if len(results):
             fmt_address = results['formatted_address']
             if fmt_address != 'Pittsburgh, PA, USA':
-                api_coords = results['geometry']['location']
-                coords['lat'] = float(api_coords.get('lat'))
-                coords['long'] = float(api_coords.get('lng'))
+                coord_res = requests.get(F"http://gisdata.alleghenycounty.us/arcgis/rest/services/Geocoders/Composite/GeocodeServer/"
+                                         F"findAddressCandidates?Street=&City=&State=&ZIP=&SingleLine="
+                                         F"{fmt_address.replace(',', '').replace('#', '')}&category=&outFields=&maxLocations=&outSR="
+                                         F"4326&searchExtent=&location=&distance=&magicKey=&f=pjson")
+                if len(coord_res.json()['candidates']):
+                    coords['lat'] = float(coord_res.json()['candidates'][0]['location']['y'])
+                    coords['long'] = float(coord_res.json()['candidates'][0]['location']['x'])
+                else:
+                    pass
         else:
             pass
     except requests.exceptions.RequestException as e:

@@ -11,7 +11,7 @@ import requests
 from dateutil import parser
 from dataflow_utils import dataflow_utils
 import pytz
-
+import os
 
 class TestDataflowUtils(unittest.TestCase):
 
@@ -41,9 +41,9 @@ class TestDataflowUtils(unittest.TestCase):
     def test_geocode_address(self):
         datum = [{'ADDRESS': '5939 5TH AVE, Pittsburgh, PA 15232'}, {'ADDRESS': '9999 500TH AVE, PA'}, {'ADDRESS': '3214 jo hammer scuaire, pittsburgh 15'}]
         address_field = 'ADDRESS'
-        expected = [{'ADDRESS': '5939 Fifth Ave, Pittsburgh, PA 15232, USA', 'lat': 40.4519661, 'long': -79.924539},
+        expected = [{'ADDRESS': '5939 Fifth Ave, Pittsburgh, PA 15232, USA', 'lat': 40.45197335724138, 'long': -79.924606186473},
                     {'ADDRESS': '9999 500TH AVE, PA', 'lat': None, 'long': None},
-                    {'ADDRESS': '3214 Joe Hammer Square, Pittsburgh, PA 15213, USA', 'lat': 40.4349491, 'long': -79.9615974}]
+                    {'ADDRESS': '3214 Joe Hammer Square, Pittsburgh, PA 15213, USA', 'lat': 40.434965564047445, 'long': -79.96160611233773}]
         gca = dataflow_utils.GeocodeAddress(address_field)
         self.assertEqual(next(gca.process(datum)), expected)
 
