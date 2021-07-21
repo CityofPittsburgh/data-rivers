@@ -130,9 +130,7 @@ class TestDataflowUtils(unittest.TestCase):
         unix_to_timezone_ = "https://showcase.api.linx.twenty57.net/UnixTime/fromunixtimestamp"
         try:
             for timezone in pytz.common_timezones:
-                print(timezone)
-
-                # We subtract a timedelta of 5000 minutes to ensure we have a different combination of hour/minute/day
+                # We subtract a random timedelta between 1000 and 10000 minutes to ensure we have a different combination of hour/minute/day
                 # and date for every iteration
                 datetime_ -= datetime.timedelta(minutes=random.randint(low=1000, high=10000))
 
