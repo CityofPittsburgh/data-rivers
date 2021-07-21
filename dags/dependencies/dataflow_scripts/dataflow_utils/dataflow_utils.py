@@ -7,7 +7,6 @@ import json
 import os
 import pytz
 import math
-import re
 
 import apache_beam as beam
 import requests
@@ -169,6 +168,89 @@ class StandardizeTimes(beam.DoFn, ABC):
                               '{}_UNIX'.format(time_change[0]): unix_conv})
 
         yield datum
+
+
+class ReformatPhoneNumbers(beam.DoFn):
+    """
+    Method to standardize phone number format according to North American Number Plan.
+    Step 1 - Filter out only the digits by cleaning the input string
+             Remove commas, punctuations, leading/lagging white spaces, special characters and alphabets
+    Step 2 - Separate the country code and area code from the phone number. Default country code is +1
+    Step 3 - Format it into +x (xxx) xxx-xxxx     +CountryCode (AreaCode) xxx-xxxx
+    """
+    def process(self, datum):
+        """
+        :param datum - Non formatted phone number with/without country code
+        """
+        digits = "".join(re.findall(r'\d+', datum))
+        regex = r'\d{4}$|\d{3}'
+
+        if len(digits) > 10:
+            yield "+" + digits[:-10] + " (%s) %s-%s" % tuple(re.findall(regex, digits[-10:]))
+        else:
+            yield "+1" + " (%s) %s-%s" % tuple(re.findall(regex, digits))
+
+
+class LatLongReformat(beam.DoFn, ABC):
+    def __init__(self, accuracy=200):
+        """
+        :param accuracy - desired meter accuracy of the lat-long coordinates after rounding the decimals. Default 200m
+
+        var: accuracy_converter - Dictionary of Accuracy versus decimal places whose values represent the number of
+             decimal points and key gives a range of accuracy in metres. http://wiki.gis.com/wiki/index.php/Decimal_degrees
+
+        This helper rounds off decimal places from extremely long latitude and longitude coordinates. The exact precision
+        is defined by the meter accuracy variable passed by the user
+        """
+        accuracy_converter = {
+                              (5000, 14999): 1,
+                              (500, 4999): 2,
+                              (50, 499): 3,
+                              (5, 49): 4,
+                              (0, 4): 5
+                             }
+        for (k1, k2) in accuracy_converter:
+            if k1 <= accuracy <= k2:
+                self.accuracy = accuracy_converter[(k1, k2)]
+
+    def process(self, datum):
+        """
+        :param datum - (lat, long) tuple of Latitude and Longitude values
+        """
+        yield round(datum[0], self.accuracy), round(datum[1], self.accuracy)
+
+
+class AnonymizeAddressBlock(beam.DoFn, ABC):
+    def __init__(self, accuracy=100):
+        """
+        :param accuracy - default 100, this variables determines the number of digits to be masked in the block number
+
+        From a given address we extract the block number and street name. User specified number of trailing digits can be
+        masked off from the block number to anonymize and hide sensitive information.
+
+        example     input -> Address = 123 Main Street, Pittsburgh   Accuracy - 100
+                    output -> 123, Main Street, 100  (depicting 100th block of main street)
+        """
+        self.accuracy = accuracy
+
+    def process(self, datum):
+        """
+        :param datum - complete address along with street name and block number
+        """
+        block_num = re.findall(r"^[0-9]*", datum)
+
+        # return the stripped number if present, else return empty string
+        block_num = block_num[0] if block_num else ""
+
+        street_name = re.findall(r"[^\d](.+?),", datum)
+
+        # return the stripped street name if present, else return empty string
+        street_name = street_name[0] if street_name else ""
+
+        # anonymize block
+        anon_block_num = (int(block_num) // self.accuracy) * self.accuracy
+
+        yield block_num, street_name, anon_block_num
 
 
 def generate_args(job_name, bucket, argv, schema_name):
@@ -387,75 +469,3 @@ def sort_dict(d):
     :return: dict sorted by key
     """
     return dict(sorted(d.items()))
-
-
-def reformat_phone_numbers(number: str):
-    """
-    :param number - Non formatted phone number with/without country code
-
-    Method to standardize phone number format according to North American Number Plan.
-    Step 1 - Filter out only the digits by cleaning the input string
-            Remove commas, punctuations, leading/lagging white spaces, special characters and alphabets
-    Step 2 - Separate the country code and area code from the phone number. Default country code is +1
-    Step 3 - Format it into +x (xxx) xxx-xxxx     +CountryCode (AreaCode) xxx-xxxx
-    """
-    digits = "".join(re.findall(r'\d+', number))
-    regex = r'\d{4}$|\d{3}'
-
-    if len(digits) > 10:
-        return "+" + digits[:-10] + " (%s) %s-%s" % tuple(re.findall(regex, digits[-10:]))
-    else:
-        return "+1" + " (%s) %s-%s" % tuple(re.findall(regex, digits))
-
-      
-def lat_long_reformat(lat: float, long: float, meter_accuracy=200):
-    """
-    :param lat  - Latitude  dtype float
-    :param long - Longitude dtype float
-    :param meter_accuracy - desired meter accuracy of the lat-long coordinates after rounding the decimals. Default 200m
-
-    var: decimal_to_meter_converter - Dictionary of Accuracy versus decimal places whose values represent the number of
-         decimal points and key gives a range of accuracy in metres. http://wiki.gis.com/wiki/index.php/Decimal_degrees
-
-    This helper rounds off decimal places from extremely long latitude and longitude coordinates. The exact precision
-    is defined by the meter accuracy variable passed by the user
-    """
-    accuracy_converter = {
-                          (5000, 14999): 1,
-                          (500, 4999): 2,
-                          (50, 499): 3,
-                          (5, 49): 4,
-                          (0, 4): 5
-                         }
-    
-    for (k1, k2) in accuracy_converter:
-        if k1 <= meter_accuracy <= k2:
-            acc = accuracy_converter[(k1, k2)]
-    return round(lat, acc), round(long, acc)
-
-  
-def anonymize_address_block(address, accuracy=100):
-    """
-    :param address - complete address along with street name and block number
-    :param accuracy - default 100, this variables determines the number of digits to be masked in the block number
-
-    From a given address we extract the block number and street name. User specified number of trailing digits can be
-    masked off from the block number to anonymize and hide sensitive information.
-
-    example     input -> Address = 123 Main Street, Pittsburgh   Accuracy - 100
-               output -> 123, Main Street, 100  (depicting 100th block of main street)
-    """
-    block_num = re.findall(r"^[0-9]*", address)
-    
-    # return the stripped number if present, else return empty string
-    block_num = block_num[0] if block_num else ""
-
-    street_name = re.findall(r"[^\d](.+?),", address)
-    
-    # return the stripped street name if present, else return empty string
-    street_name = street_name[0] if street_name else ""
-    
-    # anonymize block
-    anon_block_num = (int(block_num)//accuracy) * accuracy
-
-    return block_num, street_name, anon_block_num

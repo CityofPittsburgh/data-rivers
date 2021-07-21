@@ -169,32 +169,40 @@ class TestDataflowUtils(unittest.TestCase):
             tst = dataflow_utils.StandardizeTimes(param)
             self.assertEqual(next(tst.process(datum)), expected)
 
-
     def test_reformat_phone_number(self):
+        """
+        Author : Pranav Banthia
+        Date   : July 10 2021
+        This function performs unit testing on the reformat phone number dataflow util helper. We first test it
+        on US Phone numbers and then an international phone number
+        """
         # US Phone Number
         datum = ["+1(412)-6368126", "+1-4126368126", "14126368126", "412-636-8126", "412,636,8126", "412.636/8126",
                  "412+636+8126", "$ 4 1 2 6 3 6 8 1 2 6 /"]
         expected = "+1 (412) 636-8126"
-        for num in datum:
-            num = dataflow_utils.reformat_phone_numbers(number=num)
-            self.assertEqual(num, expected)
+        rpn = dataflow_utils.ReformatPhoneNumbers()
+        for number in datum:
+            self.assertEqual(next(rpn.process(number)), expected)
 
         # International Phone Number
         datum = ["+44 7911 123456", "+44(791)-1123456", "+44-7911123456", "447911123456", "44-791-112-3456",
                  "44,791,112,3456", "44.791.112/3456", "+44+791+112+3456", "$ 4 4 7 9 1 1 1 2 3 4 5 6 /"]
         expected = "+44 (791) 112-3456"
-        for num in datum:
-            num = dataflow_utils.reformat_phone_numbers(number=num)
-            self.assertEqual(num, expected)
-
+        for number in datum:
+            self.assertEqual(next(rpn.process(number)), expected)
             
     def test_lat_long_reformat(self):
-        lat, long = 45.18492716, 130.8153100
-        expected_lat, expected_long = 45.1849, 130.8153
-        lat_reformat, long_reformat = dataflow_utils.lat_long_reformat(lat, long, meter_accuracy=30)
-        self.assertTupleEqual((expected_lat, expected_long), (lat_reformat, long_reformat))
+        """
+        Author : Pranav Banthia
+        Date   : July 10 2021
+        This function performs unit testing on the Latitude Longitude dataflow util helper.
+        """
+        datum = [(45.18492716, 130.8153100), (18.1738281, 100.46518390)]
+        expected = [(45.185, 130.815), (18.174, 100.465)]
+        llr = dataflow_utils.LatLongReformat()
+        for i in range(len(datum)):
+            self.assertTupleEqual(next(llr.process(datum[i])), expected[i])
 
-        
     def test_anonymize_block_address(self):
         """
         Author : Pranav Banthia
@@ -204,19 +212,20 @@ class TestDataflowUtils(unittest.TestCase):
         """
         accuracies = [10, 100, 1000]
         datum = ["513 N. Neville St, Apt A1, Pittsburgh", "5565 Fifth Avenue, Apt D206, Pittsburgh"]
-        anon_addresses = [dataflow_utils.anonymize_address_block(address, accuracy)
-                          for address in datum
-                          for accuracy in accuracies]
+        expected = [
+                     [("513", "N. Neville St", 510),
+                      ("513", "N. Neville St", 500),
+                      ("513", "N. Neville St", 0)],
 
-        expected = [("513", "N. Neville St", 510),
-                    ("513", "N. Neville St", 500),
-                    ("513", "N. Neville St", 0),
-                    ("5565", "Fifth Avenue", 5560),
-                    ("5565", "Fifth Avenue", 5500),
-                    ("5565", "Fifth Avenue", 5000)]
-
-        self.assertEqual(expected, anon_addresses)
-
+                     [("5565", "Fifth Avenue", 5560),
+                      ("5565", "Fifth Avenue", 5500),
+                      ("5565", "Fifth Avenue", 5000)]
+                   ]
+        for i in range(len(datum)):
+            for j in range(len(accuracies)):
+                aab = dataflow_utils.AnonymizeAddressBlock(accuracy=accuracies[j])
+                self.assertEqual(next(aab.process(datum[i])),expected[i][j])
+      
 
 if __name__ == '__main__':
     unittest.main()
