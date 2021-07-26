@@ -13,44 +13,55 @@ parser.add_argument('-e', '--execution_date', dest='execution_date',
                     required=True, help='DAG execution date (YYYY-MM-DD)')
 args = vars(parser.parse_args())
 
-bucket = '{}_qalert'.format(os.environ['GCS_PREFIX'])
+
+
+#### BUCKET ALTERATION
+bucket = '{}_qalert_refactor'.format(os.environ['GCS_PREFIX'])
+
 # qscend API requires a value (any value) for the user-agent field
 headers = {'User-Agent': 'City of Pittsburgh ETL'}
 payload = {'key': os.environ['QALERT_KEY'], 'since': time_to_seconds(args['since'])}
 
-REQUEST_KEYS = ['id',
-                'master',
-                'addDateUnix',
-                'lastActionUnix',
-                'dept',
-                'status',
-                'typeId',
-                'typeName',
-                'priorityValue',
-                'latitude',
-                'longitude',
-                'origin']
+# REQUEST_KEYS = ['id',
+#                 'master',
+#                 'addDateUnix',
+#                 'lastActionUnix',
+#                 'dept',
+#                 'status',
+#                 'typeId',
+#                 'typeName',
+#                 'priorityValue',
+#                 'latitude',
+#                 'longitude',
+#                 'origin']
+#
+# ACTIVITY_KEYS = ['id',
+#                  'requestId',
+#                  'actDateUnix',
+#                  'code',
+#                  'codeDesc']
 
-ACTIVITY_KEYS = ['id',
-                 'requestId',
-                 'actDateUnix',
-                 'code',
-                 'codeDesc']
 
 response = requests.get('https://pittsburghpa.qscend.com/qalert/api/v1/requests/changes', params=payload,
                         headers=headers)
 
+full_requests = response.json()['request']
+full_activities = response.json()['activity']
+
+## DEPRECATED CODE BELOW TO FILTER ACTIVITY AND REQUESTS
 
 # filter responses to take out unnecessary keys, preserving only those we've defined in request/activity_keys
+# trimmed_requests = filter_fields(response.json()['request'], REQUEST_KEYS)
+#
+# trimmed_activities = filter_fields(response.json()['activity'], ACTIVITY_KEYS)
 
-trimmed_requests = filter_fields(response.json()['request'], REQUEST_KEYS)
+## DEPRECATED CODE BELOW TO PUSH ACTIVITY AND REQUESTS TO GCS
 
-trimmed_activities = filter_fields(response.json()['activity'], ACTIVITY_KEYS)
 
 json_to_gcs('requests/{}/{}/{}_requests.json'.format(args['execution_date'].split('-')[0],
                                                      args['execution_date'].split('-')[1], args['execution_date']),
-            trimmed_requests, bucket)
+            full_requests, bucket)
 
 json_to_gcs('activities/{}/{}/{}_activities.json'.format(args['execution_date'].split('-')[0],
                                                          args['execution_date'].split('-')[1], args['execution_date']),
-            trimmed_activities, bucket)
+            full_activities, bucket)
