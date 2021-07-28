@@ -14,72 +14,124 @@ import pandas as pd
 import jaydebeapi
 
 from datetime import datetime
-from google.cloud import storage, dlp_v2
+from google.cloud import storage, dlp
 
 storage_client = storage.Client()
-dlp = dlp_v2.DlpServiceClient()
-project = os.environ['GCLOUD_PROJECT']
+dlp_client = dlp.DlpServiceClient()
+
+PROJECT = os.environ['GCLOUD_PROJECT']
+USER_DEFINED_CONST_BUCKET = "user_defined_data"
+DEFAULT_PII_TYPES = [{"name": "PERSON_NAME"}, {"name": "EMAIL_ADDRESS"}, {"name": "PHONE_NUMBER"}]
 
 COMPUTRONIX_BASE_URL = 'https://staff.onestoppgh.pittsburghpa.gov/pghprod/odata/odata/'
 WPRDC_API_HARD_LIMIT = 500001  # A limit set by the CKAN instance.
 
+def snake_case_place_names(input):
+    # Helper function to take a pair of words, containing place name identifiers, and join them together (with an
+    # underscore by default). This prevents NLP based Data Loss Prevention/PII scrubbers from targeting places for
+    # name based redaction (e.g. avoiding redacting "Schenley" from "Schenley Park"), because the GCP tools will not
+    # treat the joined phrase as person's name. This approach should be phased out after a less brittle and more elegant
+    # tool is developed.
 
-def scrub_pii(field, data_objects):
-    """You could reasonably make a case for doing this in the Dataflow portion of the DAG, but IMHO it's better to
-    catch PII before it even gets to Cloud Storage; if we filter it at the Dataflow stage it won't make it to BigQuery,
-    but will still be in GCS -- james 2/6/20"""
-    for data_object in data_objects:
-        # make sure comments field isn't empty; otherwise DLP API throws an error
-        if data_object[field].strip(' '):
-            data_object[field] = get_dlp_redaction(data_object[field])
-        # google's DLP API has a rate limit of 600 requests/minute
-        # TODO: consider a different workaround here; not robust for large datasets
-        if data_objects.index(data_object) % 600 == 0 and data_objects.index(data_object) != 0:
-            time.sleep(61)
+    bucket = storage_client.get_bucket(USER_DEFINED_CONST_BUCKET)
+    blob = bucket.blob('place_identifiers.txt')
+    place_name_identifiers = blob.download_as_string().decode('utf-8')
 
-    return data_objects
+    # if an identifier is found (indicative of a place such as a road or park), we want to join the place with the
+    # preceding word with the join character. Thus, "Moore Park" would become "Moore_Park".
+    joined_places = (re.sub(r'(\s)\b({})\b'.format(place_name_identifiers), r'_\2', input,
+                            flags = re.IGNORECASE))
+
+    return joined_places
 
 
-def get_dlp_redaction(uncleaned_string):
-    # remove newline delimiter
-    uncleaned_string = uncleaned_string.replace('\n', ' ')
-    parent = dlp.project_path(project)
+def replace_pii(input_str, retain_location: bool, info_types = DEFAULT_PII_TYPES):
+    # This helper function added 2021-07-26 to update the existing methodology (deprecated below).
+    # configure API client call arguments (incuding a full resource id for the project)
 
-    # Construct inspect configuration dictionary
-    info_types = ["EMAIL_ADDRESS", "FIRST_NAME", "LAST_NAME", "PHONE_NUMBER", "URL", "STREET_ADDRESS"]
-    inspect_config = {"info_types": [{"name": info_type} for info_type in info_types]}
+    if retain_location:
+        input_str = snake_case_place_names(input_str)
 
-    # Construct deidentify configuration dictionary
-    deidentify_config = {
-        "info_type_transformations": {
-            "transformations": [
-                {
-                    "primitive_transformation": {
-                        "character_mask_config": {
-                            "masking_character": "#",
-                            "number_to_mask": 0,
-                        }
-                    }
-                }
-            ]
-        }
+    item = {"value": input_str}
+    max_findings = 0
+    include_quote = False
+    inspect_config = {
+            "info_types"   : info_types,
+            "include_quote": include_quote,
+            "limits"       : {"max_findings_per_request": max_findings},
     }
+    deidentify_config = {
+            "info_type_transformations": {
+                    "transformations": [
+                            {"primitive_transformation": {"replace_with_info_type_config": {}}}
+                    ]
+            }
+    }
+    parent = "projects/{}".format(PROJECT)
 
-    # Construct item
-    item = {"value": uncleaned_string}
+    response = dlp_client.deidentify_content(parent, deidentify_config, inspect_config, item)
 
-    # Call the API
-    response = dlp.deidentify_content(
-        parent,
-        inspect_config=inspect_config,
-        deidentify_config=deidentify_config,
-        item=item,
-    )
+    return response.item.value
 
-    # add a regex filter for email/phone for some extra insurance
-    redacted = regex_filter(response.item.value)
 
-    return redacted
+# def scrub_pii(field, data_objects):
+#     """You could reasonably make a case for doing this in the Dataflow portion of the DAG, but IMHO it's better to
+#     catch PII before it even gets to Cloud Storage; if we filter it at the Dataflow stage it won't make it to
+#     BigQuery,
+#     but will still be in GCS -- james 2/6/20"""
+#
+#     for data_object in data_objects:
+#         # make sure comments field isn't empty; otherwise DLP API throws an error
+#         if data_object[field].strip(' '):
+#             data_object[field] = get_dlp_redaction(data_object[field])
+#         # google's DLP API has a rate limit of 600 requests/minute
+#         # TODO: consider a different workaround here; not robust for large datasets
+#         if data_objects.index(data_object) % 600 == 0 and data_objects.index(data_object) != 0:
+#             time.sleep(61)
+#
+#     return data_objects
+#
+#
+# def get_dlp_redaction(uncleaned_string):
+#     # remove newline delimiter
+#     uncleaned_string = uncleaned_string.replace('\n', ' ')
+#     parent = dlp.project_path(project)
+#
+#     # Construct inspect configuration dictionary
+#     info_types = ["EMAIL_ADDRESS", "FIRST_NAME", "LAST_NAME", "PHONE_NUMBER", "URL", "STREET_ADDRESS"]
+#     inspect_config = {"info_types": [{"name": info_type} for info_type in info_types]}
+#
+#     # Construct deidentify configuration dictionary
+#     deidentify_config = {
+#         "info_type_transformations": {
+#             "transformations": [
+#                 {
+#                     "primitive_transformation": {
+#                         "character_mask_config": {
+#                             "masking_character": "#",
+#                             "number_to_mask": 0,
+#                         }
+#                     }
+#                 }
+#             ]
+#         }
+#     }
+#
+#     # Construct item
+#     item = {"value": uncleaned_string}
+#
+#     # Call the API
+#     response = dlp.deidentify_content(
+#         parent,
+#         inspect_config=inspect_config,
+#         deidentify_config=deidentify_config,
+#         item=item,
+#     )
+#
+#     # add a regex filter for email/phone for some extra insurance
+#     redacted = regex_filter(response.item.value)
+#
+#     return redacted
 
 
 def regex_filter(value):
@@ -99,10 +151,10 @@ def time_to_seconds(t):
     :return: int (time in seconds, 12:00 AM UTC)
     """
     ts = datetime.strptime(t, '%Y-%m-%d')
-    return int(ts.replace(tzinfo=pytz.UTC).timestamp())
+    return int(ts.replace(tzinfo = pytz.UTC).timestamp())
 
 
-def filter_fields(results, relevant_fields, add_fields=True):
+def filter_fields(results, relevant_fields, add_fields = True):
     """
     Remove unnecessary keys from results or filter for only those you want depending on add_fields arg
     :param results: list of dicts
@@ -179,7 +231,7 @@ def execution_date_to_prev_quarter(execution_date):
     return quarter, int(year)
 
 
-def sql_to_dict_list(conn, sql_query, db='mssql', date_col=None, date_format=None):
+def sql_to_dict_list(conn, sql_query, db = 'mssql', date_col = None, date_format = None):
     """
     Execute sql query and return list of dicts
     :param conn: sql db connection
@@ -232,22 +284,22 @@ def json_to_gcs(path, json_object_list, bucket_name):
     take list of dicts in memory and upload to GCS as newline JSON
     """
     blob = storage.Blob(
-        name=path,
-        bucket=storage_client.get_bucket(bucket_name),
+            name = path,
+            bucket = storage_client.get_bucket(bucket_name),
     )
     blob.upload_from_string(
-        # dataflow needs newline-delimited json, so use ndjson
-        data=ndjson.dumps(json_object_list),
-        content_type='application/json',
-        client=storage_client,
+            # dataflow needs newline-delimited json, so use ndjson
+            data = ndjson.dumps(json_object_list),
+            content_type = 'application/json',
+            client = storage_client,
     )
     logging.info(
-        'Successfully uploaded blob %r to bucket %r.', path, bucket_name)
+            'Successfully uploaded blob %r to bucket %r.', path, bucket_name)
 
     print('Successfully uploaded blob {} to bucket {}'.format(path, bucket_name))
 
 
-def get_computronix_odata(endpoint, params=None, expand_fields=None):
+def get_computronix_odata(endpoint, params = None, expand_fields = None):
     """
     Hit the Computronix odata feed and loop through all result pages, storing results in a list of dicts
     :param endpoint (str): API endpoint, e.g. 'DOMIPERMIT'
@@ -285,7 +337,7 @@ def get_computronix_odata(endpoint, params=None, expand_fields=None):
 def query_resource(site, query):
     """Use the datastore_search_sql API endpoint to query a public CKAN resource."""
     ckan = ckanapi.RemoteCKAN(site)
-    response = ckan.action.datastore_search_sql(sql=query)
+    response = ckan.action.datastore_search_sql(sql = query)
     data = response['records']
     # Note that if a CKAN table field name is a Postgres reserved word (like
     # ALL or CAST or NEW), you get a not-very-useful error
@@ -306,14 +358,14 @@ def query_any_resource(resource_id, query):
     site = "https://data.wprdc.org"
     ckan = ckanapi.RemoteCKAN(site)
     # From resource ID, determine package ID.
-    package_id = ckan.action.resource_show(id=resource_id)['package_id']
+    package_id = ckan.action.resource_show(id = resource_id)['package_id']
     # From package ID, determine if the package is private.
-    private = ckan.action.package_show(id=package_id)['private']
+    private = ckan.action.package_show(id = package_id)['private']
     if private:
         print(
-            "As of February 2018, CKAN still doesn't allow you to run a datastore_search_sql query on a private "
-            "dataset. Sorry. See this GitHub issue if you want to know a little more: "
-            "https://github.com/ckan/ckan/issues/1954")
+                "As of February 2018, CKAN still doesn't allow you to run a datastore_search_sql query on a private "
+                "dataset. Sorry. See this GitHub issue if you want to know a little more: "
+                "https://github.com/ckan/ckan/issues/1954")
         raise ValueError("CKAN can't query private resources (like {}) yet.".format(resource_id))
     else:
         return query_resource(site, query)
@@ -343,7 +395,8 @@ def remove_fields(records, fields_to_remove):
     return records
 
 
-def synthesize_query(resource_id, select_fields=['*'], where_clauses=None, group_by=None, order_by=None, limit=None):
+def synthesize_query(resource_id, select_fields = ['*'], where_clauses = None, group_by = None, order_by = None,
+                     limit = None):
     query = f'SELECT {", ".join(select_fields)} FROM "{resource_id}"'
 
     if where_clauses is not None:
@@ -374,7 +427,8 @@ The query parameters sent to the get_wprdc_data function look like this:
  'where_clauses': ['"DogName" LIKE \'DOGZ%\'']}
 The resulting query is:
 SELECT * FROM "f8ab32f7-44c7-43ca-98bf-c1b444724598" WHERE "DogName" LIKE 'DOGZ%'
-The field names should usually be surrounded by double quotes (unless they are snake case field names), and string values need to be surrounded by single quotes.
+The field names should usually be surrounded by double quotes (unless they are snake case field names), and string 
+values need to be surrounded by single quotes.
 Executing the query fetches 1 record.
 The first record looks like this:
 {'Breed': 'BOSTON TERRIER',
@@ -397,7 +451,8 @@ The returned list of records looks like this:
  {'name': 'CATEY'},
  {'name': 'GRAYSON MERCATORIS'}]
 Finally, let's test some other query elements. Here's the query:
-SELECT COUNT("DogName") AS amount, "DogName" FROM "f8ab32f7-44c7-43ca-98bf-c1b444724598" WHERE "Breed" = 'POODLE STANDARD' GROUP BY "DogName" ORDER BY amount DESC LIMIT 5
+SELECT COUNT("DogName") AS amount, "DogName" FROM "f8ab32f7-44c7-43ca-98bf-c1b444724598" WHERE "Breed" = 'POODLE 
+STANDARD' GROUP BY "DogName" ORDER BY amount DESC LIMIT 5
 Here are the resulting top five names for the POODLE STANDARD breed, sorted by decreasing frequency:
 [{'DogName': 'HERSHEY', 'amount': '4'},
  {'DogName': 'COCO ', 'amount': '3'},
@@ -407,8 +462,9 @@ Here are the resulting top five names for the POODLE STANDARD breed, sorted by d
 """
 
 
-def get_wprdc_data(resource_id, select_fields=['*'], where_clauses=None, group_by=None, order_by=None, limit=None,
-                   fields_to_remove=None):
+def get_wprdc_data(resource_id, select_fields = ['*'], where_clauses = None, group_by = None, order_by = None,
+                   limit = None,
+                   fields_to_remove = None):
     """
     helper to construct query for CKAN API and return results as list of dictionaries
     :param resource_id: str
@@ -425,8 +481,9 @@ def get_wprdc_data(resource_id, select_fields=['*'], where_clauses=None, group_b
 
     if len(records) == WPRDC_API_HARD_LIMIT:
         print(
-            f"Note that there may be more results than you have obtained since the WPRDC CKAN instance only returns "
-            f"{WPRDC_API_HARD_LIMIT} records at a time.")
+                f"Note that there may be more results than you have obtained since the WPRDC CKAN instance only "
+                f"returns "
+                f"{WPRDC_API_HARD_LIMIT} records at a time.")
         # If you send a bogus SQL query through to the CKAN API, the resulting error message will include the full
         # query used by CKAN, which wraps the query you send something like this: "SELECT * FROM (<your query>) LIMIT
         # 500001", so you can determine the actual hard limit that way.
@@ -438,12 +495,13 @@ def get_wprdc_data(resource_id, select_fields=['*'], where_clauses=None, group_b
 
     return records
 
+
 def rmsprod_setup():
     parser = argparse.ArgumentParser()
-    parser.add_argument('-e', '--execution_date', dest='execution_date',
-                       required=True, help='DAG execution date (YYYY-MM-DD)')
-    parser.add_argument('-s', '--prev_execution_date', dest='prev_execution_date',
-                    required=True, help='Previous DAG execution date (YYYY-MM-DD)')
+    parser.add_argument('-e', '--execution_date', dest = 'execution_date',
+                        required = True, help = 'DAG execution date (YYYY-MM-DD)')
+    parser.add_argument('-s', '--prev_execution_date', dest = 'prev_execution_date',
+                        required = True, help = 'Previous DAG execution date (YYYY-MM-DD)')
     args = vars(parser.parse_args())
     execution_year = args['execution_date'].split('-')[0]
     execution_month = args['execution_date'].split('-')[1]
@@ -454,10 +512,8 @@ def rmsprod_setup():
                               os.environ['RMSPROD_DB'],
                               [os.environ['RMSPROD_UN'], os.environ['RMSPROD_PW']],
                               os.environ['DAGS_PATH'] + "/dependencies/gcs_loaders/ojdbc6.jar")
-                              
+
     return args, execution_year, execution_month, execution_date, bucket, conn
-
-
 
 # TODO: helper to convert geojson -> ndjson
 
