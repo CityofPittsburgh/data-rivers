@@ -13,7 +13,7 @@ parser.add_argument('-s', '--since', dest='since', required=True,
 parser.add_argument('-e', '--execution_date', dest='execution_date',
                     required=True, help='DAG execution date (YYYY-MM-DD)')
 args = vars(parser.parse_args())
-bucket = '{}_qalert_refactor'.format(os.environ['GCS_PREFIX'])
+bucket = '{}_qalert'.format(os.environ['GCS_PREFIX'])
 
 # qscend API requires a value (any value) for the user-agent field
 headers = {'User-Agent': 'City of Pittsburgh ETL'}
