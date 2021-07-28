@@ -149,8 +149,8 @@ class StandardizeDepNames(beam.DoFn, ABC):
 
 class AnonymizeVIPNames(beam.DoFn, ABC):
     def __init__(self, provider):
-        bucket = storage_client.get_bucket("dashboards_reports")
-        blob = bucket.get_blob("wireless_cost_usage_dashboard/vip_list.json")
+        bucket = storage_client.get_bucket("user_defined_data")
+        blob = bucket.get_blob("vip_list.json")
         vip_dict = json.loads(blob.download_as_string())
         self.vip_list = vip_dict.get(provider, [])
 
