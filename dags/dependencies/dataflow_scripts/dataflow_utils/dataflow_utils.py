@@ -132,6 +132,21 @@ class GetDateStrings(beam.DoFn, ABC):
 
         yield datum
 
+class GeoWrapper(beam.DoFn):
+    def __init__(self, address_field, street_num_field, cross_street_field):
+        self.address_field = address_field
+        self.street_num_field = street_num_field
+        self.cross_street_field = cross_street_field
+
+    def process(self, datum):
+        datum = id_underspecified_addresses(datum, self.street_num_field, self.cross_street_field)
+        if datum['is_precise']:
+            datum = regularize_address(datum, self.address_field)
+            if datum['is_valid']:
+                datum = geocode_address(datum, self.address_field)
+
+        yield datum
+
 
 class GeocodeAddress(beam.DoFn):
 
@@ -282,12 +297,24 @@ def unix_to_date_string(unix_date):
     return str(utc_conv), str(est_conv)
 
 
-def geocode_address(datum, address_field):
+def id_underspecified_addresses(datum, street_num_field, cross_street_field):
+    if datum[street_num_field].isnumeric():
+        is_precise = True
+    else:
+        if datum[cross_street_field]:
+            is_precise = True
+        else:
+            is_precise = False
+    datum['is_precise'] = is_precise
+    return datum
+
+
+def regularize_address(datum, address_field):
     api_key = os.environ["GMAP_API_KEY"]
     base_url = "https://maps.googleapis.com/maps/api/geocode/json"
-
-    coords = {'lat': None, 'long': None}
     address = datum[address_field]
+    is_valid = False
+
     if 'pittsburgh' not in address.lower():
         address += ' pittsburgh'
     try:
@@ -296,22 +323,32 @@ def geocode_address(datum, address_field):
         if len(results):
             fmt_address = results['formatted_address']
             if fmt_address != 'Pittsburgh, PA, USA':
-                coord_res = requests.get(F"http://gisdata.alleghenycounty.us/arcgis/rest/services/Geocoders/Composite/GeocodeServer/"
-                                         F"findAddressCandidates?Street=&City=&State=&ZIP=&SingleLine="
-                                         F"{fmt_address.replace(',', '').replace('#', '')}&category=&outFields=&maxLocations=&outSR="
-                                         F"4326&searchExtent=&location=&distance=&magicKey=&f=pjson")
-                if len(coord_res.json()['candidates']):
-                    coords['lat'] = float(coord_res.json()['candidates'][0]['location']['y'])
-                    coords['long'] = float(coord_res.json()['candidates'][0]['location']['x'])
-                else:
-                    pass
+                datum[address_field] = fmt_address
+                is_valid = True
+    except requests.exceptions.RequestException as e:
+        pass
+    datum['is_valid'] = is_valid
+    return datum
+
+
+def geocode_address(datum, address_field):
+    coords = {'lat': None, 'long': None}
+    address = datum[address_field]
+    if 'pittsburgh' not in address.lower():
+        address += ' pittsburgh'
+    try:
+        res = requests.get(F"http://gisdata.alleghenycounty.us/arcgis/rest/services/Geocoders/Composite/GeocodeServer/"
+                           F"findAddressCandidates?Street=&City=&State=&ZIP=&SingleLine="
+                           F"{address.replace(',', '').replace('#', '')}&category=&outFields=&maxLocations=&outSR="
+                           F"4326&searchExtent=&location=&distance=&magicKey=&f=pjson")
+        if len(res.json()['candidates']):
+            coords['lat'] = res.json()['candidates'][0]['location']['y']
+            coords['long'] = res.json()['candidates'][0]['location']['x']
         else:
             pass
     except requests.exceptions.RequestException as e:
         pass
     try:
-        if fmt_address != 'Pittsburgh, PA, USA':
-            datum[address_field] = fmt_address
         datum['lat'] = coords['lat']
         datum['long'] = coords['long']
     except TypeError:
