@@ -38,14 +38,46 @@ class TestDataflowUtils(unittest.TestCase):
         cdt = dataflow_utils.ChangeDataTypes(type_changes)
         self.assertEqual(next(cdt.process(datum)), expected)
 
-    def test_geocode_address(self):
-        datum = [{'ADDRESS': '5939 5TH AVE, Pittsburgh, PA 15232'}, {'ADDRESS': '9999 500TH AVE, PA'}, {'ADDRESS': '3214 jo hammer scuaire, pittsburgh 15'}]
+    def test_geowrapper(self):
+        datum = [{'ADDRESS': '5939 5TH AVE, Pittsburgh, PA 15232', 'streetName': '5TH AVE', 'streetNum': '5939', 'crossStreetName': '', 'cityName': 'Pittsburgh'},
+                 {'ADDRESS': '9999 500TH AVE, pittsbrgh PA', 'streetName': '500TH AVE', 'streetNum': '9999', 'crossStreetName': '', 'cityName': ''},
+                 {"ADDRESS": "", "streetName": "VINCETON ST", "streetNum": "4041", "crossStreetName": "Pheasant Way", "cityName": "Pittsburgh"},
+                 {"ADDRESS": "", "streetName": "STANTON AVE", "streetNum": "5821-5823", "crossStreetName": "ROBLEY WAY", "cityName": "Pittsburgh"},
+                 {"ADDRESS": "", "streetName": "S 22ND ST", "streetNum": "", "crossStreetName": "E CARSON ST", "cityName": "Pittsburgh"},
+                 {"ADDRESS": "", "streetName": "CAREY WAY", "streetNum": "2100 BLK", "crossStreetName": "", "cityName": "Pittsburgh"},
+                 {"ADDRESS": "", "streetName": "Idlewood Ave", "streetNum": "2860", "crossStreetName": "", "cityName": "Carnegie"},
+                 {"ADDRESS": "", "streetName": "CALIFORNIA AVE", "streetNum": "2428", "crossStreetName": "", "cityName": "Pittsburgh"}]
         address_field = 'ADDRESS'
-        expected = [{'ADDRESS': '5939 Fifth Ave, Pittsburgh, PA 15232, USA', 'lat': 40.45197335724138, 'long': -79.924606186473},
-                    {'ADDRESS': '9999 500TH AVE, PA', 'lat': None, 'long': None},
-                    {'ADDRESS': '3214 Joe Hammer Square, Pittsburgh, PA 15213, USA', 'lat': 40.434965564047445, 'long': -79.96160611233773}]
+        street_num_field = 'streetNum'
+        street_name_field = 'streetName'
+        cross_street_field = 'crossStreetName'
+        city_field = 'cityName'
+        expected = [{'ADDRESS': '5939 Fifth Ave, Pittsburgh, PA 15232, USA', 'streetName': '5TH AVE', 'streetNum': '5939', 'crossStreetName': '', 'cityName': 'Pittsburgh', 'lat': 40.45197335724138, 'long': -79.924606186473, 'is_precise': True, 'is_valid': True},
+                     {'ADDRESS': '9999 500TH AVE, pittsbrgh PA', 'streetName': '500TH AVE', 'streetNum': '9999', 'crossStreetName': '', 'cityName': '', 'is_precise': True, 'is_valid': False},
+                     {"ADDRESS": "4041 Vinceton St, Pittsburgh, PA 15214, USA", "streetName": "VINCETON ST", "streetNum": "4041", "crossStreetName": "Pheasant Way", "cityName": "Pittsburgh", 'lat': 40.49168176185096, 'long': -80.02255502915706, 'is_precise': True, 'is_valid': True},
+                     {"ADDRESS": "", "streetName": "STANTON AVE", "streetNum": "5821-5823", "crossStreetName": "ROBLEY WAY", "cityName": "Pittsburgh", 'is_precise': False},
+                     {"ADDRESS": "S 22nd St & E Carson St, Pittsburgh, PA 15203, USA", "streetName": "S 22ND ST", "streetNum": "", "crossStreetName": "E CARSON ST", "cityName": "Pittsburgh", 'lat': None, 'long': None, 'is_precise': True, 'is_valid': True},
+                     {"ADDRESS": "", "streetName": "CAREY WAY", "streetNum": "2100 BLK", "crossStreetName": "", "cityName": "Pittsburgh", 'is_precise': False},
+                     {"ADDRESS": "2860 Idlewood Ave, Carnegie, PA 15106, USA", "streetName": "Idlewood Ave", "streetNum": "2860", "crossStreetName": "", "cityName": "Carnegie", 'lat': 40.418490480348815, 'long': -80.07297949684406, 'is_precise': True, 'is_valid': True},
+                     {"ADDRESS": "2428 California Ave, Pittsburgh, PA 15212, USA", "streetName": "CALIFORNIA AVE", "streetNum": "2428", "crossStreetName": "", "cityName": "Pittsburgh", 'lat': 40.4645848204945, 'long': -80.03236552361642, 'is_precise': True, 'is_valid': True}]
+        gw = dataflow_utils.GeoWrapper(address_field, street_num_field, street_name_field, cross_street_field, city_field)
+        results = []
+        for val in datum:
+            result = next(gw.process(val))
+            results.append(result)
+        self.assertEqual(results, expected)
+
+    def test_geocode_address(self):
+        datum = [{'ADDRESS': '5939 5TH AVE, Pittsburgh, PA 15232'}, {'ADDRESS': '9999 500TH AVE, PA'}]
+        address_field = 'ADDRESS'
+        expected = [{'ADDRESS': '5939 5TH AVE, Pittsburgh, PA 15232', 'lat': 40.45197335724138, 'long': -79.924606186473},
+                    {'ADDRESS': '9999 500TH AVE, PA', 'lat': None, 'long': None}]
         gca = dataflow_utils.GeocodeAddress(address_field)
-        self.assertEqual(next(gca.process(datum)), expected)
+        results = []
+        for val in datum:
+            result = next(gca.process(val))
+            results.append(result)
+        self.assertEqual(results, expected)
 
     def test_swap_field_names(self):
         datum = {'exampleColumn': 'foo', 'anotherExample': 'bar'}

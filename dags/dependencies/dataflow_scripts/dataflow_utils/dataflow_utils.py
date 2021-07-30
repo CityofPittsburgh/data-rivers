@@ -133,15 +133,17 @@ class GetDateStrings(beam.DoFn, ABC):
         yield datum
 
 class GeoWrapper(beam.DoFn):
-    def __init__(self, address_field, street_num_field, cross_street_field):
+    def __init__(self, address_field, street_num_field, street_name_field, cross_street_field, city_field):
         self.address_field = address_field
         self.street_num_field = street_num_field
+        self.street_name_field = street_name_field
         self.cross_street_field = cross_street_field
+        self.city_field = city_field
 
     def process(self, datum):
         datum = id_underspecified_addresses(datum, self.street_num_field, self.cross_street_field)
         if datum['is_precise']:
-            datum = regularize_address(datum, self.address_field)
+            datum = regularize_address(datum, self.address_field, self.street_num_field, self.street_name_field, self.city_field, self.cross_street_field)
             if datum['is_valid']:
                 datum = geocode_address(datum, self.address_field)
 
@@ -154,8 +156,7 @@ class GeocodeAddress(beam.DoFn):
         self.address_field = address_field
 
     def process(self, datum):
-        for val in datum:
-            geocode_address(val, self.address_field)
+        geocode_address(datum, self.address_field)
 
         yield datum
 
@@ -301,7 +302,7 @@ def id_underspecified_addresses(datum, street_num_field, cross_street_field):
     if datum[street_num_field].isnumeric():
         is_precise = True
     else:
-        if datum[cross_street_field]:
+        if not datum[street_num_field] and datum[cross_street_field]:
             is_precise = True
         else:
             is_precise = False
@@ -309,14 +310,17 @@ def id_underspecified_addresses(datum, street_num_field, cross_street_field):
     return datum
 
 
-def regularize_address(datum, address_field):
+def regularize_address(datum, address_field, street_num_field, street_name_field, city_field, cross_street_field):
     api_key = os.environ["GMAP_API_KEY"]
     base_url = "https://maps.googleapis.com/maps/api/geocode/json"
-    address = datum[address_field]
+    if datum[address_field]:
+        address = datum[address_field]
+    elif datum[cross_street_field] and not datum[street_num_field]:
+        address = datum[street_name_field] + ' and ' + datum[cross_street_field] + ', ' + datum[city_field]
+    else:
+        address = datum[street_num_field] + ' ' + datum[street_name_field] + ', ' + datum[city_field]
     is_valid = False
 
-    if 'pittsburgh' not in address.lower():
-        address += ' pittsburgh'
     try:
         res = requests.get(f"{base_url}?address={address}&key={api_key}")
         results = res.json()['results'][0]
@@ -334,8 +338,6 @@ def regularize_address(datum, address_field):
 def geocode_address(datum, address_field):
     coords = {'lat': None, 'long': None}
     address = datum[address_field]
-    if 'pittsburgh' not in address.lower():
-        address += ' pittsburgh'
     try:
         res = requests.get(F"http://gisdata.alleghenycounty.us/arcgis/rest/services/Geocoders/Composite/GeocodeServer/"
                            F"findAddressCandidates?Street=&City=&State=&ZIP=&SingleLine="
