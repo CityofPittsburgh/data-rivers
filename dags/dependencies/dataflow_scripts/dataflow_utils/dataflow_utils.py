@@ -141,10 +141,15 @@ class GeoWrapper(beam.DoFn):
         self.city_field = city_field
 
     def process(self, datum):
+        datum['lat'] = None
+        datum['long'] = None
+        datum['is_precise'] = None
+        datum['is_valid'] = None
+        datum['is_intersection'] = None
         datum = id_underspecified_addresses(datum, self.street_num_field, self.cross_street_field)
         if datum['is_precise']:
             datum = regularize_address(datum, self.address_field, self.street_num_field, self.street_name_field, self.city_field, self.cross_street_field)
-            if datum['is_valid']:
+            if datum['is_valid'] and not datum['is_intersection']:
                 datum = geocode_address(datum, self.address_field)
 
         yield datum
@@ -313,10 +318,12 @@ def id_underspecified_addresses(datum, street_num_field, cross_street_field):
 def regularize_address(datum, address_field, street_num_field, street_name_field, city_field, cross_street_field):
     api_key = os.environ["GMAP_API_KEY"]
     base_url = "https://maps.googleapis.com/maps/api/geocode/json"
+    is_intersection = False
     if datum[address_field]:
         address = datum[address_field]
     elif datum[cross_street_field] and not datum[street_num_field]:
         address = datum[street_name_field] + ' and ' + datum[cross_street_field] + ', ' + datum[city_field]
+        is_intersection = True
     else:
         address = datum[street_num_field] + ' ' + datum[street_name_field] + ', ' + datum[city_field]
     is_valid = False
@@ -328,10 +335,15 @@ def regularize_address(datum, address_field, street_num_field, street_name_field
             fmt_address = results['formatted_address']
             if fmt_address != 'Pittsburgh, PA, USA':
                 datum[address_field] = fmt_address
+                if is_intersection:
+                    api_coords = results['geometry']['location']
+                    datum['lat'] = float(api_coords.get('lat'))
+                    datum['long'] = float(api_coords.get('lng'))
                 is_valid = True
     except requests.exceptions.RequestException as e:
         pass
     datum['is_valid'] = is_valid
+    datum['is_intersection'] = is_intersection
     return datum
 
 
@@ -349,6 +361,8 @@ def geocode_address(datum, address_field):
         else:
             pass
     except requests.exceptions.RequestException as e:
+        pass
+    except KeyError:
         pass
     try:
         datum['lat'] = coords['lat']
