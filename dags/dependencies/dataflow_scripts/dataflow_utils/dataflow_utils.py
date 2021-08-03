@@ -111,17 +111,19 @@ class FilterFields(beam.DoFn):
             logging.info('got NoneType datum')
 
 
-class GetDateStrings(beam.DoFn, ABC):
+class GetDateStringsFromUnix(beam.DoFn, ABC):
     def __init__(self, date_conversions):
         """
-        :param date_conversions: list of tuples; each tuple consists of an existing field name + a name for the
-        new date-string field.
+        :param date_conversions: list of tuples; each tuple consists of an existing field name +
+         a name for the two new date-string fields.
         """
         self.date_conversions = date_conversions
 
     def process(self, datum):
         for column in self.date_conversions:
-            datum[column[1]] = unix_to_date_string(datum[column[0]])
+            unix_conv_utc, unix_conv_east = unix_to_date_strings(datum[column[0]])
+            datum[column[1]] = unix_conv_utc
+            datum[column[2]] = unix_conv_east
 
         yield datum
 
@@ -354,16 +356,17 @@ def clean_csv_boolean(boolean):
         return None
 
 
-def unix_to_date_string(unix_date):
+def unix_to_date_strings(unix_date):
     """
-    this function converts unix timestamps (integer type) to human readable UTC timestamps (string type)
+    this function converts unix timestamps (integer type) to human readable UTC and Eastern timestamps (string type)
+    it is more robust than the above function and clears up ambiguity over what timezone the returned datetime is in
     :param unix_date: int
-    :return: string
+    :return: utc_conv, east_conv: strings
     """
     dt_object = datetime.fromtimestamp(unix_date)
     utc_conv = dt_object.astimezone(tz=pytz.utc)
-    est_conv = dt_object.astimezone(tz=pytz.timezone('US/Eastern'))
-    return str(utc_conv), str(est_conv)
+    east_conv = dt_object.astimezone(tz=pytz.timezone('America/New_York'))
+    return str(utc_conv), str(east_conv)
 
 
 def geocode_address(datum, address_field):
