@@ -8,7 +8,7 @@ from apache_beam.io import ReadFromText
 from apache_beam.io.avroio import WriteToAvro
 
 from dataflow_utils import dataflow_utils
-from dataflow_utils.dataflow_utils import JsonCoder, SwapFieldNames, GetDateStrings, generate_args, get_schema
+from dataflow_utils.dataflow_utils import JsonCoder, SwapFieldNames, GetDateStringsFromUnix, generate_args, get_schema
 
 
 def run(argv=None):
@@ -36,7 +36,7 @@ def run(argv=None):
         load = (
                 lines
                 | beam.ParDo(SwapFieldNames(field_name_swaps))
-                | beam.ParDo(GetDateStrings(date_conversions))
+                | beam.ParDo(GetDateStringsFromUnix(date_conversions))
                 | WriteToAvro(known_args.avro_output, schema=avro_schema, file_name_suffix='.avro', use_fastavro=True))
 
 
