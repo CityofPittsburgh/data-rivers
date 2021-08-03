@@ -146,7 +146,7 @@ class GeoWrapper(beam.DoFn):
         datum['address_type'] = None
         
         datum = id_underspecified_addresses(datum, self.street_num_field, self.cross_street_field)
-        datum = geocode_address(datum, self.address_field, self.street_num_field, self.street_name_field, self.city_field, self.cross_street_field)
+        datum = regularize_and_geocode_address(datum, self.address_field, self.street_num_field, self.street_name_field, self.city_field, self.cross_street_field)
 
         yield datum
 
@@ -311,7 +311,67 @@ def id_underspecified_addresses(datum, street_num_field, cross_street_field):
     return datum
 
 
-def geocode_address(datum, address_field, street_num_field, street_name_field, city_field, cross_street_field):
+def geocode_address(datum, address_field):
+    coords = {'lat': None, 'long': None}
+    address = datum[address_field]
+    if 'pittsburgh' not in address.lower():
+        address += ' pittsburgh'
+    try:
+        res = requests.get(F"http://gisdata.alleghenycounty.us/arcgis/rest/services/Geocoders/Composite/GeocodeServer/"
+                           F"findAddressCandidates?Street=&City=&State=&ZIP=&SingleLine="
+                           F"{address.replace(',', '').replace('#', '')}&category=&outFields=&maxLocations=&outSR="
+                           F"4326&searchExtent=&location=&distance=&magicKey=&f=pjson")
+        if len(res.json()['candidates']):
+            coords['lat'] = res.json()['candidates'][0]['location']['y']
+            coords['long'] = res.json()['candidates'][0]['location']['x']
+        else:
+            pass
+    except requests.exceptions.RequestException as e:
+        pass
+    try:
+        datum['lat'] = coords['lat']
+        datum['long'] = coords['long']
+    except TypeError:
+        datum['lat'] = None
+        datum['long'] = None
+
+    return datum
+
+
+def gmap_geocode_address(datum, address_field):
+    api_key = os.environ["GMAP_API_KEY"]
+    base_url = "https://maps.googleapis.com/maps/api/geocode/json"
+
+    coords = {'lat': None, 'long': None}
+    address = datum[address_field]
+    if 'pittsburgh' not in address.lower():
+        address += ' pittsburgh'
+    try:
+        res = requests.get(f"{base_url}?address={address}&key={api_key}")
+        results = res.json()['results'][0]
+        if len(results):
+            fmt_address = results['formatted_address']
+            if fmt_address != 'Pittsburgh, PA, USA':
+                api_coords = results['geometry']['location']
+                coords['lat'] = float(api_coords.get('lat'))
+                coords['long'] = float(api_coords.get('lng'))
+        else:
+            pass
+    except requests.exceptions.RequestException as e:
+        pass
+    try:
+        if fmt_address != 'Pittsburgh, PA, USA':
+            datum[address_field] = fmt_address
+        datum['lat'] = coords['lat']
+        datum['long'] = coords['long']
+    except TypeError:
+        datum['lat'] = None
+        datum['long'] = None
+
+    return datum
+
+
+def regularize_and_geocode_address(datum, address_field, street_num_field, street_name_field, city_field, cross_street_field):
     api_key = os.environ["GMAP_API_KEY"]
     base_url = "https://maps.googleapis.com/maps/api/geocode/json"
     if datum['address_type'] == 'Intersection':
