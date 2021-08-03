@@ -5,17 +5,17 @@ import os
 
 import apache_beam as beam
 from apache_beam.io import ReadFromText
-from apache_beam.io.textio import WriteToText
-# from apache_beam.io.avroio import # WriteToAvro
+from apache_beam.io.avroio import WriteToAvro
 
 from dataflow_utils import dataflow_utils
 from dataflow_utils.dataflow_utils import JsonCoder, SwapFieldNames, generate_args, \
-    unix_to_date_string, FilterFields, ColumnsCamelToSnakeCase, GetDateStringsFromUnix,ChangeDataTypes
+    FilterFields, ColumnsCamelToSnakeCase, GetDateStringsFromUnix,ChangeDataTypes, \
+    unix_to_date_strings
 
 
 class GetStatus(beam.DoFn):
     def process(self, datum):
-        status = ''
+        status_name = ''
         if datum['status_code'] == "0":
             datum["status_name"] = 'open'
         elif datum['status_code'] == "1":
@@ -26,7 +26,7 @@ class GetStatus(beam.DoFn):
             datum["status_name"] = 'on hold'
         else:
             pass
-        datum['status'] = status
+        datum['status_name'] = status_name
         yield datum
 
 
@@ -34,7 +34,7 @@ class GetClosedDate(beam.DoFn):
     def process(self, datum):
         if datum['status_name'] == 'closed':
             datum['closed_date_unix'] = datum['last_action_unix']
-            datum['closed_date_utc'], datum['closed_date_est'] = unix_to_date_string(datum['last_action_unix'])
+            datum['closed_date_utc'], datum['closed_date_est'] = unix_to_date_strings(datum['last_action_unix'])
         else:
             datum['closed_date_unix'], datum['closed_date_utc'], datum['closed_date_est'] = None, None, None
         yield datum
@@ -64,7 +64,7 @@ def run(argv = None):
         field_name_swaps = [('master', 'parent_ticket'),
                             ('addDateUnix', 'create_date_unix'),
                             ('lastActionUnix', 'last_action_unix'),
-                            ("status", "status_id"),
+                            ("status", "status_code"),
                             ('streetName', 'street'),
                             ("crossStreetName", "cross_street"),
                             ("comments", "pii_comments"),
@@ -82,12 +82,14 @@ def run(argv = None):
         type_changes = [("id", "str"), ("status_code", "str"), ("street_id", "str"),
                         ("type_id", "str")]
 
+        drop_wprdc_fields = ["private_notes"]
+
         lines = p | ReadFromText(known_args.input, coder = JsonCoder())
 
         load = (
                 lines
                 | beam.ParDo(SwapFieldNames(field_name_swaps))
-                | beam.ParDo(FilterFields(drop_fields, ))
+                | beam.ParDo(FilterFields(drop_fields))
                 | beam.ParDo(ColumnsCamelToSnakeCase())
                 | beam.ParDo(GetDateStringsFromUnix(date_conversions))
                 | beam.ParDo(ChangeDataTypes(type_changes))
@@ -97,8 +99,11 @@ def run(argv = None):
                 # Call to geo wrapper
 
                 | beam.ParDo(DetectChildTicketStatus())
-                | WriteToText("~/Desktop/test.txt")
-                # | WriteToAvro(known_args.avro_output, schema = avro_schema, file_name_suffix = '.avro', use_fastavro= True)
+                | WriteToAvro(known_args.avro_output, schema = avro_schema, file_name_suffix = '.avro', use_fastavro= True)
+
+                # "private_notes" contains potential PII (at low probability) and will not be written to WPRDC
+                # this field is dropped before the data are pushed to the WPRDC bucket
+                | beam.ParDo(PushToWPRDCBucket, fields_to_drop = drop_wprdc_fields)
         )
 
 
