@@ -5,24 +5,25 @@ import os
 
 import apache_beam as beam
 from apache_beam.io import ReadFromText
-from apache_beam.io.avroio import WriteToAvro
+from apache_beam.io.textio import WriteToText
+# from apache_beam.io.avroio import # WriteToAvro
 
 from dataflow_utils import dataflow_utils
-from dataflow_utils.dataflow_utils import JsonCoder, SwapFieldNames, GetDateStrings, generate_args, get_schema, \
-    ChangeDataTypes, unix_to_date_string
+from dataflow_utils.dataflow_utils import JsonCoder, SwapFieldNames, generate_args, \
+    unix_to_date_string, FilterFields, ColumnsCamelToSnakeCase, GetDateStringsFromUnix,ChangeDataTypes
 
 
 class GetStatus(beam.DoFn):
     def process(self, datum):
         status = ''
         if datum['status_code'] == "0":
-            status_name = 'open'
+            datum["status_name"] = 'open'
         elif datum['status_code'] == "1":
-            status_name = 'closed'
+            datum["status_name"] = 'closed'
         elif datum['status_code'] == "3":
-            status_name = 'in progress'
+            datum["status_name"] = 'in progress'
         elif datum['status_code'] == "4":
-            status_name = 'on hold'
+            datum["status_name"] = 'on hold'
         else:
             pass
         datum['status'] = status
@@ -35,7 +36,16 @@ class GetClosedDate(beam.DoFn):
             datum['closed_date_unix'] = datum['last_action_unix']
             datum['closed_date_utc'], datum['closed_date_est'] = unix_to_date_string(datum['last_action_unix'])
         else:
-            datum['closed_date_unix'], datum['closed_date_utc'], datum['closed_date_est'] = None
+            datum['closed_date_unix'], datum['closed_date_utc'], datum['closed_date_est'] = None, None, None
+        yield datum
+
+
+class DetectChildTicketStatus(beam.DoFn):
+    def process(self, datum):
+        if datum['parent_ticket'] == 0:
+            datum['child_ticket'] = False
+        else:
+            datum['child_ticket'] = True
         yield datum
 
 
@@ -72,27 +82,23 @@ def run(argv = None):
         type_changes = [("id", "str"), ("status_code", "str"), ("street_id", "str"),
                         ("type_id", "str")]
 
-
         lines = p | ReadFromText(known_args.input, coder = JsonCoder())
 
         load = (
                 lines
-                # | beam.ParDo(SwapFieldNames(field_name_swaps))
-                # | beam.ParDo(FilterFields())
-                # | beam.ParDo(ColumnsCamelToSnakeCase())
-                # | beam.ParDo(GetDateStringsFromUnix(date_conversions))
-                # | beam.ParDo(ChangeDataTypes(type_changes))
-                # | beam.ParDo(GetStatus())
-                # | beam.ParDo(GetClosedDate())
+                | beam.ParDo(SwapFieldNames(field_name_swaps))
+                | beam.ParDo(FilterFields(drop_fields, ))
+                | beam.ParDo(ColumnsCamelToSnakeCase())
+                | beam.ParDo(GetDateStringsFromUnix(date_conversions))
+                | beam.ParDo(ChangeDataTypes(type_changes))
+                | beam.ParDo(GetStatus())
+                | beam.ParDo(GetClosedDate())
 
-                    # | beam.ParDo(GeocodeAddress(address_field))
-                    # | beam.ParDo(IDUnderspecifiedAddresses(street_num_field, cross_street_field))
-                    # | beam.ParDo(MarkTrafficArteries())
+                # Call to geo wrapper
 
-                    # | beam.ParDo(ConvertParentTicketStatus())
-
-                # | WriteToAvro(known_args.avro_output, schema = avro_schema, file_name_suffix = '.avro',
-                # use_fastavro = True)
+                | beam.ParDo(DetectChildTicketStatus())
+                | WriteToText("~/Desktop/test.txt")
+                # | WriteToAvro(known_args.avro_output, schema = avro_schema, file_name_suffix = '.avro', use_fastavro= True)
         )
 
 
