@@ -143,14 +143,10 @@ class GeoWrapper(beam.DoFn):
     def process(self, datum):
         datum['lat'] = None
         datum['long'] = None
-        datum['is_precise'] = None
-        datum['is_valid'] = None
-        datum['is_intersection'] = None
+        datum['address_type'] = None
+        
         datum = id_underspecified_addresses(datum, self.street_num_field, self.cross_street_field)
-        if datum['is_precise']:
-            datum = regularize_address(datum, self.address_field, self.street_num_field, self.street_name_field, self.city_field, self.cross_street_field)
-            if datum['is_valid'] and not datum['is_intersection']:
-                datum = geocode_address(datum, self.address_field)
+        datum = geocode_address(datum, self.address_field, self.street_num_field, self.street_name_field, self.city_field, self.cross_street_field)
 
         yield datum
 
@@ -305,61 +301,39 @@ def unix_to_date_string(unix_date):
 
 def id_underspecified_addresses(datum, street_num_field, cross_street_field):
     if datum[street_num_field].isnumeric():
-        is_precise = True
+        address_type = 'Precise'
     else:
         if not datum[street_num_field] and datum[cross_street_field]:
-            is_precise = True
+            address_type = 'Intersection'
         else:
-            is_precise = False
-    datum['is_precise'] = is_precise
+            address_type = 'Underspecified'
+    datum['address_type'] = address_type
     return datum
 
 
-def regularize_address(datum, address_field, street_num_field, street_name_field, city_field, cross_street_field):
+def geocode_address(datum, address_field, street_num_field, street_name_field, city_field, cross_street_field):
     api_key = os.environ["GMAP_API_KEY"]
     base_url = "https://maps.googleapis.com/maps/api/geocode/json"
-    is_intersection = False
-    if datum[address_field]:
-        address = datum[address_field]
-    elif datum[cross_street_field] and not datum[street_num_field]:
+    if datum['address_type'] == 'Intersection':
         address = datum[street_name_field] + ' and ' + datum[cross_street_field] + ', ' + datum[city_field]
-        is_intersection = True
+    elif datum[address_field]:
+        address = datum[address_field]
     else:
         address = datum[street_num_field] + ' ' + datum[street_name_field] + ', ' + datum[city_field]
-    is_valid = False
-
+    coords = {'lat': None, 'long': None}
     try:
         res = requests.get(f"{base_url}?address={address}&key={api_key}")
         results = res.json()['results'][0]
         if len(results):
             fmt_address = results['formatted_address']
+            api_coords = results['geometry']['location']
             if fmt_address != 'Pittsburgh, PA, USA':
-                datum[address_field] = fmt_address
-                if is_intersection:
-                    api_coords = results['geometry']['location']
-                    datum['lat'] = float(api_coords.get('lat'))
-                    datum['long'] = float(api_coords.get('lng'))
-                is_valid = True
-    except requests.exceptions.RequestException as e:
-        pass
-    datum['is_valid'] = is_valid
-    datum['is_intersection'] = is_intersection
-    return datum
-
-
-def geocode_address(datum, address_field):
-    coords = {'lat': None, 'long': None}
-    address = datum[address_field]
-    try:
-        res = requests.get(F"http://gisdata.alleghenycounty.us/arcgis/rest/services/Geocoders/Composite/GeocodeServer/"
-                           F"findAddressCandidates?Street=&City=&State=&ZIP=&SingleLine="
-                           F"{address.replace(',', '').replace('#', '')}&category=&outFields=&maxLocations=&outSR="
-                           F"4326&searchExtent=&location=&distance=&magicKey=&f=pjson")
-        if len(res.json()['candidates']):
-            coords['lat'] = res.json()['candidates'][0]['location']['y']
-            coords['long'] = res.json()['candidates'][0]['location']['x']
-        else:
-            pass
+                coords['lat'] = float(api_coords.get('lat'))
+                coords['long'] = float(api_coords.get('lng'))
+                if datum['address_type'] != 'Underspecified':
+                    datum[address_field] = fmt_address
+            else:
+                datum['address_type'] = 'Invalid'
     except requests.exceptions.RequestException as e:
         pass
     except KeyError:

@@ -52,14 +52,14 @@ class TestDataflowUtils(unittest.TestCase):
         street_name_field = 'streetName'
         cross_street_field = 'crossStreetName'
         city_field = 'cityName'
-        expected = [{'ADDRESS': '5939 Fifth Ave, Pittsburgh, PA 15232, USA', 'streetName': '5TH AVE', 'streetNum': '5939', 'crossStreetName': '', 'cityName': 'Pittsburgh', 'lat': 40.45197335724138, 'long': -79.924606186473, 'is_precise': True, 'is_valid': True, 'is_intersection': False},
-                     {'ADDRESS': '9999 500TH AVE, pittsbrgh PA', 'streetName': '500TH AVE', 'streetNum': '9999', 'crossStreetName': '', 'cityName': '', 'lat': None, 'long': None, 'is_precise': True, 'is_valid': False, 'is_intersection': False},
-                     {"ADDRESS": "4041 Vinceton St, Pittsburgh, PA 15214, USA", "streetName": "VINCETON ST", "streetNum": "4041", "crossStreetName": "Pheasant Way", "cityName": "Pittsburgh", 'lat': 40.49168176185096, 'long': -80.02255502915706, 'is_precise': True, 'is_valid': True, 'is_intersection': False},
-                     {"ADDRESS": "", "streetName": "STANTON AVE", "streetNum": "5821-5823", "crossStreetName": "ROBLEY WAY", "cityName": "Pittsburgh", 'lat': None, 'long': None, 'is_precise': False, 'is_valid': None, 'is_intersection': None},
-                     {"ADDRESS": "S 22nd St & E Carson St, Pittsburgh, PA 15203, USA", "streetName": "S 22ND ST", "streetNum": "", "crossStreetName": "E CARSON ST", "cityName": "Pittsburgh", 'lat': 40.4284295, 'long': -79.9746395, 'is_precise': True, 'is_valid': True, 'is_intersection': True},
-                     {"ADDRESS": "", "streetName": "CAREY WAY", "streetNum": "2100 BLK", "crossStreetName": "", "cityName": "Pittsburgh", 'lat': None, 'long': None, 'is_precise': False, 'is_valid': None, 'is_intersection': None},
-                     {"ADDRESS": "2860 Idlewood Ave, Carnegie, PA 15106, USA", "streetName": "Idlewood Ave", "streetNum": "2860", "crossStreetName": "", "cityName": "Carnegie", 'lat': 40.418490480348815, 'long': -80.07297949684406, 'is_precise': True, 'is_valid': True, 'is_intersection': False},
-                     {"ADDRESS": "2428 California Ave, Pittsburgh, PA 15212, USA", "streetName": "CALIFORNIA AVE", "streetNum": "2428", "crossStreetName": "", "cityName": "Pittsburgh", 'lat': 40.4645848204945, 'long': -80.03236552361642, 'is_precise': True, 'is_valid': True, 'is_intersection': False}]
+        expected = [{'ADDRESS': '5939 Fifth Ave, Pittsburgh, PA 15232, USA', 'streetName': '5TH AVE', 'streetNum': '5939', 'crossStreetName': '', 'cityName': 'Pittsburgh', 'lat': 40.4519661, 'long': -79.924539, 'address_type': 'Precise'},
+                     {'ADDRESS': '9999 500TH AVE, pittsbrgh PA', 'streetName': '500TH AVE', 'streetNum': '9999', 'crossStreetName': '', 'cityName': '', 'lat': None, 'long': None, 'address_type': 'Invalid'},
+                     {"ADDRESS": "4041 Vinceton St, Pittsburgh, PA 15214, USA", "streetName": "VINCETON ST", "streetNum": "4041", "crossStreetName": "Pheasant Way", "cityName": "Pittsburgh", 'lat': 40.4916844, 'long': -80.0225664, 'address_type': 'Precise'},
+                     {"ADDRESS": "", "streetName": "STANTON AVE", "streetNum": "5821-5823", "crossStreetName": "ROBLEY WAY", "cityName": "Pittsburgh", 'lat': 40.4703142, 'long': -79.9221585, 'address_type': 'Underspecified'},
+                     {"ADDRESS": "S 22nd St & E Carson St, Pittsburgh, PA 15203, USA", "streetName": "S 22ND ST", "streetNum": "", "crossStreetName": "E CARSON ST", "cityName": "Pittsburgh", 'lat': 40.4284295, 'long': -79.9746395, 'address_type': 'Intersection'},
+                     {"ADDRESS": "", "streetName": "CAREY WAY", "streetNum": "2100 BLK", "crossStreetName": "", "cityName": "Pittsburgh", 'lat': 40.4280339, 'long': -79.9762925, 'address_type': 'Underspecified'},
+                     {"ADDRESS": "2860 Idlewood Ave, Carnegie, PA 15106, USA", "streetName": "Idlewood Ave", "streetNum": "2860", "crossStreetName": "", "cityName": "Carnegie", 'lat': 40.418436, 'long': -80.072954, 'address_type': 'Precise'},
+                     {"ADDRESS": "2428 California Ave, Pittsburgh, PA 15212, USA", "streetName": "CALIFORNIA AVE", "streetNum": "2428", "crossStreetName": "", "cityName": "Pittsburgh", 'lat': 40.4645768, 'long': -80.0323918, 'address_type': 'Precise'}]
         gw = dataflow_utils.GeoWrapper(address_field, street_num_field, street_name_field, cross_street_field, city_field)
         results = []
         for val in datum:
