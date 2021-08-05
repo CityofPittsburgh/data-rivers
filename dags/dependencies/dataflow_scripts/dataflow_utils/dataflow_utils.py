@@ -132,8 +132,15 @@ class GetDateStrings(beam.DoFn, ABC):
 
         yield datum
 
-class GeoWrapper(beam.DoFn):
+class GeoWrapper(beam.DoFn, ABC):
     def __init__(self, address_field, street_num_field, street_name_field, cross_street_field, city_field):
+        """
+        :param address_field: name of field that contains single-line addresses
+        :param street_num_field: name of field that contains house numbers
+        :param street_name_field: name of field that contains street address names
+        :param cross_street_field: name of field that contains intersecting street names
+        :param city_field: name of field that contains the city a given street address belongs to
+        """
         self.address_field = address_field
         self.street_num_field = street_num_field
         self.street_name_field = street_name_field
@@ -145,8 +152,8 @@ class GeoWrapper(beam.DoFn):
         datum['long'] = None
         datum['address_type'] = None
         
-        datum = id_underspecified_addresses(datum, self.street_num_field, self.cross_street_field)
-        datum = regularize_and_geocode_address(datum, self.address_field, self.street_num_field, self.street_name_field, self.city_field, self.cross_street_field)
+        datum = id_underspecified_addresses(datum, self)
+        datum = regularize_and_geocode_address(datum, self)
 
         yield datum
 
@@ -299,11 +306,19 @@ def unix_to_date_string(unix_date):
     return str(utc_conv), str(est_conv)
 
 
-def id_underspecified_addresses(datum, street_num_field, cross_street_field):
-    if datum[street_num_field].isnumeric():
+def id_underspecified_addresses(datum, self):
+    """
+    Identify whether a given street address, partitioned into street name, street number, and cross street name,
+    is underspecified or not. An underspecified address is defined as any address that does not have an exact
+    street number and is not an intersection. Examples of underspecified addresses are block numbers or
+    ranges of addresses.
+
+    :return: datum in PCollection (dict) with new field (address_type) identifying level of address specificity
+    """
+    if datum[self.street_num_field].isnumeric():
         address_type = 'Precise'
     else:
-        if not datum[street_num_field] and datum[cross_street_field]:
+        if not datum[self.street_num_field] and datum[self.cross_street_field]:
             address_type = 'Intersection'
         else:
             address_type = 'Underspecified'
@@ -371,15 +386,20 @@ def gmap_geocode_address(datum, address_field):
     return datum
 
 
-def regularize_and_geocode_address(datum, address_field, street_num_field, street_name_field, city_field, cross_street_field):
+def regularize_and_geocode_address(datum, self):
+    """
+    Take in addresses of different formats, regularize them to USPS/Google Maps format, then geocode lat/long values
+
+    :return: datum in PCollection (dict) with two new fields (lat, long) containing coordinates
+    """
     api_key = os.environ["GMAP_API_KEY"]
     base_url = "https://maps.googleapis.com/maps/api/geocode/json"
     if datum['address_type'] == 'Intersection':
-        address = datum[street_name_field] + ' and ' + datum[cross_street_field] + ', ' + datum[city_field]
-    elif datum[address_field]:
-        address = datum[address_field]
+        address = datum[self.street_name_field] + ' and ' + datum[self.cross_street_field] + ', ' + datum[self.city_field]
+    elif datum[self.address_field]:
+        address = datum[self.address_field]
     else:
-        address = datum[street_num_field] + ' ' + datum[street_name_field] + ', ' + datum[city_field]
+        address = datum[self.street_num_field] + ' ' + datum[self.street_name_field] + ', ' + datum[self.city_field]
     coords = {'lat': None, 'long': None}
     try:
         res = requests.get(f"{base_url}?address={address}&key={api_key}")
@@ -391,7 +411,7 @@ def regularize_and_geocode_address(datum, address_field, street_num_field, stree
                 coords['lat'] = float(api_coords.get('lat'))
                 coords['long'] = float(api_coords.get('lng'))
                 if datum['address_type'] != 'Underspecified':
-                    datum[address_field] = fmt_address
+                    datum[self.address_field] = fmt_address
             else:
                 datum['address_type'] = 'Invalid'
     except requests.exceptions.RequestException as e:
