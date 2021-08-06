@@ -20,6 +20,9 @@ from avro import schema
 from google.cloud import bigquery, storage
 from dateutil import parser
 
+from shapely.geometry import Point
+from shapely.geometry.polygon import Polygon
+
 dt = datetime.now()
 bq_client = bigquery.Client()
 storage_client = storage.Client()
@@ -407,7 +410,8 @@ def regularize_and_geocode_address(datum, self):
         if len(results):
             fmt_address = results['formatted_address']
             api_coords = results['geometry']['location']
-            if fmt_address != 'Pittsburgh, PA, USA':
+            in_city = within_city_bounds(api_coords.get('lat'), api_coords.get('lng'))
+            if fmt_address != 'Pittsburgh, PA, USA' and in_city:
                 coords['lat'] = float(api_coords.get('lat'))
                 coords['long'] = float(api_coords.get('lng'))
                 if datum['address_type'] != 'Underspecified':
@@ -426,6 +430,22 @@ def regularize_and_geocode_address(datum, self):
         datum['long'] = None
 
     return datum
+
+
+def within_city_bounds(lat, long):
+    bq_client = bigquery.Client(project='data-rivers')    #os.environ['GCLOUD_PROJECT'])
+    #job_config = bigquery.QueryJobConfig(destination='geography')
+
+    sql = f"SELECT geometry FROM `data-rivers.geography.city_boundary`"   #{os.environ['GCLOUD_PROJECT']}.geography.city_boundary`"
+    query_job = bq_client.query(sql) #, job_config=job_config)
+    results = query_job.result()
+
+    point = Point(lat, long)
+    for row in results:
+        bounds = Polygon(row)
+        if bounds.contains(point):
+            return True
+    return False
 
 
 def extract_field(datum, source_field, nested_field, new_field_name):
