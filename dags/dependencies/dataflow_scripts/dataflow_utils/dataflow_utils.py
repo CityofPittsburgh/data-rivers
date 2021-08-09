@@ -434,16 +434,21 @@ def regularize_and_geocode_address(datum, self):
 
 def within_city_bounds(lat, long):
     bq_client = bigquery.Client(project='data-rivers')    #os.environ['GCLOUD_PROJECT'])
-    #job_config = bigquery.QueryJobConfig(destination='geography')
+    # job_config = bigquery.QueryJobConfig(destination='geography')
 
     sql = f"SELECT geometry FROM `data-rivers.geography.city_boundary`"   #{os.environ['GCLOUD_PROJECT']}.geography.city_boundary`"
     query_job = bq_client.query(sql) #, job_config=job_config)
     results = query_job.result()
 
-    point = Point(lat, long)
+    # point = Point(lat, long)
     for row in results:
-        bounds = Polygon(row)
-        if bounds.contains(point):
+        sql = F"SELECT " \
+              F"ST_CONTAINS(ST_GEOGFROMTEXT('{row.values()[0]}')," \
+              F"ST_GEOGPOINT({long}, {lat}))"
+        query_job = bq_client.query(sql)
+        contain_results = list(query_job.result())
+        contains = contain_results[0].values()[0]
+        if contains:
             return True
     return False
 
