@@ -136,7 +136,7 @@ class GetDateStrings(beam.DoFn, ABC):
         yield datum
 
 class GeoWrapper(beam.DoFn, ABC):
-    def __init__(self, address_field, street_num_field, street_name_field, cross_street_field, city_field):
+    def __init__(self, address_field, street_num_field, street_name_field, cross_street_field, city_field, lat_field, long_field):
         """
         :param address_field: name of field that contains single-line addresses
         :param street_num_field: name of field that contains house numbers
@@ -149,10 +149,12 @@ class GeoWrapper(beam.DoFn, ABC):
         self.street_name_field = street_name_field
         self.cross_street_field = cross_street_field
         self.city_field = city_field
+        self.lat_field = lat_field
+        self.long_field = long_field
 
     def process(self, datum):
-        datum['lat'] = None
-        datum['long'] = None
+        datum['user_specified_address'] = None
+        datum['google_formatted_address'] = None
         datum['address_type'] = None
         
         datum = id_underspecified_addresses(datum, self)
@@ -398,36 +400,40 @@ def regularize_and_geocode_address(datum, self):
     api_key = os.environ["GMAP_API_KEY"]
     base_url = "https://maps.googleapis.com/maps/api/geocode/json"
     if datum['address_type'] == 'Intersection':
-        address = datum[self.street_name_field] + ' and ' + datum[self.cross_street_field] + ', ' + datum[self.city_field]
+        address = str(datum[self.street_name_field]) + ' and ' + str(datum[self.cross_street_field]) + ', ' + str(datum[self.city_field])
     elif datum[self.address_field]:
         address = datum[self.address_field]
     else:
-        address = datum[self.street_num_field] + ' ' + datum[self.street_name_field] + ', ' + datum[self.city_field]
+        address = str(datum[self.street_num_field]) + ' ' + str(datum[self.street_name_field]) + ', ' + str(datum[self.city_field])
     coords = {'lat': None, 'long': None}
+    if 'none' not in address.lower():
+        datum['user_specified_address'] = address
     try:
         res = requests.get(f"{base_url}?address={address}&key={api_key}")
-        results = res.json()['results'][0]
-        if len(results):
-            fmt_address = results['formatted_address']
-            api_coords = results['geometry']['location']
-            in_city = within_city_bounds(api_coords.get('lat'), api_coords.get('lng'))
-            if fmt_address != 'Pittsburgh, PA, USA' and in_city:
-                coords['lat'] = float(api_coords.get('lat'))
-                coords['long'] = float(api_coords.get('lng'))
-                if datum['address_type'] != 'Underspecified':
-                    datum[self.address_field] = fmt_address
-            else:
-                datum['address_type'] = 'Invalid'
+        if res.json()['results']:
+            results = res.json()['results'][0]
+            if len(results):
+                fmt_address = results['formatted_address']
+                api_coords = results['geometry']['location']
+                in_city = within_city_bounds(api_coords.get('lat'), api_coords.get('lng'))
+                if fmt_address not in ['Pittsburgh, PA, USA', '1825 Golden Mile Hwy, Pittsburgh, PA 15239, USA', '610 Purdue Mall, West Lafayette, IN 47907, USA']:
+                    coords['lat'] = float(api_coords.get('lat'))
+                    coords['long'] = float(api_coords.get('lng'))
+                    if not in_city:
+                        datum['address_type'] = 'Outside of City'
+                else:
+                    datum['address_type'] = 'Unmappable'
+                datum['google_formatted_address'] = fmt_address
     except requests.exceptions.RequestException as e:
         pass
     except KeyError:
         pass
     try:
-        datum['lat'] = coords['lat']
-        datum['long'] = coords['long']
+        datum[self.lat_field] = coords['lat']
+        datum[self.long_field] = coords['long']
     except TypeError:
-        datum['lat'] = None
-        datum['long'] = None
+        datum[self.lat_field] = None
+        datum[self.long_field] = None
 
     return datum
 
