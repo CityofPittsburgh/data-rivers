@@ -42,7 +42,7 @@ class GetClosedDate(beam.DoFn):
 
 class DetectChildTicketStatus(beam.DoFn):
     def process(self, datum):
-        if datum['parent_ticket'] == 0:
+        if datum['parent_ticket'] == "0":
             datum['child_ticket'] = False
         else:
             datum['child_ticket'] = True
@@ -68,9 +68,9 @@ def run(argv = None):
                             ('streetName', 'street'),
                             ("crossStreetName", "cross_street"),
                             ("comments", "pii_comments"),
+                            ("privateNotes", "pii_private_notes"),
                             ("latitude", "lat"),
-                            ("longitude", "long")
-                            ]
+                            ("longitude", "long")]
 
         drop_fields = ['addDate', 'lastAction', 'displayDate', 'displayLastAction',
                        'district', 'submitter', 'priorityValue', 'aggregatorID',
@@ -79,10 +79,8 @@ def run(argv = None):
         date_conversions = [('last_action_unix', 'last_action_utc', 'last_action_est'),
                             ('create_date_unix', 'create_date_utc', 'create_date_est')]
 
-        type_changes = [("id", "str"), ("status_code", "str"), ("street_id", "str"),
+        type_changes = [("id", "str"), ("parent_ticket", "str"), ("status_code", "str"), ("street_id", "str"),
                         ("type_id", "str")]
-
-        drop_wprdc_fields = ["private_notes"]
 
         lines = p | ReadFromText(known_args.input, coder = JsonCoder())
 
@@ -99,11 +97,20 @@ def run(argv = None):
                 # Call to geo wrapper
 
                 | beam.ParDo(DetectChildTicketStatus())
-                | WriteToAvro(known_args.avro_output, schema = avro_schema, file_name_suffix = '.avro', use_fastavro= True)
 
-                # "private_notes" contains potential PII (at low probability) and will not be written to WPRDC
-                # this field is dropped before the data are pushed to the WPRDC bucket
-                | beam.ParDo(PushToWPRDCBucket, fields_to_drop = drop_wprdc_fields)
+
+                # | WriteToAvro(known_args.avro_output, schema = avro_schema, file_name_suffix = '.avro', use_fastavro=True)
+
+
+                ### DATAFLOW
+                # 1) geo wrapper
+                # A) write three subsets of data - 1 is the new tickets which are only parents, 2 is the  child,
+                # 3 is all
+                # B) write to avro in GCS
+
+
+
+
         )
 
 
