@@ -39,7 +39,7 @@ class TestDataflowUtils(unittest.TestCase):
         cdt = dataflow_utils.ChangeDataTypes(type_changes)
         self.assertEqual(next(cdt.process(datum)), expected)
 
-    def test_geowrapper(self):
+    def test_google_maps_classify_and_geocode(self):
         datum = [{'streetName': 'Grasshopper Ln', 'streetNum': '123', 'crossStreetName': '', 'cityName': 'Pittsburgh'},
                  {'streetName': '5TH AVE', 'streetNum': '5939', 'crossStreetName': '', 'cityName': 'Pittsburgh'},
                  {'streetName': '53483u9TH AVE', 'streetNum': '99999', 'crossStreetName': '', 'cityName': 'Pittsburgh'},
@@ -67,10 +67,10 @@ class TestDataflowUtils(unittest.TestCase):
                     {"google_formatted_address": "2860 Idlewood Ave, Carnegie, PA 15106, USA", "user_specified_address": "2860 Idlewood Ave, Carnegie", "streetName": "Idlewood Ave", "streetNum": "2860", "crossStreetName": "", "cityName": "Carnegie", 'latitude': 40.418436, 'longitude': -80.072954, 'address_type': 'Precise'},
                     {"google_formatted_address": "2428 California Ave, Pittsburgh, PA 15212, USA", "user_specified_address": "2428 CALIFORNIA AVE, Pittsburgh", "streetName": "CALIFORNIA AVE", "streetNum": "2428", "crossStreetName": "", "cityName": "Pittsburgh", 'latitude': 40.4645768, 'longitude': -80.0323918, 'address_type': 'Precise'},
                     {'google_formatted_address': None, "user_specified_address": None, 'streetNum': '', 'streetName': None, 'crossStreetName': '', 'cityName': 'Pittsburgh', 'latitude': None, 'longitude': None, 'address_type': 'Unmappable'}]
-        gw = dataflow_utils.GeoWrapper(address_field, street_num_field, street_name_field, cross_street_field, city_field, lat_field, long_field)
+        gcg = dataflow_utils.GoogleMapsClassifyAndGeocode(address_field, street_num_field, street_name_field, cross_street_field, city_field, lat_field, long_field)
         results = []
         for val in datum:
-            result = next(gw.process(val))
+            result = next(gcg.process(val))
             results.append(result)
         self.assertEqual(results, expected)
 

@@ -135,7 +135,7 @@ class GetDateStrings(beam.DoFn, ABC):
 
         yield datum
 
-class GeoWrapper(beam.DoFn, ABC):
+class GoogleMapsClassifyAndGeocode(beam.DoFn, ABC):
     def __init__(self, address_field, street_num_field, street_name_field, cross_street_field, city_field, lat_field, long_field):
         """
         :param address_field: name of field that contains single-line addresses
@@ -143,6 +143,8 @@ class GeoWrapper(beam.DoFn, ABC):
         :param street_name_field: name of field that contains street address names
         :param cross_street_field: name of field that contains intersecting street names
         :param city_field: name of field that contains the city a given street address belongs to
+        :param lat_field: name of field that contains the latitude of an address
+        :param long_field: name of field that contains the longitude of an address
         """
         self.address_field = address_field
         self.street_num_field = street_num_field
