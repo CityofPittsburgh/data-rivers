@@ -417,13 +417,13 @@ def regularize_and_geocode_address(datum, self):
                 api_coords = results['geometry']['location']
                 in_city = within_city_bounds(api_coords.get('lat'), api_coords.get('lng'))
                 if fmt_address not in ['Pittsburgh, PA, USA', '1825 Golden Mile Hwy, Pittsburgh, PA 15239, USA', '610 Purdue Mall, West Lafayette, IN 47907, USA']:
+                    datum['google_formatted_address'] = fmt_address
                     coords['lat'] = float(api_coords.get('lat'))
                     coords['long'] = float(api_coords.get('lng'))
                     if not in_city:
                         datum['address_type'] = 'Outside of City'
                 else:
                     datum['address_type'] = 'Unmappable'
-                datum['google_formatted_address'] = fmt_address
     except requests.exceptions.RequestException as e:
         pass
     except KeyError:
