@@ -93,24 +93,12 @@ def run(argv = None):
                 | beam.ParDo(ChangeDataTypes(type_changes))
                 | beam.ParDo(GetStatus())
                 | beam.ParDo(GetClosedDate())
-
-                # Call to geo wrapper
-
                 | beam.ParDo(DetectChildTicketStatus())
 
+                # | beam.ParDo(GoogleMapsGeoLocation())
 
-                # | WriteToAvro(known_args.avro_output, schema = avro_schema, file_name_suffix = '.avro', use_fastavro=True)
-
-
-                ### DATAFLOW
-                # 1) geo wrapper
-                # A) write three subsets of data - 1 is the new tickets which are only parents, 2 is the  child,
-                # 3 is all
-                # B) write to avro in GCS
-
-
-
-
+                # TODO: change the schema after it is created
+                | WriteToAvro(known_args.avro_output, schema = avro_schema, file_name_suffix = '.avro', use_fastavro=True)
         )
 
 
