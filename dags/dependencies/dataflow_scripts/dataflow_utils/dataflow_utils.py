@@ -158,9 +158,10 @@ class GoogleMapsClassifyAndGeocode(beam.DoFn, ABC):
         datum['user_specified_address'] = None
         datum['google_formatted_address'] = None
         datum['address_type'] = None
-        
+
         datum = id_underspecified_addresses(datum, self)
-        datum = regularize_and_geocode_address(datum, self)
+        if datum['address_type'] not in ['Missing', 'Coordinates Only']:
+            datum = regularize_and_geocode_address(datum, self)
 
         yield datum
 
@@ -322,13 +323,18 @@ def id_underspecified_addresses(datum, self):
 
     :return: datum in PCollection (dict) with new field (address_type) identifying level of address specificity
     """
-    if datum[self.street_num_field].isnumeric():
-        address_type = 'Precise'
-    else:
-        if not datum[self.street_num_field] and datum[self.cross_street_field]:
-            address_type = 'Intersection'
+    if datum[self.street_name_field]:
+        if datum[self.street_num_field].isnumeric():
+            address_type = 'Precise'
         else:
-            address_type = 'Underspecified'
+            if not datum[self.street_num_field] and datum[self.cross_street_field]:
+                address_type = 'Intersection'
+            else:
+                address_type = 'Underspecified'
+    elif datum[self.lat_field] != 0.0 and datum[self.long_field] != 0.0:
+        address_type = 'Coordinates Only'
+    else:
+        address_type = 'Missing'
     datum['address_type'] = address_type
     return datum
 
@@ -407,9 +413,11 @@ def regularize_and_geocode_address(datum, self):
         address = datum[self.address_field]
     else:
         address = str(datum[self.street_num_field]) + ' ' + str(datum[self.street_name_field]) + ', ' + str(datum[self.city_field])
-    coords = {'lat': None, 'long': None}
     if 'none' not in address.lower():
         datum['user_specified_address'] = address
+    else:
+        address = 'Pittsburgh, PA, USA'
+    coords = {'lat': None, 'long': None}
     try:
         res = requests.get(f"{base_url}?address={address}&key={api_key}")
         if res.json()['results']:
@@ -418,7 +426,7 @@ def regularize_and_geocode_address(datum, self):
                 fmt_address = results['formatted_address']
                 api_coords = results['geometry']['location']
                 in_city = within_city_bounds(api_coords.get('lat'), api_coords.get('lng'))
-                if fmt_address not in ['Pittsburgh, PA, USA', '1825 Golden Mile Hwy, Pittsburgh, PA 15239, USA', '610 Purdue Mall, West Lafayette, IN 47907, USA']:
+                if fmt_address not in ['Pittsburgh, PA, USA', '610 Purdue Mall, West Lafayette, IN 47907, USA', 'Tulsa, OK 74135, USA']:
                     datum['google_formatted_address'] = fmt_address
                     coords['lat'] = float(api_coords.get('lat'))
                     coords['long'] = float(api_coords.get('lng'))

@@ -49,7 +49,8 @@ class TestDataflowUtils(unittest.TestCase):
                  {"streetName": "CAREY WAY", "streetNum": "2100 BLK", "crossStreetName": "", "cityName": "Pittsburgh", "latitude": 40.4280339, "longitude": -79.9762925},
                  {"streetName": "Idlewood Ave", "streetNum": "2860", "crossStreetName": "", "cityName": "Carnegie", "latitude": 40.418436, "longitude": -80.072954},
                  {"streetName": "CALIFORNIA AVE", "streetNum": "2428", "crossStreetName": "", "cityName": "Pittsburgh", "latitude": 40.464607, "longitude": -80.032372},
-                 {'streetNum': '', 'streetName': None, 'crossStreetName': '', 'cityName': 'Pittsburgh', 'latitude': None, 'longitude': None}]
+                 {'streetNum': '', 'streetName': None, 'crossStreetName': '', 'cityName': 'Pittsburgh', 'latitude': 40.484164, 'longitude': -79.9259162},
+                 {'streetNum': '', 'streetName': None, 'crossStreetName': '', 'cityName': 'Pittsburgh', 'latitude': 0.0, 'longitude': 0.0}]
         address_field = 'user_specified_address'
         street_num_field = 'streetNum'
         street_name_field = 'streetName'
@@ -66,7 +67,8 @@ class TestDataflowUtils(unittest.TestCase):
                     {"google_formatted_address": "2100 Carey Way, Pittsburgh, PA 15203, USA", "user_specified_address": "2100 BLK CAREY WAY, Pittsburgh", "streetName": "CAREY WAY", "streetNum": "2100 BLK", "crossStreetName": "", "cityName": "Pittsburgh", 'latitude': 40.4280339, 'longitude': -79.9762925, 'address_type': 'Underspecified'},
                     {"google_formatted_address": "2860 Idlewood Ave, Carnegie, PA 15106, USA", "user_specified_address": "2860 Idlewood Ave, Carnegie", "streetName": "Idlewood Ave", "streetNum": "2860", "crossStreetName": "", "cityName": "Carnegie", 'latitude': 40.418436, 'longitude': -80.072954, 'address_type': 'Precise'},
                     {"google_formatted_address": "2428 California Ave, Pittsburgh, PA 15212, USA", "user_specified_address": "2428 CALIFORNIA AVE, Pittsburgh", "streetName": "CALIFORNIA AVE", "streetNum": "2428", "crossStreetName": "", "cityName": "Pittsburgh", 'latitude': 40.4645768, 'longitude': -80.0323918, 'address_type': 'Precise'},
-                    {'google_formatted_address': None, "user_specified_address": None, 'streetNum': '', 'streetName': None, 'crossStreetName': '', 'cityName': 'Pittsburgh', 'latitude': None, 'longitude': None, 'address_type': 'Unmappable'}]
+                    {'google_formatted_address': None, "user_specified_address": None, 'streetNum': '', 'streetName': None, 'crossStreetName': '', 'cityName': 'Pittsburgh', 'latitude': 40.484164, 'longitude': -79.9259162, 'address_type': 'Coordinates Only'},
+                    {'google_formatted_address': None, "user_specified_address": None, 'streetNum': '', 'streetName': None, 'crossStreetName': '', 'cityName': 'Pittsburgh', 'latitude': 0.0, 'longitude': 0.0, 'address_type': 'Missing'}]
         gcg = dataflow_utils.GoogleMapsClassifyAndGeocode(address_field, street_num_field, street_name_field, cross_street_field, city_field, lat_field, long_field)
         results = []
         for val in datum:
