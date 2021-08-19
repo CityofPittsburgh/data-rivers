@@ -159,13 +159,7 @@ def beam_cleanup_statement(bucket):
            "no beam output; fi".format(bucket, bucket)
 
 
-# def set_backfill_date(bucket_in, file_name):
-#     bucket = storage_client.bucket(bucket_in)
-#     blob = bucket.get_blob(file_name)
-#     file_date = blob.updated
-#     return file_date.date()
-
-def find_latest_file_date(bucket_name, dir):
+def find_last_successful_run(bucket_name, dir):
     """
     Return the date of the last time a given DAG was run when provided with a bucket name and
     GCS directory to search in. Iterates through buckets to find most recent file update date.
@@ -220,21 +214,6 @@ def find_latest_file_date(bucket_name, dir):
     last_run = max(update_dates)
     local_conv_last_run = datetime.astimezone(last_run,local_tz).date()
     return str(local_conv_last_run)
-
-
-
-# def log_missing_file(file_path, src_bucket, log_bucket):
-#     bucket = storage_client.bucket(src_bucket)
-#     exists = storage.Blob(bucket=bucket, name=file_path).exists(storage_client)
-#     if not exists:
-#         bucket_out = storage_client.get_bucket(log_bucket)
-#         log_file_name = os.path.splitext(file_path)[0] + '_log.txt'
-#         log_file = open(log_file_name, "w+")
-#         log_file.write(file_path + " not found in " + src_bucket + " on " + str(datetime.today()))
-#         log_blob = bucket_out.blob(log_file_name)
-#         log_file.close()
-#         log_blob.upload_from_filename(log_file_name)
-#     return exists
 
 
 if __name__ == '__main__':
