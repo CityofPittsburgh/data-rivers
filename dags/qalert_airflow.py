@@ -9,8 +9,8 @@ from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 from airflow.contrib.operators.bigquery_to_gcs import BigQueryToCloudStorageOperator
 
 from dependencies import airflow_utils
-from dependencies.airflow_utils import build_revgeo_query, dedup_table, get_ds_year, get_ds_month, default_args, \
-    filter_old_values, build_city_limit_query
+from dependencies.airflow_utils import build_revgeo_query, get_ds_year, get_ds_month, default_args, \
+     find_backfill_date, build_city_limit_query
 
 # TODO: When Airflow 2.0 is released, upgrade the package, sub in DataFlowPythonOperator for BashOperator,
 #  and pass the argument 'py_interpreter=python3'
@@ -23,9 +23,11 @@ dag = DAG(
         user_defined_filters = {'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year}
 )
 
+last_run = find_backfill_date("pghpa_qalert", "requests")
+
 # run gcs_loader
 gcs_cmd = 'python {}'.format(os.environ['DAGS_PATH']) + '/dependencies/gcs_loaders/qalert_gcs.py'
-gcs_since = ' --since {{prev_ds }} '
+gcs_since = ' --since {} '.format(last_run)
 gcs_execution = ' --execution_date {{ ds }}'
 
 qalert_requests_gcs = BashOperator(
