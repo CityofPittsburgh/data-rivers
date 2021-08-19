@@ -19,26 +19,21 @@ storage_client = storage.Client()
 
 class TestAirflowUtils(unittest.TestCase):
 
-    def test_set_backfill_date(self):
-        datum = ['pghpa_accela', 'backfill/planning/planning_2019.json']
-        expected_date = 'Oct 21, 2020'
-        expected = parser.parse(expected_date)
-        output = airflow_utils.set_backfill_date(datum[0], datum[1])
-        self.assertEqual(output, expected.date())
+    def test_find_backfill_date(self):
+        datum = [{'bucket': 'pghpa_test_police', 'dir': '30_day_blotter'},
+                 {'bucket': 'pghpa_twilio', 'dir': 'service_desk'},
+                 {'bucket': 'pghpa_test_accela', 'dir': 'permits'},
+                 {'bucket': 'pghpa_computronix', 'dir': 'domi_permits'}]
+        expected_dates = ['July 12, 2021', 'Aug 18, 2021', 'July 14, 2021', 'Nov 8, 2020']
+        expected = []
+        for date in expected_dates:
+            expected.append(parser.parse(date))
+        index = 0
+        for val in datum:
+            output = airflow_utils.find_backfill_date(val['bucket'], val['dir'])
+            self.assertEqual(output, str(expected[index].date()))
+            index += 1
 
-    def test_find_latest_file_date(self):
-        datum = ['pghpa_computronix', 'domi_permits']
-        expected_date = 'Nov 9, 2020'
-        expected = parser.parse(expected_date)
-        output = airflow_utils.find_latest_file_date(datum[0], datum[1])
-        self.assertEqual(output, expected.date())
-
-    def test_log_missing_file(self):
-        bucket_name = "pghpa_test_logging"
-        datum_true = ['Field_Listings.avsc', 'pghpa_test', bucket_name]
-        datum_false = ['test_file.csv', 'pghpa_wprdc', bucket_name]
-        self.assertEqual(airflow_utils.log_missing_file(datum_true[0], datum_true[1], datum_true[2]), True)
-        self.assertEqual(airflow_utils.log_missing_file(datum_false[0], datum_false[1], datum_false[2]), False)
 
 if __name__ == '__main__':
     unittest.main()

@@ -18,7 +18,7 @@ dt = datetime.now(tz=local_tz)
 yesterday = datetime.combine(dt - timedelta(1), datetime.min.time())
 
 bq_client = bigquery.Client()
-storage_client = storage.Client()
+storage_client = storage.Client(project=os.environ['GCLOUD_PROJECT'])
 
 
 def on_failure(context):
@@ -159,13 +159,7 @@ def beam_cleanup_statement(bucket):
            "no beam output; fi".format(bucket, bucket)
 
 
-# def set_backfill_date(bucket_in, file_name):
-#     bucket = storage_client.bucket(bucket_in)
-#     blob = bucket.get_blob(file_name)
-#     file_date = blob.updated
-#     return file_date.date()
-
-def find_latest_file_date(bucket_name, dir):
+def find_backfill_date(bucket_name, dir):
     """
     Return the date of the last time a given DAG was run when provided with a bucket name and
     GCS directory to search in. Iterates through buckets to find most recent file update date.
@@ -177,7 +171,7 @@ def find_latest_file_date(bucket_name, dir):
     ds = str(datetime.now())
     ds_yr = get_ds_year(ds)
     ds_month = get_ds_month(ds)
-    update_dates = []
+    upload_dates = []
     valid = False
 
     # only search back to 2017
@@ -191,19 +185,21 @@ def find_latest_file_date(bucket_name, dir):
             for blob in list_blobs:
                 # determine if file size is greater than 0 kb
                 if blob.size > 0:
-                    update_dates.append(blob.time_created)
+                    # convert upload times to local time from UTC, then append to list
+                    blob_date = datetime.astimezone(blob.time_created, local_tz)
+                    upload_dates.append(blob_date)
 
             # if blobs greater than 0kb were appended then exit while loop
-            if len(update_dates) > 0:
+            if len(upload_dates) > 0:
                 valid = True
 
-            # if blobs were present, but no blobs that are greater than 0 kb detected search backwards in time until
-            # 2017
+            # if blobs were present, but no blobs that are greater than 0 kb detected search
+            # backwards in time until 2017
             else:
                 valid = False
                 if ds_month != '01':
-                    # values must be converted to int and zero padded to render vals < 10 as two digits for string
-                    # comparison
+                    # values must be converted to int and zero padded to render vals < 10 as two digits
+                    # for string comparison
                     ds_month = str(int(ds_month) - 1).zfill(2)
                 else:
                     ds_yr = str(int(ds_yr) - 1)
@@ -216,25 +212,9 @@ def find_latest_file_date(bucket_name, dir):
             else:
                 ds_yr = str(int(ds_yr) - 1)
                 ds_month = '12'
-    # extract the last run date (UTC time) and convert to local time to determine last run date
-    last_run = max(update_dates)
-    local_conv_last_run = datetime.astimezone(last_run,local_tz).date()
-    return str(local_conv_last_run)
-
-
-
-# def log_missing_file(file_path, src_bucket, log_bucket):
-#     bucket = storage_client.bucket(src_bucket)
-#     exists = storage.Blob(bucket=bucket, name=file_path).exists(storage_client)
-#     if not exists:
-#         bucket_out = storage_client.get_bucket(log_bucket)
-#         log_file_name = os.path.splitext(file_path)[0] + '_log.txt'
-#         log_file = open(log_file_name, "w+")
-#         log_file.write(file_path + " not found in " + src_bucket + " on " + str(datetime.today()))
-#         log_blob = bucket_out.blob(log_file_name)
-#         log_file.close()
-#         log_blob.upload_from_filename(log_file_name)
-#     return exists
+    # extract the last run date by finding the largest upload date value to determine last run date
+    last_run = max(upload_dates)
+    return str(last_run.date())
 
 
 if __name__ == '__main__':
