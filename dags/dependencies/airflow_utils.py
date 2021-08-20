@@ -159,13 +159,13 @@ def beam_cleanup_statement(bucket):
            "no beam output; fi".format(bucket, bucket)
 
 
-def find_backfill_date(bucket_name, dir):
+def find_backfill_date(bucket_name, subfolder):
     """
     Return the date of the last time a given DAG was run when provided with a bucket name and
     GCS directory to search in. Iterates through buckets to find most recent file update date.
 
     :param bucket_name: name of GCS bucket (string)
-    :param dir: name of subdirectory within bucket_name to be searched (string)
+    :param subfolder: name of directory within bucket_name to be searched (string)
     :return: date to be used as a backfill date when executing a new DAG run
     """
     ds = str(datetime.now())
@@ -176,7 +176,7 @@ def find_backfill_date(bucket_name, dir):
 
     # only search back to 2017
     while not valid and int(ds_yr) > 2017:
-        prefix = dir + '/' + ds_yr + '/' + ds_month
+        prefix = subfolder + '/' + ds_yr + '/' + ds_month
         blobs = storage_client.list_blobs(bucket_name, prefix=prefix)
         list_blobs = list(blobs)
 
@@ -212,10 +212,11 @@ def find_backfill_date(bucket_name, dir):
             else:
                 ds_yr = str(int(ds_yr) - 1)
                 ds_month = '12'
-    # extract the last run date by finding the largest upload date value to determine last run date
+    # extract the last run date by finding the largest upload date value to determine most recent date
     if len(upload_dates):
         last_run = max(upload_dates)
         return str(last_run.date())
+    # if no valid dates found after loop finishes, return yesterday's date
     else:
         return str(yesterday.date())
 
