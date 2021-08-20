@@ -18,7 +18,7 @@ dt = datetime.now(tz=local_tz)
 yesterday = datetime.combine(dt - timedelta(1), datetime.min.time())
 
 bq_client = bigquery.Client()
-storage_client = storage.Client(project=os.environ['GCLOUD_PROJECT'])
+storage_client = storage.Client()
 
 
 def on_failure(context):
@@ -219,6 +219,22 @@ def find_backfill_date(bucket_name, subfolder):
     # if no valid dates found after loop finishes, return yesterday's date
     else:
         return str(yesterday.date())
+
+
+def format_gcs_call(script_name, bucket_name, direc):
+    exec_script_cmd = 'python {}'.format(os.environ['DAGS_PATH']) + '/dependencies/gcs_loaders/{}'.format(script_name)
+    since_arg = ' --since {}'.format(find_backfill_date(bucket_name, direc))
+    exec_date_arg = ' --execution_date {{ ds }}'
+    return exec_script_cmd + since_arg + exec_date_arg
+
+
+def format_dataflow_call(script_name):
+    exec_script_cmd = 'python {}'.format(os.environ['DAGS_PATH']) + '/dependencies/dataflow_scripts/{}'.format(
+            script_name)
+    date_direc = "{{ds | get_ds_year}}/{{ds | get_ds_month}}/{{ds}}"
+    input_arg = " --input gs://{}_qalert/requests/{}_requests.json".format(os.environ["GCS_PREFIX"], date_direc)
+    output_arg = " --avro_output gs://{}_qalert/requests/avro_output/{}/".format(os.environ["GCS_PREFIX"], date_direc)
+    return exec_script_cmd + input_arg + output_arg
 
 
 if __name__ == '__main__':
