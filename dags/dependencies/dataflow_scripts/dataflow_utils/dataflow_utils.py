@@ -451,20 +451,28 @@ def regularize_and_geocode_address(datum, self):
 def within_city_bounds(lat, long):
     bq_client = bigquery.Client(project='data-rivers')
 
-    sql = f"SELECT geometry FROM `data-rivers.geography.city_boundary`"
+    sql = "SELECT geometry FROM `data-rivers.geography.single_city_border`"  #f"SELECT geometry FROM `data-rivers.geography.city_boundary`"
     query_job = bq_client.query(sql)
     results = query_job.result()
 
-    for row in results:
-        sql = F"SELECT " \
-              F"ST_CONTAINS(ST_GEOGFROMTEXT('{row.values()[0]}')," \
-              F"ST_GEOGPOINT({long}, {lat}))"
-        query_job = bq_client.query(sql)
-        contain_results = list(query_job.result())
-        contains = contain_results[0].values()[0]
-        if contains:
-            return True
-    return False
+    sql = F"SELECT " \
+          F"ST_COVERS(ST_GEOGFROMTEXT('{results[0].values()[0]}')," \
+          F"ST_GEOGPOINT({long}, {lat}))"
+    query_job = bq_client.query(sql)
+    contain_results = list(query_job.result())
+    contains = contain_results[0].values()[0]
+    return contains
+
+    # for row in results:
+    #     sql = F"SELECT " \
+    #           F"ST_CONTAINS(ST_GEOGFROMTEXT('{row.values()[0]}')," \
+    #           F"ST_GEOGPOINT({long}, {lat}))"
+    #     query_job = bq_client.query(sql)
+    #     contain_results = list(query_job.result())
+    #     contains = contain_results[0].values()[0]
+    #     if contains:
+    #         return True
+    # return False
 
 
 def extract_field(datum, source_field, nested_field, new_field_name):
