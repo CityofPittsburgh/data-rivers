@@ -23,8 +23,9 @@ class TestAirflowUtils(unittest.TestCase):
         datum = [{'bucket': 'pghpa_test_police', 'dir': '30_day_blotter'},
                  {'bucket': 'pghpa_twilio', 'dir': 'service_desk'},
                  {'bucket': 'pghpa_test_accela', 'dir': 'permits'},
-                 {'bucket': 'pghpa_computronix', 'dir': 'domi_permits'}]
-        expected_dates = ['July 12, 2021', 'Aug 18, 2021', 'July 14, 2021', 'Nov 8, 2020']
+                 {'bucket': 'pghpa_computronix', 'dir': 'domi_permits'},
+                 {'bucket': 'pghpa_test', 'dir': 'home'}]
+        expected_dates = ['July 12, 2021', 'Aug 19, 2021', 'July 14, 2021', 'Nov 8, 2020', 'Aug 19, 2021']
         expected = []
         for date in expected_dates:
             expected.append(parser.parse(date))

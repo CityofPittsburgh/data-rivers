@@ -213,8 +213,11 @@ def find_backfill_date(bucket_name, dir):
                 ds_yr = str(int(ds_yr) - 1)
                 ds_month = '12'
     # extract the last run date by finding the largest upload date value to determine last run date
-    last_run = max(upload_dates)
-    return str(last_run.date())
+    if len(upload_dates):
+        last_run = max(upload_dates)
+        return str(last_run.date())
+    else:
+        return str(yesterday.date())
 
 
 if __name__ == '__main__':
