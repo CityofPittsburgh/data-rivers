@@ -38,6 +38,7 @@ qalert_requests_dataflow = BashOperator(
         dag = dag
 )
 
+
 # 1) load AVRO data (full dataset) from dataflow_script into BQ temp table
 qalert_requests_bq = GoogleCloudStorageToBigQueryOperator(
         task_id = 'qalert_bq',
