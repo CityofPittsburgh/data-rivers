@@ -159,6 +159,79 @@ def beam_cleanup_statement(bucket):
            "no beam output; fi".format(bucket, bucket)
 
 
+def find_backfill_date(bucket_name, subfolder):
+    """
+    Return the date of the last time a given DAG was run when provided with a bucket name and
+    GCS directory to search in. Iterates through buckets to find most recent file update date.
+    :param bucket_name: name of GCS bucket (string)
+    :param subfolder: name of directory within bucket_name to be searched (string)
+    :return: date to be used as a backfill date when executing a new DAG run
+    """
+    ds = str(datetime.now())
+    ds_yr = get_ds_year(ds)
+    ds_month = get_ds_month(ds)
+    upload_dates = []
+    valid = False
+    # only search back to 2017
+    while not valid and int(ds_yr) > 2017:
+        prefix = subfolder + '/' + ds_yr + '/' + ds_month
+        blobs = storage_client.list_blobs(bucket_name, prefix=prefix)
+        list_blobs = list(blobs)
+        # if blobs are found
+        if len(list_blobs):
+            for blob in list_blobs:
+                # determine if file size is greater than 0 kb
+                if blob.size > 0:
+                    # convert upload times to local time from UTC, then append to list
+                    blob_date = datetime.astimezone(blob.time_created, local_tz)
+                    upload_dates.append(blob_date)
+            # if blobs greater than 0kb were appended then exit while loop
+            if len(upload_dates) > 0:
+                valid = True
+            # if blobs were present, but no blobs that are greater than 0 kb detected search
+            # backwards in time until 2017
+            else:
+                valid = False
+                if ds_month != '01':
+                    # values must be converted to int and zero padded to render vals < 10 as two digits
+                    # for string comparison
+                    ds_month = str(int(ds_month) - 1).zfill(2)
+                else:
+                    ds_yr = str(int(ds_yr) - 1)
+                    ds_month = '12'
+        # if no blobs detected search back until 2017
+        else:
+            valid = False
+            if ds_month != '01':
+                ds_month = str(int(ds_month) - 1).zfill(2)
+            else:
+                ds_yr = str(int(ds_yr) - 1)
+                ds_month = '12'
+    # extract the last run date by finding the largest upload date value to determine most recent date
+    if len(upload_dates):
+        last_run = max(upload_dates)
+        return str(last_run.date())
+    # if no valid dates found after loop finishes, return yesterday's date
+    else:
+        return str(yesterday.date())
+
+
+def format_gcs_call(script_name, bucket_name, direc):
+    exec_script_cmd = 'python {}'.format(os.environ['DAGS_PATH']) + '/dependencies/gcs_loaders/{}'.format(script_name)
+    since_arg = ' --since {}'.format(find_backfill_date(bucket_name, direc))
+    exec_date_arg = ' --execution_date {{ ds }}'
+    return exec_script_cmd + since_arg + exec_date_arg
+
+
+def format_dataflow_call(script_name):
+    exec_script_cmd = 'python {}'.format(os.environ['DAGS_PATH']) + '/dependencies/dataflow_scripts/{}'.format(
+            script_name)
+    date_direc = "{{ds | get_ds_year}}/{{ds | get_ds_month}}/{{ds}}"
+    input_arg = " --input gs://{}_qalert/requests/{}_requests.json".format(os.environ["GCS_PREFIX"], date_direc)
+    output_arg = " --avro_output gs://{}_qalert/requests/avro_output/{}/".format(os.environ["GCS_PREFIX"], date_direc)
+    return exec_script_cmd + input_arg + output_arg
+
+
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.INFO)
     run()

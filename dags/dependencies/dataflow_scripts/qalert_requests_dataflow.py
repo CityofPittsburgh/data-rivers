@@ -95,7 +95,7 @@ def run(argv = None):
                 | beam.ParDo(GetClosedDate())
                 | beam.ParDo(DetectChildTicketStatus())
 
-                # | beam.ParDo(GoogleMapsGeoLocation())
+                # | beam.ParDo(GoogleMapsGeoLocation(blah blah blah))
 
                 # TODO: change the schema after it is created
                 | WriteToAvro(known_args.avro_output, schema = avro_schema, file_name_suffix = '.avro', use_fastavro=True)
