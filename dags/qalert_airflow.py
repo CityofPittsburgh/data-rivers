@@ -6,11 +6,11 @@ from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
 from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOperator
 from airflow.contrib.operators.bigquery_operator import BigQueryOperator
-from airflow.contrib.operators.bigquery_to_gcs import BigQueryToCloudStorageOperator
+# from airflow.contrib.operators.bigquery_to_gcs import BigQueryToCloudStorageOperator
 
 from dependencies import airflow_utils
 from dependencies.airflow_utils import build_revgeo_query, get_ds_year, get_ds_month, default_args, \
-     find_backfill_date, build_city_limit_query
+     format_gcs_call, format_dataflow_call, build_city_limit_query
 
 # TODO: When Airflow 2.0 is released, upgrade the package, sub in DataFlowPythonOperator for BashOperator,
 #  and pass the argument 'py_interpreter=python3'
@@ -23,29 +23,18 @@ dag = DAG(
         user_defined_filters = {'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year}
 )
 
-last_run = find_backfill_date("pghpa_qalert", "requests")
 
 # run gcs_loader
-gcs_cmd = 'python {}'.format(os.environ['DAGS_PATH']) + '/dependencies/gcs_loaders/qalert_gcs.py'
-gcs_since = ' --since {} '.format(last_run)
-gcs_execution = ' --execution_date {{ ds }}'
-
 qalert_requests_gcs = BashOperator(
         task_id = 'qalert_gcs',
-        bash_command = gcs_cmd + gcs_since + gcs_execution,
+        bash_command = format_gcs_call("qalert_gcs.py", "".format(os.environ["GCS_PREFIX"] + "_qalert"), "requests"),
         dag = dag
 )
 
 # run dataflow_script
-df_cmd = "python {}/dependencies/dataflow_scripts/qalert_requests_dataflow.py ".format(os.environ['DAGS_PATH'])
-df_input = " --input gs://{}_qalert/requests/{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds }}_requests.json ". \
-    format(os.environ['GCS_PREFIX'])
-df_output = "--avro_output gs://{}_qalert/requests/avro_output/{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds }}/". \
-    format(os.environ['GCS_PREFIX'])
-
 qalert_requests_dataflow = BashOperator(
         task_id = 'qalert_dataflow',
-        bash_command = df_cmd + df_input + df_output,
+        bash_command = format_dataflow_call("qalert_requests_dataflow.py"),
         dag = dag
 )
 
