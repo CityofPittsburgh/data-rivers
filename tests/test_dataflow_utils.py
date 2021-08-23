@@ -51,14 +51,8 @@ class TestDataflowUtils(unittest.TestCase):
                  {"streetName": "CALIFORNIA AVE", "streetNum": "2428", "crossStreetName": "", "cityName": "Pittsburgh", "latitude": 40.464607, "longitude": -80.032372},
                  {'streetNum': '', 'streetName': None, 'crossStreetName': '', 'cityName': 'Pittsburgh', 'latitude': 40.484164, 'longitude': -79.9259162},
                  {'streetNum': '', 'streetName': None, 'crossStreetName': '', 'cityName': 'Pittsburgh', 'latitude': 0.0, 'longitude': 0.0}]
-        address_field = 'user_specified_address'
-        street_num_field = 'streetNum'
-        street_name_field = 'streetName'
-        cross_street_field = 'crossStreetName'
-        city_field = 'cityName'
-        lat_field = 'latitude'
-        long_field = 'longitude'
-        expected = [{"google_formatted_address": "123 Grasshopper Ln, Greentown, PA 18426, USA", "user_specified_address": "123 Grasshopper Ln, Pittsburgh", 'streetName': 'Grasshopper Ln', 'streetNum': '123', 'crossStreetName': '', 'cityName': 'Pittsburgh', 'latitude': 41.3634857, 'longitude': -75.2567009, 'address_type': 'Outside of City'},
+        address_fields = ['user_specified_address', 'streetNum', 'streetName', 'crossStreetName', 'cityName', 'latitude', 'longitude']
+        expected = [{"google_formatted_address": "123 Grasshopper Ln, Greentown, PA 18426, USA", "user_specified_address": "123 Grasshopper Ln, Pittsburgh", 'streetName': 'Grasshopper Ln', 'streetNum': '123', 'crossStreetName': '', 'cityName': 'Pittsburgh', 'latitude': 41.3634857, 'longitude': -75.2567009, 'address_type': 'Precise'},
                     {"google_formatted_address": "5939 Fifth Ave, Pittsburgh, PA 15232, USA", "user_specified_address": "5939 5TH AVE, Pittsburgh", 'streetName': '5TH AVE', 'streetNum': '5939', 'crossStreetName': '', 'cityName': 'Pittsburgh', 'latitude': 40.4519661, 'longitude': -79.924539, 'address_type': 'Precise'},
                     {"google_formatted_address": None, "user_specified_address": "99999 53483u9TH AVE, Pittsburgh", "streetName": "53483u9TH AVE", "streetNum": "99999", "crossStreetName": "", 'cityName': "Pittsburgh", "latitude": None, "longitude": None, "address_type": "Unmappable"},
                     {"google_formatted_address": "4041 Vinceton St, Pittsburgh, PA 15214, USA", "user_specified_address": "4041 VINCETON ST, Pittsburgh", "streetName": "VINCETON ST", "streetNum": "4041", "crossStreetName": "Pheasant Way", "cityName": "Pittsburgh", 'latitude': 40.4916844, 'longitude': -80.0225664, 'address_type': 'Precise'},
@@ -69,7 +63,7 @@ class TestDataflowUtils(unittest.TestCase):
                     {"google_formatted_address": "2428 California Ave, Pittsburgh, PA 15212, USA", "user_specified_address": "2428 CALIFORNIA AVE, Pittsburgh", "streetName": "CALIFORNIA AVE", "streetNum": "2428", "crossStreetName": "", "cityName": "Pittsburgh", 'latitude': 40.4645768, 'longitude': -80.0323918, 'address_type': 'Precise'},
                     {'google_formatted_address': None, "user_specified_address": None, 'streetNum': '', 'streetName': None, 'crossStreetName': '', 'cityName': 'Pittsburgh', 'latitude': 40.484164, 'longitude': -79.9259162, 'address_type': 'Coordinates Only'},
                     {'google_formatted_address': None, "user_specified_address": None, 'streetNum': '', 'streetName': None, 'crossStreetName': '', 'cityName': 'Pittsburgh', 'latitude': 0.0, 'longitude': 0.0, 'address_type': 'Missing'}]
-        gcg = dataflow_utils.GoogleMapsClassifyAndGeocode(address_field, street_num_field, street_name_field, cross_street_field, city_field, lat_field, long_field)
+        gcg = dataflow_utils.GoogleMapsClassifyAndGeocode(address_fields)
         results = []
         for val in datum:
             result = next(gcg.process(val))

@@ -136,8 +136,9 @@ class GetDateStrings(beam.DoFn, ABC):
         yield datum
 
 class GoogleMapsClassifyAndGeocode(beam.DoFn, ABC):
-    def __init__(self, address_field, street_num_field, street_name_field, cross_street_field, city_field, lat_field, long_field):
+    def __init__(self, address_fields):
         """
+        :param address_fields: list of 7 field names that contain the following information:
         :param address_field: name of field that contains single-line addresses
         :param street_num_field: name of field that contains house numbers
         :param street_name_field: name of field that contains street address names
@@ -146,13 +147,13 @@ class GoogleMapsClassifyAndGeocode(beam.DoFn, ABC):
         :param lat_field: name of field that contains the latitude of an address
         :param long_field: name of field that contains the longitude of an address
         """
-        self.address_field = address_field
-        self.street_num_field = street_num_field
-        self.street_name_field = street_name_field
-        self.cross_street_field = cross_street_field
-        self.city_field = city_field
-        self.lat_field = lat_field
-        self.long_field = long_field
+        self.address_field = address_fields[0]
+        self.street_num_field = address_fields[1]
+        self.street_name_field = address_fields[2]
+        self.cross_street_field = address_fields[3]
+        self.city_field = address_fields[4]
+        self.lat_field = address_fields[5]
+        self.long_field = address_fields[6]
 
     def process(self, datum):
         datum['user_specified_address'] = None
@@ -425,13 +426,10 @@ def regularize_and_geocode_address(datum, self):
             if len(results):
                 fmt_address = results['formatted_address']
                 api_coords = results['geometry']['location']
-                in_city = within_city_bounds(api_coords.get('lat'), api_coords.get('lng'))
                 if fmt_address not in ['Pittsburgh, PA, USA', '610 Purdue Mall, West Lafayette, IN 47907, USA', 'Tulsa, OK 74135, USA']:
                     datum['google_formatted_address'] = fmt_address
                     coords['lat'] = float(api_coords.get('lat'))
                     coords['long'] = float(api_coords.get('lng'))
-                    if not in_city:
-                        datum['address_type'] = 'Outside of City'
                 else:
                     datum['address_type'] = 'Unmappable'
     except requests.exceptions.RequestException as e:
@@ -446,33 +444,6 @@ def regularize_and_geocode_address(datum, self):
         datum[self.long_field] = None
 
     return datum
-
-
-def within_city_bounds(lat, long):
-    bq_client = bigquery.Client(project='data-rivers')
-
-    sql = "SELECT geometry FROM `data-rivers.geography.single_city_border`"  #f"SELECT geometry FROM `data-rivers.geography.city_boundary`"
-    query_job = bq_client.query(sql)
-    results = query_job.result()
-
-    sql = F"SELECT " \
-          F"ST_COVERS(ST_GEOGFROMTEXT('{results[0].values()[0]}')," \
-          F"ST_GEOGPOINT({long}, {lat}))"
-    query_job = bq_client.query(sql)
-    contain_results = list(query_job.result())
-    contains = contain_results[0].values()[0]
-    return contains
-
-    # for row in results:
-    #     sql = F"SELECT " \
-    #           F"ST_CONTAINS(ST_GEOGFROMTEXT('{row.values()[0]}')," \
-    #           F"ST_GEOGPOINT({long}, {lat}))"
-    #     query_job = bq_client.query(sql)
-    #     contain_results = list(query_job.result())
-    #     contains = contain_results[0].values()[0]
-    #     if contains:
-    #         return True
-    # return False
 
 
 def extract_field(datum, source_field, nested_field, new_field_name):
