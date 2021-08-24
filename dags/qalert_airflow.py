@@ -147,5 +147,5 @@ qalert_beam_cleanup = BashOperator(
 )
 
 qalert_requests_gcs >> qalert_requests_dataflow >> qalert_requests_bq >> qalert_requests_city_limits >> \
-qalert_requests_geojoin >> qalert_requests_merge_new_tickets >> qalert_requests_split_parent >> \
-qalert_requests_split_child >> qalert_merge_related_requests >> qalert_bq_drop_temp >> qalert_beam_cleanup
+     qalert_requests_geojoin >> qalert_requests_merge_new_tickets >> qalert_requests_split_parent >> \
+     qalert_requests_split_child >> qalert_merge_related_requests >> qalert_bq_drop_temp >> qalert_beam_cleanup

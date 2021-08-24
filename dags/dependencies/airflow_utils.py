@@ -159,15 +159,15 @@ def beam_cleanup_statement(bucket):
            "no beam output; fi".format(bucket, bucket)
 
 
-def find_backfill_date(bucket_name, subfolder):
+def find_backfill_date(bucket_name, subfolder, ds):
     """
     Return the date of the last time a given DAG was run when provided with a bucket name and
     GCS directory to search in. Iterates through buckets to find most recent file update date.
     :param bucket_name: name of GCS bucket (string)
     :param subfolder: name of directory within bucket_name to be searched (string)
+    :param ds - date derived from airflow built-in
     :return: date to be used as a backfill date when executing a new DAG run
     """
-    ds = str(datetime.now())
     ds_yr = get_ds_year(ds)
     ds_month = get_ds_month(ds)
     upload_dates = []
@@ -187,8 +187,11 @@ def find_backfill_date(bucket_name, subfolder):
                     # convert upload times to local time from UTC, then append to list
                     blob_date = datetime.astimezone(blob.time_created, local_tz)
                     upload_dates.append(blob_date)
+
+            # if blobs greater than 0kb were appended then exit while loop
             if len(upload_dates) > 0:
                 valid = True
+
             # if blobs were present, but no blobs that are greater than 0 kb detected search
             # backwards in time until 2017
             else:
