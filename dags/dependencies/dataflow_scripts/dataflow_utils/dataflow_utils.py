@@ -129,7 +129,7 @@ class GetDateStringsFromUnix(beam.DoFn, ABC):
 
 
 class GoogleMapsClassifyAndGeocode(beam.DoFn, ABC):
-    def __init__(self, loc_field_names):
+    def __init__(self, loc_field_names, partioned_address):
         """
         :param loc_field_names: dictionary of 7 field name keys that contain the following information:
         :param address_field: name of field that contains single-line addresses
@@ -140,20 +140,24 @@ class GoogleMapsClassifyAndGeocode(beam.DoFn, ABC):
         :param lat_field: name of field that contains the latitude of an address
         :param long_field: name of field that contains the longitude of an address
         """
-        self.address_field = loc_field_names["address_field"]
-        self.street_num_field = loc_field_names["street_num_field"]
-        self.street_name_field = loc_field_names["street_name_field"]
-        self.cross_street_field = loc_field_names["cross_street_field"]
-        self.city_field = loc_field_names["city_field"]
-        self.lat_field = loc_field_names["lat_field"]
-        self.long_field = loc_field_names["long_field"]
+        self.partioned_address = partioned_address
+        if partioned_address:
+            self.street_num_field = loc_field_names["street_num_field"]
+            self.street_name_field = loc_field_names["street_name_field"]
+            self.cross_street_field = loc_field_names["cross_street_field"]
+            self.city_field = loc_field_names["city_field"]
+            self.lat_field = loc_field_names["lat_field"]
+            self.long_field = loc_field_names["long_field"]
+        else:
+            self.address_field = loc_field_names["address_field"]
 
     def process(self, datum):
-        datum['user_specified_address'] = None
+        datum['specified_address'] = None
         datum['google_formatted_address'] = None
         datum['address_type'] = None
 
-        if self.address_field not in datum:
+        # if self.address_field not in datum:
+        if not self.partioned_address:
             datum = id_underspecified_addresses(datum, self)
         if datum['address_type'] not in ['Missing', 'Coordinates Only']:
             datum = regularize_and_geocode_address(datum, self)
@@ -495,13 +499,14 @@ def regularize_and_geocode_address(datum, self):
     base_url = "https://maps.googleapis.com/maps/api/geocode/json"
     if datum['address_type'] == 'Intersection':
         address = str(datum[self.street_name_field]) + ' and ' + str(datum[self.cross_street_field]) + ', ' + str(datum[self.city_field])
-    elif self.address_field in datum:
+    # elif self.address_field in datum:
+    elif not self.partioned_address:
         address = datum[self.address_field]
         datum['address_type'] = 'Precise'
     else:
         address = str(datum[self.street_num_field]) + ' ' + str(datum[self.street_name_field]) + ', ' + str(datum[self.city_field])
     if 'none' not in address.lower():
-        datum['user_specified_address'] = address
+        datum['specified_address'] = address
     else:
         address = 'Pittsburgh, PA, USA'
     coords = {'lat': None, 'long': None}
@@ -512,7 +517,7 @@ def regularize_and_geocode_address(datum, self):
             if len(results):
                 fmt_address = results['formatted_address']
                 api_coords = results['geometry']['location']
-                if fmt_address not in ['Pittsburgh, PA, USA', '610 Purdue Mall, West Lafayette, IN 47907, USA', 'Tulsa, OK 74135, USA']:
+                if re.search(r'\bPA\b', fmt_address) and fmt_address != 'Pittsburgh, PA, USA':
                     datum['google_formatted_address'] = fmt_address
                     coords['lat'] = float(api_coords.get('lat'))
                     coords['long'] = float(api_coords.get('lng'))

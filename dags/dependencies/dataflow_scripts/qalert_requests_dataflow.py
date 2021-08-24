@@ -82,7 +82,6 @@ def run(argv = None):
                         ("type_id", "str")]
 
         loc_field_names = {
-            "address_field": "",
             "street_num_field": "street_num",
             "street_name_field": "street",
             "cross_street_field": "cross_street",
@@ -103,9 +102,7 @@ def run(argv = None):
                 | beam.ParDo(GetStatus())
                 | beam.ParDo(GetClosedDate())
                 | beam.ParDo(DetectChildTicketStatus())
-
-                | beam.ParDo(GoogleMapsClassifyAndGeocode(loc_field_names))
-
+                | beam.ParDo(GoogleMapsClassifyAndGeocode(loc_field_names, partioned_address = True))
                 # TODO: change the schema after it is created
                 | WriteToAvro(known_args.avro_output, schema = avro_schema, file_name_suffix = '.avro', use_fastavro=True)
         )
