@@ -236,6 +236,41 @@ def format_dataflow_call(script_name):
     return exec_script_cmd + input_arg + output_arg
 
 
+def build_city_limits_query(datum, coord_fields):
+    """
+    Determine whether a set of coordinates fall within the borders of the City of Pittsburgh,
+    while also falling outside the borders of Mt. Oliver. If an address is within the city,
+    the datum is returned as-is. Otherwise, the 'address_type' field is changed to 'Outside
+    of City'.
+    :param datum: data source containing address information
+    :param coord_fields: dict that maps names of latitude and longitude fields to keys
+    :return: datum with address_type either unchanged or set to Outside of City
+    """
+    bq_client = bigquery.Client(project='data-rivers')
+    lng = datum[coord_fields['long_field']]
+    lat = datum[coord_fields['lat_field']]
+    borders = []
+
+    sql = "SELECT geometry FROM `data-rivers.geography.city_and_mt_oliver_borders`"
+    query_job = bq_client.query(sql)
+    results = query_job.result()
+    for row in results:
+        borders.append(row.values()[0])
+
+    sql = F"SELECT " \
+              F"ST_COVERS(ST_GEOGFROMTEXT('{borders[0]}')," \
+              F"ST_GEOGPOINT({lng}, {lat})) " \
+          F"AND NOT " \
+              F"ST_COVERS(ST_GEOGFROMTEXT('{borders[1]}')," \
+              F"ST_GEOGPOINT({lng}, {lat}))"
+    query_job = bq_client.query(sql)
+    contain_results = list(query_job.result())
+    contains = contain_results[0].values()[0]
+    if not contains:
+        datum['address_type'] = 'Outside of City'
+    return datum
+
+
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.INFO)
     run()

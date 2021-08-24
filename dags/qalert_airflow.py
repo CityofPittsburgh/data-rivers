@@ -10,7 +10,7 @@ from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 
 from dependencies import airflow_utils
 from dependencies.airflow_utils import build_revgeo_query, get_ds_year, get_ds_month, default_args, \
-     format_gcs_call, format_dataflow_call, build_city_limit_query
+     format_gcs_call, format_dataflow_call, build_city_limits_query
 
 # TODO: When Airflow 2.0 is released, upgrade the package, sub in DataFlowPythonOperator for BashOperator,
 #  and pass the argument 'py_interpreter=python3'
@@ -57,7 +57,7 @@ qalert_requests_bq = GoogleCloudStorageToBigQueryOperator(
 # 2) query new tickets to determine if they are in the city limits
 qalert_requests_city_limits = BigQueryOperator(
         task_id = 'qalert_city_limits',
-        sql = build_city_limit_query('qalert', 'temp_new_req', 'id'),
+        sql = build_city_limits_query('qalert', 'temp_new_req', 'id'),
         use_legacy_sql = False,
         destination_dataset_table = '{}:qalert.temp_new_req'.format(os.environ['GCLOUD_PROJECT']),
         write_disposition = 'WRITE_APPEND',
