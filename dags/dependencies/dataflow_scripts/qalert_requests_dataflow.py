@@ -8,9 +8,7 @@ from apache_beam.io import ReadFromText
 from apache_beam.io.avroio import WriteToAvro
 
 from dataflow_utils import dataflow_utils
-from dataflow_utils.dataflow_utils import JsonCoder, SwapFieldNames, generate_args, \
-    FilterFields, ColumnsCamelToSnakeCase, GetDateStringsFromUnix, ChangeDataTypes, \
-    unix_to_date_strings, GoogleMapsClassifyAndGeocode
+from dataflow_utils.dataflow_utils import JsonCoder, SwapFieldNames, generate_args, FilterFields, ColumnsCamelToSnakeCase, GetDateStringsFromUnix, ChangeDataTypes, unix_to_date_strings, GoogleMapsClassifyAndGeocode
 
 
 class GetStatus(beam.DoFn):
@@ -70,7 +68,8 @@ def run(argv = None):
                             ("comments", "pii_comments"),
                             ("privateNotes", "pii_private_notes"),
                             ("latitude", "lat"),
-                            ("longitude", "long")]
+                            ("longitude", "long"),
+                            ("cityName", "city")]
 
         drop_fields = ['addDate', 'lastAction', 'displayDate', 'displayLastAction',
                        'district', 'submitter', 'priorityValue', 'aggregatorID',
