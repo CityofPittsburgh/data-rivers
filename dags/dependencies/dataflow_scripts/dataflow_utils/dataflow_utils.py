@@ -512,7 +512,7 @@ def regularize_and_geocode_address(datum, self):
             if len(results):
                 fmt_address = results['formatted_address']
                 api_coords = results['geometry']['location']
-                if fmt_address not in ['Pittsburgh, PA, USA', '610 Purdue Mall, West Lafayette, IN 47907, USA', 'Tulsa, OK 74135, USA']:
+                if re.search(r'\bPA\b', fmt_address) and fmt_address != 'Pittsburgh, PA, USA':
                     datum['google_formatted_address'] = fmt_address
                     coords['lat'] = float(api_coords.get('lat'))
                     coords['long'] = float(api_coords.get('lng'))
