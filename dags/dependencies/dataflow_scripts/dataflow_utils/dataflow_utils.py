@@ -129,9 +129,9 @@ class GetDateStringsFromUnix(beam.DoFn, ABC):
 
 
 class GoogleMapsClassifyAndGeocode(beam.DoFn, ABC):
-    def __init__(self, address_fields):
+    def __init__(self, loc_field_names):
         """
-        :param address_fields: list of 7 field names that contain the following information:
+        :param loc_field_names: dictionary of 7 field name keys that contain the following information:
         :param address_field: name of field that contains single-line addresses
         :param street_num_field: name of field that contains house numbers
         :param street_name_field: name of field that contains street address names
@@ -140,20 +140,21 @@ class GoogleMapsClassifyAndGeocode(beam.DoFn, ABC):
         :param lat_field: name of field that contains the latitude of an address
         :param long_field: name of field that contains the longitude of an address
         """
-        self.address_field = address_fields[0]
-        self.street_num_field = address_fields[1]
-        self.street_name_field = address_fields[2]
-        self.cross_street_field = address_fields[3]
-        self.city_field = address_fields[4]
-        self.lat_field = address_fields[5]
-        self.long_field = address_fields[6]
+        self.address_field = loc_field_names["address_field"]
+        self.street_num_field = loc_field_names["street_num_field"]
+        self.street_name_field = loc_field_names["street_name_field"]
+        self.cross_street_field = loc_field_names["cross_street_field"]
+        self.city_field = loc_field_names["city_field"]
+        self.lat_field = loc_field_names["lat_field"]
+        self.long_field = loc_field_names["long_field"]
 
     def process(self, datum):
         datum['user_specified_address'] = None
         datum['google_formatted_address'] = None
         datum['address_type'] = None
 
-        datum = id_underspecified_addresses(datum, self)
+        if self.address_field not in datum:
+            datum = id_underspecified_addresses(datum, self)
         if datum['address_type'] not in ['Missing', 'Coordinates Only']:
             datum = regularize_and_geocode_address(datum, self)
 
@@ -494,8 +495,9 @@ def regularize_and_geocode_address(datum, self):
     base_url = "https://maps.googleapis.com/maps/api/geocode/json"
     if datum['address_type'] == 'Intersection':
         address = str(datum[self.street_name_field]) + ' and ' + str(datum[self.cross_street_field]) + ', ' + str(datum[self.city_field])
-    elif datum[self.address_field]:
+    elif self.address_field in datum:
         address = datum[self.address_field]
+        datum['address_type'] = 'Precise'
     else:
         address = str(datum[self.street_num_field]) + ' ' + str(datum[self.street_name_field]) + ', ' + str(datum[self.city_field])
     if 'none' not in address.lower():
