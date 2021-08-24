@@ -64,11 +64,12 @@ class TestDataflowUtils(unittest.TestCase):
         sfn = dataflow_utils.SwapFieldNames(name_changes)
         self.assertEqual(next(sfn.process(datum)), expected)
 
-    def test_get_date_string(self):
+
+    def test_get_date_strings_from_unix(self):
         datum = {'unix_timestamp': 1602619169}
-        date_column_names = [('unix_timestamp', 'string_timestamp')]
-        expected = {'unix_timestamp': 1602619169, 'string_timestamp': '2020-10-13 15:59:29 EDT'}
-        gds = dataflow_utils.GetDateStrings(date_column_names)
+        date_column_names = [('unix_timestamp', 'string_timestamp_utc', 'string_timestamp_east')]
+        expected = {'unix_timestamp': 1602619169, 'string_timestamp_utc': '2020-10-13 19:59:29+00:00', 'string_timestamp_east': '2020-10-13 15:59:29-04:00'}
+        gds = dataflow_utils.GetDateStringsFromUnix(date_column_names)
         self.assertEqual(next(gds.process(datum)), expected)
 
     def test_filter_fields(self):
