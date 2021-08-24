@@ -9,8 +9,8 @@ from apache_beam.io.avroio import WriteToAvro
 
 from dataflow_utils import dataflow_utils
 from dataflow_utils.dataflow_utils import JsonCoder, SwapFieldNames, generate_args, \
-    FilterFields, ColumnsCamelToSnakeCase, GetDateStringsFromUnix,ChangeDataTypes, \
-    unix_to_date_strings
+    FilterFields, ColumnsCamelToSnakeCase, GetDateStringsFromUnix, ChangeDataTypes, \
+    unix_to_date_strings, GoogleMapsClassifyAndGeocode
 
 
 class GetStatus(beam.DoFn):
@@ -82,6 +82,16 @@ def run(argv = None):
         type_changes = [("id", "str"), ("parent_ticket", "str"), ("status_code", "str"), ("street_id", "str"),
                         ("type_id", "str")]
 
+        loc_field_names = {
+            "address_field": "",
+            "street_num_field": "street_num",
+            "street_name_field": "street",
+            "cross_street_field": "cross_street",
+            "city_field": "city",
+            "lat_field": "lat",
+            "long_field": "long"
+        }
+
         lines = p | ReadFromText(known_args.input, coder = JsonCoder())
 
         load = (
@@ -95,7 +105,7 @@ def run(argv = None):
                 | beam.ParDo(GetClosedDate())
                 | beam.ParDo(DetectChildTicketStatus())
 
-                # | beam.ParDo(GoogleMapsGeoLocation(blah blah blah))
+                | beam.ParDo(GoogleMapsClassifyAndGeocode(loc_field_names))
 
                 # TODO: change the schema after it is created
                 | WriteToAvro(known_args.avro_output, schema = avro_schema, file_name_suffix = '.avro', use_fastavro=True)
