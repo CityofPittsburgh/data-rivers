@@ -128,6 +128,38 @@ class GetDateStringsFromUnix(beam.DoFn, ABC):
         yield datum
 
 
+class GoogleMapsClassifyAndGeocode(beam.DoFn, ABC):
+    def __init__(self, address_fields):
+        """
+        :param address_fields: list of 7 field names that contain the following information:
+        :param address_field: name of field that contains single-line addresses
+        :param street_num_field: name of field that contains house numbers
+        :param street_name_field: name of field that contains street address names
+        :param cross_street_field: name of field that contains intersecting street names
+        :param city_field: name of field that contains the city a given street address belongs to
+        :param lat_field: name of field that contains the latitude of an address
+        :param long_field: name of field that contains the longitude of an address
+        """
+        self.address_field = address_fields[0]
+        self.street_num_field = address_fields[1]
+        self.street_name_field = address_fields[2]
+        self.cross_street_field = address_fields[3]
+        self.city_field = address_fields[4]
+        self.lat_field = address_fields[5]
+        self.long_field = address_fields[6]
+
+    def process(self, datum):
+        datum['user_specified_address'] = None
+        datum['google_formatted_address'] = None
+        datum['address_type'] = None
+
+        datum = id_underspecified_addresses(datum, self)
+        if datum['address_type'] not in ['Missing', 'Coordinates Only']:
+            datum = regularize_and_geocode_address(datum, self)
+
+        yield datum
+
+
 class GeocodeAddress(beam.DoFn):
 
     def __init__(self, address_field):
@@ -369,6 +401,30 @@ def unix_to_date_strings(unix_date):
     return str(utc_conv), str(east_conv)
 
 
+def id_underspecified_addresses(datum, self):
+    """
+    Identify whether a given street address, partitioned into street name, street number, and cross street name,
+    is underspecified or not. An underspecified address is defined as any address that does not have an exact
+    street number and is not an intersection. Examples of underspecified addresses are block numbers or
+    ranges of addresses.
+    :return: datum in PCollection (dict) with new field (address_type) identifying level of address specificity
+    """
+    if datum[self.street_name_field]:
+        if datum[self.street_num_field].isnumeric():
+            address_type = 'Precise'
+        else:
+            if not datum[self.street_num_field] and datum[self.cross_street_field]:
+                address_type = 'Intersection'
+            else:
+                address_type = 'Underspecified'
+    elif datum[self.lat_field] != 0.0 and datum[self.long_field] != 0.0:
+        address_type = 'Coordinates Only'
+    else:
+        address_type = 'Missing'
+    datum['address_type'] = address_type
+    return datum
+
+
 def geocode_address(datum, address_field):
     coords = {'lat': None, 'long': None}
     address = datum[address_field]
@@ -392,6 +448,84 @@ def geocode_address(datum, address_field):
     except TypeError:
         datum['lat'] = None
         datum['long'] = None
+
+    return datum
+
+
+def gmap_geocode_address(datum, address_field):
+    api_key = os.environ["GMAP_API_KEY"]
+    base_url = "https://maps.googleapis.com/maps/api/geocode/json"
+
+    coords = {'lat': None, 'long': None}
+    address = datum[address_field]
+    if 'pittsburgh' not in address.lower():
+        address += ' pittsburgh'
+    try:
+        res = requests.get(f"{base_url}?address={address}&key={api_key}")
+        results = res.json()['results'][0]
+        if len(results):
+            fmt_address = results['formatted_address']
+            if fmt_address != 'Pittsburgh, PA, USA':
+                api_coords = results['geometry']['location']
+                coords['lat'] = float(api_coords.get('lat'))
+                coords['long'] = float(api_coords.get('lng'))
+        else:
+            pass
+    except requests.exceptions.RequestException as e:
+        pass
+    try:
+        if fmt_address != 'Pittsburgh, PA, USA':
+            datum[address_field] = fmt_address
+        datum['lat'] = coords['lat']
+        datum['long'] = coords['long']
+    except TypeError:
+        datum['lat'] = None
+        datum['long'] = None
+
+    return datum
+
+
+def regularize_and_geocode_address(datum, self):
+    """
+    Take in addresses of different formats, regularize them to USPS/Google Maps format, then geocode lat/long values
+    :return: datum in PCollection (dict) with two new fields (lat, long) containing coordinates
+    """
+    api_key = os.environ["GMAP_API_KEY"]
+    base_url = "https://maps.googleapis.com/maps/api/geocode/json"
+    if datum['address_type'] == 'Intersection':
+        address = str(datum[self.street_name_field]) + ' and ' + str(datum[self.cross_street_field]) + ', ' + str(datum[self.city_field])
+    elif datum[self.address_field]:
+        address = datum[self.address_field]
+    else:
+        address = str(datum[self.street_num_field]) + ' ' + str(datum[self.street_name_field]) + ', ' + str(datum[self.city_field])
+    if 'none' not in address.lower():
+        datum['user_specified_address'] = address
+    else:
+        address = 'Pittsburgh, PA, USA'
+    coords = {'lat': None, 'long': None}
+    try:
+        res = requests.get(f"{base_url}?address={address}&key={api_key}")
+        if res.json()['results']:
+            results = res.json()['results'][0]
+            if len(results):
+                fmt_address = results['formatted_address']
+                api_coords = results['geometry']['location']
+                if fmt_address not in ['Pittsburgh, PA, USA', '610 Purdue Mall, West Lafayette, IN 47907, USA', 'Tulsa, OK 74135, USA']:
+                    datum['google_formatted_address'] = fmt_address
+                    coords['lat'] = float(api_coords.get('lat'))
+                    coords['long'] = float(api_coords.get('lng'))
+                else:
+                    datum['address_type'] = 'Unmappable'
+    except requests.exceptions.RequestException as e:
+        pass
+    except KeyError:
+        pass
+    try:
+        datum[self.lat_field] = coords['lat']
+        datum[self.long_field] = coords['long']
+    except TypeError:
+        datum[self.lat_field] = None
+        datum[self.long_field] = None
 
     return datum
 

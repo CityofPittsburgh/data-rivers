@@ -38,24 +38,48 @@ class TestDataflowUtils(unittest.TestCase):
         cdt = dataflow_utils.ChangeDataTypes(type_changes)
         self.assertEqual(next(cdt.process(datum)), expected)
 
+    def test_google_maps_classify_and_geocode(self):
+        datum = [{'streetName': 'Grasshopper Ln', 'streetNum': '123', 'crossStreetName': '', 'cityName': 'Pittsburgh'},
+                 {'streetName': '5TH AVE', 'streetNum': '5939', 'crossStreetName': '', 'cityName': 'Pittsburgh'},
+                 {'streetName': '53483u9TH AVE', 'streetNum': '99999', 'crossStreetName': '', 'cityName': 'Pittsburgh'},
+                 {"streetName": "VINCETON ST", "streetNum": "4041", "crossStreetName": "Pheasant Way", "cityName": "Pittsburgh", "latitude": 40.4916844, "longitude": -80.0225664},
+                 {"streetName": "STANTON AVE", "streetNum": "5821-5823", "crossStreetName": "ROBLEY WAY", "cityName": "Pittsburgh", "latitude": 40.4703142, "longitude": -79.9221585},
+                 {"streetName": "S 22ND ST", "streetNum": "", "crossStreetName": "E CARSON ST", "cityName": "Pittsburgh", "latitude": 40.4284295, "longitude": -79.9746395},
+                 {"streetName": "CAREY WAY", "streetNum": "2100 BLK", "crossStreetName": "", "cityName": "Pittsburgh", "latitude": 40.4280339, "longitude": -79.9762925},
+                 {"streetName": "Idlewood Ave", "streetNum": "2860", "crossStreetName": "", "cityName": "Carnegie", "latitude": 40.418436, "longitude": -80.072954},
+                 {"streetName": "CALIFORNIA AVE", "streetNum": "2428", "crossStreetName": "", "cityName": "Pittsburgh", "latitude": 40.464607, "longitude": -80.032372},
+                 {'streetNum': '', 'streetName': None, 'crossStreetName': '', 'cityName': 'Pittsburgh', 'latitude': 40.484164, 'longitude': -79.9259162},
+                 {'streetNum': '', 'streetName': None, 'crossStreetName': '', 'cityName': 'Pittsburgh', 'latitude': 0.0, 'longitude': 0.0}]
+        address_fields = ['user_specified_address', 'streetNum', 'streetName', 'crossStreetName', 'cityName', 'latitude', 'longitude']
+        expected = [{"google_formatted_address": "123 Grasshopper Ln, Greentown, PA 18426, USA", "user_specified_address": "123 Grasshopper Ln, Pittsburgh", 'streetName': 'Grasshopper Ln', 'streetNum': '123', 'crossStreetName': '', 'cityName': 'Pittsburgh', 'latitude': 41.3634857, 'longitude': -75.2567009, 'address_type': 'Precise'},
+                    {"google_formatted_address": "5939 Fifth Ave, Pittsburgh, PA 15232, USA", "user_specified_address": "5939 5TH AVE, Pittsburgh", 'streetName': '5TH AVE', 'streetNum': '5939', 'crossStreetName': '', 'cityName': 'Pittsburgh', 'latitude': 40.4519661, 'longitude': -79.924539, 'address_type': 'Precise'},
+                    {"google_formatted_address": None, "user_specified_address": "99999 53483u9TH AVE, Pittsburgh", "streetName": "53483u9TH AVE", "streetNum": "99999", "crossStreetName": "", 'cityName': "Pittsburgh", "latitude": None, "longitude": None, "address_type": "Unmappable"},
+                    {"google_formatted_address": "4041 Vinceton St, Pittsburgh, PA 15214, USA", "user_specified_address": "4041 VINCETON ST, Pittsburgh", "streetName": "VINCETON ST", "streetNum": "4041", "crossStreetName": "Pheasant Way", "cityName": "Pittsburgh", 'latitude': 40.4916844, 'longitude': -80.0225664, 'address_type': 'Precise'},
+                    {"google_formatted_address": "5821 Stanton Ave, Pittsburgh, PA 15206, USA", "user_specified_address": "5821-5823 STANTON AVE, Pittsburgh", "streetName": "STANTON AVE", "streetNum": "5821-5823", "crossStreetName": "ROBLEY WAY", "cityName": "Pittsburgh", 'latitude': 40.4703142, 'longitude': -79.9221585, 'address_type': 'Underspecified'},
+                    {"google_formatted_address": "S 22nd St & E Carson St, Pittsburgh, PA 15203, USA", "user_specified_address": "S 22ND ST and E CARSON ST, Pittsburgh", "streetName": "S 22ND ST", "streetNum": "", "crossStreetName": "E CARSON ST", "cityName": "Pittsburgh", 'latitude': 40.4284295, 'longitude': -79.9746395, 'address_type': 'Intersection'},
+                    {"google_formatted_address": "2100 Carey Way, Pittsburgh, PA 15203, USA", "user_specified_address": "2100 BLK CAREY WAY, Pittsburgh", "streetName": "CAREY WAY", "streetNum": "2100 BLK", "crossStreetName": "", "cityName": "Pittsburgh", 'latitude': 40.4280339, 'longitude': -79.9762925, 'address_type': 'Underspecified'},
+                    {"google_formatted_address": "2860 Idlewood Ave, Carnegie, PA 15106, USA", "user_specified_address": "2860 Idlewood Ave, Carnegie", "streetName": "Idlewood Ave", "streetNum": "2860", "crossStreetName": "", "cityName": "Carnegie", 'latitude': 40.418436, 'longitude': -80.072954, 'address_type': 'Precise'},
+                    {"google_formatted_address": "2428 California Ave, Pittsburgh, PA 15212, USA", "user_specified_address": "2428 CALIFORNIA AVE, Pittsburgh", "streetName": "CALIFORNIA AVE", "streetNum": "2428", "crossStreetName": "", "cityName": "Pittsburgh", 'latitude': 40.4645768, 'longitude': -80.0323918, 'address_type': 'Precise'},
+                    {'google_formatted_address': None, "user_specified_address": None, 'streetNum': '', 'streetName': None, 'crossStreetName': '', 'cityName': 'Pittsburgh', 'latitude': 40.484164, 'longitude': -79.9259162, 'address_type': 'Coordinates Only'},
+                    {'google_formatted_address': None, "user_specified_address": None, 'streetNum': '', 'streetName': None, 'crossStreetName': '', 'cityName': 'Pittsburgh', 'latitude': 0.0, 'longitude': 0.0, 'address_type': 'Missing'}]
+        gcg = dataflow_utils.GoogleMapsClassifyAndGeocode(address_fields)
+        results = []
+        for val in datum:
+            result = next(gcg.process(val))
+            results.append(result)
+        self.assertEqual(results, expected)
+
     def test_geocode_address(self):
-        datum_1 = {"ADDRESS": "5939 5TH AVE, Pittsburgh, PA 15232"}
-        address_field_1 = "ADDRESS"
-        expected_1 = {"ADDRESS": "5939 5TH AVE, Pittsburgh, PA 15232", 'lat': 40.4519734, 'long': -79.9246062}
-        gca_1 = dataflow_utils.geocode_address(datum_1, address_field_1)
-        gca_1['lat'] = round(gca_1['lat'], 7)
-        gca_1['long'] = round(gca_1['long'], 7)
-        self.assertEqual(gca_1, expected_1)
-
-        datum_2 = {"ADDRESS": "9999 500TH AVE, PA 15"}
-        expected_2 = {"ADDRESS": "9999 500TH AVE, PA 15", 'lat': None, 'long': None}
-        gca_2 = dataflow_utils.geocode_address(datum_2, address_field_1)
-        self.assertEqual(gca_2, expected_2)
-
-        try:
-            dataflow_utils.geocode_address(datum_1[address_field_1])
-        except TypeError:
-            pass
+        datum = [{'ADDRESS': '5939 5TH AVE, Pittsburgh, PA 15232'}, {'ADDRESS': '9999 500TH AVE, PA'}]
+        address_field = 'ADDRESS'
+        expected = [{'ADDRESS': '5939 5TH AVE, Pittsburgh, PA 15232', 'lat': 40.45197335724138, 'long': -79.924606186473},
+                    {'ADDRESS': '9999 500TH AVE, PA', 'lat': None, 'long': None}]
+        gca = dataflow_utils.GeocodeAddress(address_field)
+        results = []
+        for val in datum:
+            result = next(gca.process(val))
+            results.append(result)
+        self.assertEqual(results, expected)
 
     def test_swap_field_names(self):
         datum = {'exampleColumn': 'foo', 'anotherExample': 'bar'}
