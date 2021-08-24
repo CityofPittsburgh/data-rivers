@@ -36,6 +36,20 @@ class TestAirflowUtils(unittest.TestCase):
             self.assertEqual(output, str(expected[index].date()))
             index += 1
 
+    def test_within_city_bounds(self):
+        datum = [{'address': '414 Grant St, Pittsburgh, PA 15219', 'lat': 40.4382355, 'long': -79.9966742, 'address_type': 'Precise'},
+                 {'address': '123 Grasshopper Ln, Greentown, PA 18426', 'lat': 41.3634857, 'long': -75.2567009, 'address_type': 'Underspecified'},
+                 {'address': '240 Hays Ave, Mount Oliver, PA 15210', 'lat': 40.4141454, 'long': -79.9875431, 'address_type': 'Intersection'}]
+        coord_fields = {'long_field': 'long', 'lat_field': 'lat'}
+        expected = [{'address': '414 Grant St, Pittsburgh, PA 15219', 'lat': 40.4382355, 'long': -79.9966742, 'address_type': 'Precise'},
+                    {'address': '123 Grasshopper Ln, Greentown, PA 18426', 'lat': 41.3634857, 'long': -75.2567009, 'address_type': 'Outside of City'},
+                    {'address': '240 Hays Ave, Mount Oliver, PA 15210', 'lat': 40.4141454, 'long': -79.9875431, 'address_type': 'Outside of City'}]
+        index = 0
+        for val in datum:
+            output = airflow_utils.within_city_bounds(val, coord_fields)
+            self.assertEqual(output, expected[index])
+            index += 1
+
 
 if __name__ == '__main__':
     unittest.main()

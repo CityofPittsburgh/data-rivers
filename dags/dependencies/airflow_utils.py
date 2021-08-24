@@ -236,6 +236,43 @@ def format_dataflow_call(script_name):
     return exec_script_cmd + input_arg + output_arg
 
 
+def within_city_bounds(datum, coord_fields):
+    bq_client = bigquery.Client(project='data-rivers')
+    lng = datum[coord_fields['long_field']]
+    lat = datum[coord_fields['lat_field']]
+    borders = []
+
+    # sql = "SELECT geometry FROM `data-rivers.geography.city_and_mt_oliver_borders` WHERE city = 'Pittsburgh'"
+    # query_job = bq_client.query(sql)
+    # results = query_job.result()
+    # pgh_border = results[0].values()[0]
+    #
+    # sql = "SELECT geometry FROM `data-rivers.geography.city_and_mt_oliver_borders` WHERE city = 'Mt. Oliver'"
+    # query_job = bq_client.query(sql)
+    # results = query_job.result()
+    # mt_oliver_border = results[0].values()[0]
+
+    sql = "SELECT geometry FROM `data-rivers.geography.city_and_mt_oliver_borders`"
+    query_job = bq_client.query(sql)
+    results = query_job.result()
+    for row in results:
+        borders.append(row.values()[0])
+
+    sql = F"SELECT " \
+              F"ST_COVERS(ST_GEOGFROMTEXT('{borders[0]}')," \
+              F"ST_GEOGPOINT({lng}, {lat})) " \
+          F"AND NOT " \
+              F"ST_COVERS(ST_GEOGFROMTEXT('{borders[1]}')," \
+              F"ST_GEOGPOINT({lng}, {lat}))"
+    query_job = bq_client.query(sql)
+    contain_results = list(query_job.result())
+    contains = contain_results[0].values()[0]
+    if not contains:
+        datum['address_type'] = 'Outside of City'
+    return datum
+
+
+
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.INFO)
     run()
