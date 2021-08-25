@@ -129,8 +129,9 @@ class GetDateStringsFromUnix(beam.DoFn, ABC):
 
 
 class GoogleMapsClassifyAndGeocode(beam.DoFn, ABC):
-    def __init__(self, loc_field_names, partioned_address):
+    def __init__(self, partioned_address, loc_field_names):
         """
+        :param partitioned_address: a boolean that idenitifies whether an address is broken into multiple components
         :param loc_field_names: dictionary of 7 field name keys that contain the following information:
         :param address_field: name of field that contains single-line addresses
         :param street_num_field: name of field that contains house numbers
@@ -146,10 +147,10 @@ class GoogleMapsClassifyAndGeocode(beam.DoFn, ABC):
             self.street_name_field = loc_field_names["street_name_field"]
             self.cross_street_field = loc_field_names["cross_street_field"]
             self.city_field = loc_field_names["city_field"]
-            self.lat_field = loc_field_names["lat_field"]
-            self.long_field = loc_field_names["long_field"]
         else:
             self.address_field = loc_field_names["address_field"]
+        self.lat_field = loc_field_names["lat_field"]
+        self.long_field = loc_field_names["long_field"]
 
     def process(self, datum):
         datum['api_specified_address'] = None
@@ -157,7 +158,7 @@ class GoogleMapsClassifyAndGeocode(beam.DoFn, ABC):
         datum['address_type'] = None
 
         # if self.address_field not in datum:
-        if not self.partioned_address:
+        if self.partioned_address:
             datum = id_underspecified_addresses(datum, self)
         if datum['address_type'] not in ['Missing', 'Coordinates Only']:
             datum = regularize_and_geocode_address(datum, self)
