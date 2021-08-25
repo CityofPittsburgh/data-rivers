@@ -152,7 +152,7 @@ class GoogleMapsClassifyAndGeocode(beam.DoFn, ABC):
             self.address_field = loc_field_names["address_field"]
 
     def process(self, datum):
-        datum['specified_address'] = None
+        datum['api_specified_address'] = None
         datum['google_formatted_address'] = None
         datum['address_type'] = None
 
@@ -506,7 +506,7 @@ def regularize_and_geocode_address(datum, self):
     else:
         address = str(datum[self.street_num_field]) + ' ' + str(datum[self.street_name_field]) + ', ' + str(datum[self.city_field])
     if 'none' not in address.lower():
-        datum['specified_address'] = address
+        datum['api_specified_address'] = address
     else:
         address = 'Pittsburgh, PA, USA'
     coords = {'lat': None, 'long': None}

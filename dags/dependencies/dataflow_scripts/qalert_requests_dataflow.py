@@ -8,7 +8,8 @@ from apache_beam.io import ReadFromText
 from apache_beam.io.avroio import WriteToAvro
 
 from dataflow_utils import dataflow_utils
-from dataflow_utils.dataflow_utils import JsonCoder, SwapFieldNames, generate_args, FilterFields, ColumnsCamelToSnakeCase, GetDateStringsFromUnix, ChangeDataTypes, unix_to_date_strings, GoogleMapsClassifyAndGeocode
+from dataflow_utils.dataflow_utils import JsonCoder, SwapFieldNames, generate_args, FilterFields, \
+    ColumnsCamelToSnakeCase, GetDateStringsFromUnix, ChangeDataTypes, unix_to_date_strings, GoogleMapsClassifyAndGeocode
 
 
 class GetStatus(beam.DoFn):
@@ -40,7 +41,7 @@ class GetClosedDate(beam.DoFn):
 
 class DetectChildTicketStatus(beam.DoFn):
     def process(self, datum):
-        if datum['parent_ticket'] == "0":
+        if datum['parent_ticket_id'] == "0":
             datum['child_ticket'] = False
         else:
             datum['child_ticket'] = True
@@ -59,7 +60,7 @@ def run(argv = None):
     )
 
     with beam.Pipeline(options = pipeline_options) as p:
-        field_name_swaps = [('master', 'parent_ticket'),
+        field_name_swaps = [('master', 'parent_ticket_id'),
                             ('addDateUnix', 'create_date_unix'),
                             ('lastActionUnix', 'last_action_unix'),
                             ("status", "status_code"),
@@ -69,25 +70,27 @@ def run(argv = None):
                             ("privateNotes", "pii_private_notes"),
                             ("latitude", "lat"),
                             ("longitude", "long"),
-                            ("cityName", "city")]
+                            ("cityName", "city"),
+                            ('typeId', 'request_type_id'),
+                            ('typeName', 'request_type_name')]
 
         drop_fields = ['addDate', 'lastAction', 'displayDate', 'displayLastAction',
-                       'district', 'submitter', 'priorityValue', 'aggregatorID',
-                       'priorityToDisplay', 'aggregatorInfo']
+                       'district', 'submitter', 'priorityValue', 'aggregatorId',
+                       'priorityToDisplay', 'aggregatorInfo', 'resumeDate']
 
         date_conversions = [('last_action_unix', 'last_action_utc', 'last_action_est'),
                             ('create_date_unix', 'create_date_utc', 'create_date_est')]
 
-        type_changes = [("id", "str"), ("parent_ticket", "str"), ("status_code", "str"), ("street_id", "str"),
-                        ("type_id", "str")]
+        type_changes = [("id", "str"), ("parent_ticket_id", "str"), ("status_code", "str"), ("street_id", "str"),
+                        ("request_type_id", "str")]
 
         loc_field_names = {
-            "street_num_field": "street_num",
-            "street_name_field": "street",
-            "cross_street_field": "cross_street",
-            "city_field": "city",
-            "lat_field": "lat",
-            "long_field": "long"
+                "street_num_field"  : "street_num",
+                "street_name_field" : "street",
+                "cross_street_field": "cross_street",
+                "city_field"        : "city",
+                "lat_field"         : "lat",
+                "long_field"        : "long"
         }
 
         lines = p | ReadFromText(known_args.input, coder = JsonCoder())
@@ -104,7 +107,8 @@ def run(argv = None):
                 | beam.ParDo(DetectChildTicketStatus())
                 | beam.ParDo(GoogleMapsClassifyAndGeocode(loc_field_names, partioned_address = True))
                 # TODO: change the schema after it is created
-                | WriteToAvro(known_args.avro_output, schema = avro_schema, file_name_suffix = '.avro', use_fastavro=True)
+                | WriteToAvro(known_args.avro_output, schema = avro_schema, file_name_suffix = '.avro',
+                              use_fastavro = True)
         )
 
 
