@@ -129,7 +129,7 @@ class GetDateStringsFromUnix(beam.DoFn, ABC):
 
 
 class GoogleMapsClassifyAndGeocode(beam.DoFn, ABC):
-    def __init__(self, partioned_address, loc_field_names):
+    def __init__(self, loc_field_names, partitioned_address):
         """
         :param partitioned_address: a boolean that idenitifies whether an address is broken into multiple components
         :param loc_field_names: dictionary of 7 field name keys that contain the following information:
@@ -141,19 +141,22 @@ class GoogleMapsClassifyAndGeocode(beam.DoFn, ABC):
         :param lat_field: name of field that contains the latitude of an address
         :param long_field: name of field that contains the longitude of an address
         """
-        self.partioned_address = partioned_address
-        if partioned_address:
+        self.partioned_address = partitioned_address
+        if partitioned_address:
             self.street_num_field = loc_field_names["street_num_field"]
             self.street_name_field = loc_field_names["street_name_field"]
             self.cross_street_field = loc_field_names["cross_street_field"]
             self.city_field = loc_field_names["city_field"]
         else:
             self.address_field = loc_field_names["address_field"]
+
         self.lat_field = loc_field_names["lat_field"]
         self.long_field = loc_field_names["long_field"]
 
+
+    #TODO: change this var name
     def process(self, datum):
-        datum['api_specified_address'] = None
+        datum['input_address'] = None
         datum['google_formatted_address'] = None
         datum['address_type'] = None
 
@@ -232,7 +235,7 @@ class ReformatPhoneNumbers(beam.DoFn):
 
 
 class LatLongReformat(beam.DoFn, ABC):
-    def __init__(self, accuracy=200):
+    def __init__(self, anon_val):
         """
         :param accuracy - desired meter accuracy of the lat-long coordinates after rounding the decimals. Default 200m
 
@@ -242,55 +245,62 @@ class LatLongReformat(beam.DoFn, ABC):
         This helper rounds off decimal places from extremely long latitude and longitude coordinates. The exact precision
         is defined by the meter accuracy variable passed by the user
         """
-        accuracy_converter = {
-                              (5000, 14999): 1,
-                              (500, 4999): 2,
-                              (50, 499): 3,
-                              (5, 49): 4,
-                              (0, 4): 5
-                             }
-        for (k1, k2) in accuracy_converter:
-            if k1 <= accuracy <= k2:
-                self.accuracy = accuracy_converter[(k1, k2)]
+        self.anon_values = anon_val
+        self.accuracy_converter = {
+                                    (5000, 14999): 1,
+                                    (500, 4999): 2,
+                                    (50, 499): 3,
+                                    (5, 49): 4,
+                                    (0, 4): 5
+                                }
 
     def process(self, datum):
         """
         :param datum - (lat, long) tuple of Latitude and Longitude values
         """
-        yield round(datum[0], self.accuracy), round(datum[1], self.accuracy)
+        for (lat, long, accuracy) in self.anon_values:
+            for (k1, k2) in self.accuracy_converter:
+                if k1 <= accuracy <= k2:
+                    acc = self.accuracy_converter[(k1, k2)]
+
+            datum['anon_' + lat] = round(datum[lat], acc)
+            datum['anon_' + long] = round(datum[long], acc)
+
+        yield datum
 
 
 class AnonymizeAddressBlock(beam.DoFn, ABC):
-    def __init__(self, accuracy=100):
+    def __init__(self, anon_vals):
         """
-        :param accuracy - default 100, this variables determines the number of digits to be masked in the block number
-
-        From a given address we extract the block number and street name. User specified number of trailing digits can be
-        masked off from the block number to anonymize and hide sensitive information.
+        :param anon_vals - Tuple of (field_name, accuracy) where accuracy determines the number of digits to be masked
+                           in the block number. From a given address we extract the block number . User
+                           specified number of trailing digits can be masked off from the block number to anonymize
+                           and hide sensitive information.
 
         example     input -> Address = 123 Main Street, Pittsburgh   Accuracy - 100
                     output -> 123, Main Street, 100  (depicting 100th block of main street)
         """
-        self.accuracy = accuracy
+        self.anon_values = anon_vals
 
     def process(self, datum):
         """
         :param datum - complete address along with street name and block number
         """
-        block_num = re.findall(r"^[0-9]*", datum)
+        for (field, accuracy) in self.anon_values:
+            address = datum[field]
+            block_num = re.findall(r"^[0-9]*", address)
 
-        # return the stripped number if present, else return empty string
-        block_num = block_num[0] if block_num else ""
+            # return the stripped number if present, else return empty string
+            block_num = block_num[0] if block_num else ""
 
-        street_name = re.findall(r"[^\d](.+?),", datum)
+            # anonymize block
+            anon_block_num = (int(block_num) // accuracy) * accuracy
 
-        # return the stripped street name if present, else return empty string
-        street_name = street_name[0] if street_name else ""
+            # Replace the field in datum with the masked values
+            new_field_name = 'anon_' + field
+            datum[new_field_name] = re.sub(r"^[0-9]*", str(anon_block_num), address)
 
-        # anonymize block
-        anon_block_num = (int(block_num) // self.accuracy) * self.accuracy
-
-        yield block_num, street_name, anon_block_num
+        yield datum
 
 
 def generate_args(job_name, bucket, argv, schema_name):
@@ -500,14 +510,13 @@ def regularize_and_geocode_address(datum, self):
     base_url = "https://maps.googleapis.com/maps/api/geocode/json"
     if datum['address_type'] == 'Intersection':
         address = str(datum[self.street_name_field]) + ' and ' + str(datum[self.cross_street_field]) + ', ' + str(datum[self.city_field])
-    # elif self.address_field in datum:
     elif not self.partioned_address:
         address = datum[self.address_field]
         datum['address_type'] = 'Precise'
     else:
         address = str(datum[self.street_num_field]) + ' ' + str(datum[self.street_name_field]) + ', ' + str(datum[self.city_field])
     if 'none' not in address.lower():
-        datum['api_specified_address'] = address
+        datum['input_address'] = address
     else:
         address = 'Pittsburgh, PA, USA'
     coords = {'lat': None, 'long': None}

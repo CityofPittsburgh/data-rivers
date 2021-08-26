@@ -9,8 +9,8 @@ from apache_beam.io.avroio import WriteToAvro
 
 from dataflow_utils import dataflow_utils
 from dataflow_utils.dataflow_utils import JsonCoder, SwapFieldNames, generate_args, FilterFields, \
-    ColumnsCamelToSnakeCase, GetDateStringsFromUnix, ChangeDataTypes, unix_to_date_strings, GoogleMapsClassifyAndGeocode
-
+    ColumnsCamelToSnakeCase, GetDateStringsFromUnix, ChangeDataTypes, unix_to_date_strings, \
+    GoogleMapsClassifyAndGeocode, AnonymizeAddressBlock, LatLongReformat
 
 class GetStatus(beam.DoFn):
     def process(self, datum):
@@ -56,7 +56,7 @@ def run(argv = None):
             job_name = 'qalert-requests-dataflow',
             bucket = '{}_qalert'.format(os.environ['GCS_PREFIX']),
             argv = argv,
-            schema_name = 'City_of_Pittsburgh_QAlert_Requests'
+            schema_name = 'qalert_requests'
     )
 
     with beam.Pipeline(options = pipeline_options) as p:
@@ -76,7 +76,7 @@ def run(argv = None):
 
         drop_fields = ['addDate', 'lastAction', 'displayDate', 'displayLastAction',
                        'district', 'submitter', 'priorityValue', 'aggregatorId',
-                       'priorityToDisplay', 'aggregatorInfo', 'resumeDate']
+                       'priorityToDisplay', 'aggregatorInfo', 'resumeDate', "cityId"]
 
         date_conversions = [('last_action_unix', 'last_action_utc', 'last_action_est'),
                             ('create_date_unix', 'create_date_utc', 'create_date_est')]
@@ -84,7 +84,8 @@ def run(argv = None):
         type_changes = [("id", "str"), ("parent_ticket_id", "str"), ("status_code", "str"), ("street_id", "str"),
                         ("request_type_id", "str")]
 
-        loc_field_names = {
+        # TODO: Class instantiation shadows keys; technically not a problem but change for clarity
+        loc_names = {
                 "street_num_field"  : "street_num",
                 "street_name_field" : "street",
                 "cross_street_field": "cross_street",
@@ -92,6 +93,9 @@ def run(argv = None):
                 "lat_field"         : "lat",
                 "long_field"        : "long"
         }
+
+        block_anon_accuracy = [("google_formatted_address", 100)]
+        lat_long_accuracy = [("lat", "long", 200)]
 
         lines = p | ReadFromText(known_args.input, coder = JsonCoder())
 
@@ -105,8 +109,9 @@ def run(argv = None):
                 | beam.ParDo(GetStatus())
                 | beam.ParDo(GetClosedDate())
                 | beam.ParDo(DetectChildTicketStatus())
-                | beam.ParDo(GoogleMapsClassifyAndGeocode(loc_field_names, partioned_address = True))
-                # TODO: change the schema after it is created
+                | beam.ParDo(GoogleMapsClassifyAndGeocode(loc_field_names = loc_names, partitioned_address = True))
+                | beam.ParDo(AnonymizeAddressBlock(block_anon_accuracy))
+                | beam.ParDo(LatLongReformat(lat_long_accuracy))
                 | WriteToAvro(known_args.avro_output, schema = avro_schema, file_name_suffix = '.avro',
                               use_fastavro = True)
         )
