@@ -64,12 +64,13 @@ def run(argv = None):
                             ('addDateUnix', 'create_date_unix'),
                             ('lastActionUnix', 'last_action_unix'),
                             ("status", "status_code"),
+                            ('streetNum', 'pii_street_num'),
                             ('streetName', 'street'),
                             ("crossStreetName", "cross_street"),
                             ("comments", "pii_comments"),
                             ("privateNotes", "pii_private_notes"),
-                            ("latitude", "lat"),
-                            ("longitude", "long"),
+                            ("latitude", "pii_lat"),
+                            ("longitude", "pii_long"),
                             ("cityName", "city"),
                             ('typeId', 'request_type_id'),
                             ('typeName', 'request_type_name')]
@@ -82,20 +83,20 @@ def run(argv = None):
                             ('create_date_unix', 'create_date_utc', 'create_date_est')]
 
         type_changes = [("id", "str"), ("parent_ticket_id", "str"), ("status_code", "str"), ("street_id", "str"),
-                        ("request_type_id", "str")]
+                        ("cross_street_id", "str"), ("request_type_id", "str")]
 
         # TODO: Class instantiation shadows keys; technically not a problem but change for clarity
         loc_names = {
-                "street_num_field"  : "street_num",
+                "street_num_field"  : "pii_street_num",
                 "street_name_field" : "street",
                 "cross_street_field": "cross_street",
                 "city_field"        : "city",
-                "lat_field"         : "lat",
-                "long_field"        : "long"
+                "lat_field"         : "pii_lat",
+                "long_field"        : "pii_long"
         }
 
-        block_anon_accuracy = [("google_formatted_address", 100)]
-        lat_long_accuracy = [("lat", "long", 200)]
+        block_anon_accuracy = [("pii_google_formatted_address", 100)]
+        lat_long_accuracy = [("pii_lat", "pii_long", 200)]
 
         lines = p | ReadFromText(known_args.input, coder = JsonCoder())
 
@@ -110,8 +111,8 @@ def run(argv = None):
                 | beam.ParDo(GetClosedDate())
                 | beam.ParDo(DetectChildTicketStatus())
                 | beam.ParDo(GoogleMapsClassifyAndGeocode(loc_field_names = loc_names, partitioned_address = True))
-                | beam.ParDo(AnonymizeAddressBlock(block_anon_accuracy))
                 | beam.ParDo(LatLongReformat(lat_long_accuracy))
+                | beam.ParDo(AnonymizeAddressBlock(block_anon_accuracy))
                 | WriteToAvro(known_args.avro_output, schema = avro_schema, file_name_suffix = '.avro',
                               use_fastavro = True)
         )

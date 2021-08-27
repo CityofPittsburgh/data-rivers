@@ -156,8 +156,8 @@ class GoogleMapsClassifyAndGeocode(beam.DoFn, ABC):
 
     #TODO: change this var name
     def process(self, datum):
-        datum['input_address'] = None
-        datum['google_formatted_address'] = None
+        datum['pii_input_address'] = None
+        datum['pii_google_formatted_address'] = None
         datum['address_type'] = None
 
         # if self.address_field not in datum:
@@ -263,8 +263,8 @@ class LatLongReformat(beam.DoFn, ABC):
                 if k1 <= accuracy <= k2:
                     acc = self.accuracy_converter[(k1, k2)]
 
-            datum['anon_' + lat] = round(datum[lat], acc)
-            datum['anon_' + long] = round(datum[long], acc)
+            datum['anon_' + lat.strip('pii_')] = round(datum[lat], acc) if datum[lat] else None
+            datum['anon_' + long.strip('pii_')] = round(datum[long], acc) if datum[long] else None
 
         yield datum
 
@@ -288,17 +288,24 @@ class AnonymizeAddressBlock(beam.DoFn, ABC):
         """
         for (field, accuracy) in self.anon_values:
             address = datum[field]
-            block_num = re.findall(r"^[0-9]*", address)
+            new_field_name = 'anon_' + field.strip('pii_')
+            if address:
+                block_num = re.findall(r"^[0-9]*", address)
 
-            # return the stripped number if present, else return empty string
-            block_num = block_num[0] if block_num else ""
+                # return the stripped number if present, else return empty string
+                block_num = block_num[0] if block_num else ""
 
-            # anonymize block
-            anon_block_num = (int(block_num) // accuracy) * accuracy
-
-            # Replace the field in datum with the masked values
-            new_field_name = 'anon_' + field
-            datum[new_field_name] = re.sub(r"^[0-9]*", str(anon_block_num), address)
+                # anonymize block
+                # Replace the field in datum with the masked values
+                if block_num.isnumeric():
+                    anon_block_num = str((int(block_num) // accuracy) * accuracy)
+                    num_zeros = str(accuracy).count('0')
+                    anon_block_num = anon_block_num[:-num_zeros] + anon_block_num[-num_zeros:].replace('0', 'X')
+                    datum[new_field_name] = re.sub(r"^[0-9]*", anon_block_num, address)
+                else:
+                    datum[new_field_name] = None
+            else:
+                datum[new_field_name] = None
 
         yield datum
 
@@ -516,7 +523,7 @@ def regularize_and_geocode_address(datum, self):
     else:
         address = str(datum[self.street_num_field]) + ' ' + str(datum[self.street_name_field]) + ', ' + str(datum[self.city_field])
     if 'none' not in address.lower():
-        datum['input_address'] = address
+        datum['pii_input_address'] = address
     else:
         address = 'Pittsburgh, PA, USA'
     coords = {'lat': None, 'long': None}
@@ -528,7 +535,7 @@ def regularize_and_geocode_address(datum, self):
                 fmt_address = results['formatted_address']
                 api_coords = results['geometry']['location']
                 if re.search(r'\bPA\b', fmt_address) and fmt_address != 'Pittsburgh, PA, USA':
-                    datum['google_formatted_address'] = fmt_address
+                    datum['pii_google_formatted_address'] = fmt_address
                     coords['lat'] = float(api_coords.get('lat'))
                     coords['long'] = float(api_coords.get('lng'))
                 else:
