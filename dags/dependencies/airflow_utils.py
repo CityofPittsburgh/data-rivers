@@ -159,7 +159,7 @@ def beam_cleanup_statement(bucket):
            "no beam output; fi".format(bucket, bucket)
 
 
-def find_backfill_date(bucket_name, subfolder, ds):
+def find_backfill_date(bucket_name, subfolder):
     """
     Return the date of the last time a given DAG was run when provided with a bucket name and
     GCS directory to search in. Iterates through buckets to find most recent file update date.
@@ -168,14 +168,14 @@ def find_backfill_date(bucket_name, subfolder, ds):
     :param ds - date derived from airflow built-in
     :return: date to be used as a backfill date when executing a new DAG run
     """
-    ds_yr = get_ds_year(ds)
-    ds_month = get_ds_month(ds)
+    dt_yr = str(dt).split('-')[0]
+    dt_month = str(dt).split('-')[1]
     upload_dates = []
     valid = False
 
     # only search back to 2017
-    while not valid and int(ds_yr) > 2017:
-        prefix = subfolder + '/' + ds_yr + '/' + ds_month
+    while not valid and int(dt_yr) > 2017:
+        prefix = subfolder + '/' + dt_yr + '/' + dt_month
         blobs = storage_client.list_blobs(bucket_name, prefix=prefix)
         list_blobs = list(blobs)
 
@@ -196,21 +196,21 @@ def find_backfill_date(bucket_name, subfolder, ds):
             # backwards in time until 2017
             else:
                 valid = False
-                if ds_month != '01':
+                if dt_month != '01':
                     # values must be converted to int and zero padded to render vals < 10 as two digits
                     # for string comparison
-                    ds_month = str(int(ds_month) - 1).zfill(2)
+                    dt_month = str(int(dt_month) - 1).zfill(2)
                 else:
-                    ds_yr = str(int(ds_yr) - 1)
-                    ds_month = '12'
+                    dt_yr = str(int(dt_yr) - 1)
+                    dt_month = '12'
         # if no blobs detected search back until 2017
         else:
             valid = False
-            if ds_month != '01':
-                ds_month = str(int(ds_month) - 1).zfill(2)
+            if dt_month != '01':
+                dt_month = str(int(dt_month) - 1).zfill(2)
             else:
-                ds_yr = str(int(ds_yr) - 1)
-                ds_month = '12'
+                dt_yr = str(int(dt_yr) - 1)
+                dt_month = '12'
     # extract the last run date by finding the largest upload date value to determine most recent date
     if len(upload_dates):
         last_run = max(upload_dates)
@@ -223,7 +223,7 @@ def find_backfill_date(bucket_name, subfolder, ds):
 def format_gcs_call(script_name, bucket_name, direc):
     exec_script_cmd = 'python {}'.format(os.environ['DAGS_PATH']) + '/dependencies/gcs_loaders/{}'.format(script_name)
     since_arg = ' --since {}'.format(find_backfill_date(bucket_name, direc))
-    exec_date_arg = ' --execution_date {{ ds }}'
+    exec_date_arg = ' --execution_date {}'.format(dt.date())
     return exec_script_cmd + since_arg + exec_date_arg
 
 

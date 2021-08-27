@@ -17,7 +17,7 @@ from dependencies.airflow_utils import build_revgeo_query, get_ds_year, get_ds_m
 
 
 dag = DAG(
-        'qalert',
+        'qalert_requests',
         default_args = default_args,
         schedule_interval = '@daily',
         user_defined_filters = {'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year}
@@ -27,7 +27,8 @@ dag = DAG(
 # run gcs_loader
 qalert_requests_gcs = BashOperator(
         task_id = 'qalert_gcs',
-        bash_command = format_gcs_call("qalert_gcs.py", "".format(os.environ["GCS_PREFIX"] + "_qalert"), "requests"),
+        bash_command = format_gcs_call("qalert_gcs.py", ("{}".format(os.environ["GCS_PREFIX"]) + "_qalert"),
+                                       "requests"),
         dag = dag
 )
 
@@ -139,6 +140,8 @@ qalert_bq_drop_temp = BigQueryOperator(
         use_legacy_sql = False,
         dag = dag
 )
+
+#TODO: push a scrubbed csv(?) to wprdc_gcs
 
 qalert_beam_cleanup = BashOperator(
         task_id = 'qalert_beam_cleanup',
