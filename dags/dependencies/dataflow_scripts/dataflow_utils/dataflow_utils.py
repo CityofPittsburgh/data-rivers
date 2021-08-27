@@ -297,13 +297,13 @@ class AnonymizeAddressBlock(beam.DoFn, ABC):
 
                 # anonymize block
                 # Replace the field in datum with the masked values
-                if block_num.isnumeric():
+                if block_num:
                     anon_block_num = str((int(block_num) // accuracy) * accuracy)
                     num_zeros = str(accuracy).count('0')
                     anon_block_num = anon_block_num[:-num_zeros] + anon_block_num[-num_zeros:].replace('0', 'X')
                     datum[new_field_name] = re.sub(r"^[0-9]*", anon_block_num, address)
                 else:
-                    datum[new_field_name] = None
+                    datum[new_field_name] = address
             else:
                 datum[new_field_name] = None
 
