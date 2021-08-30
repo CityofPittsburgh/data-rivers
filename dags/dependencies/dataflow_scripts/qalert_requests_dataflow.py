@@ -10,7 +10,7 @@ from apache_beam.io.avroio import WriteToAvro
 from dataflow_utils import dataflow_utils
 from dataflow_utils.dataflow_utils import JsonCoder, SwapFieldNames, generate_args, FilterFields, \
     ColumnsCamelToSnakeCase, GetDateStringsFromUnix, ChangeDataTypes, unix_to_date_strings, \
-    GoogleMapsClassifyAndGeocode, AnonymizeAddressBlock, LatLongReformat
+    GoogleMapsClassifyAndGeocode, AnonymizeAddressBlock, AnonymizeLatLong
 
 class GetStatus(beam.DoFn):
     def process(self, datum):
@@ -85,7 +85,7 @@ def run(argv = None):
         type_changes = [("id", "str"), ("parent_ticket_id", "str"), ("status_code", "str"), ("street_id", "str"),
                         ("cross_street_id", "str"), ("request_type_id", "str")]
 
-        # TODO: Class instantiation shadows keys; technically not a problem but change for clarity
+
         loc_names = {
                 "street_num_field"  : "pii_street_num",
                 "street_name_field" : "street",
@@ -111,7 +111,7 @@ def run(argv = None):
                 | beam.ParDo(GetClosedDate())
                 | beam.ParDo(DetectChildTicketStatus())
                 | beam.ParDo(GoogleMapsClassifyAndGeocode(loc_field_names = loc_names, partitioned_address = True))
-                | beam.ParDo(LatLongReformat(lat_long_accuracy))
+                | beam.ParDo(AnonymizeLatLong(lat_long_accuracy))
                 | beam.ParDo(AnonymizeAddressBlock(block_anon_accuracy))
                 | WriteToAvro(known_args.avro_output, schema = avro_schema, file_name_suffix = '.avro',
                               use_fastavro = True)

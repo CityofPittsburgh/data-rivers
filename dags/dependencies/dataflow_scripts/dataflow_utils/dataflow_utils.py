@@ -154,8 +154,9 @@ class GoogleMapsClassifyAndGeocode(beam.DoFn, ABC):
         self.long_field = loc_field_names["long_field"]
 
 
-    #TODO: change this var name
     def process(self, datum):
+        datum[self.lat_field] = float(datum[self.lat_field])
+        datum[self.long_field] = float(datum[self.long_field])
         datum['pii_input_address'] = None
         datum['pii_google_formatted_address'] = None
         datum['address_type'] = None
@@ -234,8 +235,8 @@ class ReformatPhoneNumbers(beam.DoFn):
             yield "+1" + " (%s) %s-%s" % tuple(re.findall(regex, digits))
 
 
-class LatLongReformat(beam.DoFn, ABC):
-    def __init__(self, anon_val):
+class AnonymizeLatLong(beam.DoFn, ABC):
+    def  __init__(self, anon_val):
         """
         :param accuracy - desired meter accuracy of the lat-long coordinates after rounding the decimals. Default 200m
 
@@ -263,8 +264,8 @@ class LatLongReformat(beam.DoFn, ABC):
                 if k1 <= accuracy <= k2:
                     acc = self.accuracy_converter[(k1, k2)]
 
-            datum['anon_' + lat.strip('pii_')] = str(round(datum[lat], acc)) if datum[lat] else None
-            datum['anon_' + long.strip('pii_')] = str(round(datum[long], acc)) if datum[long] else None
+            datum['anon_' + lat.strip('pii_')] = str(round(float(datum[lat]), acc)) if datum[lat] else None
+            datum['anon_' + long.strip('pii_')] = str(round(float(datum[long]), acc)) if datum[long] else None
             datum[lat] = str(datum[lat])
             datum[long] = str(datum[long])
 
@@ -444,6 +445,8 @@ def id_underspecified_addresses(datum, self):
                 address_type = 'Underspecified'
     elif datum[self.lat_field] != 0.0 and datum[self.long_field] != 0.0:
         address_type = 'Coordinates Only'
+        datum[self.lat_field] = str(datum[self.lat_field])
+        datum[self.long_field] = str(datum[self.long_field])
     else:
         address_type = 'Missing'
     datum['address_type'] = address_type
@@ -538,8 +541,8 @@ def regularize_and_geocode_address(datum, self):
                 api_coords = results['geometry']['location']
                 if re.search(r'\bPA\b', fmt_address) and fmt_address != 'Pittsburgh, PA, USA':
                     datum['pii_google_formatted_address'] = fmt_address
-                    coords['lat'] = float(api_coords.get('lat'))
-                    coords['long'] = float(api_coords.get('lng'))
+                    coords['lat'] = str(api_coords.get('lat'))
+                    coords['long'] = str(api_coords.get('lng'))
                 else:
                     datum['address_type'] = 'Unmappable'
     except requests.exceptions.RequestException as e:
