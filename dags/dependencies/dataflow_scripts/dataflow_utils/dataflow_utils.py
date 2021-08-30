@@ -263,8 +263,10 @@ class LatLongReformat(beam.DoFn, ABC):
                 if k1 <= accuracy <= k2:
                     acc = self.accuracy_converter[(k1, k2)]
 
-            datum['anon_' + lat.strip('pii_')] = round(datum[lat], acc) if datum[lat] else None
-            datum['anon_' + long.strip('pii_')] = round(datum[long], acc) if datum[long] else None
+            datum['anon_' + lat.strip('pii_')] = str(round(datum[lat], acc)) if datum[lat] else None
+            datum['anon_' + long.strip('pii_')] = str(round(datum[long], acc)) if datum[long] else None
+            datum[lat] = str(datum[lat])
+            datum[long] = str(datum[long])
 
         yield datum
 
