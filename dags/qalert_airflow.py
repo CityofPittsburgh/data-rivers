@@ -54,7 +54,10 @@ qalert_requests_bq = GoogleCloudStorageToBigQueryOperator(
         dag = dag
 )
 
+# TODO: update with lat/long cast as floats
+
 # TODO: de dupe prior to first push to new_parent and new_child tix?
+
 # 2) query new tickets to determine if they are in the city limits
 qalert_requests_city_limits = BigQueryOperator(
         task_id = 'qalert_city_limits',
@@ -66,6 +69,9 @@ qalert_requests_city_limits = BigQueryOperator(
         time_partitioning = {'type': 'DAY'},
         dag = dag
 )
+
+
+# TODO: make sure the DPW districting matches the correct designation (change date to be verified with VAL)
 
 # 3) join all the geo information (e.g. DPW districts, etc) to the new data
 qalert_requests_geojoin = BigQueryOperator(

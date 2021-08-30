@@ -230,7 +230,7 @@ def format_gcs_call(script_name, bucket_name, direc):
 def format_dataflow_call(script_name):
     exec_script_cmd = 'python {}'.format(os.environ['DAGS_PATH']) + '/dependencies/dataflow_scripts/{}'.format(
             script_name)
-    date_direc = "{{ds | get_ds_year}}/{{ds | get_ds_month}}/{{ds}}"
+    date_direc = "{}/{}/{}".format(dt.year, dt.month, dt.date())
     input_arg = " --input gs://{}_qalert/requests/{}_requests.json".format(os.environ["GCS_PREFIX"], date_direc)
     output_arg = " --avro_output gs://{}_qalert/requests/avro_output/{}/".format(os.environ["GCS_PREFIX"], date_direc)
     return exec_script_cmd + input_arg + output_arg
