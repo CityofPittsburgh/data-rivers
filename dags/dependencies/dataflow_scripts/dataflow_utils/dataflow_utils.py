@@ -266,8 +266,8 @@ class AnonymizeLatLong(beam.DoFn, ABC):
 
             datum['anon_' + lat.strip('pii_')] = str(round(float(datum[lat]), acc)) if datum[lat] else None
             datum['anon_' + long.strip('pii_')] = str(round(float(datum[long]), acc)) if datum[long] else None
-            datum[lat] = str(datum[lat])
-            datum[long] = str(datum[long])
+            datum[lat] = str(datum[lat]) if datum[lat] else None
+            datum[long] = str(datum[long]) if datum[long] else None
 
         yield datum
 
