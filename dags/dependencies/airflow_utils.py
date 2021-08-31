@@ -73,7 +73,7 @@ def get_ds_month(ds):
     return ds.split('-')[1]
 
 
-def build_revgeo_query(dataset, raw_table, id_field):
+def build_revgeo_query(dataset, raw_table, id_field, lat_field='lat', long_field='long'):
     """
     Take a table with lat/long values and reverse-geocode it into a new a final table. Use UNION to include rows that
     can't be reverse-geocoded in the final table. SELECT DISTINCT in both cases to remove duplicates.
@@ -81,6 +81,8 @@ def build_revgeo_query(dataset, raw_table, id_field):
     :param dataset: BigQuery dataset (string)
     :param raw_table: non-reverse geocoded table (string)
     :param id_field: field in table to use for deduplication
+    :param lat_field: field in table that identifies latitude value
+    :param lomg_field: field in table that identifies longitude value
     :return: string to be passed through as arg to BigQueryOperator
     """
     return f"""
@@ -98,22 +100,22 @@ def build_revgeo_query(dataset, raw_table, id_field):
           `{os.environ['GCLOUD_PROJECT']}.{dataset}.{raw_table}` AS {raw_table} 
           JOIN
              `data-rivers.geography.neighborhoods` AS neighborhoods 
-             ON ST_CONTAINS(neighborhoods.geometry, ST_GEOGPOINT({raw_table}.long, {raw_table}.lat)) 
+             ON ST_CONTAINS(neighborhoods.geometry, ST_GEOGPOINT({raw_table}.{long_field}, {raw_table}.{lat_field})) 
           JOIN
              `data-rivers.geography.council_districts` AS council_districts 
-             ON ST_CONTAINS(council_districts.geometry, ST_GEOGPOINT({raw_table}.long, {raw_table}.lat)) 
+             ON ST_CONTAINS(council_districts.geometry, ST_GEOGPOINT({raw_table}.{long_field}, {raw_table}.{lat_field})) 
           JOIN
              `data-rivers.geography.wards` AS wards 
-             ON ST_CONTAINS(wards.geometry, ST_GEOGPOINT({raw_table}.long, {raw_table}.lat)) 
+             ON ST_CONTAINS(wards.geometry, ST_GEOGPOINT({raw_table}.{long_field}, {raw_table}.{lat_field})) 
           JOIN
              `data-rivers.geography.fire_zones` AS fire_zones 
-             ON ST_CONTAINS(fire_zones.geometry, ST_GEOGPOINT({raw_table}.long, {raw_table}.lat)) 
+             ON ST_CONTAINS(fire_zones.geometry, ST_GEOGPOINT({raw_table}.{long_field}, {raw_table}.{lat_field})) 
           JOIN
              `data-rivers.geography.police_zones` AS police_zones 
-             ON ST_CONTAINS(police_zones.geometry, ST_GEOGPOINT({raw_table}.long, {raw_table}.lat)) 
+             ON ST_CONTAINS(police_zones.geometry, ST_GEOGPOINT({raw_table}.{long_field}, {raw_table}.{lat_field})) 
           JOIN
              `data-rivers.geography.dpw_divisions` AS dpw_divisions 
-             ON ST_CONTAINS(dpw_divisions.geometry, ST_GEOGPOINT({raw_table}.long, {raw_table}.lat))
+             ON ST_CONTAINS(dpw_divisions.geometry, ST_GEOGPOINT({raw_table}.{long_field}, {raw_table}.{lat_field}))
     )
     SELECT
        * 
@@ -247,8 +249,8 @@ def build_city_limits_query(datum, coord_fields):
     :return: datum with address_type either unchanged or set to Outside of City
     """
     bq_client = bigquery.Client(project='data-rivers')
-    lng = datum[coord_fields['long_field']]
-    lat = datum[coord_fields['lat_field']]
+    lng = float(datum[coord_fields['long_field']])
+    lat = float(datum[coord_fields['lat_field']])
     borders = []
 
     sql = "SELECT geometry FROM `data-rivers.geography.city_and_mt_oliver_borders`"
