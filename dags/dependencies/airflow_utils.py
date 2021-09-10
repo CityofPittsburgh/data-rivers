@@ -74,6 +74,14 @@ def get_ds_month(ds):
 
 
 def build_revgeo_query(dataset, raw_table, id_field):
+
+
+# #TODO: (select * from `data-rivers.geography.council_districts` where start_date < date < end_date) AS
+#  council_districts ON ST_CONTAINS(council_districts.geometry, ST_GEOGPOINT({raw_table}.long, {raw_table}.lat))
+
+
+
+
     """
     Take a table with lat/long values and reverse-geocode it into a new a final table. Use UNION to include rows that
     can't be reverse-geocoded in the final table. SELECT DISTINCT in both cases to remove duplicates.
@@ -97,7 +105,7 @@ def build_revgeo_query(dataset, raw_table, id_field):
        FROM
           `{os.environ['GCLOUD_PROJECT']}.{dataset}.{raw_table}` AS {raw_table} 
           JOIN
-             `data-rivers.geography.neighborhoods` AS neighborhoods 
+          `data-rivers.geography.neighborhoods` AS neighborhoods 
              ON ST_CONTAINS(neighborhoods.geometry, ST_GEOGPOINT({raw_table}.long, {raw_table}.lat)) 
           JOIN
              `data-rivers.geography.council_districts` AS council_districts 
