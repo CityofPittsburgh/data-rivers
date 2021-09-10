@@ -73,19 +73,7 @@ def get_ds_month(ds):
     return ds.split('-')[1]
 
 
-<<<<<<< HEAD
-def build_revgeo_query(dataset, raw_table, id_field):
-
-
-# #TODO: (select * from `data-rivers.geography.council_districts` where start_date < date < end_date) AS
-#  council_districts ON ST_CONTAINS(council_districts.geometry, ST_GEOGPOINT({raw_table}.long, {raw_table}.lat))
-
-
-
-
-=======
 def build_revgeo_query(dataset, raw_table, id_field, lat_field='lat', long_field='long'):
->>>>>>> 4b8981440d9dec5e4455d1b316095f33c3fc477d
     """
     Take a table with lat/long values and reverse-geocode it into a new a final table. Use UNION to include rows that
     can't be reverse-geocoded in the final table. SELECT DISTINCT in both cases to remove duplicates.
@@ -94,7 +82,7 @@ def build_revgeo_query(dataset, raw_table, id_field, lat_field='lat', long_field
     :param raw_table: non-reverse geocoded table (string)
     :param id_field: field in table to use for deduplication
     :param lat_field: field in table that identifies latitude value
-    :param lomg_field: field in table that identifies longitude value
+    :param long_field: field in table that identifies longitude value
     :return: string to be passed through as arg to BigQueryOperator
     """
     return f"""
@@ -107,17 +95,14 @@ def build_revgeo_query(dataset, raw_table, id_field, lat_field='lat', long_field
           wards.ward,
           fire_zones.firezones AS fire_zone,
           police_zones.zone AS police_zone,
-          dpw_divisions.objectid AS dpw_division 
+          dpw_streets_divisions.division AS dpw_streets,
+          dpw_es_divisions.dpwesid AS dpw_enviro,
+          dpw_parks_divisions.division AS dpw_parks
        FROM
           `{os.environ['GCLOUD_PROJECT']}.{dataset}.{raw_table}` AS {raw_table} 
           JOIN
-<<<<<<< HEAD
-          `data-rivers.geography.neighborhoods` AS neighborhoods 
-             ON ST_CONTAINS(neighborhoods.geometry, ST_GEOGPOINT({raw_table}.long, {raw_table}.lat)) 
-=======
              `data-rivers.geography.neighborhoods` AS neighborhoods 
              ON ST_CONTAINS(neighborhoods.geometry, ST_GEOGPOINT({raw_table}.{long_field}, {raw_table}.{lat_field})) 
->>>>>>> 4b8981440d9dec5e4455d1b316095f33c3fc477d
           JOIN
              `data-rivers.geography.council_districts` AS council_districts 
              ON ST_CONTAINS(council_districts.geometry, ST_GEOGPOINT({raw_table}.{long_field}, {raw_table}.{lat_field})) 
@@ -131,8 +116,14 @@ def build_revgeo_query(dataset, raw_table, id_field, lat_field='lat', long_field
              `data-rivers.geography.police_zones` AS police_zones 
              ON ST_CONTAINS(police_zones.geometry, ST_GEOGPOINT({raw_table}.{long_field}, {raw_table}.{lat_field})) 
           JOIN
-             `data-rivers.geography.dpw_divisions` AS dpw_divisions 
-             ON ST_CONTAINS(dpw_divisions.geometry, ST_GEOGPOINT({raw_table}.{long_field}, {raw_table}.{lat_field}))
+             `data-rivers.geography.dpw_streets_divisions` AS dpw_streets 
+             ON ST_CONTAINS(dpw_streets_divisions.geometry, ST_GEOGPOINT({raw_table}.{long_field}, {raw_table}.{lat_field}))
+          JOIN
+             `data-rivers.geography.dpw_es_divisions` AS dpw_enviro 
+             ON ST_CONTAINS(dpw_es_divisions.geometry, ST_GEOGPOINT({raw_table}.{long_field}, {raw_table}.{lat_field}))
+          JOIN
+             `data-rivers.geography.dpw_parks_divisions` AS dpw_parks 
+             ON ST_CONTAINS(dpw_parks_divisions.geometry, ST_GEOGPOINT({raw_table}.{long_field}, {raw_table}.{lat_field}))
     )
     SELECT
        * 
@@ -146,7 +137,9 @@ def build_revgeo_query(dataset, raw_table, id_field, lat_field='lat', long_field
        NULL AS ward,
        CAST(NULL AS string) fire_zone,
        NULL AS police_zone,
-       NULL AS dpw_division 
+       NULL AS dpw_streets,
+       NULL AS dpw_enviro,
+       NULL AS dpw_parks 
     FROM
        `{os.environ['GCLOUD_PROJECT']}.{dataset}.{raw_table}` AS {raw_table} 
     WHERE
@@ -255,7 +248,7 @@ def format_dataflow_call(script_name):
     return exec_script_cmd + input_arg + output_arg
 
 
-def build_city_limits_query(datum, coord_fields):
+def build_city_limits_query(dataset, raw_table, lat_field='lat', long_field='long'):
     """
     Determine whether a set of coordinates fall within the borders of the City of Pittsburgh,
     while also falling outside the borders of Mt. Oliver. If an address is within the city,
@@ -265,9 +258,6 @@ def build_city_limits_query(datum, coord_fields):
     :param coord_fields: dict that maps names of latitude and longitude fields to keys
     :return: datum with address_type either unchanged or set to Outside of City
     """
-    bq_client = bigquery.Client(project='data-rivers')
-    lng = float(datum[coord_fields['long_field']])
-    lat = float(datum[coord_fields['lat_field']])
     borders = []
 
     sql = "SELECT geometry FROM `data-rivers.geography.city_and_mt_oliver_borders`"
@@ -278,10 +268,10 @@ def build_city_limits_query(datum, coord_fields):
 
     sql = F"SELECT " \
               F"ST_COVERS(ST_GEOGFROMTEXT('{borders[0]}')," \
-              F"ST_GEOGPOINT({lng}, {lat})) " \
+              F"ST_GEOGPOINT({raw_table}.{long_field}, {raw_table}.{lat_field})) " \
           F"AND NOT " \
               F"ST_COVERS(ST_GEOGFROMTEXT('{borders[1]}')," \
-              F"ST_GEOGPOINT({lng}, {lat}))"
+              F"ST_GEOGPOINT({raw_table}.{long_field}, {raw_table}.{lat_field}))"
     query_job = bq_client.query(sql)
     contain_results = list(query_job.result())
     contains = contain_results[0].values()[0]
