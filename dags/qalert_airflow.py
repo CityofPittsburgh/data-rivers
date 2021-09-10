@@ -54,11 +54,7 @@ qalert_requests_bq = GoogleCloudStorageToBigQueryOperator(
         dag = dag
 )
 
-<<<<<<< HEAD
-# Query new tickets (temp table ^^) to determine if they are in the city limits
-=======
-# TODO: update with lat/long cast as floats
-conv_dedup_query = ("CREATE OR REPLACE TABLE `{}:qalert.temp_new_req`".format(os.environ['GCLOUD_PROJECT']) +
+format_dedupe_data = ("CREATE OR REPLACE TABLE `{}:qalert.temp_new_req`".format(os.environ['GCLOUD_PROJECT']) +
                     " AS SELECT DISTINCT * EXCEPT (pii_lat, pii_long, anon_lat, anon_long), " +
                     "   CAST(pii_lat AS FLOAT64) AS pii_lat, "
                     "   CAST(pii_long AS FLOAT64) AS pii_long, "
@@ -68,7 +64,7 @@ conv_dedup_query = ("CREATE OR REPLACE TABLE `{}:qalert.temp_new_req`".format(os
 
 qalert_requests_coord_float_conv = BigQueryOperator(
         task_id='qalert_coord_float_conv',
-        sql=conv_dedup_query,
+        sql=format_dedupe_data,
         use_legacy_sql=False,
         destination_dataset_table='{}:qalert.temp_new_req'.format(os.environ['GCLOUD_PROJECT']),
         write_disposition='WRITE_TRUNCATE',
@@ -77,10 +73,7 @@ qalert_requests_coord_float_conv = BigQueryOperator(
         dag=dag
 )
 
-# TODO: de dupe prior to first push to new_parent and new_child tix?
 
-# 2) query new tickets to determine if they are in the city limits
->>>>>>> 4b8981440d9dec5e4455d1b316095f33c3fc477d
 qalert_requests_city_limits = BigQueryOperator(
         task_id = 'qalert_city_limits',
         sql = build_city_limits_query('qalert', 'temp_new_req', 'id'),
@@ -162,5 +155,4 @@ qalert_beam_cleanup = BashOperator(
 )
 
 qalert_requests_gcs >> qalert_requests_dataflow >> qalert_requests_bq >> qalert_requests_city_limits >> \
-qalert_requests_geojoin >> qalert_requests_merge_new_tickets >> qalert_requests_split_parent >> \
-qalert_requests_split_child >> qalert_merge_related_requests >> qalert_bq_drop_temp >> qalert_beam_cleanup
+qalert_requests_geojoin >> qalert_requests_merge_new_tickets >> qalert_bq_drop_temp >> qalert_beam_cleanup
