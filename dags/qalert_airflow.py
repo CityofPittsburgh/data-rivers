@@ -124,7 +124,7 @@ WHERE child_ticket = False
 
 qalert_requests_split_new_parents = BigQueryOperator(
         task_id = 'qalert_requests_split_new_parents',
-        sql = split_query,
+        sql = split_parent_query,
         use_legacy_sql = False,
         write_disposition = 'WRITE_TRUNCATE',
         destination_dataset_table = f"`{os.environ['GCLOUD_PROJECT']}:qalert.new_parents`",
@@ -220,7 +220,7 @@ qalert_requests_drop_pii_for_export = BigQueryOperator(
 qalert_wprdc_export = BigQueryToCloudStorageOperator(
         task_id = 'qalert_wprdc_export',
         source_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}:qalert.wprdc_export",
-        destination_cloud_storage_uris = f"gs://{os.environ['GCS_PREFIX']}_wprdc/qalert_permits_{{ ds }}.csv",
+        destination_cloud_storage_uris = [f"gs://{os.environ['GCS_PREFIX']}_wprdc/qalert_permits_{{ ds }}.csv"],
         dag = dag
 )
 
