@@ -73,7 +73,19 @@ def get_ds_month(ds):
     return ds.split('-')[1]
 
 
+<<<<<<< HEAD
+def build_revgeo_query(dataset, raw_table, id_field):
+
+
+# #TODO: (select * from `data-rivers.geography.council_districts` where start_date < date < end_date) AS
+#  council_districts ON ST_CONTAINS(council_districts.geometry, ST_GEOGPOINT({raw_table}.long, {raw_table}.lat))
+
+
+
+
+=======
 def build_revgeo_query(dataset, raw_table, id_field, lat_field='lat', long_field='long'):
+>>>>>>> 4b8981440d9dec5e4455d1b316095f33c3fc477d
     """
     Take a table with lat/long values and reverse-geocode it into a new a final table. Use UNION to include rows that
     can't be reverse-geocoded in the final table. SELECT DISTINCT in both cases to remove duplicates.
@@ -99,8 +111,13 @@ def build_revgeo_query(dataset, raw_table, id_field, lat_field='lat', long_field
        FROM
           `{os.environ['GCLOUD_PROJECT']}.{dataset}.{raw_table}` AS {raw_table} 
           JOIN
+<<<<<<< HEAD
+          `data-rivers.geography.neighborhoods` AS neighborhoods 
+             ON ST_CONTAINS(neighborhoods.geometry, ST_GEOGPOINT({raw_table}.long, {raw_table}.lat)) 
+=======
              `data-rivers.geography.neighborhoods` AS neighborhoods 
              ON ST_CONTAINS(neighborhoods.geometry, ST_GEOGPOINT({raw_table}.{long_field}, {raw_table}.{lat_field})) 
+>>>>>>> 4b8981440d9dec5e4455d1b316095f33c3fc477d
           JOIN
              `data-rivers.geography.council_districts` AS council_districts 
              ON ST_CONTAINS(council_districts.geometry, ST_GEOGPOINT({raw_table}.{long_field}, {raw_table}.{lat_field})) 

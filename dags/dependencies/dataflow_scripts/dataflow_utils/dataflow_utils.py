@@ -23,11 +23,11 @@ bq_client = bigquery.Client()
 storage_client = storage.Client()
 
 DEFAULT_DATAFLOW_ARGS = [
-    '--project=data-rivers',
-    '--subnetwork=https://www.googleapis.com/compute/v1/projects/data-rivers/regions/us-east1/subnetworks/default',
-    '--region=us-east1',
-    '--service_account_email=data-rivers@data-rivers.iam.gserviceaccount.com',
-    '--save_main_session',
+        '--project=data-rivers',
+        '--subnetwork=https://www.googleapis.com/compute/v1/projects/data-rivers/regions/us-east1/subnetworks/default',
+        '--region=us-east1',
+        '--service_account_email=data-rivers@data-rivers.iam.gserviceaccount.com',
+        '--save_main_session',
 ]
 
 
@@ -189,7 +189,8 @@ class StandardizeTimes(beam.DoFn, ABC):
         The function takes in date string values and standardizes them to datetimes in UTC, Eastern, and Unix.
         formats. It is powerful enough to handle datetimes in a variety of timezones and string formats.
         The user must provide a timezone name contained within pytz.all_timezones.
-        As of June 2021, a list of accepted timezones can be found on https://en.wikipedia.org/wiki/List_of_tz_database_time_zones#List
+        As of June 2021, a list of accepted timezones can be found on
+        https://en.wikipedia.org/wiki/List_of_tz_database_time_zones#List
         Please note that the timezone names are subject to change and the code would have to be updated accordingly. (JF)
         """
         self.time_changes = time_changes
@@ -197,15 +198,15 @@ class StandardizeTimes(beam.DoFn, ABC):
     def process(self, datum):
         for time_change in self.time_changes:
             parse_dt = parser.parse(datum[time_change[0]])
-            clean_dt = parse_dt.replace(tzinfo=None)
+            clean_dt = parse_dt.replace(tzinfo = None)
             try:
                 pytz.all_timezones.index(time_change[1])
             except ValueError:
                 pass
             else:
-                loc_time = pytz.timezone(time_change[1]).localize(clean_dt, is_dst=None)
-                utc_conv = loc_time.astimezone(tz=pytz.utc)
-                east_conv = loc_time.astimezone(tz=pytz.timezone('America/New_York'))
+                loc_time = pytz.timezone(time_change[1]).localize(clean_dt, is_dst = None)
+                utc_conv = loc_time.astimezone(tz = pytz.utc)
+                east_conv = loc_time.astimezone(tz = pytz.timezone('America/New_York'))
                 unix_conv = utc_conv.timestamp()
                 datum.update({'{}_UTC'.format(time_change[0]): str(utc_conv),
                               '{}_EAST'.format(time_change[0]): str(east_conv),
@@ -222,6 +223,7 @@ class ReformatPhoneNumbers(beam.DoFn):
     Step 2 - Separate the country code and area code from the phone number. Default country code is +1
     Step 3 - Format it into +x (xxx) xxx-xxxx     +CountryCode (AreaCode) xxx-xxxx
     """
+
     def process(self, datum):
         """
         :param datum - Non formatted phone number with/without country code
@@ -236,24 +238,25 @@ class ReformatPhoneNumbers(beam.DoFn):
 
 
 class AnonymizeLatLong(beam.DoFn, ABC):
-    def  __init__(self, anon_val):
+    def __init__(self, anon_val):
         """
         :param accuracy - desired meter accuracy of the lat-long coordinates after rounding the decimals. Default 200m
 
         var: accuracy_converter - Dictionary of Accuracy versus decimal places whose values represent the number of
-             decimal points and key gives a range of accuracy in metres. http://wiki.gis.com/wiki/index.php/Decimal_degrees
+             decimal points and key gives a range of accuracy in metres.
+             http://wiki.gis.com/wiki/index.php/Decimal_degrees
 
-        This helper rounds off decimal places from extremely long latitude and longitude coordinates. The exact precision
-        is defined by the meter accuracy variable passed by the user
+        This helper rounds off decimal places from extremely long latitude and longitude coordinates. The exact
+        precisionis defined by the meter accuracy variable passed by the user
         """
         self.anon_values = anon_val
         self.accuracy_converter = {
-                                    (5000, 14999): 1,
-                                    (500, 4999): 2,
-                                    (50, 499): 3,
-                                    (5, 49): 4,
-                                    (0, 4): 5
-                                }
+                (5000, 14999): 1,
+                (500, 4999)  : 2,
+                (50, 499)    : 3,
+                (5, 49)      : 4,
+                (0, 4)       : 5
+        }
 
     def process(self, datum):
         """
@@ -330,9 +333,9 @@ def generate_args(job_name, bucket, argv, schema_name):
     """
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('--input', dest='input', required=True)
-    parser.add_argument('--avro_output', dest='avro_output', required=True)
-    parser.add_argument('--runner', '-r', dest='runner', default='DataflowRunner', required=False)
+    parser.add_argument('--input', dest = 'input', required = True)
+    parser.add_argument('--avro_output', dest = 'avro_output', required = True)
+    parser.add_argument('--runner', '-r', dest = 'runner', default = 'DataflowRunner', required = False)
 
     known_args, pipeline_args = parser.parse_known_args(argv)
 
@@ -422,8 +425,8 @@ def unix_to_date_strings(unix_date):
     :return: utc_conv, east_conv: strings
     """
     dt_object = datetime.fromtimestamp(unix_date)
-    utc_conv = dt_object.astimezone(tz=pytz.utc)
-    east_conv = dt_object.astimezone(tz=pytz.timezone('America/New_York'))
+    utc_conv = dt_object.astimezone(tz = pytz.utc)
+    east_conv = dt_object.astimezone(tz = pytz.timezone('America/New_York'))
     return str(utc_conv), str(east_conv)
 
 
@@ -521,12 +524,14 @@ def regularize_and_geocode_address(datum, self):
     api_key = os.environ["GMAP_API_KEY"]
     base_url = "https://maps.googleapis.com/maps/api/geocode/json"
     if datum['address_type'] == 'Intersection':
-        address = str(datum[self.street_name_field]) + ' and ' + str(datum[self.cross_street_field]) + ', ' + str(datum[self.city_field])
+        address = str(datum[self.street_name_field]) + ' and ' + str(datum[self.cross_street_field]) + ', ' + str(
+                datum[self.city_field])
     elif not self.partioned_address:
         address = datum[self.address_field]
         datum['address_type'] = 'Precise'
     else:
-        address = str(datum[self.street_num_field]) + ' ' + str(datum[self.street_name_field]) + ', ' + str(datum[self.city_field])
+        address = str(datum[self.street_num_field]) + ' ' + str(datum[self.street_name_field]) + ', ' + str(
+                datum[self.city_field])
     if 'none' not in address.lower():
         datum['pii_input_address'] = address
     else:
@@ -599,11 +604,12 @@ def extract_field_from_nested_list(datum, source_field, list_index, nested_field
     return datum
 
 
-def filter_fields(datum, relevant_fields, exclude_relevant_fields=True):
+def filter_fields(datum, relevant_fields, exclude_relevant_fields = True):
     """
     :param datum: datum in PCollection (dict)
     :param relevant_fields: list of fields to drop or to preserve (dropping all others) (list)
-    :param exclude_relevant_fields: preserve or drop relevant fields arg. we add this as an option because in some cases the list
+    :param exclude_relevant_fields: preserve or drop relevant fields arg. we add this as an option because in some
+    cases the list
     of fields we want to preserve is much longer than the list of those we want to drop, and vice verse, so having this
     option allows us to make the hard-coded RELEVANT_FIELDS arg in the dataflow script as terse as possible (bool)
     :return:
