@@ -55,12 +55,12 @@ qalert_requests_bq = GoogleCloudStorageToBigQueryOperator(
 )
 
 format_dedupe_data = ("CREATE OR REPLACE TABLE `{}:qalert.temp_new_req`".format(os.environ['GCLOUD_PROJECT']) +
-                    " AS SELECT DISTINCT * EXCEPT (pii_lat, pii_long, anon_lat, anon_long), " +
-                    "   CAST(pii_lat AS FLOAT64) AS pii_lat, "
-                    "   CAST(pii_long AS FLOAT64) AS pii_long, "
-                    "   CAST(anon_lat AS FLOAT64) AS anon_lat, "
-                    "   CAST(anon_long AS FLOAT64) AS anon_long, "
-                    "FROM `{}:qalert.temp_new_req`".format(os.environ['GCLOUD_PROJECT']))
+                      " AS SELECT DISTINCT * EXCEPT (pii_lat, pii_long, anon_lat, anon_long), " +
+                      "   CAST(pii_lat AS FLOAT64) AS pii_lat, "
+                      "   CAST(pii_long AS FLOAT64) AS pii_long, "
+                      "   CAST(anon_lat AS FLOAT64) AS anon_lat, "
+                      "   CAST(anon_long AS FLOAT64) AS anon_long, "
+                      "FROM `{}:qalert.temp_new_req`".format(os.environ['GCLOUD_PROJECT']))
 
 qalert_requests_coord_float_conv = BigQueryOperator(
         task_id='qalert_coord_float_conv',
