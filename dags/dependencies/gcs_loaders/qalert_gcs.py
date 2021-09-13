@@ -13,7 +13,7 @@ parser.add_argument('-s', '--since', dest='since', required=True,
 parser.add_argument('-e', '--execution_date', dest='execution_date',
                     required=True, help='DAG execution date (YYYY-MM-DD)')
 args = vars(parser.parse_args())
-bucket = '{}_qalert'.format(os.environ['GCS_PREFIX'])
+bucket = f"{os.environ['GCS_PREFIX']}_qalert"
 
 # qscend API requires a value (any value) for the user-agent field
 headers = {'User-Agent': 'City of Pittsburgh ETL'}
@@ -42,7 +42,7 @@ pre_clean["req_comments"] = delim_seq.join(pre_clean["req_comments"])
 
 
 # scrub pii
-scrubbed_req_comments = replace_pii(pre_clean["req_comments"], retain_location = True)
+scrubbed_req_comments = replace_pii(pre_clean["req_comments"], retain_location  = True)
 
 # convert delim-seperated string back to list of strings
 split_req_comments = scrubbed_req_comments.split(delim_seq)
@@ -52,7 +52,9 @@ for i in range(len(full_requests)):
     full_requests[i]["comments"] = split_req_comments[i].strip()
 
 # load to gcs
-json_to_gcs('requests/{}/{}/{}_requests.json'.format(args['execution_date'].split('-')[0],
-                                                     args['execution_date'].split('-')[1],
-                                                     args['execution_date']),
-            full_requests, bucket)
+target_direc = "requests"
+year = args['execution_date'].split('-')[0]
+month = args['execution_date'].split('-')[1]
+full_date = args['execution_date']
+target_path = f"/{target_direc}/{year}/{month}/{full_date}_requests.json"
+json_to_gcs(target_path, full_requests, bucket)

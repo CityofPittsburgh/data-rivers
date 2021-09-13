@@ -54,7 +54,7 @@ def run(argv = None):
 
     known_args, pipeline_options, avro_schema = generate_args(
             job_name = 'qalert-requests-dataflow',
-            bucket = '{}_qalert'.format(os.environ['GCS_PREFIX']),
+            bucket=f"{os.environ['GCS_PREFIX']}_qalert",
             argv = argv,
             schema_name = 'qalert_requests'
     )
