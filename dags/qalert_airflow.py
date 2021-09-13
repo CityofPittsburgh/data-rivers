@@ -91,7 +91,7 @@ qalert_requests_city_limits = BigQueryOperator(
 # Join all the geo information (e.g. DPW districts, etc) to the new data
 qalert_requests_geojoin = BigQueryOperator(
         task_id = 'qalert_geojoin',
-        sql = build_revgeo_query('qalert', 'temp_new_req', 'id', 'pii_lat', 'pii_long'),
+        sql = build_revgeo_query('qalert', 'temp_new_req', 'id', 'create_date_est', 'pii_lat', 'pii_long'),
         use_legacy_sql = False,
         destination_dataset_table = f"`{os.environ['GCLOUD_PROJECT']}:qalert.temp_new_req`",
         write_disposition = 'WRITE_APPEND',

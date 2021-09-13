@@ -73,7 +73,7 @@ def get_ds_month(ds):
     return ds.split('-')[1]
 
 
-def build_revgeo_query(dataset, raw_table, id_field, lat_field='lat', long_field='long'):
+def build_revgeo_query(dataset, raw_table, id_field, create_date='create_date_est', lat_field='lat', long_field='long'):
     """
     Take a table with lat/long values and reverse-geocode it into a new a final table. Use UNION to include rows that
     can't be reverse-geocoded in the final table. SELECT DISTINCT in both cases to remove duplicates.
@@ -81,6 +81,7 @@ def build_revgeo_query(dataset, raw_table, id_field, lat_field='lat', long_field
     :param dataset: BigQuery dataset (string)
     :param raw_table: non-reverse geocoded table (string)
     :param id_field: field in table to use for deduplication
+    :param create_date: ticket creation date (string)
     :param lat_field: field in table that identifies latitude value
     :param long_field: field in table that identifies longitude value
     :return: string to be passed through as arg to BigQueryOperator
@@ -116,14 +117,20 @@ def build_revgeo_query(dataset, raw_table, id_field, lat_field='lat', long_field
              `data-rivers.geography.police_zones` AS police_zones 
              ON ST_CONTAINS(police_zones.geometry, ST_GEOGPOINT({raw_table}.{long_field}, {raw_table}.{lat_field})) 
           JOIN
-             `data-rivers.geography.dpw_streets_divisions` AS dpw_streets 
+             `data-rivers.geography.dpw_streets_divisions` AS dpw_streets_divisions 
              ON ST_CONTAINS(dpw_streets_divisions.geometry, ST_GEOGPOINT({raw_table}.{long_field}, {raw_table}.{lat_field}))
+             AND TIMESTAMP(PARSE_DATE('%m/%d/%Y', start_date)) <= TIMESTAMP(temp_new_req.{create_date})
+             AND IFNULL(TIMESTAMP(PARSE_DATE('%m/%d/%Y', end_date)), CURRENT_TIMESTAMP()) >= TIMESTAMP(temp_new_req.{create_date})
           JOIN
-             `data-rivers.geography.dpw_es_divisions` AS dpw_enviro 
+             `data-rivers.geography.dpw_es_divisions` AS dpw_es_divisions 
              ON ST_CONTAINS(dpw_es_divisions.geometry, ST_GEOGPOINT({raw_table}.{long_field}, {raw_table}.{lat_field}))
+             AND TIMESTAMP(PARSE_DATE('%m/%d/%Y', start_date)) <= TIMESTAMP(temp_new_req.{create_date})
+             AND IFNULL(TIMESTAMP(PARSE_DATE('%m/%d/%Y', end_date)), CURRENT_TIMESTAMP()) >= TIMESTAMP(temp_new_req.{create_date})
           JOIN
-             `data-rivers.geography.dpw_parks_divisions` AS dpw_parks 
+             `data-rivers.geography.dpw_parks_divisions` AS dpw_parks_divisions 
              ON ST_CONTAINS(dpw_parks_divisions.geometry, ST_GEOGPOINT({raw_table}.{long_field}, {raw_table}.{lat_field}))
+             AND TIMESTAMP(PARSE_DATE('%m/%d/%Y', start_date)) <= TIMESTAMP(temp_new_req.{create_date})
+             AND IFNULL(TIMESTAMP(PARSE_DATE('%m/%d/%Y', end_date)), CURRENT_TIMESTAMP()) >= TIMESTAMP(temp_new_req.{create_date})
     )
     SELECT
        * 
