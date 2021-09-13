@@ -259,32 +259,31 @@ def build_city_limits_query(dataset, raw_table, lat_field='lat', long_field='lon
     """
     Determine whether a set of coordinates fall within the borders of the City of Pittsburgh,
     while also falling outside the borders of Mt. Oliver. If an address is within the city,
-    the datum is returned as-is. Otherwise, the 'address_type' field is changed to 'Outside
+    the address_type field is left as-is. Otherwise, address_type is changed to 'Outside
     of City'.
-    :param datum: data source containing address information
-    :param coord_fields: dict that maps names of latitude and longitude fields to keys
-    :return: datum with address_type either unchanged or set to Outside of City
+    :param dataset: source BigQuery dataset that contains the table to be updated
+    :param raw_table: name of the table containing raw 311 data
+    :param: lat_field: name of table column that contains latitude value
+    :param: long_field: name of table column that contains longitude value
+    :return: string to be passed through as arg to BigQueryOperator
+    **NOTE**: A strange issue occurs with the Mt Oliver borders if it is stored in BigQuery in GEOGRAPHY format.
+    All lat/longs outside of the Mt Oliver boundaries are identified as inside Mt Oliver when passed through ST_COVERS,
+    and all lat/longs inside of Mt Oliver are identified as outside of it. To get around this problem, we have stored
+    the boundary polygons as strings, and then convert those strings to polygons using ST_GEOGFROMTEXT.
     """
-    borders = []
-
-    sql = "SELECT geometry FROM `data-rivers.geography.city_and_mt_oliver_borders`"
-    query_job = bq_client.query(sql)
-    results = query_job.result()
-    for row in results:
-        borders.append(row.values()[0])
-
-    sql = F"SELECT " \
-              F"ST_COVERS(ST_GEOGFROMTEXT('{borders[0]}')," \
-              F"ST_GEOGPOINT({raw_table}.{long_field}, {raw_table}.{lat_field})) " \
-          F"AND NOT " \
-              F"ST_COVERS(ST_GEOGFROMTEXT('{borders[1]}')," \
-              F"ST_GEOGPOINT({raw_table}.{long_field}, {raw_table}.{lat_field}))"
-    query_job = bq_client.query(sql)
-    contain_results = list(query_job.result())
-    contains = contain_results[0].values()[0]
-    if not contains:
-        datum['address_type'] = 'Outside of City'
-    return datum
+    return f"""
+    UPDATE {dataset}.{raw_table}
+    SET address_type = IF ( (
+       ST_COVERS((ST_GEOGFROMTEXT(SELECT geometry FROM `data-rivers.geography.pittsburgh_and_mt_oliver_borders`
+                                  WHERE city = 'Pittsburgh')),
+                   ST_GEOGPOINT({raw_table}.{long_field}, {raw_table}.{lat_field}))
+        AND NOT 
+        ST_COVERS((ST_GEOGFROMTEXT(SELECT geometry FROM `data-rivers.geography.pittsburgh_and_mt_oliver_borders`
+                                   WHERE city = 'Mt. Oliver')),
+                   ST_GEOGPOINT({raw_table}.{long_field}, {raw_table}.{lat_field}))
+       ), 'Outside of City', address_type )
+    WHERE {raw_table}.{long_field} IS NOT NULL AND {raw_table}.{lat_field} IS NOT NULL
+    """
 
 
 if __name__ == '__main__':

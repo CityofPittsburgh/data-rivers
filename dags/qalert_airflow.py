@@ -76,11 +76,10 @@ qalert_requests_format_dedupe = BigQueryOperator(
         dag = dag
 )
 
-# TODO: the query builder call below is not formatted correctly .
 # Query new tickets to determine if they are in the city limits
 qalert_requests_city_limits = BigQueryOperator(
         task_id = 'qalert_city_limits',
-        sql = build_city_limits_query('qalert', 'temp_new_req', 'id'),
+        sql = build_city_limits_query('qalert', 'temp_new_req', 'pii_lat', 'pii_long'),
         use_legacy_sql = False,
         destination_dataset_table = f"`{os.environ['GCLOUD_PROJECT']}:qalert.temp_new_req`",
         write_disposition = 'WRITE_APPEND',
