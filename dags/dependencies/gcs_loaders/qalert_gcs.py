@@ -56,5 +56,5 @@ target_direc = "requests"
 year = args['execution_date'].split('-')[0]
 month = args['execution_date'].split('-')[1]
 full_date = args['execution_date']
-target_path = f"/{target_direc}/{year}/{month}/{full_date}_requests.json"
+target_path = f"{target_direc}/{year}/{month}/{full_date}_requests.json"
 json_to_gcs(target_path, full_requests, bucket)
