@@ -318,7 +318,12 @@ class AnonymizeAddressBlock(beam.DoFn, ABC):
 
 def generate_args(job_name, bucket, argv, schema_name):
     """
-    generate arguments for DataFlow jobs (invoked in DataFlow scripts prior to execution)
+    generate arguments for DataFlow jobs (invoked in DataFlow scripts prior to execution). In brief, this function
+    initializes the basic options and setup for each step in a dataflow pipeline(e.g. the GCP project to operate on,
+    the subnet to run the job, etc). The function also bundles the runtime vars (e.g. buckets, schema names,
+    etc) in with this initialized information via the parser. The bundled together vars are ultimately returned as
+    known_args (which are the runtime vars passed into Beam, e.g. avro_output and input), and pipeline_options (which
+    determine how Beam operates and where it is pointed to etc) as Protected Attributes (_flags).
 
     :param job_name: name for DataFlow job (string)
     :param bucket: Google Cloud Storage bucket to which avro files will be uploaded (string)
@@ -484,7 +489,7 @@ def geocode_address(datum, address_field):
 
 
 def gmap_geocode_address(datum, address_field):
-    api_key = os.environ["GMAP_API_KEY"]
+    api_key = os.environ['GMAP_API_KEY']
     base_url = "https://maps.googleapis.com/maps/api/geocode/json"
 
     coords = {'lat': None, 'long': None}
@@ -521,7 +526,7 @@ def regularize_and_geocode_address(datum, self):
     Take in addresses of different formats, regularize them to USPS/Google Maps format, then geocode lat/long values
     :return: datum in PCollection (dict) with two new fields (lat, long) containing coordinates
     """
-    api_key = os.environ["GMAP_API_KEY"]
+    api_key = os.environ['GMAP_API_KEY']
     base_url = "https://maps.googleapis.com/maps/api/geocode/json"
     if datum['address_type'] == 'Intersection':
         address = str(datum[self.street_name_field]) + ' and ' + str(datum[self.cross_street_field]) + ', ' + str(
