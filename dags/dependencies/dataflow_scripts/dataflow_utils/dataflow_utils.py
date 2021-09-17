@@ -99,7 +99,7 @@ class SwapFieldNames(beam.DoFn, ABC):
 
 
 class FilterFields(beam.DoFn):
-    def __init__(self, relevant_fields, exclude_relevant_fields=True):
+    def __init__(self, relevant_fields, exclude_relevant_fields = True):
         self.relevant_fields = relevant_fields
         self.exclude_relevant_fields = exclude_relevant_fields
 
@@ -129,7 +129,7 @@ class GetDateStringsFromUnix(beam.DoFn, ABC):
 
 
 class GoogleMapsClassifyAndGeocode(beam.DoFn, ABC):
-    def __init__(self, loc_field_names, partitioned_address):
+    def __init__(self, key, loc_field_names, partitioned_address):
         """
         :param partitioned_address: a boolean that idenitifies whether an address is broken into multiple components
         :param loc_field_names: dictionary of 7 field name keys that contain the following information:
@@ -153,6 +153,7 @@ class GoogleMapsClassifyAndGeocode(beam.DoFn, ABC):
         self.lat_field = loc_field_names["lat_field"]
         self.long_field = loc_field_names["long_field"]
 
+        self.api_key = key
 
     def process(self, datum):
         datum[self.lat_field] = float(datum[self.lat_field])
@@ -161,7 +162,6 @@ class GoogleMapsClassifyAndGeocode(beam.DoFn, ABC):
         datum['pii_google_formatted_address'] = None
         datum['address_type'] = None
 
-        # if self.address_field not in datum:
         if self.partioned_address:
             datum = id_underspecified_addresses(datum, self)
         if datum['address_type'] not in ['Missing', 'Coordinates Only']:
@@ -191,7 +191,8 @@ class StandardizeTimes(beam.DoFn, ABC):
         The user must provide a timezone name contained within pytz.all_timezones.
         As of June 2021, a list of accepted timezones can be found on
         https://en.wikipedia.org/wiki/List_of_tz_database_time_zones#List
-        Please note that the timezone names are subject to change and the code would have to be updated accordingly. (JF)
+        Please note that the timezone names are subject to change and the code would have to be updated accordingly.
+        (JF)
         """
         self.time_changes = time_changes
 
@@ -208,7 +209,7 @@ class StandardizeTimes(beam.DoFn, ABC):
                 utc_conv = loc_time.astimezone(tz = pytz.utc)
                 east_conv = loc_time.astimezone(tz = pytz.timezone('America/New_York'))
                 unix_conv = utc_conv.timestamp()
-                datum.update({'{}_UTC'.format(time_change[0]): str(utc_conv),
+                datum.update({'{}_UTC'.format(time_change[0]) : str(utc_conv),
                               '{}_EAST'.format(time_change[0]): str(east_conv),
                               '{}_UNIX'.format(time_change[0]): unix_conv})
 
@@ -435,32 +436,7 @@ def unix_to_date_strings(unix_date):
     return str(utc_conv), str(east_conv)
 
 
-def id_underspecified_addresses(datum, self):
-    """
-    Identify whether a given street address, partitioned into street name, street number, and cross street name,
-    is underspecified or not. An underspecified address is defined as any address that does not have an exact
-    street number and is not an intersection. Examples of underspecified addresses are block numbers or
-    ranges of addresses.
-    :return: datum in PCollection (dict) with new field (address_type) identifying level of address specificity
-    """
-    if datum[self.street_name_field]:
-        if datum[self.street_num_field].isnumeric():
-            address_type = 'Precise'
-        else:
-            if not datum[self.street_num_field] and datum[self.cross_street_field]:
-                address_type = 'Intersection'
-            else:
-                address_type = 'Underspecified'
-    elif datum[self.lat_field] != 0.0 and datum[self.long_field] != 0.0:
-        address_type = 'Coordinates Only'
-        datum[self.lat_field] = str(datum[self.lat_field])
-        datum[self.long_field] = str(datum[self.long_field])
-    else:
-        address_type = 'Missing'
-    datum['address_type'] = address_type
-    return datum
-
-
+# Utilizes Allegheny county geocoding API
 def geocode_address(datum, address_field):
     coords = {'lat': None, 'long': None}
     address = datum[address_field]
@@ -488,8 +464,10 @@ def geocode_address(datum, address_field):
     return datum
 
 
-def gmap_geocode_address(datum, address_field):
-    api_key = os.environ['GMAP_API_KEY']
+# Utilizes Google Maps API with fully specified address (i.e. not addresses that are broken into seperate fields like
+# street name and street number)
+# This function is not currently in use, but will be used in the future
+def gmap_geocode_address(datum, address_field, self):
     base_url = "https://maps.googleapis.com/maps/api/geocode/json"
 
     coords = {'lat': None, 'long': None}
@@ -497,7 +475,7 @@ def gmap_geocode_address(datum, address_field):
     if 'pittsburgh' not in address.lower():
         address += ' pittsburgh'
     try:
-        res = requests.get(f"{base_url}?address={address}&key={api_key}")
+        res = requests.get(f"{base_url}?address={address}&key={self.api_key}")
         results = res.json()['results'][0]
         if len(results):
             fmt_address = results['formatted_address']
@@ -521,12 +499,41 @@ def gmap_geocode_address(datum, address_field):
     return datum
 
 
+# This function determines what type of information is contained in an address and used by
+# GoogleMapsClassifyAndGeocode()
+def id_underspecified_addresses(datum, self):
+    """
+    Identify whether a given street address, partitioned into street name, street number, and cross street name,
+    is underspecified or not. An underspecified address is defined as any address that does not have an exact
+    street number and is not an intersection. Examples of underspecified addresses are block numbers or
+    ranges of addresses.
+    :return: datum in PCollection (dict) with new field (address_type) identifying level of address specificity
+    """
+    if datum[self.street_name_field]:
+        if datum[self.street_num_field].isnumeric():
+            address_type = 'Precise'
+        else:
+            if not datum[self.street_num_field] and datum[self.cross_street_field]:
+                address_type = 'Intersection'
+            else:
+                address_type = 'Underspecified'
+    elif datum[self.lat_field] != 0.0 and datum[self.long_field] != 0.0:
+        address_type = 'Coordinates Only'
+        datum[self.lat_field] = str(datum[self.lat_field])
+        datum[self.long_field] = str(datum[self.long_field])
+    else:
+        address_type = 'Missing'
+    datum['address_type'] = address_type
+    return datum
+
+
+# This functions geocodes an address using Google Maps AND standardizes the address formatting
 def regularize_and_geocode_address(datum, self):
     """
     Take in addresses of different formats, regularize them to USPS/Google Maps format, then geocode lat/long values
     :return: datum in PCollection (dict) with two new fields (lat, long) containing coordinates
     """
-    api_key = os.environ['GMAP_API_KEY']
+
     base_url = "https://maps.googleapis.com/maps/api/geocode/json"
     if datum['address_type'] == 'Intersection':
         address = str(datum[self.street_name_field]) + ' and ' + str(datum[self.cross_street_field]) + ', ' + str(
@@ -543,7 +550,7 @@ def regularize_and_geocode_address(datum, self):
         address = 'Pittsburgh, PA, USA'
     coords = {'lat': None, 'long': None}
     try:
-        res = requests.get(f"{base_url}?address={address}&key={api_key}")
+        res = requests.get(f"{base_url}?address={address}&key={self.api_key}")
         if res.json()['results']:
             results = res.json()['results'][0]
             if len(results):
