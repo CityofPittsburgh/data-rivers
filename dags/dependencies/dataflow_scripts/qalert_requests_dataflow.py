@@ -86,6 +86,8 @@ def run(argv = None):
                         ("cross_street_id", "str"), ("request_type_id", "str")]
 
 
+        gmap_key = os.environ["GMAP_API_KEY"]
+
         loc_names = {
                 "street_num_field"  : "pii_street_num",
                 "street_name_field" : "street",
@@ -110,7 +112,8 @@ def run(argv = None):
                 | beam.ParDo(GetStatus())
                 | beam.ParDo(GetClosedDate())
                 | beam.ParDo(DetectChildTicketStatus())
-                | beam.ParDo(GoogleMapsClassifyAndGeocode(loc_field_names = loc_names, partitioned_address = True))
+                | beam.ParDo(GoogleMapsClassifyAndGeocode(key = gmap_key, loc_field_names = loc_names,
+                                                          partitioned_address = True))
                 | beam.ParDo(AnonymizeLatLong(lat_long_accuracy))
                 | beam.ParDo(AnonymizeAddressBlock(block_anon_accuracy))
                 | WriteToAvro(known_args.avro_output, schema = avro_schema, file_name_suffix = '.avro',
