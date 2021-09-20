@@ -6,10 +6,23 @@ import requests
 from gcs_utils import json_to_gcs, time_to_seconds, replace_pii
 
 # set initial values for loading operation
+
+
+
+print('gcs loader initiated')
+
+
+
+
+
+
+
+
 parser = argparse.ArgumentParser()
+
 parser.add_argument('-s', '--since', dest='since', required=True,
-                    help='Start param for API pull '
-                         '(last successful DAG run as YYYY-MM-DD)')
+                    help='Start param for API pull (last successful DAG run as YYYY-MM-DD)')
+
 parser.add_argument('-e', '--execution_date', dest='execution_date',
                     required=True, help='DAG execution date (YYYY-MM-DD)')
 args = vars(parser.parse_args())

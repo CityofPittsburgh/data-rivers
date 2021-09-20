@@ -241,7 +241,7 @@ def find_backfill_date(bucket_name, subfolder):
 
 def format_gcs_call(script_name, bucket_name, direc):
     exec_script_cmd = 'python {}'.format(os.environ['DAGS_PATH']) + '/dependencies/gcs_loaders/{}'.format(script_name)
-    since_arg = ' --since {}'.format(find_backfill_date(bucket_name, direc))
+    since_arg = ' --prev_execution_date {}'.format(find_backfill_date(bucket_name, direc))
     exec_date_arg = ' --execution_date {}'.format(dt.date())
     return exec_script_cmd + since_arg + exec_date_arg
 
