@@ -241,7 +241,7 @@ def find_backfill_date(bucket_name, subfolder):
 
 def format_gcs_call(script_name, bucket_name, direc):
     exec_script_cmd = 'python {}'.format(os.environ['DAGS_PATH']) + '/dependencies/gcs_loaders/{}'.format(script_name)
-    since_arg = ' --prev_execution_date {}'.format(find_backfill_date(bucket_name, direc))
+    since_arg = ' --since {}'.format(find_backfill_date(bucket_name, direc))
     exec_date_arg = ' --execution_date {}'.format(dt.date())
     return exec_script_cmd + since_arg + exec_date_arg
 
@@ -267,8 +267,8 @@ def build_city_limits_query(dataset, raw_table, lat_field='lat', long_field='lon
     of City'.
     :param dataset: source BigQuery dataset that contains the table to be updated
     :param raw_table: name of the table containing raw 311 data
-    :param: lat_field: name of table column that contains latitude value
-    :param: long_field: name of table column that contains longitude value
+    :param lat_field: name of table column that contains latitude value
+    :param long_field: name of table column that contains longitude value
     :return: string to be passed through as arg to BigQueryOperator
     **NOTE**: A strange issue occurs with the Mt Oliver borders if it is stored in BigQuery in GEOGRAPHY format.
     All lat/longs outside of the Mt Oliver boundaries are identified as inside Mt Oliver when passed through ST_COVERS,

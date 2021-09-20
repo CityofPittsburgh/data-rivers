@@ -12,6 +12,7 @@ from dependencies import airflow_utils
 from dependencies.airflow_utils import get_ds_year, get_ds_month, default_args, \
     format_gcs_call, format_dataflow_call, build_city_limits_query, build_revgeo_query
 
+# TODO: remove line below
 print("dag initiated")
 
 # TODO: When Airflow 2.0 is released, upgrade the package, sub in DataFlowPythonOperator for BashOperator,
@@ -31,21 +32,25 @@ dag = DAG(
         user_defined_filters = {'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year}
 )
 
-# # Run gcs_loader
-# qalert_requests_gcs = BashOperator(
-#         task_id = 'qalert_gcs',
-#         bash_command = format_gcs_call("qalert_gcs.py", f"{os.environ['GCS_PREFIX']}_qalert",
-#                                        "requests"),
-#         dag = dag
-# )
+gcs_cmd_str = format_gcs_call("qalert_gcs.py", f"{os.environ['GCS_PREFIX']}_qalert", "requests")
 
+# Run gcs_loader
 qalert_requests_gcs = BashOperator(
         task_id = 'qalert_gcs',
-        bash_command = 'python {}'.format(os.environ['DAGS_PATH'] +
-                                          '/dependencies/gcs_loaders/qalert_gcs.py --since 2021-09-19 '
-                                          '--execution_data 2021-09-20'),
+        bash_command = gcs_cmd_str,
         dag = dag
 )
+
+x = 'python {}'.format(os.environ['DAGS_PATH'] + '/dependencies/gcs_loaders/qalert_gcs.py --since {{ '
+                                                 'prev_ds }} --execution_date {{ ds }}')
+
+# qalert_requests_gcs = BashOperator(
+#         task_id = 'qalert_gcs',
+#         bash_command = 'python {}'.format(os.environ['DAGS_PATH'] +
+#                                           '/dependencies/gcs_loaders/qalert_gcs.py --since 2021-09-19 '
+#                                           '--execution_data 2021-09-20'),
+#         dag = dag
+# )
 
 # Run dataflow_script
 qalert_requests_dataflow = BashOperator(
@@ -246,10 +251,11 @@ qalert_beam_cleanup = BashOperator(
         dag = dag
 )
 
-print("1")
+# TODO: remove line(s) below
+print("af operations starting")
 qalert_requests_gcs >> qalert_requests_dataflow >> qalert_requests_bq >> qalert_requests_format_dedupe >> \
 qalert_requests_city_limits >> qalert_requests_geojoin >> qalert_requests_merge_new_tickets >> \
 qalert_requests_split_new_parents >> qalert_requests_split_new_children >> \
 qalert_requests_append_new_parent_tickets >> qalert_requests_update_parent_tickets >> \
 qalert_requests_drop_pii_for_export >> qalert_wprdc_export >> qalert_beam_cleanup
-print("2")
+print("af operations ending")
