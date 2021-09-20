@@ -33,24 +33,15 @@ dag = DAG(
 )
 
 gcs_cmd_str = format_gcs_call("qalert_gcs.py", f"{os.environ['GCS_PREFIX']}_qalert", "requests")
-
+#TODO: remove line below
+x = 'python {}'.format(os.environ['DAGS_PATH'] + '/dependencies/gcs_loaders/qalert_gcs.py --since {{ '
+                                                 'prev_ds }} --execution_date {{ ds }}')
 # Run gcs_loader
 qalert_requests_gcs = BashOperator(
         task_id = 'qalert_gcs',
-        bash_command = gcs_cmd_str,
+        bash_command = x,
         dag = dag
 )
-
-x = 'python {}'.format(os.environ['DAGS_PATH'] + '/dependencies/gcs_loaders/qalert_gcs.py --since {{ '
-                                                 'prev_ds }} --execution_date {{ ds }}')
-
-# qalert_requests_gcs = BashOperator(
-#         task_id = 'qalert_gcs',
-#         bash_command = 'python {}'.format(os.environ['DAGS_PATH'] +
-#                                           '/dependencies/gcs_loaders/qalert_gcs.py --since 2021-09-19 '
-#                                           '--execution_data 2021-09-20'),
-#         dag = dag
-# )
 
 # Run dataflow_script
 qalert_requests_dataflow = BashOperator(
