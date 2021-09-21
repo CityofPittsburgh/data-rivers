@@ -29,7 +29,6 @@ pii_street_num"""
 dag = DAG(
         'qalert_requests',
         default_args = default_args,
-        # schedule_interval = '*/5 * * * *',
         schedule_interval = '@daily',
         user_defined_filters = {'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year}
 )
