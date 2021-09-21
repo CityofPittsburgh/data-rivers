@@ -277,13 +277,14 @@ def build_city_limits_query(dataset, raw_table, lat_field='lat', long_field='lon
     """
     return f"""
     UPDATE {dataset}.{raw_table}
-    SET address_type = IF ( (
-       ST_COVERS((ST_GEOGFROMTEXT(SELECT geometry FROM `data-rivers.geography.pittsburgh_and_mt_oliver_borders`
-                                  WHERE city = 'Pittsburgh')),
+    SET address_type = IF ( 
+       ((ST_COVERS((ST_GEOGFROMTEXT((SELECT geometry FROM `data-rivers.geography.pittsburgh_and_mt_oliver_borders`
+                                      WHERE city = 'Mt. Oliver'))),
                    ST_GEOGPOINT({raw_table}.{long_field}, {raw_table}.{lat_field}))
-        AND NOT 
-        ST_COVERS((ST_GEOGFROMTEXT(SELECT geometry FROM `data-rivers.geography.pittsburgh_and_mt_oliver_borders`
-                                   WHERE city = 'Mt. Oliver')),
+        )
+        OR NOT 
+        ST_COVERS((ST_GEOGFROMTEXT((SELECT geometry FROM `data-rivers.geography.pittsburgh_and_mt_oliver_borders`
+                                     WHERE city = 'Pittsburgh'))),
                    ST_GEOGPOINT({raw_table}.{long_field}, {raw_table}.{lat_field}))
        ), 'Outside of City', address_type )
     WHERE {raw_table}.{long_field} IS NOT NULL AND {raw_table}.{lat_field} IS NOT NULL
