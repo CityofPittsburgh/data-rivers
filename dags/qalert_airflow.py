@@ -12,11 +12,14 @@ from dependencies import airflow_utils
 from dependencies.airflow_utils import get_ds_year, get_ds_month, default_args, \
     format_gcs_call, format_dataflow_call, build_city_limits_query, build_revgeo_query
 
-# TODO: remove line below
-print("dag initiated")
 
 # TODO: When Airflow 2.0 is released, upgrade the package, sub in DataFlowPythonOperator for BashOperator,
 #  and pass the argument 'py_interpreter=python3'
+
+
+# TODO: remove line below
+print("dag initiated")
+
 
 PII_FIELDS = """pii_comments, pii_google_formatted_address, pii_input_address, pii_lat, pii_long, pii_private_notes,
 pii_street_num"""
@@ -28,18 +31,15 @@ dag = DAG(
         default_args = default_args,
         # schedule_interval = '*/5 * * * *',
         schedule_interval = '@daily',
-
         user_defined_filters = {'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year}
 )
 
-gcs_cmd_str = format_gcs_call("qalert_gcs.py", f"{os.environ['GCS_PREFIX']}_qalert", "requests")
-#TODO: remove line below
-x = 'python {}'.format(os.environ['DAGS_PATH'] + '/dependencies/gcs_loaders/qalert_gcs.py --since {{ '
-                                                 'prev_ds }} --execution_date {{ ds }}')
+
 # Run gcs_loader
+gcs_cmd_str = format_gcs_call("qalert_gcs.py", f"{os.environ['GCS_PREFIX']}_qalert", "requests")
 qalert_requests_gcs = BashOperator(
         task_id = 'qalert_gcs',
-        bash_command = x,
+        bash_command = gcs_cmd_str,
         dag = dag
 )
 
@@ -53,7 +53,7 @@ qalert_requests_dataflow = BashOperator(
 # Load AVRO data produced by dataflow_script into BQ temp table
 qalert_requests_bq = GoogleCloudStorageToBigQueryOperator(
         task_id = 'qalert_bq',
-        destination_project_dataset_table = f"`{os.environ['GCLOUD_PROJECT']}:qalert.temp_new_req`",
+        destination_project_dataset_table = f"`{os.environ['GCLOUD_PROJECT']}`:qalert.temp_new_req",
         bucket = f"{os.environ['GCS_PREFIX']}_qalert",
         source_objects = ["requests/avro_output/{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds }}/*.avro"],
         write_disposition = 'WRITE_TRUNCATE',
@@ -81,7 +81,7 @@ qalert_requests_format_dedupe = BigQueryOperator(
         task_id = 'qalert_dedupe_and_format',
         sql = format_query,
         use_legacy_sql = False,
-        destination_dataset_table = f"`{os.environ['GCLOUD_PROJECT']}:qalert.temp_new_req`",
+        destination_dataset_table = f"'{os.environ['GCLOUD_PROJECT']}:qalert.temp_new_req'",
         write_disposition = 'WRITE_TRUNCATE',
         time_partitioning = {'type': 'DAY'},
         dag = dag
@@ -243,10 +243,10 @@ qalert_beam_cleanup = BashOperator(
 )
 
 # TODO: remove line(s) below
-print("af operations starting")
+print("af operations being defined")
 qalert_requests_gcs >> qalert_requests_dataflow >> qalert_requests_bq >> qalert_requests_format_dedupe >> \
 qalert_requests_city_limits >> qalert_requests_geojoin >> qalert_requests_merge_new_tickets >> \
 qalert_requests_split_new_parents >> qalert_requests_split_new_children >> \
 qalert_requests_append_new_parent_tickets >> qalert_requests_update_parent_tickets >> \
 qalert_requests_drop_pii_for_export >> qalert_wprdc_export >> qalert_beam_cleanup
-print("af operations ending")
+print("af operations successfully defined")

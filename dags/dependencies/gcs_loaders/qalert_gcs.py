@@ -5,11 +5,6 @@ import requests
 from gcs_utils import json_to_gcs, time_to_seconds, replace_pii
 
 # set initial values for loading operation
-
-
-#TODO: remove line below
-print('gcs loader initiated')
-
 parser = argparse.ArgumentParser()
 parser.add_argument('-s', '--since', dest='since', required=True,
                     help='Start param for API pull (last successful DAG run as YYYY-MM-DD)')
@@ -59,6 +54,3 @@ month = args['execution_date'].split('-')[1]
 full_date = args['execution_date']
 target_path = f"{target_direc}/{year}/{month}/{full_date}_requests.json"
 json_to_gcs(target_path, full_requests, bucket)
-
-#TODO: remove line below
-print("gcs loader finished")
