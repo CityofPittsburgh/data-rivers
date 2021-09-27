@@ -73,10 +73,12 @@ def get_ds_month(ds):
     return ds.split('-')[1]
 
 
-def build_revgeo_query(dataset, raw_table, id_field, create_date='create_date_est', lat_field='lat', long_field='long'):
+#TODO: phase out the usage of build_revgeo_query() in favor of build_rev_geo_time_bound_query()
+def build_revgeo_time_bound_query(dataset, raw_table, create_date, lat_field, long_field=):
     """
-    Take a table with lat/long values and reverse-geocode it into a new a final table. Use UNION to include rows that
-    can't be reverse-geocoded in the final table. SELECT DISTINCT in both cases to remove duplicates.
+    Take a table with lat/long values and reverse-geocode it into a new a final table.
+    This function is a substantial refactor of the build_rev_geo() function. This query allows a lat/long point to be
+    localized to a zone within a specifc time range. This is critical as some boundaries have changed over time.
 
     :param dataset: BigQuery dataset (string)
     :param raw_table: non-reverse geocoded table (string)
@@ -84,6 +86,93 @@ def build_revgeo_query(dataset, raw_table, id_field, create_date='create_date_es
     :param create_date: ticket creation date (string)
     :param lat_field: field in table that identifies latitude value
     :param long_field: field in table that identifies longitude value
+    :return: string to be passed through as arg to BigQueryOperator
+    """
+
+    # CREATE OR REPLACE TABLE `{os.environ["GCLOUD_PROJECT"]}.{dataset}.geo_joined_new` AS
+
+
+    return f""" 
+    SELECT
+    DISTINCT {raw_table}.*,
+    CAST (neighborhoods.hood AS STRING) AS neighborhood_name,
+    CAST (council_districts.council_district AS STRING) AS council_district,
+    CAST (wards.ward AS STRING) AS ward,
+    CAST (fire_zones.firezones AS STRING) AS fire_zone,
+    CAST (police_zones.zone AS STRING) AS police_zone,
+    CAST (dpw_streets_divisions.division AS STRING) AS dpw_streets,
+    CAST (dpw_es_divisions.dpwesid AS STRING) AS dpw_enviro,
+    CAST (dpw_parks_divisions.division AS STRING) AS dpw_parks
+      FROM
+        `{os.environ["GCLOUD_PROJECT"]}.{dataset}.{raw_table}` AS {raw_table}
+      JOIN
+        `data-rivers.geography.neighborhoods` AS neighborhoods
+      ON
+        ST_CONTAINS(neighborhoods.geometry,
+          ST_GEOGPOINT({raw_table}.{long_field},
+            {raw_table}.{lat_field}))
+      JOIN
+        `data-rivers.geography.council_districts` AS council_districts
+      ON
+        ST_CONTAINS(council_districts.geometry,
+          ST_GEOGPOINT({raw_table}.{long_field},
+            {raw_table}.{lat_field}))
+      JOIN
+        `data-rivers.geography.wards` AS wards
+      ON
+        ST_CONTAINS(wards.geometry,
+          ST_GEOGPOINT({raw_table}.{long_field},
+            {raw_table}.{lat_field}))
+      JOIN
+        `data-rivers.geography.fire_zones` AS fire_zones
+      ON
+        ST_CONTAINS(fire_zones.geometry,
+          ST_GEOGPOINT({raw_table}.{long_field},
+            {raw_table}.{lat_field}))
+      JOIN
+        `data-rivers.geography.police_zones` AS police_zones
+      ON
+        ST_CONTAINS(police_zones.geometry,
+          ST_GEOGPOINT({raw_table}.{long_field},
+            {raw_table}.{lat_field}))
+      JOIN
+        `data-rivers.geography.dpw_streets_divisions` AS dpw_streets_divisions
+      ON
+        ST_CONTAINS(dpw_streets_divisions.geometry,
+          ST_GEOGPOINT({raw_table}.{long_field},
+            {raw_table}.{lat_field}))
+        AND TIMESTAMP(PARSE_DATE('%m/%d/%Y',
+            dpw_streets_divisions.start_date)) <= TIMESTAMP({raw_table}.{create_date})
+        AND IFNULL(TIMESTAMP(PARSE_DATE('%m/%d/%Y',
+              dpw_streets_divisions.end_date)),
+          CURRENT_TIMESTAMP()) >= TIMESTAMP({raw_table}.{create_date})
+      JOIN
+        `data-rivers.geography.dpw_es_divisions` AS dpw_es_divisions
+      ON
+        ST_CONTAINS(dpw_es_divisions.geometry,
+          ST_GEOGPOINT({raw_table}.{long_field},
+            {raw_table}.{lat_field}))
+      JOIN
+        `data-rivers.geography.dpw_parks_divisions` AS dpw_parks_divisions
+      ON
+        ST_CONTAINS(dpw_parks_divisions.geometry,
+          ST_GEOGPOINT({raw_table}.{long_field},
+            {raw_table}.{lat_field}))
+        AND TIMESTAMP(PARSE_DATE('%m/%d/%Y',
+            dpw_parks_divisions.start_date)) <= TIMESTAMP({raw_table}.{create_date})
+        AND IFNULL(TIMESTAMP(PARSE_DATE('%m/%d/%Y',
+              dpw_parks_divisions.end_date)),
+          CURRENT_TIMESTAMP()) >= TIMESTAMP({raw_table}.{create_date})"""
+
+
+#TODO: this function will be deprecated ASAP (see above function)
+def build_revgeo_query(dataset, raw_table, id_field):
+    """
+    Take a table with lat/long values and reverse-geocode it into a new a final table. Use UNION to include rows that
+    can't be reverse-geocoded in the final table. SELECT DISTINCT in both cases to remove duplicates.
+    :param dataset: BigQuery dataset (string)
+    :param raw_table: non-reverse geocoded table (string)
+    :param id_field: field in table to use for deduplication
     :return: string to be passed through as arg to BigQueryOperator
     """
     return f"""
@@ -96,41 +185,27 @@ def build_revgeo_query(dataset, raw_table, id_field, create_date='create_date_es
           wards.ward,
           fire_zones.firezones AS fire_zone,
           police_zones.zone AS police_zone,
-          dpw_streets_divisions.division AS dpw_streets,
-          dpw_es_divisions.dpwesid AS dpw_enviro,
-          dpw_parks_divisions.division AS dpw_parks
+          dpw_divisions.objectid AS dpw_division 
        FROM
           `{os.environ['GCLOUD_PROJECT']}.{dataset}.{raw_table}` AS {raw_table} 
           JOIN
              `data-rivers.geography.neighborhoods` AS neighborhoods 
-             ON ST_CONTAINS(neighborhoods.geometry, ST_GEOGPOINT({raw_table}.{long_field}, {raw_table}.{lat_field})) 
+             ON ST_CONTAINS(neighborhoods.geometry, ST_GEOGPOINT({raw_table}.long, {raw_table}.lat)) 
           JOIN
              `data-rivers.geography.council_districts` AS council_districts 
-             ON ST_CONTAINS(council_districts.geometry, ST_GEOGPOINT({raw_table}.{long_field}, {raw_table}.{lat_field})) 
+             ON ST_CONTAINS(council_districts.geometry, ST_GEOGPOINT({raw_table}.long, {raw_table}.lat)) 
           JOIN
              `data-rivers.geography.wards` AS wards 
-             ON ST_CONTAINS(wards.geometry, ST_GEOGPOINT({raw_table}.{long_field}, {raw_table}.{lat_field})) 
+             ON ST_CONTAINS(wards.geometry, ST_GEOGPOINT({raw_table}.long, {raw_table}.lat)) 
           JOIN
              `data-rivers.geography.fire_zones` AS fire_zones 
-             ON ST_CONTAINS(fire_zones.geometry, ST_GEOGPOINT({raw_table}.{long_field}, {raw_table}.{lat_field})) 
+             ON ST_CONTAINS(fire_zones.geometry, ST_GEOGPOINT({raw_table}.long, {raw_table}.lat)) 
           JOIN
              `data-rivers.geography.police_zones` AS police_zones 
-             ON ST_CONTAINS(police_zones.geometry, ST_GEOGPOINT({raw_table}.{long_field}, {raw_table}.{lat_field})) 
+             ON ST_CONTAINS(police_zones.geometry, ST_GEOGPOINT({raw_table}.long, {raw_table}.lat)) 
           JOIN
-             `data-rivers.geography.dpw_streets_divisions` AS dpw_streets_divisions 
-             ON ST_CONTAINS(dpw_streets_divisions.geometry, ST_GEOGPOINT({raw_table}.{long_field}, {raw_table}.{lat_field}))
-             AND TIMESTAMP(PARSE_DATE('%m/%d/%Y', start_date)) <= TIMESTAMP(temp_new_req.{create_date})
-             AND IFNULL(TIMESTAMP(PARSE_DATE('%m/%d/%Y', end_date)), CURRENT_TIMESTAMP()) >= TIMESTAMP(temp_new_req.{create_date})
-          JOIN
-             `data-rivers.geography.dpw_es_divisions` AS dpw_es_divisions 
-             ON ST_CONTAINS(dpw_es_divisions.geometry, ST_GEOGPOINT({raw_table}.{long_field}, {raw_table}.{lat_field}))
-             AND TIMESTAMP(PARSE_DATE('%m/%d/%Y', start_date)) <= TIMESTAMP(temp_new_req.{create_date})
-             AND IFNULL(TIMESTAMP(PARSE_DATE('%m/%d/%Y', end_date)), CURRENT_TIMESTAMP()) >= TIMESTAMP(temp_new_req.{create_date})
-          JOIN
-             `data-rivers.geography.dpw_parks_divisions` AS dpw_parks_divisions 
-             ON ST_CONTAINS(dpw_parks_divisions.geometry, ST_GEOGPOINT({raw_table}.{long_field}, {raw_table}.{lat_field}))
-             AND TIMESTAMP(PARSE_DATE('%m/%d/%Y', start_date)) <= TIMESTAMP(temp_new_req.{create_date})
-             AND IFNULL(TIMESTAMP(PARSE_DATE('%m/%d/%Y', end_date)), CURRENT_TIMESTAMP()) >= TIMESTAMP(temp_new_req.{create_date})
+             `data-rivers.geography.dpw_divisions` AS dpw_divisions 
+             ON ST_CONTAINS(dpw_divisions.geometry, ST_GEOGPOINT({raw_table}.long, {raw_table}.lat))
     )
     SELECT
        * 
@@ -144,9 +219,7 @@ def build_revgeo_query(dataset, raw_table, id_field, create_date='create_date_es
        NULL AS ward,
        CAST(NULL AS string) fire_zone,
        NULL AS police_zone,
-       NULL AS dpw_streets,
-       NULL AS dpw_enviro,
-       NULL AS dpw_parks 
+       NULL AS dpw_division 
     FROM
        `{os.environ['GCLOUD_PROJECT']}.{dataset}.{raw_table}` AS {raw_table} 
     WHERE
@@ -275,6 +348,7 @@ def build_city_limits_query(dataset, raw_table, lat_field='lat', long_field='lon
     and all lat/longs inside of Mt Oliver are identified as outside of it. To get around this problem, we have stored
     the boundary polygons as strings, and then convert those strings to polygons using ST_GEOGFROMTEXT.
     """
+
     return f"""
     UPDATE {os.environ['GCLOUD_PROJECT']}.{dataset}.{raw_table}
     SET address_type = IF ( 
