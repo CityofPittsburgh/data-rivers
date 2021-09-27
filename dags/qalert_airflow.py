@@ -10,7 +10,7 @@ from airflow.contrib.operators.bigquery_to_gcs import BigQueryToCloudStorageOper
 
 from dependencies import airflow_utils
 from dependencies.airflow_utils import get_ds_year, get_ds_month, default_args, \
-    format_gcs_call, format_dataflow_call, build_city_limits_query, build_revgeo_query
+    format_gcs_call, format_dataflow_call, build_city_limits_query, build_revgeo_time_bound_query
 
 
 # TODO: When Airflow 2.0 is released, upgrade the package, sub in DataFlowPythonOperator for BashOperator,
@@ -94,7 +94,7 @@ qalert_requests_city_limits = BigQueryOperator(
 
 
 # Join all the geo information (e.g. DPW districts, etc) to the new data
-geo_join_query = build_revgeo_query('qalert', 'temp_new_req', 'create_date_est', 'pii_lat', 'pii_long')
+geo_join_query = build_revgeo_time_bound_query('qalert', 'temp_new_req', 'create_date_est', 'pii_lat', 'pii_long')
 qalert_requests_geojoin = BigQueryOperator(
         task_id = 'qalert_geojoin',
         sql = geo_join_query,
