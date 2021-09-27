@@ -74,7 +74,7 @@ def get_ds_month(ds):
 
 
 #TODO: phase out the usage of build_revgeo_query() in favor of build_rev_geo_time_bound_query()
-def build_revgeo_time_bound_query(dataset, raw_table, create_date, lat_field, long_field=):
+def build_revgeo_time_bound_query(dataset, raw_table, create_date, lat_field, long_field):
     """
     Take a table with lat/long values and reverse-geocode it into a new a final table.
     This function is a substantial refactor of the build_rev_geo() function. This query allows a lat/long point to be
