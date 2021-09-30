@@ -98,34 +98,14 @@ qalert_requests_city_limits = BigQueryOperator(
         dag = dag
 )
 
+# TODO: investigate (and if necessary fix) the unknown source of duplicates in the geojoin query (see util function
+#  for clearer explanation)
 # Join all the geo information (e.g. DPW districts, etc) to the new data
-geo_join_query = build_revgeo_time_bound_query('qalert', 'temp_new_req', 'create_date_est', 'pii_lat', 'pii_long')
-geo_join_query_ordered = geo_join_query + f"""
-CREATE OR REPLACE VIEW  `data-rivers-testing.qalert.new_geo_enriched` AS
-SELECT 
-    {COLS_IN_ORDER} 
-FROM `data-rivers-testing.qalert.new_geo_enriched`"""
+geo_join_query = build_revgeo_time_bound_query('qalert', 'temp_new_req', 'create_date_est', 'id', 'pii_lat',
+                                               'pii_long', "COLS_IN_ORDER")
 qalert_requests_geojoin = BigQueryOperator(
         task_id = 'qalert_geojoin',
-        sql = geo_join_query_ordered,
-        use_legacy_sql = False,
-        dag = dag
-)
-
-# TODO: investigate (and if necessary fix) the unknown source of duplicates in the geojoin query
-# dedupe the geojoined table (dupes result from unknown abornmality in geo join process)
-dedupe_query = f"""CREATE OR REPLACE VIEW  `data-rivers-testing.qalert.new_geo_enriched_dedupe AS
-WITH ng AS
-(
-   SELECT *,
-         ROW_NUMBER() OVER (PARTITION BY id) AS rn
-   FROM `data-rivers-testing.qalert.new_geo_enriched`
-)
-SELECT {COLS_IN_ORDER} FROM ng
-WHERE rn = 1"""
-qalert_requests_geojoin_dedupe = BigQueryOperator(
-        task_id = 'qalert_requests_geojoin_dedupe',
-        sql = dedupe_query,
+        sql = geo_join_query,
         use_legacy_sql = False,
         dag = dag
 )
@@ -255,7 +235,7 @@ qalert_beam_cleanup = BashOperator(
 )
 
 qalert_requests_gcs >> qalert_requests_dataflow >> qalert_requests_bq >> qalert_requests_format_dedupe >> \
-qalert_requests_city_limits >> qalert_requests_geojoin >> qalert_requests_geojoin_dedupe >> \
-qalert_requests_merge_new_tickets >> qalert_requests_split_new_parents >> qalert_requests_split_new_children >> \
+qalert_requests_city_limits >> qalert_requests_geojoin >> qalert_requests_merge_new_tickets >> \
+qalert_requests_split_new_parents >> qalert_requests_split_new_children >> \
 qalert_requests_append_new_parent_tickets >> qalert_requests_update_parent_tickets >> \
 qalert_requests_drop_pii_for_export >> qalert_wprdc_export >> qalert_beam_cleanup
