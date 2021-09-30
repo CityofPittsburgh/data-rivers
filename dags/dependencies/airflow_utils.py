@@ -14,7 +14,7 @@ from google.cloud import bigquery, storage
 
 
 local_tz = pendulum.timezone('America/New_York')
-dt = datetime.now(tz=local_tz)
+dt = datetime.now(tz = local_tz)
 yesterday = datetime.combine(dt - timedelta(1), datetime.min.time())
 
 bq_client = bigquery.Client()
@@ -25,23 +25,23 @@ def on_failure(context):
     dag_id = context['dag_run'].dag_id
 
     task_id = context['task_instance'].task_id
-    context['task_instance'].xcom_push(key=dag_id, value=True)
+    context['task_instance'].xcom_push(key = dag_id, value = True)
 
     logs_url = "{}/admin/airflow/log?dag_id={}&task_id={}&execution_date={}".format(
-        os.environ['AIRFLOW_WEB_SERVER'], dag_id, task_id, context['ts'])
+            os.environ['AIRFLOW_WEB_SERVER'], dag_id, task_id, context['ts'])
     utc_time = logs_url.split('T')[-1]
     logs_url = logs_url.replace(utc_time, urllib.parse.quote(utc_time))
 
     if os.environ['GCLOUD_PROJECT'] == 'data-rivers':
         teams_notification = MSTeamsWebhookOperator(
-            task_id="msteams_notify_failure",
-            trigger_rule="all_done",
-            message="`{}` has failed on task: `{}`".format(dag_id, task_id),
-            button_text="View log",
-            button_url=logs_url,
-            subtitle="View log: {}".format(logs_url),
-            theme_color="FF0000",
-            http_conn_id='msteams_webhook_url')
+                task_id = "msteams_notify_failure",
+                trigger_rule = "all_done",
+                message = "`{}` has failed on task: `{}`".format(dag_id, task_id),
+                button_text = "View log",
+                button_url = logs_url,
+                subtitle = "View log: {}".format(logs_url),
+                theme_color = "FF0000",
+                http_conn_id = 'msteams_webhook_url')
 
         teams_notification.execute(context)
         return
@@ -50,18 +50,18 @@ def on_failure(context):
 
 
 default_args = {
-    'depends_on_past': False,
-    'start_date': yesterday,
-    'email': os.environ['EMAIL'],
-    'email_on_failure': True,
-    'email_on_retry': False,
-    'retries': 1,
-    'retry_delay': timedelta(minutes=5),
-    'project_id': os.environ['GCLOUD_PROJECT'],
-    'on_failure_callback': on_failure,
-    'dataflow_default_options': {
-        'project': os.environ['GCLOUD_PROJECT']
-    }
+        'depends_on_past'         : False,
+        'start_date'              : yesterday,
+        'email'                   : os.environ['EMAIL'],
+        'email_on_failure'        : True,
+        'email_on_retry'          : False,
+        'retries'                 : 1,
+        'retry_delay'             : timedelta(minutes = 5),
+        'project_id'              : os.environ['GCLOUD_PROJECT'],
+        'on_failure_callback'     : on_failure,
+        'dataflow_default_options': {
+                'project': os.environ['GCLOUD_PROJECT']
+        }
 }
 
 
@@ -73,7 +73,7 @@ def get_ds_month(ds):
     return ds.split('-')[1]
 
 
-#TODO: phase out the usage of build_revgeo_query() in favor of build_rev_geo_time_bound_query()
+# TODO: phase out the usage of build_revgeo_query() in favor of build_rev_geo_time_bound_query()
 def build_revgeo_time_bound_query(dataset, raw_table, create_date, lat_field, long_field):
     """
     Take a table with lat/long values and reverse-geocode it into a new a final table.
@@ -89,83 +89,109 @@ def build_revgeo_time_bound_query(dataset, raw_table, create_date, lat_field, lo
     :return: string to be passed through as arg to BigQueryOperator
     """
 
-    # CREATE OR REPLACE TABLE `{os.environ["GCLOUD_PROJECT"]}.{dataset}.geo_joined_new` AS
+    return f"""CREATE OR REPLACE VIEW `data-rivers-testing.{dataset}.new_geo_enriched` AS
+        WITH geo AS
+            (SELECT
+            DISTINCT {raw_table}.* EXCEPT (neighborhood_name, 
+            council_district, ward, police_zone, fire_zone, dpw_streets, dpw_enviro, dpw_parks),
+            CAST (neighborhoods.hood AS STRING) AS neighborhood_name,
+            CAST (council_districts.council_district AS STRING) AS council_district,
+            CAST (wards.ward AS STRING) AS ward,
+            CAST (fire_zones.firezones AS STRING) AS fire_zone,
+            CAST (police_zones.zone AS STRING) AS police_zone,
+            CAST (dpw_streets_divisions.division AS STRING) AS dpw_streets,
+            CAST (dpw_es_divisions.dpwesid AS STRING) AS dpw_enviro,
+            CAST (dpw_parks_divisions.division AS STRING) AS dpw_parks
+              FROM
+                `data-rivers-testing.{dataset}.{raw_table}` AS {raw_table}
+              JOIN
+                `data-rivers.geography.neighborhoods` AS neighborhoods
+              ON
+                ST_CONTAINS(neighborhoods.geometry,
+                  ST_GEOGPOINT({raw_table}.{long_field},
+                    {raw_table}.{lat_field}))
+              JOIN
+                `data-rivers.geography.council_districts` AS council_districts
+              ON
+                ST_CONTAINS(council_districts.geometry,
+                  ST_GEOGPOINT({raw_table}.{long_field},
+                    {raw_table}.{lat_field}))
+              JOIN
+                `data-rivers.geography.wards` AS wards
+              ON
+                ST_CONTAINS(wards.geometry,
+                  ST_GEOGPOINT({raw_table}.{long_field},
+                    {raw_table}.{lat_field}))
+              JOIN
+                `data-rivers.geography.fire_zones` AS fire_zones
+              ON
+                ST_CONTAINS(fire_zones.geometry,
+                  ST_GEOGPOINT({raw_table}.{long_field},
+                    {raw_table}.{lat_field}))
+              JOIN
+                `data-rivers.geography.police_zones` AS police_zones
+              ON
+                ST_CONTAINS(police_zones.geometry,
+                  ST_GEOGPOINT({raw_table}.{long_field},
+                    {raw_table}.{lat_field}))
+              JOIN
+                `data-rivers.geography.dpw_streets_divisions` AS dpw_streets_divisions
+              ON
+                ST_CONTAINS(dpw_streets_divisions.geometry,
+                  ST_GEOGPOINT({raw_table}.{long_field},
+                    {raw_table}.{lat_field}))
+                AND TIMESTAMP(PARSE_DATE('%m/%d/%Y',
+                    dpw_streets_divisions.start_date)) <= TIMESTAMP({raw_table}.{create_date})
+                AND IFNULL(TIMESTAMP(PARSE_DATE('%m/%d/%Y',
+                      dpw_streets_divisions.end_date)),
+                  CURRENT_TIMESTAMP()) >= TIMESTAMP({raw_table}.{create_date})
+              JOIN
+                `data-rivers.geography.dpw_es_divisions` AS dpw_es_divisions
+              ON
+                ST_CONTAINS(dpw_es_divisions.geometry,
+                  ST_GEOGPOINT({raw_table}.{long_field},
+                    {raw_table}.{lat_field}))
+              JOIN
+                `data-rivers.geography.dpw_parks_divisions` AS dpw_parks_divisions
+              ON
+                ST_CONTAINS(dpw_parks_divisions.geometry,
+                  ST_GEOGPOINT({raw_table}.{long_field},
+                    {raw_table}.{lat_field}))
+                AND TIMESTAMP(PARSE_DATE('%m/%d/%Y',
+                    dpw_parks_divisions.start_date)) <= TIMESTAMP({raw_table}.{create_date})
+                AND IFNULL(TIMESTAMP(PARSE_DATE('%m/%d/%Y',
+                      dpw_parks_divisions.end_date)),
+                  CURRENT_TIMESTAMP()) >= TIMESTAMP({raw_table}.{create_date}))
+
+         SELECT
+            DISTINCT *
+            FROM
+               geo
+            UNION ALL
+            SELECT DISTINCT
+              `data-rivers-testing.{dataset}.{raw_table}`.* EXCEPT (neighborhood_name, council_district, ward, police_zone, fire_zone, dpw_streets,
+            dpw_enviro,	dpw_parks),
+            CAST (neighborhood_name AS STRING),
+            CAST (council_district AS STRING),
+            CAST (ward AS STRING),
+            CAST (fire_zone AS STRING),
+            CAST (police_zone AS STRING),
+            CAST (dpw_streets AS STRING),
+            CAST (dpw_enviro AS STRING),
+            CAST (dpw_parks AS STRING)
+            FROM
+               `data-rivers-testing.{dataset}.{raw_table}`
+            WHERE
+               `data-rivers-testing.{dataset}.{raw_table}`.id NOT IN
+               (
+                  SELECT
+                    DISTINCT id
+                  FROM
+                     geo
+               );"""
 
 
-    return f""" 
-    SELECT
-    DISTINCT {raw_table}.*,
-    CAST (neighborhoods.hood AS STRING) AS neighborhood_name,
-    CAST (council_districts.council_district AS STRING) AS council_district,
-    CAST (wards.ward AS STRING) AS ward,
-    CAST (fire_zones.firezones AS STRING) AS fire_zone,
-    CAST (police_zones.zone AS STRING) AS police_zone,
-    CAST (dpw_streets_divisions.division AS STRING) AS dpw_streets,
-    CAST (dpw_es_divisions.dpwesid AS STRING) AS dpw_enviro,
-    CAST (dpw_parks_divisions.division AS STRING) AS dpw_parks
-      FROM
-        `{os.environ["GCLOUD_PROJECT"]}.{dataset}.{raw_table}` AS {raw_table}
-      JOIN
-        `data-rivers.geography.neighborhoods` AS neighborhoods
-      ON
-        ST_CONTAINS(neighborhoods.geometry,
-          ST_GEOGPOINT({raw_table}.{long_field},
-            {raw_table}.{lat_field}))
-      JOIN
-        `data-rivers.geography.council_districts` AS council_districts
-      ON
-        ST_CONTAINS(council_districts.geometry,
-          ST_GEOGPOINT({raw_table}.{long_field},
-            {raw_table}.{lat_field}))
-      JOIN
-        `data-rivers.geography.wards` AS wards
-      ON
-        ST_CONTAINS(wards.geometry,
-          ST_GEOGPOINT({raw_table}.{long_field},
-            {raw_table}.{lat_field}))
-      JOIN
-        `data-rivers.geography.fire_zones` AS fire_zones
-      ON
-        ST_CONTAINS(fire_zones.geometry,
-          ST_GEOGPOINT({raw_table}.{long_field},
-            {raw_table}.{lat_field}))
-      JOIN
-        `data-rivers.geography.police_zones` AS police_zones
-      ON
-        ST_CONTAINS(police_zones.geometry,
-          ST_GEOGPOINT({raw_table}.{long_field},
-            {raw_table}.{lat_field}))
-      JOIN
-        `data-rivers.geography.dpw_streets_divisions` AS dpw_streets_divisions
-      ON
-        ST_CONTAINS(dpw_streets_divisions.geometry,
-          ST_GEOGPOINT({raw_table}.{long_field},
-            {raw_table}.{lat_field}))
-        AND TIMESTAMP(PARSE_DATE('%m/%d/%Y',
-            dpw_streets_divisions.start_date)) <= TIMESTAMP({raw_table}.{create_date})
-        AND IFNULL(TIMESTAMP(PARSE_DATE('%m/%d/%Y',
-              dpw_streets_divisions.end_date)),
-          CURRENT_TIMESTAMP()) >= TIMESTAMP({raw_table}.{create_date})
-      JOIN
-        `data-rivers.geography.dpw_es_divisions` AS dpw_es_divisions
-      ON
-        ST_CONTAINS(dpw_es_divisions.geometry,
-          ST_GEOGPOINT({raw_table}.{long_field},
-            {raw_table}.{lat_field}))
-      JOIN
-        `data-rivers.geography.dpw_parks_divisions` AS dpw_parks_divisions
-      ON
-        ST_CONTAINS(dpw_parks_divisions.geometry,
-          ST_GEOGPOINT({raw_table}.{long_field},
-            {raw_table}.{lat_field}))
-        AND TIMESTAMP(PARSE_DATE('%m/%d/%Y',
-            dpw_parks_divisions.start_date)) <= TIMESTAMP({raw_table}.{create_date})
-        AND IFNULL(TIMESTAMP(PARSE_DATE('%m/%d/%Y',
-              dpw_parks_divisions.end_date)),
-          CURRENT_TIMESTAMP()) >= TIMESTAMP({raw_table}.{create_date})"""
-
-
-#TODO: this function will be deprecated ASAP (see above function)
+# TODO: this function will be deprecated ASAP (see above function)
 def build_revgeo_query(dataset, raw_table, id_field):
     """
     Take a table with lat/long values and reverse-geocode it into a new a final table. Use UNION to include rows that
@@ -268,7 +294,7 @@ def find_backfill_date(bucket_name, subfolder):
     # only search back to 2017
     while not valid and int(dt_yr) > 2017:
         prefix = subfolder + '/' + dt_yr + '/' + dt_month
-        blobs = storage_client.list_blobs(bucket_name, prefix=prefix)
+        blobs = storage_client.list_blobs(bucket_name, prefix = prefix)
         list_blobs = list(blobs)
 
         # if blobs are found
@@ -324,7 +350,7 @@ def format_dataflow_call(script_name):
             script_name)
 
     if dt.month < 10:
-        month = '0'+ str(dt.month)
+        month = '0' + str(dt.month)
     date_direc = "{}/{}/{}".format(dt.year, month, dt.date())
 
     input_arg = " --input gs://{}_qalert/requests/{}_requests.json".format(os.environ["GCS_PREFIX"], date_direc)
@@ -332,7 +358,7 @@ def format_dataflow_call(script_name):
     return exec_script_cmd + input_arg + output_arg
 
 
-def build_city_limits_query(dataset, raw_table, lat_field='lat', long_field='long'):
+def build_city_limits_query(dataset, raw_table, lat_field = 'lat', long_field = 'long'):
     """
     Determine whether a set of coordinates fall within the borders of the City of Pittsburgh,
     while also falling outside the borders of Mt. Oliver. If an address is within the city,
@@ -350,18 +376,19 @@ def build_city_limits_query(dataset, raw_table, lat_field='lat', long_field='lon
     """
 
     return f"""
-    UPDATE {os.environ['GCLOUD_PROJECT']}.{dataset}.{raw_table}
+    UPDATE `{os.environ['GCLOUD_PROJECT']}.{dataset}.{raw_table}`
     SET address_type = IF ( 
        ((ST_COVERS((ST_GEOGFROMTEXT((SELECT geometry FROM `data-rivers.geography.pittsburgh_and_mt_oliver_borders`
                                       WHERE city = 'Mt. Oliver'))),
-                   ST_GEOGPOINT({os.environ['GCLOUD_PROJECT']}.{raw_table}.{long_field}, {os.environ['GCLOUD_PROJECT']}.{raw_table}.{lat_field}))
+                   ST_GEOGPOINT(`{os.environ['GCLOUD_PROJECT']}.{dataset}.{raw_table}`.{long_field}, `{os.environ['GCLOUD_PROJECT']}.{dataset}.{raw_table}`.{lat_field}))
         )
         OR NOT 
         ST_COVERS((ST_GEOGFROMTEXT((SELECT geometry FROM `data-rivers.geography.pittsburgh_and_mt_oliver_borders`
                                      WHERE city = 'Pittsburgh'))),
-                   ST_GEOGPOINT({os.environ['GCLOUD_PROJECT']}.{raw_table}.{long_field}, {os.environ['GCLOUD_PROJECT']}.{raw_table}.{lat_field}))
+                   ST_GEOGPOINT(`{os.environ['GCLOUD_PROJECT']}.{dataset}.{raw_table}`.{long_field}, `{os.environ['GCLOUD_PROJECT']}.{dataset}.{raw_table}`.{lat_field}))
        ), 'Outside of City', address_type )
-    WHERE {os.environ['GCLOUD_PROJECT']}.{raw_table}.{long_field} IS NOT NULL AND {os.environ['GCLOUD_PROJECT']}.{raw_table}.{lat_field} IS NOT NULL
+    WHERE `{os.environ['GCLOUD_PROJECT']}.{dataset}.{raw_table}`.{long_field} IS NOT NULL AND 
+    `{os.environ['GCLOUD_PROJECT']}.{dataset}.{raw_table}`.{lat_field} IS NOT NULL
     """
 
 
