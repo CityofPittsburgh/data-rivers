@@ -12,6 +12,7 @@ from dataflow_utils.dataflow_utils import JsonCoder, SwapFieldNames, generate_ar
     ColumnsCamelToSnakeCase, GetDateStringsFromUnix, ChangeDataTypes, unix_to_date_strings, \
     GoogleMapsClassifyAndGeocode, AnonymizeAddressBlock, AnonymizeLatLong
 
+
 class GetStatus(beam.DoFn):
     def process(self, datum):
         status_name = ''
@@ -54,7 +55,7 @@ def run(argv = None):
 
     known_args, pipeline_options, avro_schema = generate_args(
             job_name = 'qalert-requests-dataflow',
-            bucket=f"{os.environ['GCS_PREFIX']}_qalert",
+            bucket = f"{os.environ['GCS_PREFIX']}_qalert",
             argv = argv,
             schema_name = 'qalert_requests'
     )
@@ -84,7 +85,6 @@ def run(argv = None):
 
         type_changes = [("id", "str"), ("parent_ticket_id", "str"), ("status_code", "str"), ("street_id", "str"),
                         ("cross_street_id", "str"), ("request_type_id", "str")]
-
 
         gmap_key = os.environ["GMAP_API_KEY"]
 

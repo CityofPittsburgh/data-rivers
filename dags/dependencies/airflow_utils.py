@@ -111,7 +111,8 @@ def build_revgeo_time_bound_query(dataset, raw_table, create_date, id_col, lat_f
     :param lat_field: field in table that identifies latitude value
     :param long_field: field in table that identifies longitude value
     :param cols_in_order: string of all columns, in the order they should appear in the table (used to maintain
-    explicit column ordering and produce helpful column orders
+    explicit column ordering and produce helpful column orders;
+    this is usually a variable passed in and not a string literal as the argument
     :return: string to be passed through as arg to BigQueryOperator
     """
 
@@ -250,17 +251,14 @@ def build_revgeo_time_bound_query(dataset, raw_table, create_date, id_col, lat_f
             ROW_NUMBER() OVER (PARTITION BY {id_col}) AS id_count
           FROM
             `{os.environ["GCLOUD_PROJECT"]}.{dataset}.new_geo_enriched_deduped`)
-        /* All columns are selected, but olumn names are explicit (as opposed to * operator)
+        /* All columns are selected, but column names are explicit (as opposed to * operator)
         to ensure the columns are selected in the desired order*/
         SELECT
-          {id_col},
           {cols_in_order}
         FROM
           ids_counted
         WHERE
-          id_count = 1
-        ORDER BY
-          {id_col} ASC"""
+          id_count = 1"""
 
 
 # TODO: this function will be deprecated ASAP (see above function)
@@ -281,7 +279,7 @@ def build_revgeo_query(dataset, raw_table, id_field):
           neighborhoods.hood AS neighborhood,
           council_districts.council AS council_district,
           wards.ward,
-          fire_zones.firezones AS fire_zone,
+          fire_zones.firezones AS fire_zone,`
           police_zones.zone AS police_zone,
           dpw_divisions.objectid AS dpw_division 
        FROM
@@ -423,6 +421,8 @@ def format_dataflow_call(script_name):
 
     if dt.month < 10:
         month = '0' + str(dt.month)
+    else:
+        month = str(dt.month)
     date_direc = "{}/{}/{}".format(dt.year, month, dt.date())
 
     input_arg = " --input gs://{}_qalert/requests/{}_requests.json".format(os.environ["GCS_PREFIX"], date_direc)

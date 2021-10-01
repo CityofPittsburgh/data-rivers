@@ -41,7 +41,7 @@ pre_clean["req_comments"] = delim_seq.join(pre_clean["req_comments"])
 scrubbed_req_comments = replace_pii(pre_clean["req_comments"], retain_location  = True)
 
 # convert delim-seperated string back to list of strings
-split_req_comments = scrubbed_req_comments.split(delim_seq)
+split_req_comments = scrubbed_req_comments.split(delim_seq.strip())
 
 # overwrite the original fields with scrubbed data
 for i in range(len(full_requests)):
