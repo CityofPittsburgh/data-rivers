@@ -70,9 +70,9 @@ qalert_requests_bq = GoogleCloudStorageToBigQueryOperator(
         create_disposition = 'CREATE_IF_NEEDED',
         source_format = 'AVRO',
         autodetect = True,
-        time_partitioning = {'type': 'DAY'},
         dag = dag
 )
+
 
 # Update geo coords with lat/long cast as floats (dataflow/AVRO glitch forces them to be output as strings; the
 # source of the error is instrinsic to dataflow and may not be fixable)
@@ -92,9 +92,9 @@ qalert_requests_format_dedupe = BigQueryOperator(
         use_legacy_sql = False,
         destination_dataset_table = f"{os.environ['GCLOUD_PROJECT']}:qalert.temp_new_req",
         write_disposition = 'WRITE_TRUNCATE',
-        time_partitioning = {'type': 'DAY'},
         dag = dag
 )
+
 
 # Query new tickets to determine if they are in the city limits
 query_city_lim = build_city_limits_query('qalert', 'temp_new_req', 'pii_lat', 'pii_long')
@@ -136,7 +136,7 @@ qalert_requests_merge_new_tickets = BigQueryOperator(
 # Split new tickets by parent/child status
 query_split_parent = f"""
 CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert`.new_parents AS
-(SELECT {COLS_IN_ORDER} FROM `{os.environ['GCLOUD_PROJECT']}.qalert`.temp_new_req
+(SELECT {COLS_IN_ORDER} FROM `{os.environ['GCLOUD_PROJECT']}.qalert`.new_geo_enriched_deduped
 WHERE child_ticket = False)
 """
 qalert_requests_split_new_parents = BigQueryOperator(
@@ -148,7 +148,7 @@ qalert_requests_split_new_parents = BigQueryOperator(
 
 query_split_child = f"""
 CREATE OR REPLACE TABLE {os.environ['GCLOUD_PROJECT']}.qalert.new_children AS
-SELECT {COLS_IN_ORDER} FROM {os.environ['GCLOUD_PROJECT']}.qalert.temp_new_req
+SELECT {COLS_IN_ORDER} FROM {os.environ['GCLOUD_PROJECT']}.qalert.new_geo_enriched_deduped
 WHERE child_ticket = True
 """
 qalert_requests_split_new_children = BigQueryOperator(
@@ -210,9 +210,9 @@ qalert_requests_update_parent_tickets = BigQueryOperator(
         task_id = 'qalert_requests_update_parent_tickets',
         sql = query_update_parent,
         use_legacy_sql = False,
-        destination_dataset_table = f"{os.environ['GCLOUD_PROJECT']}:qalert.all_linked_requests",
         dag = dag
 )
+# destination_dataset_table = f"{os.environ['GCLOUD_PROJECT']}:qalert.all_linked_requests",
 
 # Add new parents in all_linked_requests
 query_append_new_children = f"""
