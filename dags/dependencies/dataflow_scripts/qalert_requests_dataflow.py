@@ -15,7 +15,6 @@ from dataflow_utils.dataflow_utils import JsonCoder, SwapFieldNames, generate_ar
 
 class GetStatus(beam.DoFn):
     def process(self, datum):
-        status_name = ''
         if datum['status_code'] == "0":
             datum["status_name"] = 'open'
         elif datum['status_code'] == "1":
@@ -26,7 +25,6 @@ class GetStatus(beam.DoFn):
             datum["status_name"] = 'on hold'
         else:
             pass
-        datum['status_name'] = status_name
         yield datum
 
 
