@@ -27,9 +27,25 @@ pii_google_formatted_address, address_type, anon_google_formatted_address, neigh
 council_district, ward, police_zone, fire_zone, dpw_streets, dpw_enviro, dpw_parks, pii_lat, pii_long, anon_lat, 
 anon_long"""
 
-SAFE_COLS_IN_ORDER = """id, parent_ticket_id, child_ticket, dept, status_name, status_code, request_type_name, 
-request_type_id, origin, create_date_est, create_date_utc, create_date_unix, last_action_est, last_action_unix, 
-last_action_utc, closed_date_est, closed_date_unix, closed_date_utc, street, cross_street, street_id, 
+SPLIT_COLS_IN_ORDER = """id, dept, status_name, status_code, 
+request_type_name, request_type_id, pii_comments, pii_private_notes, create_date_est, create_date_utc, 
+create_date_unix, last_action_est, last_action_unix, last_action_utc, closed_date_est, closed_date_utc, closed_date_unix, 
+pii_street_num, street, cross_street, street_id, cross_street_id, city, pii_input_address, 
+pii_google_formatted_address, address_type, anon_google_formatted_address, neighborhood_name, 
+council_district, ward, police_zone, fire_zone, dpw_streets, dpw_enviro, dpw_parks, pii_lat, pii_long, anon_lat, 
+anon_long"""
+
+LINKED_COLS_IN_ORDER = """id, num_requests, dept, status_name, status_code, 
+request_type_name, request_type_id, pii_comments, pii_private_notes, create_date_est, create_date_utc, 
+create_date_unix, last_action_est, last_action_unix, last_action_utc, closed_date_est, closed_date_utc, closed_date_unix, 
+pii_street_num, street, cross_street, street_id, cross_street_id, city, pii_input_address, 
+pii_google_formatted_address, address_type, anon_google_formatted_address, neighborhood_name, 
+council_district, ward, police_zone, fire_zone, dpw_streets, dpw_enviro, dpw_parks, pii_lat, pii_long, anon_lat, 
+anon_long"""
+
+SAFE_COLS_IN_ORDER = """id, num_requests, dept, status_name, status_code, 
+request_type_name, request_type_id, create_date_est, create_date_utc, create_date_unix, last_action_est, 
+last_action_unix, last_action_utc, closed_date_est, closed_date_unix, closed_date_utc, street, cross_street, street_id, 
 cross_street_id, city, address_type, anon_google_formatted_address, neighborhood_name, council_district, ward, 
 police_zone, fire_zone, dpw_streets, dpw_enviro, dpw_parks, anon_lat, anon_long"""
 
@@ -136,9 +152,14 @@ qalert_requests_merge_new_tickets = BigQueryOperator(
 # Split new tickets by parent/child status
 query_split_parent = f"""
 CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert`.new_parents AS
-(SELECT {COLS_IN_ORDER} FROM `{os.environ['GCLOUD_PROJECT']}.qalert`.new_geo_enriched_deduped
-WHERE child_ticket = False)
+(SELECT {SPLIT_COLS_IN_ORDER} FROM `{os.environ['GCLOUD_PROJECT']}.qalert`.new_geo_enriched_deduped
+WHERE child_ticket = False);
+ALTER TABLE {os.environ['GCLOUD_PROJECT']}.qalert.new_parents
+ADD COLUMN num_requests integer
 """
+
+# DROP COLUMN child_ticket,
+# This ^ was first alter statement
 qalert_requests_split_new_parents = BigQueryOperator(
         task_id = 'qalert_requests_split_new_parents',
         sql = query_split_parent,
@@ -161,7 +182,8 @@ qalert_requests_split_new_children = BigQueryOperator(
 # Add new parents in all_linked_requests
 query_append_new_parents = f"""
 INSERT INTO {os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests
-SELECT {COLS_IN_ORDER} FROM {os.environ['GCLOUD_PROJECT']}.qalert.new_parents
+SELECT {LINKED_COLS_IN_ORDER}
+FROM {os.environ['GCLOUD_PROJECT']}.qalert.new_parents;
 """
 qalert_requests_append_new_parent_tickets = BigQueryOperator(
         task_id = 'qalert_requests_append_new_parent_tickets',
@@ -172,62 +194,85 @@ qalert_requests_append_new_parent_tickets = BigQueryOperator(
 
 # Update all linked tickets with the information from new children
 query_update_parent = f"""
-WITH concat AS
-(
-SELECT
-  * EXCEPT (id,
-    pii_comments,
-    pii_private_notes,
-    num_requests),
-  t3.id,
-  CONCAT(t3.pii_comments, \n t4.pii_comments) pii_comments,
-  CONCAT(t3.pii_private_notes, \n t4.pii_private_notes) pii_private_notes,
-  t4.num_requests
-FROM
-  {os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests t3
-LEFT OUTER JOIN (
-  SELECT
-    t1.id,
-    (COUNT(*)+1) AS num_requests,
-    STRING_AGG(CONCAT(t2.pii_comments \n)) pii_comments,
-    STRING_AGG(CONCAT(t2.pii_private_notes \n)) pii_private_notes
-  FROM
-    {os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests t1
-  LEFT OUTER JOIN
-    {os.environ['GCLOUD_PROJECT']}.qalert.new_children t2
-  ON
-    t2.parent_ticket_id = t1.id
-  GROUP BY
-    t1.id) t4
-ON
-  t3.id = t4.id
-)
-SELECT {COLS_IN_ORDER} FROM concat;
 CREATE OR REPLACE TABLE {os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests AS
-SELECT {COLS_IN_ORDER} FROM  {os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests
+
+
+-- operating on all results from the outer WITH operator (all_appended): 
+-- overwrite the existing table all_linked_requests with the newly updated results of the above queries 
+-- the results above represent all of the information in all_linked_requests prior to the append job, that was 
+-- then updated with total request counts and comment/note concatentation         
+    WITH all_appended AS
+    (
+            
+            
+        -- inner with operator (i.e. child_combined) returns an id and total number of child requests from the 
+        -- new_children table that correspond to a pre-existing parent ticket. 
+        -- (the count of child tickets in each batch will always be > 1 for each ticket, but has no upper bound)
+        -- also concatenates all the pii_comments and pii_private_notes for each group of children together
+        WITH child_combined AS 
+        
+        (
+        SELECT
+            nc.parent_ticket_id AS match_id,
+            (COUNT(nc.parent_ticket_id)) AS n_new_child_requests,
+            STRING_AGG(CONCAT(nc.pii_comments)) AS child_pii_comments,
+            STRING_AGG(CONCAT(nc.pii_private_notes)) AS child_pii_notes,
+        FROM
+            {os.environ['GCLOUD_PROJECT']}.qalert.new_children nc
+        GROUP BY match_id
+        )
+
+
+
+        -- operating on the results derived from the inner WITH operator (child_combined) & the (already existing, and 
+        -- soon to be overwritten) all_linked_requests table:
+        -- return: 1) all cols of the linked tickets (all_linked_requests) 
+        --         2) the sum of new child tickets belonging to a parent and the parent itself (1 OR MORE children for 
+        --              some parents in each batch of new requests)
+        --         3) concat the pii_comments and pii_private_notes of the children and parents 
+        SELECT
+            alr.id, 
+            IFNULL(n_new_child_requests, 0) + IFNULL(alr.num_requests, 1) AS num_requests,
+            CONCAT(pii_comments, child_pii_comments) AS pii_comments,
+            CONCAT(pii_private_notes, child_pii_notes) AS pii_private_notes,
+            alr.* EXCEPT (id, pii_comments, pii_private_notes, num_requests)
+        FROM
+            child_combined
+        RIGHT OUTER JOIN
+            {os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests alr ON 
+            match_id = alr.id
+    )
+    
+    
+SELECT {LINKED_COLS_IN_ORDER} FROM all_appended
 """
+#
+# --CREATE OR REPLACE TABLE {os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests AS
+# --SELECT {LINKED_COLS_IN_ORDER} FROM  {os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests
+
+
 qalert_requests_update_parent_tickets = BigQueryOperator(
         task_id = 'qalert_requests_update_parent_tickets',
         sql = query_update_parent,
         use_legacy_sql = False,
         dag = dag
 )
-# destination_dataset_table = f"{os.environ['GCLOUD_PROJECT']}:qalert.all_linked_requests",
+
 
 # Add new parents in all_linked_requests
-query_append_new_children = f"""
-INSERT INTO `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests`
-SELECT {COLS_IN_ORDER} FROM `{os.environ['GCLOUD_PROJECT']}.qalert.new_children`;
-CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` AS
-SELECT * FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests`
-ORDER BY id DESC
-"""
-qalert_requests_append_new_child_tickets = BigQueryOperator(
-        task_id = 'qalert_requests_append_new_child_tickets',
-        sql = query_append_new_children,
-        use_legacy_sql = False,
-        dag = dag
-)
+# query_append_new_children = f"""
+# INSERT INTO `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests`
+# SELECT {COLS_IN_ORDER} FROM `{os.environ['GCLOUD_PROJECT']}.qalert.new_children`;
+# CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` AS
+# SELECT * FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests`
+# ORDER BY id DESC
+# """
+# qalert_requests_append_new_child_tickets = BigQueryOperator(
+#         task_id = 'qalert_requests_append_new_child_tickets',
+#         sql = query_append_new_children,
+#         use_legacy_sql = False,
+#         dag = dag
+# )
 
 # Create a table from all_linked_requests that has all columns EXCEPT those that have potential PII. This table is
 # subsequently exported to WPRDC. BQ will not currently (2021-10-01) allow data to be pushed from a query and it must
@@ -278,9 +323,10 @@ qalert_requests_gcs >> qalert_requests_dataflow >> qalert_requests_bq >> qalert_
 qalert_requests_city_limits >> qalert_requests_geojoin >> qalert_requests_merge_new_tickets >> \
 qalert_requests_split_new_parents >> qalert_requests_split_new_children >> \
 qalert_requests_append_new_parent_tickets >> qalert_requests_update_parent_tickets >> \
-qalert_requests_append_new_child_tickets >> qalert_requests_drop_pii_for_export >> qalert_wprdc_export >> qalert_beam_cleanup
-
+qalert_requests_drop_pii_for_export >> qalert_wprdc_export >> qalert_beam_cleanup
 
 # TODO: Insert as the final operation before clean up when IAM issues resolved
 # qalert_requests_push_to_web_team >
+
+# qalert_requests_append_new_child_tickets >> \
 
