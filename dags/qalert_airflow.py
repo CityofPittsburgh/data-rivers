@@ -99,21 +99,21 @@ WITH formatted AS
     CAST(pii_long AS FLOAT64) AS pii_long,
     CAST(anon_lat AS FLOAT64) AS anon_lat,
     CAST(anon_long AS FLOAT64) AS anon_long,
-FROM {os.environ['GCLOUD_PROJECT']}.qalert.temp_new_req)
+FROM {os.environ['GCLOUD_PROJECT']}.qalert.new_req)
 SELECT {COLS_IN_ORDER} FROM formatted
 """
 qalert_requests_format_dedupe = BigQueryOperator(
         task_id = 'qalert_dedupe_and_format',
         sql = query_format,
         use_legacy_sql = False,
-        destination_dataset_table = f"{os.environ['GCLOUD_PROJECT']}:qalert.temp_new_req",
+        destination_dataset_table = f"{os.environ['GCLOUD_PROJECT']}:qalert.new_req",
         write_disposition = 'WRITE_TRUNCATE',
         dag = dag
 )
 
 
 # Query new tickets to determine if they are in the city limits
-query_city_lim = build_city_limits_query('qalert', 'temp_new_req', 'pii_lat', 'pii_long')
+query_city_lim = build_city_limits_query('qalert', 'new_req', 'pii_lat', 'pii_long')
 qalert_requests_city_limits = BigQueryOperator(
         task_id = 'qalert_city_limits',
         sql = query_city_lim,
@@ -124,7 +124,7 @@ qalert_requests_city_limits = BigQueryOperator(
 # TODO: investigate (and if necessary fix) the unknown source of duplicates in the geojoin query (see util function
 #  for clearer explanation)
 # Join all the geo information (e.g. DPW districts, etc) to the new data
-query_geo_join = build_revgeo_time_bound_query('qalert', 'temp_new_req', 'create_date_est', 'id', 'pii_lat',
+query_geo_join = build_revgeo_time_bound_query('qalert', 'new_req', 'create_date_est', 'id', 'pii_lat',
                                                'pii_long', COLS_IN_ORDER)
 qalert_requests_geojoin = BigQueryOperator(
         task_id = 'qalert_geojoin',
@@ -133,7 +133,7 @@ qalert_requests_geojoin = BigQueryOperator(
         dag = dag
 )
 
-# Append the geojoined and de-duped temp_new_req to all_requests (replace table after append to order by ID. BQ does
+# Append the geojoined and de-duped new_req to all_requests (replace table after append to order by ID. BQ does
 # not allow this in INSERT statements (2021-10-01)
 query_append = f"""
 INSERT INTO {os.environ['GCLOUD_PROJECT']}.qalert.all_requests
@@ -246,9 +246,6 @@ CREATE OR REPLACE TABLE {os.environ['GCLOUD_PROJECT']}.qalert.all_linked_request
     
 SELECT {LINKED_COLS_IN_ORDER} FROM all_appended
 """
-#
-# --CREATE OR REPLACE TABLE {os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests AS
-# --SELECT {LINKED_COLS_IN_ORDER} FROM  {os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests
 
 
 qalert_requests_update_parent_tickets = BigQueryOperator(
@@ -258,21 +255,6 @@ qalert_requests_update_parent_tickets = BigQueryOperator(
         dag = dag
 )
 
-
-# Add new parents in all_linked_requests
-# query_append_new_children = f"""
-# INSERT INTO `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests`
-# SELECT {COLS_IN_ORDER} FROM `{os.environ['GCLOUD_PROJECT']}.qalert.new_children`;
-# CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` AS
-# SELECT * FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests`
-# ORDER BY id DESC
-# """
-# qalert_requests_append_new_child_tickets = BigQueryOperator(
-#         task_id = 'qalert_requests_append_new_child_tickets',
-#         sql = query_append_new_children,
-#         use_legacy_sql = False,
-#         dag = dag
-# )
 
 # Create a table from all_linked_requests that has all columns EXCEPT those that have potential PII. This table is
 # subsequently exported to WPRDC. BQ will not currently (2021-10-01) allow data to be pushed from a query and it must
@@ -327,6 +309,3 @@ qalert_requests_drop_pii_for_export >> qalert_wprdc_export >> qalert_beam_cleanu
 
 # TODO: Insert as the final operation before clean up when IAM issues resolved
 # qalert_requests_push_to_web_team >
-
-# qalert_requests_append_new_child_tickets >> \
-
