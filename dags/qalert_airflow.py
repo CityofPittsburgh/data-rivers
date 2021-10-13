@@ -79,7 +79,7 @@ qalert_requests_dataflow = BashOperator(
 # Load AVRO data produced by dataflow_script into BQ temp table
 qalert_requests_bq = GoogleCloudStorageToBigQueryOperator(
         task_id = 'qalert_bq',
-        destination_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}:qalert.temp_new_req",
+        destination_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}:qalert.new_req",
         bucket = f"{os.environ['GCS_PREFIX']}_qalert",
         source_objects = ["requests/avro_output/{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds }}/*.avro"],
         write_disposition = 'WRITE_TRUNCATE',
