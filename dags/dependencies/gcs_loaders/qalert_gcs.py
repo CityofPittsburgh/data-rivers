@@ -15,7 +15,15 @@ bucket = f"{os.environ['GCS_PREFIX']}_qalert"
 
 # qscend API requires a value (any value) for the user-agent field
 headers = {'User-Agent': 'City of Pittsburgh ETL'}
-payload = {'key': os.environ['QALERT_KEY'], 'since': time_to_seconds(args['since'])}
+
+
+#TODO: still debugging below here...this is temp code. Remember to remove the import for time_to_seconds if needed.
+# payload = {'key': os.environ['QALERT_KEY'], 'since': time_to_seconds(args['since'])}
+# payload = {'key': os.environ['QALERT_KEY'], 'since': "10/14/2021 8:00 PM"}
+payload = {'key': os.environ['QALERT_KEY'], 'since': "10/15/2021 16:54 PM"}
+#TODO: don't write if the file is empty
+
+
 response = requests.get('https://pittsburghpa.qscend.com/qalert/api/v1/requests/changes', params=payload,
                         headers=headers)
 
