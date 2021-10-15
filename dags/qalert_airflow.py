@@ -7,6 +7,7 @@ from airflow.operators.bash_operator import BashOperator
 from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOperator
 from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 from airflow.contrib.operators.bigquery_to_gcs import BigQueryToCloudStorageOperator
+from airflow.contrib.operators.bigquery_table_delete_operator import BigQueryTableDeleteOperator
 
 from dependencies import airflow_utils
 from dependencies.airflow_utils import get_ds_year, get_ds_month, default_args, \
@@ -95,7 +96,8 @@ qalert_requests_bq = GoogleCloudStorageToBigQueryOperator(
 
 
 # Update geo coords with lat/long cast as floats (dataflow/AVRO glitch forces them to be output as strings; the
-# source of the error is instrinsic to dataflow and may not be fixable)
+# source of the error is instrinsic to dataflow and may not be fixable). Also, dedupe the results (someties the same
+# ticket appears in the computer system more than 1 time (a QAlert glitch)
 query_format = f"""
 WITH formatted AS
     (
@@ -146,7 +148,7 @@ qalert_requests_geojoin = BigQueryOperator(
 # Append the geojoined and de-duped new_req to all_requests (replace table after append to order by ID. BQ does
 # not allow this in INSERT statements (2021-10-01)
 query_append = f"""
-INSERT INTO {os.environ['GCLOUD_PROJECT']}.qalert.all_requests
+INSERT INTO {os.environ['GCLOUD_PROJECT']}.qalert.all_actions
 SELECT 
     {COLS_IN_ORDER} 
 FROM 
@@ -156,7 +158,7 @@ CREATE OR REPLACE TABLE {os.environ['GCLOUD_PROJECT']}.qalert.all_requests AS
 SELECT 
     {COLS_IN_ORDER} 
 FROM 
-    {os.environ['GCLOUD_PROJECT']}.qalert.all_requests
+    {os.environ['GCLOUD_PROJECT']}.qalert.all_actions
 ORDER BY id DESC
 """
 qalert_requests_merge_new_tickets = BigQueryOperator(
@@ -218,6 +220,12 @@ qalert_requests_append_new_parent_tickets = BigQueryOperator(
         dag = dag
 )
 
+
+
+#TODO: STILL NEED TO UPDATE THE CLOSED STATUS, LAST ACTION, etc.
+# Solution?: get the status/last action of the YOUNGEST child in the inner with block
+# Select * except (above fields ^) from alr in the outer with block Instead, select the above fields (^) from the
+# inner WITH block
 
 # Update all linked tickets with the information from new children
 query_update_parent = f"""
@@ -308,8 +316,8 @@ qalert_wprdc_export = BigQueryToCloudStorageOperator(
 )
 
 
-# Export to Web Dev team BQ table
 # TODO: Data Services team has IAM issues preventing access to Web Team BQ. Uncomment when this is resolved.
+# Export to Web Dev team BQ table
 # query_push_to_web_team = f"""
 # CREATE OR REPLACE TABLE `{os.environ["GCLOUD_WEB_DEV_PROJECT"]}.qalert.data_export_scrubbed` AS
 # SELECT
@@ -325,6 +333,16 @@ qalert_wprdc_export = BigQueryToCloudStorageOperator(
 # )
 
 
+#TODO: this code block was added as part of the dubugging process and it is unclear if it is needed. Will keep/remove
+# (remember to remove the import statement also)
+# when that is more clear.
+delete_new_req = BigQueryTableDeleteOperator(
+    task_id="delete_new_req",
+    deletion_dataset_table=f"{os.environ['GCLOUD_PROJECT']}.qalert.new_req",
+    dag = dag
+)
+
+
 # Clean up
 qalert_beam_cleanup = BashOperator(
         task_id = 'qalert_beam_cleanup',
@@ -333,12 +351,13 @@ qalert_beam_cleanup = BashOperator(
 )
 
 
+
 # DAG execution:
 qalert_requests_gcs >> qalert_requests_dataflow >> qalert_requests_bq >> qalert_requests_format_dedupe >> \
 qalert_requests_city_limits >> qalert_requests_geojoin >> qalert_requests_merge_new_tickets >> \
 qalert_requests_split_new_parents >> qalert_requests_split_new_children >> \
 qalert_requests_append_new_parent_tickets >> qalert_requests_update_parent_tickets >> \
-qalert_requests_drop_pii_for_export >> qalert_wprdc_export >> qalert_beam_cleanup
+qalert_requests_drop_pii_for_export >> qalert_wprdc_export >> delete_new_req >> qalert_beam_cleanup
 
-# TODO: Insert as the final operation before beam_cleanup when IAM issues for the web dev project are resolved
+# TODO: Insert as the final operation before delete_new_req when IAM issues for the web dev project are resolved
 # qalert_requests_push_to_web_team >
