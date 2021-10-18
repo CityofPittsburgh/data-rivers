@@ -26,6 +26,7 @@ DEFAULT_PII_TYPES = [{"name": "PERSON_NAME"}, {"name": "EMAIL_ADDRESS"}, {"name"
 COMPUTRONIX_BASE_URL = 'https://staff.onestoppgh.pittsburghpa.gov/pghprod/odata/odata/'
 WPRDC_API_HARD_LIMIT = 500001  # A limit set by the CKAN instance.
 
+
 def snake_case_place_names(input):
     # Helper function to take a pair of words, containing place name identifiers, and join them together (with an
     # underscore by default). This prevents NLP based Data Loss Prevention/PII scrubbers from targeting places for
@@ -515,8 +516,21 @@ def rmsprod_setup():
 
     return args, execution_year, execution_month, execution_date, bucket, conn
 
+
 # TODO: helper to convert geojson -> ndjson
 
 # bash command to convert shapefiles to .geojson:
 # for filename in ./*.shp; do mkdir -p geojson; ogr2ogr -f "GeoJSON" "./geojson/$filename.geojson" "$filename";done
 # TODO: wrap this into a helper function
+
+
+def find_last_successful_run(bucket_name, good_run_path, look_back_date):
+    bucket = storage_client.bucket(bucket_name)
+    blob = bucket.get_blob(good_run_path)
+    # if blobs are found
+    if blob is not None:
+        run_info = blob.download_as_string()
+        current_run = ndjson.loads(run_info.decode('utf-8'))[0]["current_run"]
+        return current_run
+    else:
+        return str(look_back_date)
