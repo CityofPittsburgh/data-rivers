@@ -9,15 +9,6 @@ from datetime import datetime, timedelta
 
 from gcs_utils import json_to_gcs, replace_pii, find_last_successful_run
 
-# set initial values for loading operation
-# parser = argparse.ArgumentParser()
-# parser.add_argument('-s', '--since', dest = 'since', required = True,
-#                     help = 'Start param for API pull (last successful DAG run as YYYY-MM-DD)')
-# parser.add_argument('-e', '--execution_date', dest = 'execution_date',
-#                     required = True, help = 'DAG execution date (YYYY-MM-DD)')
-# args = vars(parser.parse_args())
-
-
 bucket = f"{os.environ['GCS_PREFIX']}_qalert"
 
 # find the last successful DAG run (needs to be specified in UTC YYYY-MM-DD HH:MM:SS) if there was no previous good
@@ -30,6 +21,7 @@ run_start_win = find_last_successful_run(bucket, "requests/successful_run_log/lo
 # qscend API requires a value (any value) for the user-agent field
 headers = {'User-Agent': 'City of Pittsburgh ETL'}
 payload = {'key': os.environ['QALERT_KEY'], 'since': run_start_win}
+
 
 # continue running the API until data is retrieved (wait 5 min if there is no new data between last_good_run and now (
 # curr_run))
@@ -86,6 +78,6 @@ target_direc = "requests"
 year = curr_run.split('-')[0]
 month = curr_run.split('-')[1]
 day = curr_run.split('-')[2].split(' ')[0]
-mod_date_time = curr_run.replace(" ","_")
+mod_date_time = curr_run.replace(" ", "_")
 target_path = f"{target_direc}/{year}/{month}/{day}/{mod_date_time}_requests.json"
 json_to_gcs(target_path, full_requests, bucket)
