@@ -64,10 +64,9 @@ dag = DAG(
 
 
 # Run gcs_loader
-gcs_cmd_str = format_gcs_call("qalert_gcs.py", f"{os.environ['GCS_PREFIX']}_qalert", "requests")
 qalert_requests_gcs = BashOperator(
         task_id = 'qalert_gcs',
-        bash_command = gcs_cmd_str,
+        bash_command = F"python {os.environ['DAGS_PATH']}/dependencies/gcs_loaders/qalert_gcs.py",
         dag = dag
 )
 

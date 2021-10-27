@@ -25,11 +25,11 @@ bucket = f"{os.environ['GCS_PREFIX']}_qalert"
 # payload below
 yesterday = datetime.combine(datetime.now(tz = pendulum.timezone("utc")) - timedelta(1),
                              datetime.min.time()).strftime("%Y-%m-%d %H:%M:%S")
-last_good_run = find_last_successful_run(bucket, "requests/successful_run_log/log.json", yesterday)
+run_start_win = find_last_successful_run(bucket, "requests/successful_run_log/log.json", yesterday)
 
 # qscend API requires a value (any value) for the user-agent field
 headers = {'User-Agent': 'City of Pittsburgh ETL'}
-payload = {'key': os.environ['QALERT_KEY'], 'since': last_good_run}
+payload = {'key': os.environ['QALERT_KEY'], 'since': run_start_win}
 
 # continue running the API until data is retrieved (wait 5 min if there is no new data between last_good_run and now (
 # curr_run))
@@ -48,7 +48,7 @@ while data_retrieved is False:
         data_retrieved = True
         # write the successful run information (used by each successive DAG run to find the backfill date)
         successful_run = [{"requests_retrieved": len(full_requests),
-                          "since"             : last_good_run,
+                          "since"             : run_start_win,
                           "current_run"       : curr_run,
                           "note"              : "Data retrieved between the time points listed above"}]
         json_to_gcs("requests/successful_run_log/log.json", successful_run,
@@ -61,8 +61,7 @@ while data_retrieved is False:
 # Comments must be scrubbed for PII from 311 requests.
 # Comments do not follow strict formatting so this is an imperfect approximation.
 # Steps: extract fields, detect person names that are followed by hotwords for exclusion (e.g. park or street),
-# place an underscore between the detected words to prevent accidental redaction, redact PII the user information in
-# activities needs to be scrubbed, but does not need to be screened for hotwords
+# place an underscore between the detected words to prevent accidental redaction, redact PII
 pre_clean = {"req_comments": []}
 for row in full_requests:
     pre_clean["req_comments"].append(row.get("comments", ""))
@@ -90,5 +89,3 @@ day = curr_run.split('-')[2].split(' ')[0]
 mod_date_time = curr_run.replace(" ","_")
 target_path = f"{target_direc}/{year}/{month}/{day}/{mod_date_time}_requests.json"
 json_to_gcs(target_path, full_requests, bucket)
-
-# Write a last update val to that sub direc
