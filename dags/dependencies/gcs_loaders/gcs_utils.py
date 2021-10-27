@@ -530,7 +530,7 @@ def find_last_successful_run(bucket_name, good_run_path, look_back_date):
     # if blobs are found
     if blob is not None:
         run_info = blob.download_as_string()
-        last_run = ndjson.loads(run_info.decode('utf-8'))[0]["current_run"]
-        return last_run
+        last_good_run = ndjson.loads(run_info.decode('utf-8'))[0]["current_run"]
+        return last_good_run
     else:
         return str(look_back_date)
