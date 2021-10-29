@@ -4,8 +4,12 @@ import time
 import requests
 import pendulum
 from datetime import datetime, timedelta
+import numpy as np
+from math import ceil
 
 from gcs_utils import json_to_gcs, replace_pii, find_last_successful_run
+
+API_LIMIT = 2000
 
 bucket = f"{os.environ['GCS_PREFIX']}_qalert"
 
@@ -48,6 +52,7 @@ while data_retrieved is False:
         print("No new requests. Sleeping with retry scheduled.")
         time.sleep(300)
 
+
 # Comments must be scrubbed for PII from 311 requests.
 # Comments do not follow strict formatting so this is an imperfect approximation.
 # Steps: extract fields, detect person names that are followed by hotwords for exclusion (e.g. park or street),
@@ -56,20 +61,37 @@ pre_clean = {"req_comments": []}
 for row in full_requests:
     pre_clean["req_comments"].append(row.get("comments", ""))
 
-# convert list to string that is seperated with a delimiter sequence (allows full list to be processed as one string,
-# as opposed to mapping it to each element which is 100x slower)
+
+# The Google data loss prevention (dlp) API is used (via helper function) to scrub PII. This API cannot handle
+# large payloads. We therefore chop the data into batches to prevent overloading the API. As of 11/2021 we use a
+# limit of 2000, but this can be modified by changing the 'API_LIMIT' constant.
+
+# determine the number of bins needed for each batch of comments (round up in case there is a remainder from the
+# division); split into batches
+bins = ceil(len(pre_clean["req_comments"]) / API_LIMIT)
+pre_clean_batches = np.array_split(pre_clean["req_comments"], bins)
+
 delim_seq = os.environ["DELIM"]
-pre_clean["req_comments"] = delim_seq.join(pre_clean["req_comments"])
+all_comms = []
+for b in pre_clean_batches:
+    # convert list to string that is separated with a delimiter sequence (allows full list to be processed as one string,
+    # as opposed to mapping it to each element which is 100x slower)
+    batch = delim_seq.join(b)
 
-# scrub pii
-scrubbed_req_comments = replace_pii(pre_clean["req_comments"], retain_location = True)
+    # scrub pii
+    scrubbed_req_comments = replace_pii(batch, retain_location = True)
 
-# convert delim-seperated string back to list of strings
-split_req_comments = scrubbed_req_comments.split(delim_seq.strip())
+    # convert delim-seperated string back to list of strings
+    split_req_comments = scrubbed_req_comments.split(delim_seq.strip())
+
+    # extend growing list with scrubbed comments
+    all_comms.extend(split_req_comments)
+
 
 # overwrite the original fields with scrubbed data
 for i in range(len(full_requests)):
-    full_requests[i]["comments"] = split_req_comments[i].strip()
+    full_requests[i]["comments"] = all_comms[i].strip()
+
 
 # load to gcs
 target_direc = "requests"
