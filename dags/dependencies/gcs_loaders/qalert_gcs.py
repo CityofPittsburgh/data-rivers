@@ -1,10 +1,8 @@
 import os
-import argparse
 import time
 
 import requests
 import pendulum
-import json
 from datetime import datetime, timedelta
 
 from gcs_utils import json_to_gcs, replace_pii, find_last_successful_run
