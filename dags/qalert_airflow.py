@@ -11,7 +11,7 @@ from airflow.contrib.operators.bigquery_table_delete_operator import BigQueryTab
 
 from dependencies import airflow_utils
 from dependencies.airflow_utils import get_ds_year, get_ds_month, default_args, \
-    format_gcs_call, format_dataflow_call, build_city_limits_query, build_revgeo_time_bound_query
+    format_dataflow_call, build_city_limits_query, build_revgeo_time_bound_query
 
 
 # TODO: When Airflow 2.0 is released, upgrade the package, sub in DataFlowPythonOperator for BashOperator,
@@ -72,7 +72,7 @@ qalert_requests_gcs = BashOperator(
 
 
 # Run dataflow_script
-df_cmd_str = format_dataflow_call("qalert_requests_dataflow.py")
+df_cmd_str, date_direc, ts = format_dataflow_call("qalert_requests_dataflow.py", "qalert", "requests", "requests")
 qalert_requests_dataflow = BashOperator(
         task_id = 'qalert_dataflow',
         bash_command = df_cmd_str,
@@ -85,7 +85,7 @@ qalert_requests_bq = GoogleCloudStorageToBigQueryOperator(
         task_id = 'qalert_bq',
         destination_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}:qalert.new_req",
         bucket = f"{os.environ['GCS_PREFIX']}_qalert",
-        source_objects = ["requests/avro_output/{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds }}/*.avro"],
+        source_objects = [f"requests/avro_output/{date_direc}/{ts}/*.avro"],
         write_disposition = 'WRITE_TRUNCATE',
         create_disposition = 'CREATE_IF_NEEDED',
         source_format = 'AVRO',
