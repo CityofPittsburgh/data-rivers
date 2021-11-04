@@ -33,7 +33,7 @@ query = """SELECT DISTINCT id, dept, requestType, closedOn
                           )
             AND createDateUnix >= 1577854800""".format(os.environ['GCLOUD_PROJECT'])
 
-qalert_requests_bq_merge = BigQueryOperator(
+format_street_tix = BigQueryOperator(
     task_id='dashburgh_format_street_tix',
     sql=query,
     use_legacy_sql=False,
@@ -43,4 +43,4 @@ qalert_requests_bq_merge = BigQueryOperator(
     dag=dag
 )
 
-qalert_requests_bq_merge
+format_street_tix
