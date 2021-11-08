@@ -16,7 +16,7 @@ dag = DAG(
 )
 
 query = """SELECT DISTINCT id, dept, requestType, closedOn
-             FROM `{}.qalert.requests`
+             FROM `data-rivers.qalert.requests`
             WHERE requestType IN (
                   'Angle Iron', 'Barricades', 'City Steps, Need Cleared', 
                   'Curb/Request for Asphalt Windrow', 'Drainage/Leak', 'Graffiti, Removal', 
@@ -31,7 +31,7 @@ query = """SELECT DISTINCT id, dept, requestType, closedOn
                           'DPW - Division 3', 'DPW - Division 5', 'DPW - Division 6', 
                           'DPW - Street Maintenance'
                           )
-            AND createDateUnix >= 1577854800""".format(os.environ['GCLOUD_PROJECT'])
+            AND createDateUnix >= 1577854800"""#.format(os.environ['GCLOUD_PROJECT'])
 
 format_street_tix = BigQueryOperator(
     task_id='dashburgh_format_street_tix',
