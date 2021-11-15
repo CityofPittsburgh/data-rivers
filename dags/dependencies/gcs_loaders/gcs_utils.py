@@ -5,7 +5,7 @@ import os
 import logging
 import time
 import re
-
+import json
 import ckanapi
 import ndjson
 import pytz
@@ -438,12 +438,13 @@ def get_wprdc_data(resource_id, select_fields=['*'], where_clauses=None, group_b
 
     return records
 
+
 def rmsprod_setup():
     parser = argparse.ArgumentParser()
     parser.add_argument('-e', '--execution_date', dest='execution_date',
-                       required=True, help='DAG execution date (YYYY-MM-DD)')
+                        required=True, help='DAG execution date (YYYY-MM-DD)')
     parser.add_argument('-s', '--prev_execution_date', dest='prev_execution_date',
-                    required=True, help='Previous DAG execution date (YYYY-MM-DD)')
+                        required=True, help='Previous DAG execution date (YYYY-MM-DD)')
     args = vars(parser.parse_args())
     execution_year = args['execution_date'].split('-')[0]
     execution_month = args['execution_date'].split('-')[1]
@@ -454,10 +455,31 @@ def rmsprod_setup():
                               os.environ['RMSPROD_DB'],
                               [os.environ['RMSPROD_UN'], os.environ['RMSPROD_PW']],
                               os.environ['DAGS_PATH'] + "/dependencies/gcs_loaders/ojdbc6.jar")
-                              
+
     return args, execution_year, execution_month, execution_date, bucket, conn
 
 
+def json_linter(ndjson: str):
+    """
+    :Author - Pranav Banthia
+    :param ndjson - NDJson is a json file where each line is an individual json object. The delimiter is a new line \n
+                    This function takes in a param called ndjson which is a string object.
+
+    We parse each line of the string assuming that every line is an individual json object. If there are any exceptions
+    such as two json objects on the same line then we handle that situation in the except block. Returns an ndjson
+    as a string
+    """
+    result_ndjson = []
+    for i, line in enumerate(ndjson.split('\n')):
+        try:
+            json.loads(line)
+            result_ndjson.append(line)
+        except:
+            json_split = line.split('}{')
+            result_ndjson.append(json_split[0] + '}')
+            result_ndjson.append('{' + json_split[1])
+
+    return '\n'.join(result_ndjson)
 
 # TODO: helper to convert geojson -> ndjson
 
