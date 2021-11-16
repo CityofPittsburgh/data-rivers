@@ -75,7 +75,8 @@ def get_ds_month(ds):
 
 
 # TODO: phase out the usage of build_revgeo_query() in favor of build_rev_geo_time_bound_query()
-def build_revgeo_time_bound_query(dataset, raw_table, create_date, id_col, lat_field, long_field, cols_in_order):
+def build_revgeo_time_bound_query(dataset, raw_table, new_table_name, create_date, id_col, lat_field, long_field,
+                                  cols_in_order):
     """
     Take a table with lat/long values and reverse-geocode it into a new a final table.
     This function is a substantial refactor of the build_rev_geo() function. This query allows a lat/long point to be
@@ -132,7 +133,7 @@ def build_revgeo_time_bound_query(dataset, raw_table, create_date, id_col, lat_f
     return f"""
         -- QUERY 1A (results are aliased as 'geo')
         CREATE OR REPLACE TABLE
-          `{os.environ["GCLOUD_PROJECT"]}.{dataset}.new_geo_enriched_deduped` AS
+          `{os.environ["GCLOUD_PROJECT"]}.{dataset}.{new_table_name}` AS
         WITH
           geo AS (
           /* select all columns except the geo boundaries (which will be joined in subsequently after being cast as 
@@ -259,14 +260,14 @@ def build_revgeo_time_bound_query(dataset, raw_table, create_date, id_col, lat_f
         /* QUERY 2 (deduping operation aliased 'ids_counted') calculates the number of times an ID appears.
         This query overwrites the table that was previously produced*/
         CREATE OR REPLACE TABLE
-          `{os.environ["GCLOUD_PROJECT"]}.{dataset}.new_geo_enriched_deduped` AS
+          `{os.environ["GCLOUD_PROJECT"]}.{dataset}.{new_table_name}` AS
         WITH
           ids_counted AS (
           SELECT
             *,
             ROW_NUMBER() OVER (PARTITION BY {id_col}) AS id_count
           FROM
-            `{os.environ["GCLOUD_PROJECT"]}.{dataset}.new_geo_enriched_deduped`)
+            `{os.environ["GCLOUD_PROJECT"]}.{dataset}.{new_table_name}`)
         /* All columns are selected, but column names are explicit (as opposed to * operator)
         to ensure the columns are selected in the desired order*/
         SELECT
