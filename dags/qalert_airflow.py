@@ -134,8 +134,8 @@ qalert_requests_city_limits = BigQueryOperator(
 # TODO: investigate (and if necessary fix) the unknown source of duplicates in the geojoin query (see util function
 #  for clearer explanation)
 # Join all the geo information (e.g. DPW districts, etc) to the new data
-query_geo_join = build_revgeo_time_bound_query('qalert', 'new_req', 'create_date_est', 'id', 'pii_lat',
-                                               'pii_long', COLS_IN_ORDER)
+query_geo_join = build_revgeo_time_bound_query('qalert', 'new_req', "new_geo_enriched_deduped", 'create_date_est',
+                                               'id', 'pii_lat', 'pii_long', COLS_IN_ORDER)
 qalert_requests_geojoin = BigQueryOperator(
         task_id = 'qalert_geojoin',
         sql = query_geo_join,
@@ -144,7 +144,7 @@ qalert_requests_geojoin = BigQueryOperator(
 )
 
 
-# Append the geojoined and de-duped new_req to all_requests (replace table after append to order by ID. BQ does
+# Append the geojoined and de-duped new_req to all_actions  (replace table after append to order by ID. BQ does
 # not allow this in INSERT statements (2021-10-01)
 query_append = f"""
 INSERT INTO {os.environ['GCLOUD_PROJECT']}.qalert.all_actions
@@ -153,7 +153,7 @@ SELECT
 FROM 
     `{os.environ['GCLOUD_PROJECT']}.qalert.new_geo_enriched_deduped`;
     
-CREATE OR REPLACE TABLE {os.environ['GCLOUD_PROJECT']}.qalert.all_requests AS
+CREATE OR REPLACE TABLE {os.environ['GCLOUD_PROJECT']}.qalert.all_actions AS
 SELECT 
     {COLS_IN_ORDER} 
 FROM 
