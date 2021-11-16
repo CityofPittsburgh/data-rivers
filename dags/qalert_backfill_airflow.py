@@ -50,13 +50,13 @@ last_action_unix, last_action_utc, closed_date_est, closed_date_unix, closed_dat
 cross_street_id, city, address_type, anon_google_formatted_address, neighborhood_name, council_district, ward, 
 police_zone, fire_zone, dpw_streets, dpw_enviro, dpw_parks, anon_lat, anon_long"""
 
-# TODO: change interval to 5 min. Alter bucket/table declarations appropriately
-# This DAG will run every 5 min which is a departure from our SOP. the schedule interval reflects this in CRON
-# nomemclature. The 5 min interval was chosen to accomodate WPRDC's needs.
+
+# This DAG schedule interval set to None because it will only ever be triggered manually
+
 dag = DAG(
-        'qalert_requests',
+        'qalert_backfill_requests',
         default_args = default_args,
-        schedule_interval = '@daily',
+        schedule_interval = None,
         user_defined_filters = {'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year}
 )
 
@@ -72,8 +72,7 @@ dag = DAG(
 
 
 # Run dataflow_script
-# df_cmd_str, date_direc, ts = format_dataflow_call("qalert_requests_dataflow.py", "qalert", "requests", "requests")
-py_cmd = f"python {os.environ['DAGS_PATH']}dags/dependencies/dataflow_scripts/qalert_requests_dataflow.py"
+py_cmd = f"python {os.environ['DAGS_PATH']}/dependencies/dataflow_scripts/qalert_requests_dataflow.py"
 in_cmd = f" --input gs://{os.environ['GCS_PREFIX']}_qalert/requests/backfill/data" \
   "/requests_backfill_data_backfilled_requests_formatted.json"
 out_cmd = f" --avro_output gs://{os.environ['GCS_PREFIX']}_qalert/requests/backfill/data/avro_output/"
@@ -88,7 +87,7 @@ qalert_requests_dataflow = BashOperator(
 qalert_requests_bq = GoogleCloudStorageToBigQueryOperator(
         task_id = 'qalert_bq',
         destination_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}:qalert.backfill_req",
-        bucket = f"gs://{os.environ['GCS_PREFIX']}_qalert/requests/backfill/data/avro_output/",
+        bucket = f"{os.environ['GCS_PREFIX']}_qalert",
         source_objects = [f"requests/backfill/data/avro_output/*.avro"],
         write_disposition = 'WRITE_TRUNCATE',
         create_disposition = 'CREATE_IF_NEEDED',
@@ -135,8 +134,8 @@ qalert_requests_city_limits = BigQueryOperator(
 # TODO: investigate (and if necessary fix) the unknown source of duplicates in the geojoin query (see util function
 #  for clearer explanation)
 # Join all the geo information (e.g. DPW districts, etc) to the new data
-query_geo_join = build_revgeo_time_bound_query('qalert', 'backfill_req', 'create_date_est', 'id', 'pii_lat',
-                                               'pii_long', COLS_IN_ORDER)
+query_geo_join = build_revgeo_time_bound_query('qalert', 'backfill_req', 'backfill_geo_enriched_deduped',
+                                               'create_date_est',  'id', 'pii_lat', 'pii_long', COLS_IN_ORDER)
 qalert_requests_geojoin = BigQueryOperator(
         task_id = 'qalert_geojoin',
         sql = query_geo_join,
@@ -153,7 +152,7 @@ SELECT
 FROM 
     `{os.environ['GCLOUD_PROJECT']}.qalert.backfill_geo_enriched_deduped`;
 
-CREATE OR REPLACE TABLE {os.environ['GCLOUD_PROJECT']}.qalert.all_requests AS
+CREATE OR REPLACE TABLE {os.environ['GCLOUD_PROJECT']}.qalert.backfill_all_actions AS
 SELECT 
     {COLS_IN_ORDER} 
 FROM 
@@ -169,14 +168,14 @@ qalert_requests_merge_new_tickets = BigQueryOperator(
 
 # Split new tickets by parent/child status
 query_split_parent = f"""
-CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert`.new_parents AS
+CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert`.backfill_parents AS
 SELECT 
     {SPLIT_COLS_IN_ORDER} 
 FROM 
-    `{os.environ['GCLOUD_PROJECT']}.qalert`.new_geo_enriched_deduped
+    `{os.environ['GCLOUD_PROJECT']}.qalert`.backfill_geo_enriched_deduped
 WHERE child_ticket = False;
 
-ALTER TABLE {os.environ['GCLOUD_PROJECT']}.qalert.new_parents
+ALTER TABLE {os.environ['GCLOUD_PROJECT']}.qalert.backfill_parents
 ADD COLUMN num_requests integer
 """
 qalert_requests_split_new_parents = BigQueryOperator(
@@ -187,11 +186,11 @@ qalert_requests_split_new_parents = BigQueryOperator(
 )
 
 query_split_child = f"""
-CREATE OR REPLACE TABLE {os.environ['GCLOUD_PROJECT']}.qalert.new_children AS
+CREATE OR REPLACE TABLE {os.environ['GCLOUD_PROJECT']}.qalert.backfill_children AS
 SELECT 
     {COLS_IN_ORDER} 
 FROM 
-    {os.environ['GCLOUD_PROJECT']}.qalert.new_geo_enriched_deduped
+    {os.environ['GCLOUD_PROJECT']}.qalert.backfill_geo_enriched_deduped
 WHERE child_ticket = True
 """
 qalert_requests_split_new_children = BigQueryOperator(
@@ -203,11 +202,11 @@ qalert_requests_split_new_children = BigQueryOperator(
 
 # Add new parents in all_linked_requests
 query_append_new_parents = f"""
-INSERT INTO {os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests
+INSERT INTO {os.environ['GCLOUD_PROJECT']}.qalert.backfill_all_linked_requests
 SELECT 
     {LINKED_COLS_IN_ORDER}
 FROM 
-    {os.environ['GCLOUD_PROJECT']}.qalert.new_parents;
+    {os.environ['GCLOUD_PROJECT']}.qalert.backfill_parents;
 """
 qalert_requests_append_new_parent_tickets = BigQueryOperator(
         task_id = 'qalert_requests_append_new_parent_tickets',
@@ -224,7 +223,7 @@ qalert_requests_append_new_parent_tickets = BigQueryOperator(
 # Update all linked tickets with the information from new children
 query_update_parent = f"""
 -- Create/Replace table after all nested WITH operators
-CREATE OR REPLACE TABLE {os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests AS
+CREATE OR REPLACE TABLE {os.environ['GCLOUD_PROJECT']}.qalert.backfill_all_linked_requests AS
 
 
     -- Outer WITH operator (all_appended): 
@@ -244,7 +243,7 @@ CREATE OR REPLACE TABLE {os.environ['GCLOUD_PROJECT']}.qalert.all_linked_request
             STRING_AGG(CONCAT(nc.pii_comments)) AS child_pii_comments,
             STRING_AGG(CONCAT(nc.pii_private_notes)) AS child_pii_notes,
         FROM
-            {os.environ['GCLOUD_PROJECT']}.qalert.new_children nc
+            {os.environ['GCLOUD_PROJECT']}.qalert.backfill_children nc
         GROUP BY match_id
         )
 
@@ -266,7 +265,7 @@ CREATE OR REPLACE TABLE {os.environ['GCLOUD_PROJECT']}.qalert.all_linked_request
         FROM
             child_combined
         RIGHT OUTER JOIN
-            {os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests alr ON 
+            {os.environ['GCLOUD_PROJECT']}.qalert.backfill_all_linked_requests alr ON 
             match_id = alr.id
     )
 
@@ -286,11 +285,11 @@ qalert_requests_update_parent_tickets = BigQueryOperator(
 # subsequently exported to WPRDC. BQ will not currently (2021-10-01) allow data to be pushed from a query and it must
 # be stored in a table prior to the push. Thus, this is a 2 step process also involving the operator below.
 query_drop_pii = f"""
-CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.data_export_scrubbed` AS
+CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.backfill_data_export_scrubbed` AS
 SELECT 
     {SAFE_COLS_IN_ORDER}
 FROM 
-    `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests`
+    `{os.environ['GCLOUD_PROJECT']}.qalert.backfill_all_linked_requests`
 """
 qalert_requests_drop_pii_for_export = BigQueryOperator(
         task_id = 'qalert_requests_drop_pii_for_export',
@@ -299,18 +298,19 @@ qalert_requests_drop_pii_for_export = BigQueryOperator(
         dag = dag
 )
 
+#TODO: uncomment this if a push to WPRDC is needed
 # Export table as CSV to WPRDC bucket
-qalert_wprdc_export = BigQueryToCloudStorageOperator(
-        task_id = 'qalert_wprdc_export',
-        source_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}:qalert.data_export_scrubbed",
-        destination_cloud_storage_uris = [f"gs://{os.environ['GCS_PREFIX']}_wprdc/qalert_requests_" + "{{ ds }}.csv"],
-        dag = dag
-)
+# qalert_wprdc_export = BigQueryToCloudStorageOperator(
+#         task_id = 'qalert_wprdc_export',
+#         source_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}:qalert.backfill_data_export_scrubbed",
+#         destination_cloud_storage_uris = [f"gs://{os.environ['GCS_PREFIX']}_wprdc/qalert_requests_backfill.csv"],
+# #         dag = dag
+# )
 
 # TODO: Data Services team has IAM issues preventing access to Web Team BQ. Uncomment when this is resolved.
 # Export to Web Dev team BQ table
 # query_push_to_web_team = f"""
-# CREATE OR REPLACE TABLE `{os.environ["GCLOUD_WEB_DEV_PROJECT"]}.qalert.data_export_scrubbed` AS
+# CREATE OR REPLACE TABLE `{os.environ["GCLOUD_WEB_DEV_PROJECT"]}.qalert.web_backfill_data_export_scrubbed` AS
 # SELECT
 #   {SAFE_COLS_IN_ORDER}
 # FROM
@@ -323,16 +323,6 @@ qalert_wprdc_export = BigQueryToCloudStorageOperator(
 #         dag = dag
 # )
 
-
-# TODO: this code block was added as part of the dubugging process and it is unclear if it is needed. Will keep/remove
-# (remember to remove the import statement also)
-# when that is more clear.
-delete_new_req = BigQueryTableDeleteOperator(
-        task_id = "delete_new_req",
-        deletion_dataset_table = f"{os.environ['GCLOUD_PROJECT']}.qalert.new_req",
-        dag = dag
-)
-
 # Clean up
 qalert_beam_cleanup = BashOperator(
         task_id = 'qalert_beam_cleanup',
@@ -341,9 +331,12 @@ qalert_beam_cleanup = BashOperator(
 )
 
 # DAG execution:
-# qalert_requests_gcs >> \
 qalert_requests_dataflow >> qalert_requests_bq >> qalert_requests_format_dedupe >> \
 qalert_requests_city_limits >> qalert_requests_geojoin >> qalert_requests_merge_new_tickets >> \
 qalert_requests_split_new_parents >> qalert_requests_split_new_children >> \
 qalert_requests_append_new_parent_tickets >> qalert_requests_update_parent_tickets >> \
-qalert_requests_drop_pii_for_export >> qalert_wprdc_export >> delete_new_req >> qalert_beam_cleanup
+qalert_requests_drop_pii_for_export >> qalert_beam_cleanup
+
+# TODO: add these steps back in as needed
+# qalert_requests_gcs >>
+# qalert_wprdc_export >> qalert_requests_push_to_web_team >> delete_new_req >>
