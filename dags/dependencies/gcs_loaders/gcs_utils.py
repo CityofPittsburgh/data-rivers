@@ -531,6 +531,9 @@ def find_last_successful_run(bucket_name, good_run_path, look_back_date):
     if blob is not None:
         run_info = blob.download_as_string()
         last_good_run = ndjson.loads(run_info.decode('utf-8'))[0]["current_run"]
-        return last_good_run
+        first_run = False
+        return last_good_run, first_run
     else:
-        return str(look_back_date)
+        first_run = True
+        return str(look_back_date), first_run
+
