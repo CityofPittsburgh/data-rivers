@@ -5,7 +5,7 @@ import os
 import logging
 import time
 import re
-
+import json
 import ckanapi
 import ndjson
 import pytz
@@ -41,12 +41,12 @@ def snake_case_place_names(input):
     # if an identifier is found (indicative of a place such as a road or park), we want to join the place with the
     # preceding word with the join character. Thus, "Moore Park" would become "Moore_Park".
     joined_places = (re.sub(r'(\s)\b({})\b'.format(place_name_identifiers), r'_\2', input,
-                            flags = re.IGNORECASE))
+                            flags=re.IGNORECASE))
 
     return joined_places
 
 
-def replace_pii(input_str, retain_location: bool, info_types = DEFAULT_PII_TYPES):
+def replace_pii(input_str, retain_location: bool, info_types=DEFAULT_PII_TYPES):
     # This helper function added 2021-07-26 to update the existing methodology (deprecated below).
     # configure API client call arguments (incuding a full resource id for the project)
 
@@ -57,16 +57,16 @@ def replace_pii(input_str, retain_location: bool, info_types = DEFAULT_PII_TYPES
     max_findings = 0
     include_quote = False
     inspect_config = {
-            "info_types"   : info_types,
-            "include_quote": include_quote,
-            "limits"       : {"max_findings_per_request": max_findings},
+        "info_types": info_types,
+        "include_quote": include_quote,
+        "limits": {"max_findings_per_request": max_findings},
     }
     deidentify_config = {
-            "info_type_transformations": {
-                    "transformations": [
-                            {"primitive_transformation": {"replace_with_info_type_config": {}}}
-                    ]
-            }
+        "info_type_transformations": {
+            "transformations": [
+                {"primitive_transformation": {"replace_with_info_type_config": {}}}
+            ]
+        }
     }
     parent = "projects/{}".format(PROJECT)
 
@@ -152,10 +152,10 @@ def time_to_seconds(t):
     :return: int (time in seconds, 12:00 AM UTC)
     """
     ts = datetime.strptime(t, '%Y-%m-%d')
-    return int(ts.replace(tzinfo = pytz.UTC).timestamp())
+    return int(ts.replace(tzinfo=pytz.UTC).timestamp())
 
 
-def filter_fields(results, relevant_fields, add_fields = True):
+def filter_fields(results, relevant_fields, add_fields=True):
     """
     Remove unnecessary keys from results or filter for only those you want depending on add_fields arg
     :param results: list of dicts
@@ -232,7 +232,7 @@ def execution_date_to_prev_quarter(execution_date):
     return quarter, int(year)
 
 
-def sql_to_dict_list(conn, sql_query, db = 'mssql', date_col = None, date_format = None):
+def sql_to_dict_list(conn, sql_query, db='mssql', date_col=None, date_format=None):
     """
     Execute sql query and return list of dicts
     :param conn: sql db connection
@@ -285,22 +285,22 @@ def json_to_gcs(path, json_object_list, bucket_name):
     take list of dicts in memory and upload to GCS as newline JSON
     """
     blob = storage.Blob(
-            name = path,
-            bucket = storage_client.get_bucket(bucket_name),
+        name=path,
+        bucket=storage_client.get_bucket(bucket_name),
     )
     blob.upload_from_string(
-            # dataflow needs newline-delimited json, so use ndjson
-            data = ndjson.dumps(json_object_list),
-            content_type = 'application/json',
-            client = storage_client,
+        # dataflow needs newline-delimited json, so use ndjson
+        data=ndjson.dumps(json_object_list),
+        content_type='application/json',
+        client=storage_client,
     )
     logging.info(
-            'Successfully uploaded blob %r to bucket %r.', path, bucket_name)
+        'Successfully uploaded blob %r to bucket %r.', path, bucket_name)
 
     print('Successfully uploaded blob {} to bucket {}'.format(path, bucket_name))
 
 
-def get_computronix_odata(endpoint, params = None, expand_fields = None):
+def get_computronix_odata(endpoint, params=None, expand_fields=None):
     """
     Hit the Computronix odata feed and loop through all result pages, storing results in a list of dicts
     :param endpoint (str): API endpoint, e.g. 'DOMIPERMIT'
@@ -338,7 +338,7 @@ def get_computronix_odata(endpoint, params = None, expand_fields = None):
 def query_resource(site, query):
     """Use the datastore_search_sql API endpoint to query a public CKAN resource."""
     ckan = ckanapi.RemoteCKAN(site)
-    response = ckan.action.datastore_search_sql(sql = query)
+    response = ckan.action.datastore_search_sql(sql=query)
     data = response['records']
     # Note that if a CKAN table field name is a Postgres reserved word (like
     # ALL or CAST or NEW), you get a not-very-useful error
@@ -359,14 +359,14 @@ def query_any_resource(resource_id, query):
     site = "https://data.wprdc.org"
     ckan = ckanapi.RemoteCKAN(site)
     # From resource ID, determine package ID.
-    package_id = ckan.action.resource_show(id = resource_id)['package_id']
+    package_id = ckan.action.resource_show(id=resource_id)['package_id']
     # From package ID, determine if the package is private.
-    private = ckan.action.package_show(id = package_id)['private']
+    private = ckan.action.package_show(id=package_id)['private']
     if private:
         print(
-                "As of February 2018, CKAN still doesn't allow you to run a datastore_search_sql query on a private "
-                "dataset. Sorry. See this GitHub issue if you want to know a little more: "
-                "https://github.com/ckan/ckan/issues/1954")
+            "As of February 2018, CKAN still doesn't allow you to run a datastore_search_sql query on a private "
+            "dataset. Sorry. See this GitHub issue if you want to know a little more: "
+            "https://github.com/ckan/ckan/issues/1954")
         raise ValueError("CKAN can't query private resources (like {}) yet.".format(resource_id))
     else:
         return query_resource(site, query)
@@ -396,8 +396,8 @@ def remove_fields(records, fields_to_remove):
     return records
 
 
-def synthesize_query(resource_id, select_fields = ['*'], where_clauses = None, group_by = None, order_by = None,
-                     limit = None):
+def synthesize_query(resource_id, select_fields=['*'], where_clauses=None, group_by=None, order_by=None,
+                     limit=None):
     query = f'SELECT {", ".join(select_fields)} FROM "{resource_id}"'
 
     if where_clauses is not None:
@@ -463,9 +463,9 @@ Here are the resulting top five names for the POODLE STANDARD breed, sorted by d
 """
 
 
-def get_wprdc_data(resource_id, select_fields = ['*'], where_clauses = None, group_by = None, order_by = None,
-                   limit = None,
-                   fields_to_remove = None):
+def get_wprdc_data(resource_id, select_fields=['*'], where_clauses=None, group_by=None, order_by=None,
+                   limit=None,
+                   fields_to_remove=None):
     """
     helper to construct query for CKAN API and return results as list of dictionaries
     :param resource_id: str
@@ -482,9 +482,9 @@ def get_wprdc_data(resource_id, select_fields = ['*'], where_clauses = None, gro
 
     if len(records) == WPRDC_API_HARD_LIMIT:
         print(
-                f"Note that there may be more results than you have obtained since the WPRDC CKAN instance only "
-                f"returns "
-                f"{WPRDC_API_HARD_LIMIT} records at a time.")
+            f"Note that there may be more results than you have obtained since the WPRDC CKAN instance only "
+            f"returns "
+            f"{WPRDC_API_HARD_LIMIT} records at a time.")
         # If you send a bogus SQL query through to the CKAN API, the resulting error message will include the full
         # query used by CKAN, which wraps the query you send something like this: "SELECT * FROM (<your query>) LIMIT
         # 500001", so you can determine the actual hard limit that way.
@@ -499,10 +499,10 @@ def get_wprdc_data(resource_id, select_fields = ['*'], where_clauses = None, gro
 
 def rmsprod_setup():
     parser = argparse.ArgumentParser()
-    parser.add_argument('-e', '--execution_date', dest = 'execution_date',
-                        required = True, help = 'DAG execution date (YYYY-MM-DD)')
-    parser.add_argument('-s', '--prev_execution_date', dest = 'prev_execution_date',
-                        required = True, help = 'Previous DAG execution date (YYYY-MM-DD)')
+    parser.add_argument('-e', '--execution_date', dest='execution_date',
+                        required=True, help='DAG execution date (YYYY-MM-DD)')
+    parser.add_argument('-s', '--prev_execution_date', dest='prev_execution_date',
+                        required=True, help='Previous DAG execution date (YYYY-MM-DD)')
     args = vars(parser.parse_args())
     execution_year = args['execution_date'].split('-')[0]
     execution_month = args['execution_date'].split('-')[1]
@@ -538,7 +538,7 @@ def find_last_successful_run(bucket_name, good_run_path, look_back_date):
         return str(look_back_date), first_run
 
 
-def fix_nd_json_new_line_sep(ndjson: str):
+def fix_nd_json_new_line_sep(nd_json: str):
     """
     :Author - Pranav Banthia
     :param nd_json - NDJson is a json file where each line is an individual json object. The delimiter is a new line \n
@@ -548,11 +548,11 @@ def fix_nd_json_new_line_sep(ndjson: str):
     as a string
     """
     result_ndjson = []
-    for i, line in enumerate(ndjson.split('\n')):
+    for i, line in enumerate(nd_json.split('\n')):
         try:
             json.loads(line)
             result_ndjson.append(line)
-        except:
+        except json.JSONDecodeError:
             json_split = line.split('}{')
             result_ndjson.append(json_split[0] + '}')
             result_ndjson.append('{' + json_split[1])
