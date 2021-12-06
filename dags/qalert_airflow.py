@@ -171,8 +171,8 @@ CREATE OR REPLACE TABLE {os.environ["GCLOUD_PROJECT"]}.qalert.new_updates AS
 SELECT
     * 
 FROM 
-   `data-rivers-testing.qalert.new_geo_enriched_deduped` na
-WHERE na.id IN 
+   `data-rivers-testing.qalert.new_geo_enriched_deduped` nu
+WHERE nu.id IN 
     (
     SELECT aa.id FROM  `data-rivers-testing.qalert.all_actions` aa
     )
