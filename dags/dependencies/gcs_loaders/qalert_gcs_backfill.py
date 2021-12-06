@@ -12,7 +12,7 @@ from gcs_utils import json_to_gcs, replace_pii, find_last_successful_run
 API_LIMIT = 2000
 # init the backfill constants (qalert system went online 4/20/15)
 DEFAULT_RUN_START = "2015-04-19 00:00:00"
-BACKFILL_STOP = datetime.strptime("2021-11-01 00:00:00", "%Y-%m-%d %H:%M:%S")
+BACKFILL_STOP = datetime.strptime("2021-12-01 00:00:00", "%Y-%m-%d %H:%M:%S")
 INCREMENT_DAYS = 14
 
 # init the GCS client for compose operation (to append each batch of data to a growing json)
