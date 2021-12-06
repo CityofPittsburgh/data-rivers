@@ -51,7 +51,6 @@ last_action_unix, last_action_utc, closed_date_est, closed_date_unix, closed_dat
 cross_street_id, city, address_type, anon_google_formatted_address, neighborhood_name, council_district, ward, 
 police_zone, fire_zone, dpw_streets, dpw_enviro, dpw_parks, anon_lat, anon_long"""
 
-
 # TODO: change interval to 5 min. Alter bucket/table declarations appropriately
 # This DAG will run every 5 min which is a departure from our SOP. the schedule interval reflects this in CRON
 # nomemclature. The 5 min interval was chosen to accomodate WPRDC's needs.
@@ -83,7 +82,7 @@ qalert_requests_dataflow = BashOperator(
 # Load AVRO data produced by dataflow_script into BQ temp table
 qalert_requests_bq = GoogleCloudStorageToBigQueryOperator(
         task_id = 'qalert_bq',
-        destination_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}:qalert.new_req",
+        destination_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}:qalert.new_actions",
         bucket = f"{os.environ['GCS_PREFIX']}_qalert",
         source_objects = [f"requests/avro_output/{date_direc}/{ts}/*.avro"],
         write_disposition = 'WRITE_TRUNCATE',
@@ -107,7 +106,7 @@ WITH formatted AS
         CAST(anon_lat AS FLOAT64) AS anon_lat,
         CAST(anon_long AS FLOAT64) AS anon_long,
     FROM 
-        {os.environ['GCLOUD_PROJECT']}.qalert.new_req
+        {os.environ['GCLOUD_PROJECT']}.qalert.new_actions
     )
 SELECT {COLS_IN_ORDER} FROM formatted
 """
@@ -115,14 +114,14 @@ qalert_requests_format_dedupe = BigQueryOperator(
         task_id = 'qalert_dedupe_and_format',
         sql = query_format,
         use_legacy_sql = False,
-        destination_dataset_table = f"{os.environ['GCLOUD_PROJECT']}:qalert.new_req",
+        destination_dataset_table = f"{os.environ['GCLOUD_PROJECT']}:qalert.new_actions",
         write_disposition = 'WRITE_TRUNCATE',
         dag = dag
 )
 
 
 # Query new tickets to determine if they are in the city limits
-query_city_lim = build_city_limits_query('qalert', 'new_req', 'pii_lat', 'pii_long')
+query_city_lim = build_city_limits_query('qalert', 'new_actions', 'pii_lat', 'pii_long')
 qalert_requests_city_limits = BigQueryOperator(
         task_id = 'qalert_city_limits',
         sql = query_city_lim,
@@ -133,8 +132,9 @@ qalert_requests_city_limits = BigQueryOperator(
 
 # TODO: investigate (and if necessary fix) the unknown source of duplicates in the geojoin query (see util function
 #  for clearer explanation)
+# FINAL ENRICHMENT OF NEW DATA
 # Join all the geo information (e.g. DPW districts, etc) to the new data
-query_geo_join = build_revgeo_time_bound_query('qalert', 'new_req', "new_geo_enriched_deduped", 'create_date_est',
+query_geo_join = build_revgeo_time_bound_query('qalert', 'new_actions', "new_geo_enriched_deduped", 'create_date_est',
                                                'id', 'pii_lat', 'pii_long', COLS_IN_ORDER)
 qalert_requests_geojoin = BigQueryOperator(
         task_id = 'qalert_geojoin',
@@ -144,7 +144,48 @@ qalert_requests_geojoin = BigQueryOperator(
 )
 
 
-# Append the geojoined and de-duped new_req to all_actions  (replace table after append to order by ID. BQ does
+# Seperate all tickets that represent new requests from tickets that represent updates to existing tickets
+query_split_new_req = f"""
+CREATE OR REPLACE TABLE {os.environ["GCLOUD_PROJECT"]}.qalert.new_req AS
+SELECT
+    * 
+FROM 
+   `data-rivers-testing.qalert.new_geo_enriched_deduped` na
+WHERE na.id NOT IN 
+    (
+    SELECT aa.id FROM  `data-rivers-testing.qalert.all_actions` aa
+    )
+"""
+qalert_requests_split_new_req = BigQueryOperator(
+        task_id = 'qalert_requests_split_new_req',
+        sql = query_split_new_req,
+        use_legacy_sql = False,
+        dag = dag
+)
+
+
+
+# Seperate all tickets that represent updates from new requests
+query_split_new_update = f"""
+CREATE OR REPLACE TABLE {os.environ["GCLOUD_PROJECT"]}.qalert.new_updates AS
+SELECT
+    * 
+FROM 
+   `data-rivers-testing.qalert.new_geo_enriched_deduped` na
+WHERE na.id IN 
+    (
+    SELECT aa.id FROM  `data-rivers-testing.qalert.all_actions` aa
+    )
+"""
+qalert_requests_split_new_update = BigQueryOperator(
+        task_id = 'qalert_requests_split_new_update',
+        sql = query_split_new_update,
+        use_legacy_sql = False,
+        dag = dag
+)
+
+
+# Append the geojoined and de-duped new_actions to all_actions  (replace table after append to order by ID. BQ does
 # not allow this in INSERT statements (2021-10-01)
 query_append = f"""
 INSERT INTO {os.environ['GCLOUD_PROJECT']}.qalert.all_actions
@@ -152,7 +193,7 @@ SELECT
     {COLS_IN_ORDER} 
 FROM 
     `{os.environ['GCLOUD_PROJECT']}.qalert.new_geo_enriched_deduped`;
-    
+
 CREATE OR REPLACE TABLE {os.environ['GCLOUD_PROJECT']}.qalert.all_actions AS
 SELECT 
     {COLS_IN_ORDER} 
@@ -168,13 +209,13 @@ qalert_requests_merge_new_tickets = BigQueryOperator(
 )
 
 
-# Split new tickets by parent/child status
+# Split new req by parent/child status
 query_split_parent = f"""
-CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert`.new_parents AS
+CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.new_parents` AS
 SELECT 
     {SPLIT_COLS_IN_ORDER} 
 FROM 
-    `{os.environ['GCLOUD_PROJECT']}.qalert`.new_geo_enriched_deduped
+    `{os.environ['GCLOUD_PROJECT']}.qalert`.new_req
 WHERE child_ticket = False;
 
 ALTER TABLE {os.environ['GCLOUD_PROJECT']}.qalert.new_parents
@@ -189,11 +230,11 @@ qalert_requests_split_new_parents = BigQueryOperator(
 
 
 query_split_child = f"""
-CREATE OR REPLACE TABLE {os.environ['GCLOUD_PROJECT']}.qalert.new_children AS
+CREATE OR REPLACE TABLE {os.environ['GCLOUD_PROJECT']}.qalert.new_child AS
 SELECT 
     {COLS_IN_ORDER} 
 FROM 
-    {os.environ['GCLOUD_PROJECT']}.qalert.new_geo_enriched_deduped
+    {os.environ['GCLOUD_PROJECT']}.qalert.new_req
 WHERE child_ticket = True
 """
 qalert_requests_split_new_children = BigQueryOperator(
@@ -220,18 +261,11 @@ qalert_requests_append_new_parent_tickets = BigQueryOperator(
 )
 
 
-
-#TODO: STILL NEED TO UPDATE THE CLOSED STATUS, LAST ACTION, etc.
-# Solution?: get the status/last action of the YOUNGEST child in the inner with block
-# Select * except (above fields ^) from alr in the outer with block Instead, select the above fields (^) from the
-# inner WITH block
-
 # Update all linked tickets with the information from new children
 query_update_parent = f"""
 -- Create/Replace table after all nested WITH operators
 CREATE OR REPLACE TABLE {os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests AS
 
-    
     -- Outer WITH operator (all_appended): 
     WITH all_appended AS
     (
@@ -249,7 +283,7 @@ CREATE OR REPLACE TABLE {os.environ['GCLOUD_PROJECT']}.qalert.all_linked_request
             STRING_AGG(CONCAT(nc.pii_comments)) AS child_pii_comments,
             STRING_AGG(CONCAT(nc.pii_private_notes)) AS child_pii_notes,
         FROM
-            {os.environ['GCLOUD_PROJECT']}.qalert.new_children nc
+            {os.environ['GCLOUD_PROJECT']}.qalert.new_child nc
         GROUP BY match_id
         )
     
@@ -283,6 +317,125 @@ SELECT {LINKED_COLS_IN_ORDER} FROM all_appended
 qalert_requests_update_parent_tickets = BigQueryOperator(
         task_id = 'qalert_requests_update_parent_tickets',
         sql = query_update_parent,
+        use_legacy_sql = False,
+        dag = dag
+)
+
+
+# take all the new actions (used to update ticket status below) and remove redundant updates. take only the latest
+# update
+query_extract_last_updates = f"""
+-- FIND THE LATEST UPDATE BETWEEN ALL UPDATES FOR A GIVEN LINKAGE (E.G. BETWEEN A SET OF PARENTS/CHILDREN)
+-- THE LATEST UPDATE TO THAT LINKAGE ^ IS THE DATA WE NEED TO USE FOR UPDATING THE TICKET STATUS
+
+-- Inner SELECT statements which are brought together with the UNION produce an alias (last_updates_ignore_linkage) 
+-- that contains all columns for both the last updated parent ticket and any associated child tickets. Thus, 
+-- if there are multiple tickets for an incident that is updated, both the child and parent
+-- will be present. The outer SELECT extracts the last update time for each linkage (parent or child (if present)) 
+-- and group_id, which represent the parent ticket's id
+-- last_updates_ignore_linkage is then joined with the new_updates table on the last update time. 
+-- The end result is one row per incident/issue that represents the final action taken (this may be a ticket closure 
+-- or just an update) the update times can be extracted for updating all_linked_requests
+
+CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.latest_updates` AS
+WITH last_update_ignore_linkages AS (
+    SELECT
+        IF(parent_ticket_id != '0', parent_ticket_id, id) AS group_id,
+        MAX(last_action_unix) last_update_all
+    FROM 
+    ( -- last update to each parent 
+        (SELECT * FROM `{os.environ['GCLOUD_PROJECT']}.qalert.new_updates` 
+        JOIN 
+        (SELECT 
+        MAX(last_action_unix) last_update_parent
+        FROM 
+        `{os.environ['GCLOUD_PROJECT']}.qalert.new_updates`
+        WHERE child_ticket = FALSE
+        GROUP BY id)
+    ON last_action_unix = last_update_parent
+    )
+    
+    UNION ALL
+    
+    (-- last update to each child and the child's parent ticket 
+    SELECT 
+        *
+    FROM 
+        `{os.environ['GCLOUD_PROJECT']}.qalert.new_updates`
+    JOIN (
+        SELECT 
+            MAX(last_action_unix) last_update_child
+        FROM 
+            `{os.environ['GCLOUD_PROJECT']}.qalert.new_updates`
+        WHERE child_ticket = TRUE
+        GROUP BY parent_ticket_id
+    )
+    ON last_action_unix = last_update_child)
+    )
+    GROUP BY group_id, id
+)
+
+
+SELECT 
+    group_id AS id,
+    * EXCEPT (group_id, id, parent_ticket_id, child_ticket, origin, last_update_all)
+FROM 
+    `{os.environ['GCLOUD_PROJECT']}.qalert.new_updates` 
+JOIN
+ (
+    SELECT 
+        DISTINCT *
+    FROM 
+        last_update_ignore_linkages
+ ) merged
+ 
+ON last_action_unix = merged.last_update_all AND merged.group_id = id
+
+-- Union merged tickets with leftover tickets that have missing parents
+UNION ALL
+    SELECT 
+        group_id AS id,
+        * EXCEPT (group_id, id, parent_ticket_id, child_ticket, origin, last_update_all)
+    FROM 
+        `{os.environ['GCLOUD_PROJECT']}.qalert.new_updates` 
+    JOIN 
+    (
+        SELECT 
+            DISTINCT * 
+        FROM 
+            last_update_ignore_linkages
+        WHERE NOT EXISTS
+            (SELECT *
+            FROM `{os.environ['GCLOUD_PROJECT']}.qalert.new_updates`
+            WHERE id = group_id)
+    ) missing_parent
+    ON last_action_unix = missing_parent.last_update_all AND missing_parent.group_id = parent_ticket_id 
+"""
+qalert_requests_extract_last_updates = BigQueryOperator(
+        task_id = 'qalert_requests_extract_last_updates',
+        sql = query_extract_last_updates,
+        use_legacy_sql = False,
+        dag = dag
+)
+
+
+# update all_linked_requests with the latest ticket updates
+query_replace_last_updates = f"""
+UPDATE`{os.environ["GCLOUD_PROJECT"]}.qalert.all_linked_requests` alr
+SET alr.status_name = upd.status_name,
+ alr.status_code = upd.status_code,
+ alr.last_action_est = upd.last_action_est,
+ alr.last_action_unix = upd.last_action_unix,
+ alr.last_action_utc = upd.last_action_utc,
+ alr.closed_date_est = upd.closed_date_est,
+ alr.closed_date_utc = upd.closed_date_utc,
+ alr.closed_date_unix = upd.closed_date_unix
+FROM `{os.environ["GCLOUD_PROJECT"]}.qalert.latest_updates` upd
+WHERE alr.id = upd.id
+"""
+qalert_replace_last_updates = BigQueryOperator(
+        task_id = 'qalert_requests_replace_last_updates',
+        sql = query_replace_last_updates,
         use_legacy_sql = False,
         dag = dag
 )
@@ -332,12 +485,9 @@ qalert_wprdc_export = BigQueryToCloudStorageOperator(
 # )
 
 
-#TODO: this code block was added as part of the dubugging process and it is unclear if it is needed. Will keep/remove
-# (remember to remove the import statement also)
-# when that is more clear.
 delete_new_req = BigQueryTableDeleteOperator(
     task_id="delete_new_req",
-    deletion_dataset_table=f"{os.environ['GCLOUD_PROJECT']}.qalert.new_req",
+    deletion_dataset_table=f"{os.environ['GCLOUD_PROJECT']}.qalert.new_actions",
     dag = dag
 )
 
@@ -350,11 +500,10 @@ qalert_beam_cleanup = BashOperator(
 )
 
 
-
 # DAG execution:
 qalert_requests_gcs >> qalert_requests_dataflow >> qalert_requests_bq >> qalert_requests_format_dedupe >> \
-qalert_requests_city_limits >> qalert_requests_geojoin >> qalert_requests_merge_new_tickets >> \
-qalert_requests_split_new_parents >> qalert_requests_split_new_children >> \
-qalert_requests_append_new_parent_tickets >> qalert_requests_update_parent_tickets >> \
+qalert_requests_city_limits >> qalert_requests_geojoin >> qalert_requests_split_new_req >> \
+qalert_requests_split_new_update >> qalert_requests_merge_new_tickets >> qalert_requests_split_new_parents >> \
+qalert_requests_split_new_children >> qalert_requests_append_new_parent_tickets >> \
+qalert_requests_update_parent_tickets >> qalert_requests_extract_last_updates >> qalert_replace_last_updates >> \
 qalert_requests_drop_pii_for_export >> qalert_wprdc_export >> delete_new_req >> qalert_beam_cleanup
-
