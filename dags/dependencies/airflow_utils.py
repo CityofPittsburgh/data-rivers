@@ -450,10 +450,9 @@ def format_dataflow_call(script_name, bucket_name, sub_direc, dataset_id):
 
     # grab the latest GCS upload
     bucket = storage_client.bucket(f"{os.environ['GCS_PREFIX']}_{bucket_name}")
-    blob = bucket.get_blob("requests/successful_run_log/log.json")
+    blob = bucket.get_blob(f"{sub_direc}/successful_run_log/log.json")
     run_info = blob.download_as_string()
     last_run = ndjson.loads(run_info.decode('utf-8'))[0]["current_run"].replace(" ", "_")
-
     last_run_split = last_run.partition("_")[0].split("-")
     date_direc = f"{last_run_split[0]}/{last_run_split[1]}/{last_run_split[2]}"
     ts = last_run.split("_")[1]
