@@ -272,8 +272,7 @@ CREATE OR REPLACE TABLE {os.environ['GCLOUD_PROJECT']}.qalert.all_linked_request
         -- these results represent all of the information in all_linked_requests 
         -- prior to the append job, that was then updated with total request counts and comment/note concatentation   
               
-        -- Thus, operating on the results derived from the inner WITH operator (child_combined) & the (already 
-        existing, 
+        -- Thus, operating on the results derived from the inner WITH operator (child_combined) & the (already existing, 
         -- and soon to be overwritten) all_linked_requests table return:
         --         1) all cols of the linked tickets (all_linked_requests) 
         --         2) the sum of new child tickets belonging to a parent and the parent itself (1 OR MORE children for 

@@ -119,4 +119,3 @@ while datetime.strptime(run_stop_win, "%Y-%m-%d %H:%M:%S") <= BACKFILL_STOP:
         output_file_blob = bucket_obj.blob(append_target_path)
         output_file_blob.content_type = 'application/ndjson'
         output_file_blob.compose([bucket_obj.get_blob(append_target_path), bucket_obj.get_blob(temp_target_path)])
-
