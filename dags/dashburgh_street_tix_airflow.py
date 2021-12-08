@@ -11,35 +11,55 @@ from dependencies.airflow_utils import get_ds_month, get_ds_year, default_args
 dag = DAG(
     'dashburgh_street_tix',
     default_args=default_args,
-    schedule_interval='@daily',
+    schedule_interval='@weekly',
     user_defined_filters={'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year}
 )
 
-query = """SELECT DISTINCT id, dept, requestType, closedOn
-             FROM `data-rivers.qalert.requests`
-            WHERE requestType IN (
-                  'Angle Iron', 'Barricades', 'City Steps, Need Cleared', 
-                  'Curb/Request for Asphalt Windrow', 'Drainage/Leak', 'Graffiti, Removal', 
-                  'Leaves/Street Cleaning', 'Litter', 'Litter Can', 
-                  'Litter Can, Public', 'Litter, Public Property', 'Overgrowth', 
-                  'Port A Potty', 'Potholes', 'Public Right of Way', 
-                  'Salt Box', 'Snow/Ice removal', 'Street Cleaning/Sweeping',
-                  'Trail Maintenance', 'Tree Fallen Across Road', 'Tree Fallen Across Sidewalk'
-                  )
-            AND status = 'closed'
-            AND dept  IN ('DPW - Division 1', 'DPW - Division 2', 'DPW - 2nd Division',
-                          'DPW - Division 3', 'DPW - Division 5', 'DPW - Division 6', 
-                          'DPW - Street Maintenance'
-                          )
-            AND createDateUnix >= 1577854800"""#.format(os.environ['GCLOUD_PROJECT'])
+query = """SELECT DISTINCT id, dept, tix.request_type_name, closed_date_est
+        FROM `data-rivers-testing.qalert.all_linked_requests` tix
+        INNER JOIN
+            (SELECT request_type_name, COUNT(*) AS `count`
+            FROM `data-rivers-testing.qalert.all_linked_requests`
+            WHERE request_type_name  IN (
+                'Angle Iron', 'Barricades', 'City Steps, Need Cleared', 
+                'Curb/Request for Asphalt Windrow', 'Drainage/Leak', 'Graffiti, Removal', 
+                'Leaves/Street Cleaning', 'Litter', 'Litter Can', 
+                'Litter Can, Public', 'Litter, Public Property', 'Overgrowth', 
+                'Port A Potty', 'Potholes', 'Public Right of Way', 
+                'Salt Box', 'Snow/Ice removal', 'Street Cleaning/Sweeping',
+                'Trail Maintenance', 'Tree Fallen Across Road', 'Tree Fallen Across Sidewalk'
+            )
+            AND dept IN ('DPW - Division 1', 'DPW - Division 2', 'DPW - 2nd Division',
+                        'DPW - Division 3', 'DPW - Division 5', 'DPW - Division 6', 
+                        'DPW - Street Maintenance'
+                        )
+            GROUP BY request_type_name
+            ORDER BY `count` DESC
+            LIMIT 10) top_types
+        ON tix.request_type_name = top_types.request_type_name
+        WHERE tix.request_type_name IN (
+            'Angle Iron', 'Barricades', 'City Steps, Need Cleared', 
+            'Curb/Request for Asphalt Windrow', 'Drainage/Leak', 'Graffiti, Removal', 
+            'Leaves/Street Cleaning', 'Litter', 'Litter Can', 
+            'Litter Can, Public', 'Litter, Public Property', 'Overgrowth', 
+            'Port A Potty', 'Potholes', 'Public Right of Way', 
+            'Salt Box', 'Snow/Ice removal', 'Street Cleaning/Sweeping',
+            'Trail Maintenance', 'Tree Fallen Across Road', 'Tree Fallen Across Sidewalk'
+            )
+        AND status_name = 'closed'
+        AND dept IN ('DPW - Division 1', 'DPW - Division 2', 'DPW - 2nd Division',
+                    'DPW - Division 3', 'DPW - Division 5', 'DPW - Division 6', 
+                    'DPW - Street Maintenance'
+                    )
+        AND create_date_unix >= 1577854800"""
 
 format_street_tix = BigQueryOperator(
     task_id='dashburgh_format_street_tix',
     sql=query,
     use_legacy_sql=False,
-    destination_dataset_table='data-rivers-testing:scratch.dashburgh_street_tix',#.format(os.environ['GCLOUD_PROJECT']),
+    destination_dataset_table='data-rivers-testing:scratch.dashburgh_street_tix',
     write_disposition='WRITE_APPEND',
-    time_partitioning={'type': 'DAY'},
+    time_partitioning={'type': 'WEEK'},
     dag=dag
 )
 
