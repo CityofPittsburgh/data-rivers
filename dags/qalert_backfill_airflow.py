@@ -40,6 +40,9 @@ pii_google_formatted_address, address_type, anon_google_formatted_address, neigh
 council_district, ward, police_zone, fire_zone, dpw_streets, dpw_enviro, dpw_parks, pii_lat, pii_long, anon_lat, 
 anon_long"""
 
+EXCLUDE_TYPES = """'Hold - 311', 'Graffiti, Owner Refused DPW Removal', 'Medical Exemption - Tote', 
+'Snow Angel Volunteer', 'Claim form (Law)','Snow Angel Intake', 'Application Request', 'Reject to 311', 'Referral', 
+'Question'"""
 
 # This DAG schedule interval set to None because it will only ever be triggered manually
 dag = DAG(
@@ -143,6 +146,7 @@ WHERE na.id NOT IN
     (
     SELECT aa.id FROM  `data-rivers-testing.qalert.all_actions` aa
     )
+AND request_type_name NOT IN ({EXCLUDE_TYPES})
 """
 qalert_requests_split_new_req = BigQueryOperator(
         task_id = 'qalert_requests_split_new_req',
@@ -162,6 +166,7 @@ WHERE nu.id IN
     (
     SELECT aa.id FROM  `data-rivers-testing.qalert.all_actions` aa
     )
+AND request_type_name NOT IN ({EXCLUDE_TYPES})
 """
 qalert_requests_split_new_update = BigQueryOperator(
         task_id = 'qalert_requests_split_new_update',
@@ -170,21 +175,13 @@ qalert_requests_split_new_update = BigQueryOperator(
         dag = dag
 )
 
-# Append the geojoined and de-duped new_actions to all_actions  (replace table after append to order by ID. BQ does
-# not allow this in INSERT statements (2021-10-01)
+# Append the geojoined and de-duped new_actions to all_actions
 query_append = f"""
 INSERT INTO {os.environ['GCLOUD_PROJECT']}.qalert.all_actions
 SELECT 
     {COLS_IN_ORDER} 
 FROM 
     `{os.environ['GCLOUD_PROJECT']}.qalert.new_geo_enriched_deduped`;
-
-CREATE OR REPLACE TABLE {os.environ['GCLOUD_PROJECT']}.qalert.all_actions AS
-SELECT 
-    {COLS_IN_ORDER} 
-FROM 
-    {os.environ['GCLOUD_PROJECT']}.qalert.all_actions
-ORDER BY id DESC
 """
 qalert_requests_merge_new_tickets = BigQueryOperator(
         task_id = 'qalert_merge_new_tickets',
