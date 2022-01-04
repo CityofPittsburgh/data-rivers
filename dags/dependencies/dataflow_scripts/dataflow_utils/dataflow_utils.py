@@ -7,16 +7,17 @@ import json
 import os
 import pytz
 import math
+from datetime import datetime
+import time
+import requests
+from abc import ABC
+from avro import schema
+from dateutil import parser
 
 import apache_beam as beam
-import requests
-
-from abc import ABC
-from datetime import datetime
 from apache_beam.options.pipeline_options import PipelineOptions
-from avro import schema
+
 from google.cloud import bigquery, storage
-from dateutil import parser
 
 dt = datetime.now()
 bq_client = bigquery.Client()
@@ -317,7 +318,7 @@ class AnonymizeAddressBlock(beam.DoFn, ABC):
         yield datum
 
 
-def generate_args(job_name, bucket, argv, schema_name):
+def generate_args(job_name, bucket, argv, schema_name, limit_workers = [False, None]):
     """
     generate arguments for DataFlow jobs (invoked in DataFlow scripts prior to execution). In brief, this function
     initializes the basic options and setup for each step in a dataflow pipeline(e.g. the GCP project to operate on,
@@ -330,6 +331,8 @@ def generate_args(job_name, bucket, argv, schema_name):
     :param bucket: Google Cloud Storage bucket to which avro files will be uploaded (string)
     :param argv: arg parser object (this will always be passed as 'argv=argv' in DataFlow scripts)
     :param schema_name: Name of avro schema file in Google Cloud Storage against which datums will be validated
+    :param limit_workers: list with boolean variable in first position determining if the max number of dataflow
+    workers should be limited (to comply with quotas) and the corresponding max number of workers in the second position
     :return: known_args (arg parser values), Beam PipelineOptions instance, avro_schemas stored as dict in memory
 
     Add --runner='DirectRunner' to execute a script locally for rapid development, e.g.
@@ -352,6 +355,9 @@ def generate_args(job_name, bucket, argv, schema_name):
     arguments.append('--runner={}'.format(vars(known_args)['runner']))
     arguments.append('--setup_file={}'.format(os.environ['SETUP_PY_DATAFLOW']))
     # ^this doesn't work when added to DEFAULT_DATFLOW_ARGS, for reasons unclear
+
+    if limit_workers[0]:
+        arguments.append(f"--max_num_workers={limit_workers[1]}")
 
     pipeline_args.extend(arguments)
     pipeline_options = PipelineOptions(pipeline_args)
@@ -535,6 +541,8 @@ def regularize_and_geocode_address(datum, self):
     """
 
     base_url = "https://maps.googleapis.com/maps/api/geocode/json"
+
+    # format address according to address type and initialize lat/long
     if datum['address_type'] == 'Intersection':
         address = str(datum[self.street_name_field]) + ' and ' + str(datum[self.cross_street_field]) + ', ' + str(
                 datum[self.city_field])
@@ -548,24 +556,54 @@ def regularize_and_geocode_address(datum, self):
         datum['pii_input_address'] = address
     else:
         address = 'Pittsburgh, PA, USA'
+
     coords = {'lat': None, 'long': None}
-    try:
+
+    # set delays for exponetial backoff (prevents exceeding API quota) and is only used if API call fails
+    curr_delay = 0.1
+    max_delay = 10
+    attempt_ct = 1
+
+    # run until results are retrieved from API or exponential backoff reaches limit
+    while curr_delay <= max_delay:
         res = requests.get(f"{base_url}?address={address}&key={self.api_key}")
+
+        # if API returned results
         if res.json()['results']:
             results = res.json()['results'][0]
+
+            # if results are not empty
             if len(results):
                 fmt_address = results['formatted_address']
                 api_coords = results['geometry']['location']
+
+                # if data could be mapped to PGH (if the formatted address is simply the city/state/country then API
+                # could not find a good result
                 if re.search(r'\bPA\b', fmt_address) and fmt_address != 'Pittsburgh, PA, USA':
                     datum['pii_google_formatted_address'] = fmt_address
                     coords['lat'] = str(api_coords.get('lat'))
                     coords['long'] = str(api_coords.get('lng'))
                 else:
                     datum['address_type'] = 'Unmappable'
-    except requests.exceptions.RequestException as e:
-        pass
-    except KeyError:
-        pass
+
+                # break here (irrespective of output) because the API returned a result
+                break
+
+        # elif not res.json()['results'] and curr_delay < max_delay:
+        else:
+            time.sleep(curr_delay)
+            curr_delay *= 2
+
+            # all other conditions trigger break and are noted in data
+            if curr_delay > max_delay:
+                datum["pii_google_formatted_address"] = f"API not accessible after {attempt_ct} attempts"
+                break
+
+            # increment count for reporting
+            attempt_ct += 1
+
+
+    # update the lat/long
     try:
         datum[self.lat_field] = coords['lat']
         datum[self.long_field] = coords['long']
