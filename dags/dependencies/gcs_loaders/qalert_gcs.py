@@ -18,7 +18,7 @@ bucket = f"{os.environ['GCS_PREFIX']}_qalert"
 # payload below
 yesterday = datetime.combine(datetime.now(tz = pendulum.timezone("utc")) - timedelta(1),
                              datetime.min.time()).strftime("%Y-%m-%d %H:%M:%S")
-run_start_win = find_last_successful_run(bucket, "requests/successful_run_log/log.json", yesterday)
+run_start_win, first_run = find_last_successful_run(bucket, "requests/successful_run_log/log.json", yesterday)
 
 # qscend API requires a value (any value) for the user-agent field
 headers = {'User-Agent': 'City of Pittsburgh ETL'}
