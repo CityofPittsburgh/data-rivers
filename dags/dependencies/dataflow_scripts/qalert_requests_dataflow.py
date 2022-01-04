@@ -55,7 +55,8 @@ def run(argv = None):
             job_name = 'qalert-requests-dataflow',
             bucket = f"{os.environ['GCS_PREFIX']}_qalert",
             argv = argv,
-            schema_name = 'qalert_requests'
+            schema_name = 'qalert_requests',
+            limit_workers = [True, 10]
     )
 
     with beam.Pipeline(options = pipeline_options) as p:
