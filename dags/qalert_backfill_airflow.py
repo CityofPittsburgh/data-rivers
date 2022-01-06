@@ -315,7 +315,7 @@ query_extract_last_updates = f"""
 -- The end result is one row per incident/issue that represents the final action taken (this may be a ticket closure 
 -- or just an update) the update times can be extracted for updating all_linked_requests
 
-CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.latest_updates` AS
+CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.latest_updates` AS 
 WITH last_update_ignore_linkages AS (
     SELECT
         IF(parent_ticket_id != '0', parent_ticket_id, id) AS group_id,
