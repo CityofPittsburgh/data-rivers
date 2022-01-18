@@ -37,7 +37,7 @@ while datetime.strptime(run_stop_win, "%Y-%m-%d %H:%M:%S") <= BACKFILL_STOP:
     while full_requests is None:
         # increment the run stop window (begins the same as the start window). This line will repeat if no records
         # are returned and the stop window will expand
-        run_stop_win = str(datetime.strptime(run_stop_win, "%Y-%m-%d %H:%M:%S") + timedelta(days = INCREMENT_DAYS))
+        run_stop_win = str(datetime.strptime(run_start_win, "%Y-%m-%d %H:%M:%S") + timedelta(days = INCREMENT_DAYS))
 
         # init qscend API vars (requires a value (any value) for the user-agent field)
         headers = {'User-Agent': 'City of Pittsburgh ETL'}
