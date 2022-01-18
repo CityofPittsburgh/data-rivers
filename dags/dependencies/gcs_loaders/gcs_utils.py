@@ -466,7 +466,7 @@ def json_linter(ndjson: str):
                     This function takes in a param called ndjson which is a string object.
 
     We parse each line of the string assuming that every line is an individual json object. If there are any exceptions
-    such as two json objects on the same line then we handle that situation in the except block. Returns an ndjson
+    such as multiple json objects on the same line then we handle that situation in the except block. Returns an ndjson
     as a string
     """
     result_ndjson = []
@@ -476,8 +476,13 @@ def json_linter(ndjson: str):
             result_ndjson.append(line)
         except:
             json_split = line.split('}{')
-            result_ndjson.append(json_split[0] + '}')
-            result_ndjson.append('{' + json_split[1])
+            for idx in range(len(json_split)):
+                if idx == 0:
+                    result_ndjson.append(json_split[idx] + '}')
+                elif idx == (len(json_split)-1):
+                    result_ndjson.append('{' + json_split[idx])
+                else:
+                    result_ndjson.append('{' + json_split[idx] + '}')
 
     return '\n'.join(result_ndjson)
 

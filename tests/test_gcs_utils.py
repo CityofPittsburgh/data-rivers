@@ -42,8 +42,8 @@ class TestGcsUtils(unittest.TestCase):
         self.assertEqual(gcs_utils.execution_date_to_prev_quarter('2020-09-06'), ('Q2', 2020))
 
     def test_json_linter(self):
-        json = "{'id': 1}{'id': 2}{'id':3}"
-        expected = "{'id': 1}\n{'id': 2}\n{'id':3}"
+        json = '{"id": 1}{"id": 2}{"id":3}{"id":4}{"id":5}'
+        expected = '{"id": 1}\n{"id": 2}\n{"id":3}\n{"id":4}\n{"id":5}'
         self.assertEqual(gcs_utils.json_linter(json), expected)
 
 
