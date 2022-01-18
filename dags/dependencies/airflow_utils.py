@@ -3,6 +3,7 @@ from __future__ import absolute_import
 import logging
 import os
 import urllib
+import ndjson
 
 import pendulum
 from datetime import datetime, timedelta
@@ -14,7 +15,7 @@ from google.cloud import bigquery, storage
 
 
 local_tz = pendulum.timezone('America/New_York')
-dt = datetime.now(tz=local_tz)
+dt = datetime.now(tz = local_tz)
 yesterday = datetime.combine(dt - timedelta(1), datetime.min.time())
 
 bq_client = bigquery.Client()
@@ -25,23 +26,23 @@ def on_failure(context):
     dag_id = context['dag_run'].dag_id
 
     task_id = context['task_instance'].task_id
-    context['task_instance'].xcom_push(key=dag_id, value=True)
+    context['task_instance'].xcom_push(key = dag_id, value = True)
 
     logs_url = "{}/admin/airflow/log?dag_id={}&task_id={}&execution_date={}".format(
-        os.environ['AIRFLOW_WEB_SERVER'], dag_id, task_id, context['ts'])
+            os.environ['AIRFLOW_WEB_SERVER'], dag_id, task_id, context['ts'])
     utc_time = logs_url.split('T')[-1]
     logs_url = logs_url.replace(utc_time, urllib.parse.quote(utc_time))
 
     if os.environ['GCLOUD_PROJECT'] == 'data-rivers':
         teams_notification = MSTeamsWebhookOperator(
-            task_id="msteams_notify_failure",
-            trigger_rule="all_done",
-            message="`{}` has failed on task: `{}`".format(dag_id, task_id),
-            button_text="View log",
-            button_url=logs_url,
-            subtitle="View log: {}".format(logs_url),
-            theme_color="FF0000",
-            http_conn_id='msteams_webhook_url')
+                task_id = "msteams_notify_failure",
+                trigger_rule = "all_done",
+                message = "`{}` has failed on task: `{}`".format(dag_id, task_id),
+                button_text = "View log",
+                button_url = logs_url,
+                subtitle = "View log: {}".format(logs_url),
+                theme_color = "FF0000",
+                http_conn_id = 'msteams_webhook_url')
 
         teams_notification.execute(context)
         return
@@ -50,18 +51,18 @@ def on_failure(context):
 
 
 default_args = {
-    'depends_on_past': False,
-    'start_date': yesterday,
-    'email': os.environ['EMAIL'],
-    'email_on_failure': True,
-    'email_on_retry': False,
-    'retries': 1,
-    'retry_delay': timedelta(minutes=5),
-    'project_id': os.environ['GCLOUD_PROJECT'],
-    'on_failure_callback': on_failure,
-    'dataflow_default_options': {
-        'project': os.environ['GCLOUD_PROJECT']
-    }
+        'depends_on_past'         : False,
+        'start_date'              : yesterday,
+        'email'                   : os.environ['EMAIL'],
+        'email_on_failure'        : True,
+        'email_on_retry'          : False,
+        'retries'                 : 1,
+        'retry_delay'             : timedelta(minutes = 5),
+        'project_id'              : os.environ['GCLOUD_PROJECT'],
+        'on_failure_callback'     : on_failure,
+        'dataflow_default_options': {
+                'project': os.environ['GCLOUD_PROJECT']
+        }
 }
 
 
@@ -73,11 +74,214 @@ def get_ds_month(ds):
     return ds.split('-')[1]
 
 
+# TODO: phase out the usage of build_revgeo_query() in favor of build_rev_geo_time_bound_query()
+def  build_revgeo_time_bound_query(dataset, raw_table, new_table_name, create_date, id_col, lat_field, long_field,
+                                  cols_in_order):
+    """
+    Take a table with lat/long values and reverse-geocode it into a new a final table.
+    This function is a substantial refactor of the build_rev_geo() function. This query allows a lat/long point to be
+    localized to a zone within a specifc time range. This is critical as some boundaries have changed over time.
+
+    IN DEPTH EXPLANATION:
+    PURPOSE: Localize locations with lat/long into various geo boundaries in the city. Since boundaries change
+    overtime, this query builds upon
+    a previous version, by selecting the boundaries at a relevant time point.
+
+    This sequence of two queries accomplishes several things. At the start of query 1 a table is created which is
+    then overwritten in query 2.
+    This avoided circular references to views prompting a BQ error and avoids excessive WITH aliasing.
+    It may be possible to avoid this approach, but this methodology was the most readable solution
+    that was found (9/30/2021).
+
+    Query 1 can be divided into 2 components ((A and B) notated below). The first (1A) joins all lat/long coords with
+    their surrounding geo boundaries.
+    The columns for these boundaries (e.g. fire_zone, ward, etc.) are already nulled, and thus are overwritten.
+    However, records that cannot be localized are dropped. The second component (1B) remedies this by using a UNION
+    operator to bring back those
+    unlocalized records.
+
+    Query 1B also has an unexpected behavior. Some records are duplicated (with differing neighborhoods assigned
+    despite having identical lat/long).
+    The source of this behavior is unclear. Because these records have different neighborhoods, a SELECT DISTINCT
+    will not dedupe the table, as the records are not techncially identical. It appers that BigQuery does not allow
+    selection of all columns based on a distinct column (e.g. ID).
+
+    Query 2 represents the most straightforward solution (9/30/2021), which was to partition the table by ID into a
+    row number count, serving as
+    a count of each appearance of an ID. A WHERE statement then exludes records that have a count is greater than 1.
+    This approach is not perfect.
+    It drops all appearances of a duplicated ID after the first. This may not be the best record to keep, but again,
+    was the most succint solution available. This error occurs in less than 1% of records, so the potential negative
+    of effects of this solution are probably minimal.
+
+    Additional explanation is provided inline throughout the query.
+
+    :param dataset: BigQuery dataset (string)
+    :param raw_table: non-reverse geocoded table (string)
+    :param id_col: field in table to use for deduplication
+    :param create_date: ticket creation date (string)
+    :param lat_field: field in table that identifies latitude value
+    :param long_field: field in table that identifies longitude value
+    :param cols_in_order: string of all columns, in the order they should appear in the table (used to maintain
+    explicit column ordering and produce helpful column orders;
+    this is usually a variable passed in and not a string literal as the argument
+    :return: string to be passed through as arg to BigQueryOperator
+    """
+
+    return f"""
+        -- QUERY 1A (results are aliased as 'geo')
+        CREATE OR REPLACE TABLE
+          `{os.environ["GCLOUD_PROJECT"]}.{dataset}.{new_table_name}` AS
+        WITH
+          geo AS (
+          /* select all columns except the geo boundaries (which will be joined in subsequently after being cast as 
+          strings (in the future
+          all tables will follow standarized formatting and this will technically be unnecessary)) (table aliases 
+          begin with "t_")*/
+          SELECT
+            DISTINCT raw.* EXCEPT (neighborhood_name,
+              council_district,
+              ward,
+              police_zone,
+              fire_zone,
+              dpw_streets,
+              dpw_enviro,
+              dpw_parks),
+            CAST (t_hoods.hood AS STRING) AS neighborhood_name,
+            CAST (t_cd.council_district AS STRING) AS council_district,
+            CAST (t_w.ward AS STRING) AS ward,
+            CAST (t_fz.firezones AS STRING) AS fire_zone,
+            CAST (t_pz.zone AS STRING) AS police_zone,
+            CAST (t_st.division AS STRING) AS dpw_streets,
+            CAST (t_es.dpwesid AS STRING) AS dpw_enviro,
+            CAST (t_pk.division AS STRING) AS dpw_parks
+        
+          -- Joining operations begin here to modify the values of each geo boundary
+          FROM
+            `{os.environ["GCLOUD_PROJECT"]}.{dataset}.{raw_table}` AS raw
+          JOIN
+            `data-rivers.geography.neighborhoods` AS t_hoods
+          ON
+            ST_CONTAINS(t_hoods.geometry,
+              ST_GEOGPOINT(raw.{long_field},
+               raw.{lat_field}))
+          JOIN
+            `data-rivers.geography.council_districts` AS t_cd
+          ON
+            ST_CONTAINS(t_cd.geometry,
+              ST_GEOGPOINT(raw.{long_field},
+                raw.{lat_field}))
+          JOIN
+            `data-rivers.geography.wards` AS t_w
+          ON
+            ST_CONTAINS(t_w.geometry,
+              ST_GEOGPOINT(raw.{long_field},
+                raw.{lat_field}))
+          JOIN
+            `data-rivers.geography.fire_zones` AS t_fz
+          ON
+            ST_CONTAINS(t_fz.geometry,
+              ST_GEOGPOINT(raw.{long_field},
+                raw.{lat_field}))
+          JOIN
+            `data-rivers.geography.police_zones` AS t_pz
+          ON
+            ST_CONTAINS(t_pz.geometry,
+              ST_GEOGPOINT(raw.{long_field},
+                raw.{lat_field}))
+          JOIN
+            `data-rivers.geography.dpw_streets_divisions` AS t_st
+          ON
+            ST_CONTAINS(t_st.geometry,
+              ST_GEOGPOINT(raw.{long_field},
+                raw.{lat_field}))
+            AND TIMESTAMP(PARSE_DATE('%m/%d/%Y',
+                t_st.start_date)) <= TIMESTAMP(raw.{create_date})
+            AND IFNULL(TIMESTAMP(PARSE_DATE('%m/%d/%Y',
+                  t_st.end_date)),
+              CURRENT_TIMESTAMP()) >= TIMESTAMP(raw.{create_date})
+          JOIN
+            `data-rivers.geography.dpw_es_divisions` AS t_es
+          ON
+            ST_CONTAINS(t_es.geometry,
+              ST_GEOGPOINT(raw.{long_field},
+                raw.{lat_field}))
+          JOIN
+            `data-rivers.geography.dpw_parks_divisions` AS t_pk
+          ON
+            ST_CONTAINS(t_pk.geometry,
+              ST_GEOGPOINT(raw.{long_field},
+                raw.{lat_field}))
+            AND TIMESTAMP(PARSE_DATE('%m/%d/%Y',
+                t_pk.start_date)) <= TIMESTAMP(raw.{create_date})
+            AND IFNULL(TIMESTAMP(PARSE_DATE('%m/%d/%Y',
+                  t_pk.end_date)),
+              CURRENT_TIMESTAMP()) >= TIMESTAMP(raw.{create_date}))
+        
+        -- QUERY 1B
+        SELECT
+          DISTINCT *
+        FROM
+          geo
+        
+        /* the UNION operator selects the rows from the inpput table that could not be joined on a geozone (this done 
+        in conjuction with operation on IDs that do not appear in geo)*/
+        UNION ALL
+        
+        SELECT
+          DISTINCT `{os.environ["GCLOUD_PROJECT"]}.{dataset}.{raw_table}`.* EXCEPT (neighborhood_name,
+            council_district,
+            ward,
+            police_zone,
+            fire_zone,
+            dpw_streets,
+            dpw_enviro,
+            dpw_parks),
+          CAST (neighborhood_name AS STRING),
+          CAST (council_district AS STRING),
+          CAST (ward AS STRING),
+          CAST (fire_zone AS STRING),
+          CAST (police_zone AS STRING),
+          CAST (dpw_streets AS STRING),
+          CAST (dpw_enviro AS STRING),
+          CAST (dpw_parks AS STRING)
+        FROM
+          `{os.environ["GCLOUD_PROJECT"]}.{dataset}.{raw_table}`
+        WHERE
+          `{os.environ["GCLOUD_PROJECT"]}.{dataset}.{raw_table}`.{id_col} NOT IN (
+          SELECT
+            DISTINCT {id_col}
+          FROM
+            geo);
+        
+        
+        
+        /* QUERY 2 (deduping operation aliased 'ids_counted') calculates the number of times an ID appears.
+        This query overwrites the table that was previously produced*/
+        CREATE OR REPLACE TABLE
+          `{os.environ["GCLOUD_PROJECT"]}.{dataset}.{new_table_name}` AS
+        WITH
+          ids_counted AS (
+          SELECT
+            *,
+            ROW_NUMBER() OVER (PARTITION BY {id_col}) AS id_count
+          FROM
+            `{os.environ["GCLOUD_PROJECT"]}.{dataset}.{new_table_name}`)
+        /* All columns are selected, but column names are explicit (as opposed to * operator)
+        to ensure the columns are selected in the desired order*/
+        SELECT
+          {cols_in_order}
+        FROM
+          ids_counted
+        WHERE
+          id_count = 1"""
+
+
+# TODO: this function will be deprecated ASAP (see above function)
 def build_revgeo_query(dataset, raw_table, id_field):
     """
     Take a table with lat/long values and reverse-geocode it into a new a final table. Use UNION to include rows that
     can't be reverse-geocoded in the final table. SELECT DISTINCT in both cases to remove duplicates.
-
     :param dataset: BigQuery dataset (string)
     :param raw_table: non-reverse geocoded table (string)
     :param id_field: field in table to use for deduplication
@@ -91,7 +295,7 @@ def build_revgeo_query(dataset, raw_table, id_field):
           neighborhoods.hood AS neighborhood,
           council_districts.council AS council_district,
           wards.ward,
-          fire_zones.firezones AS fire_zone,
+          fire_zones.firezones AS fire_zone,`
           police_zones.zone AS police_zone,
           dpw_divisions.objectid AS dpw_division 
        FROM
@@ -163,21 +367,20 @@ def find_backfill_date(bucket_name, subfolder):
     """
     Return the date of the last time a given DAG was run when provided with a bucket name and
     GCS directory to search in. Iterates through buckets to find most recent file update date.
-
     :param bucket_name: name of GCS bucket (string)
     :param subfolder: name of directory within bucket_name to be searched (string)
+    :param ds - date derived from airflow built-in
     :return: date to be used as a backfill date when executing a new DAG run
     """
-    ds = str(datetime.now())
-    ds_yr = get_ds_year(ds)
-    ds_month = get_ds_month(ds)
+    dt_yr = str(dt).split('-')[0]
+    dt_month = str(dt).split('-')[1]
     upload_dates = []
     valid = False
 
     # only search back to 2017
-    while not valid and int(ds_yr) > 2017:
-        prefix = subfolder + '/' + ds_yr + '/' + ds_month
-        blobs = storage_client.list_blobs(bucket_name, prefix=prefix)
+    while not valid and int(dt_yr) > 2017:
+        prefix = subfolder + '/' + dt_yr + '/' + dt_month
+        blobs = storage_client.list_blobs(bucket_name, prefix = prefix)
         list_blobs = list(blobs)
 
         # if blobs are found
@@ -197,21 +400,21 @@ def find_backfill_date(bucket_name, subfolder):
             # backwards in time until 2017
             else:
                 valid = False
-                if ds_month != '01':
+                if dt_month != '01':
                     # values must be converted to int and zero padded to render vals < 10 as two digits
                     # for string comparison
-                    ds_month = str(int(ds_month) - 1).zfill(2)
+                    dt_month = str(int(dt_month) - 1).zfill(2)
                 else:
-                    ds_yr = str(int(ds_yr) - 1)
-                    ds_month = '12'
+                    dt_yr = str(int(dt_yr) - 1)
+                    dt_month = '12'
         # if no blobs detected search back until 2017
         else:
             valid = False
-            if ds_month != '01':
-                ds_month = str(int(ds_month) - 1).zfill(2)
+            if dt_month != '01':
+                dt_month = str(int(dt_month) - 1).zfill(2)
             else:
-                ds_yr = str(int(ds_yr) - 1)
-                ds_month = '12'
+                dt_yr = str(int(dt_yr) - 1)
+                dt_month = '12'
     # extract the last run date by finding the largest upload date value to determine most recent date
     if len(upload_dates):
         last_run = max(upload_dates)
@@ -224,17 +427,75 @@ def find_backfill_date(bucket_name, subfolder):
 def format_gcs_call(script_name, bucket_name, direc):
     exec_script_cmd = 'python {}'.format(os.environ['DAGS_PATH']) + '/dependencies/gcs_loaders/{}'.format(script_name)
     since_arg = ' --since {}'.format(find_backfill_date(bucket_name, direc))
-    exec_date_arg = ' --execution_date {{ ds }}'
+    exec_date_arg = ' --execution_date {}'.format(dt.date())
     return exec_script_cmd + since_arg + exec_date_arg
 
 
-def format_dataflow_call(script_name):
-    exec_script_cmd = 'python {}'.format(os.environ['DAGS_PATH']) + '/dependencies/dataflow_scripts/{}'.format(
-            script_name)
-    date_direc = "{{ds | get_ds_year}}/{{ds | get_ds_month}}/{{ds}}"
-    input_arg = " --input gs://{}_qalert/requests/{}_requests.json".format(os.environ["GCS_PREFIX"], date_direc)
-    output_arg = " --avro_output gs://{}_qalert/requests/avro_output/{}/".format(os.environ["GCS_PREFIX"], date_direc)
-    return exec_script_cmd + input_arg + output_arg
+def format_dataflow_call(script_name, bucket_name, sub_direc, dataset_id):
+    """
+        Find the date of the last time a GCS loader was run successfully and use
+        that information to format a string containing all necessary runtime arguments for a bash operator
+        to execute the dataflow script
+        :param script_name: name of dataflow script to execute (string) e.g. "qalert_requests_dataflow.py"
+        :param bucket_name: name of GCS bucket (string) e.g. "qalert"
+        :param sub_direc: name of directory within bucket_name to be searched (string) e.g. "requests" (located in
+        qalert bucket)
+        :param dataset_id: name of dataset that is attached to json file from GCS loader script (string) e.g.
+        requests (this is sometimes redundant with the sub_direc and is here to allow greater flexibility)
+        :return: string containing all bash arguments for execution of script
+        """
+
+    exec_script_cmd = f"python {os.environ['DAGS_PATH']}/dependencies/dataflow_scripts/{script_name}"
+
+    # grab the latest GCS upload
+    bucket = storage_client.bucket(f"{os.environ['GCS_PREFIX']}_{bucket_name}")
+    blob = bucket.get_blob(f"{sub_direc}/successful_run_log/log.json")
+    run_info = blob.download_as_string()
+    last_run = ndjson.loads(run_info.decode('utf-8'))[0]["current_run"].replace(" ", "_")
+    last_run_split = last_run.partition("_")[0].split("-")
+    date_direc = f"{last_run_split[0]}/{last_run_split[1]}/{last_run_split[2]}"
+    ts = last_run.split("_")[1]
+
+    input_arg = f" --input gs://{os.environ['GCS_PREFIX']}_{bucket_name}/{sub_direc}/{date_direc}/{last_run}_" \
+                f"{dataset_id}.json"
+    output_arg = f" --avro_output gs://{os.environ['GCS_PREFIX']}_{bucket_name}/{sub_direc}/avro_output/" \
+                 f"{date_direc}/{ts}/"
+    return exec_script_cmd + input_arg + output_arg, date_direc, ts
+
+
+def build_city_limits_query(dataset, raw_table, lat_field = 'lat', long_field = 'long'):
+    """
+    Determine whether a set of coordinates fall within the borders of the City of Pittsburgh,
+    while also falling outside the borders of Mt. Oliver. If an address is within the city,
+    the address_type field is left as-is. Otherwise, address_type is changed to 'Outside
+    of City'.
+    :param dataset: source BigQuery dataset that contains the table to be updated
+    :param raw_table: name of the table containing raw 311 data
+    :param lat_field: name of table column that contains latitude value
+    :param long_field: name of table column that contains longitude value
+    :return: string to be passed through as arg to BigQueryOperator
+    **NOTE**: A strange issue occurs with the Mt Oliver borders if it is stored in BigQuery in GEOGRAPHY format.
+    All lat/longs outside of the Mt Oliver boundaries are identified as inside Mt Oliver when passed through ST_COVERS,
+    and all lat/longs inside of Mt Oliver are identified as outside of it. To get around this problem, we have stored
+    the boundary polygons as strings, and then convert those strings to polygons using ST_GEOGFROMTEXT.
+    """
+
+    return f"""
+    UPDATE `{os.environ['GCLOUD_PROJECT']}.{dataset}.{raw_table}`
+    SET address_type = IF ( 
+       ((ST_COVERS((ST_GEOGFROMTEXT((SELECT geometry FROM `data-rivers.geography.pittsburgh_and_mt_oliver_borders`
+                                      WHERE city = 'Mt. Oliver'))),
+               ST_GEOGPOINT(`{os.environ['GCLOUD_PROJECT']}.{dataset}.{raw_table}`.{long_field},
+                    `{os.environ['GCLOUD_PROJECT']}.{dataset}.{raw_table}`.{lat_field})))
+        OR NOT 
+        ST_COVERS((ST_GEOGFROMTEXT((SELECT geometry FROM `data-rivers.geography.pittsburgh_and_mt_oliver_borders`
+                                     WHERE city = 'Pittsburgh'))),
+                   ST_GEOGPOINT(`{os.environ['GCLOUD_PROJECT']}.{dataset}.{raw_table}`.{long_field}, 
+                   `{os.environ['GCLOUD_PROJECT']}.{dataset}.{raw_table}`.{lat_field}))
+       ), 'Outside of City', address_type )
+    WHERE `{os.environ['GCLOUD_PROJECT']}.{dataset}.{raw_table}`.{long_field} IS NOT NULL AND 
+    `{os.environ['GCLOUD_PROJECT']}.{dataset}.{raw_table}`.{lat_field} IS NOT NULL
+    """
 
 
 if __name__ == '__main__':

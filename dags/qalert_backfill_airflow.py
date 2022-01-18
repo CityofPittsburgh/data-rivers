@@ -1,7 +1,3 @@
-# TODO: When Airflow 2.0 is released, upgrade the package, sub in DataFlowPythonOperator for BashOperator,
-#  and pass the argument 'py_interpreter=python3'
-
-
 from __future__ import absolute_import
 
 import os
@@ -14,7 +10,7 @@ from airflow.contrib.operators.bigquery_to_gcs import BigQueryToCloudStorageOper
 
 from dependencies import airflow_utils
 from dependencies.airflow_utils import get_ds_year, get_ds_month, default_args, build_city_limits_query, \
-    build_revgeo_time_bound_query, format_dataflow_call
+    build_revgeo_time_bound_query
 
 
 COLS_IN_ORDER = """id, parent_ticket_id, child_ticket, dept, status_name, status_code, request_type_name, 
@@ -45,27 +41,30 @@ anon_google_formatted_address, neighborhood_name, council_district, ward, police
 dpw_enviro, dpw_parks, pii_lat, pii_long, anon_lat, anon_long"""
 
 
-# TODO: change interval to 5 min. Alter bucket/table declarations appropriately
-# This DAG will run every 60 which is a departure from our SOP. the schedule interval reflects this in CRON
-# nomemclature. The 5 min interval was chosen to accomodate WPRDC's needs.
+# This DAG schedule interval set to None because it will only ever be triggered manually
 dag = DAG(
-        'qalert_requests',
+        'qalert_backfill_requests',
         default_args = default_args,
-        schedule_interval = '0 * * * *',
+        schedule_interval = None,
         user_defined_filters = {'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year}
 )
 
-
+# Note: The GCS loader can be run outside of the DAG for testing purposes. (Execution time for 04-2015 throug 11-2021
+#  backfill was approx 1 hour). Comment/Uncomment as needed.
 # Run gcs_loader
 gcs_loader = BashOperator(
         task_id = 'gcs_loader',
-        bash_command = F"python {os.environ['DAGS_PATH']}/dependencies/gcs_loaders/qalert_gcs.py",
+        bash_command = F"python {os.environ['DAGS_PATH']}/dependencies/gcs_loaders/qalert_gcs_backfill.py",
         dag = dag
 )
 
 
 # Run dataflow_script
-df_cmd_str, date_direc, ts = format_dataflow_call("qalert_requests_dataflow.py", "qalert", "requests", "requests")
+py_cmd = f"python {os.environ['DAGS_PATH']}/dependencies/dataflow_scripts/qalert_requests_dataflow.py"
+in_cmd = f" --input gs://{os.environ['GCS_PREFIX']}_qalert/requests/backfill/data" \
+  "/backfilled_requests_formatted.json"
+out_cmd = f" --avro_output gs://{os.environ['GCS_PREFIX']}_qalert/requests/backfill/data/avro_output/"
+df_cmd_str = py_cmd + in_cmd + out_cmd
 dataflow = BashOperator(
         task_id = 'dataflow',
         bash_command = df_cmd_str,
@@ -133,7 +132,8 @@ geojoin = BigQueryOperator(
         dag = dag
 )
 
-query_insert_new_parent = f"""
+
+query_insert_new_parent =f"""
 /*
 This query check that a ticket has never been seen before (checks all_tix_current_status) AND
 that the ticket is a parent. Satisfying both conditions means that the ticket needs to be placed in all_linked_requests
@@ -165,6 +165,7 @@ insert_new_parent = BigQueryOperator(
         use_legacy_sql = False,
         dag = dag
 )
+
 
 query_remove_false_parents = f"""
 /*
@@ -201,6 +202,7 @@ remove_false_parents = BigQueryOperator(
         dag = dag
 )
 
+
 query_integrate_children = f"""
 /*
 In query_remove_false_parents: false parent tix were found and eliminated. 
@@ -232,7 +234,7 @@ CREATE OR REPLACE TABLE `data-rivers-testing.qalert.temp_child_combined` AS
     AND new_c.child_ticket = TRUE 
     AND new_c.request_type_name NOT IN ({EXCLUDE_TYPES})
     ),
-
+    
     -- children above plus the children of false parent tickets
     combined_children AS
     (
@@ -240,7 +242,7 @@ CREATE OR REPLACE TABLE `data-rivers-testing.qalert.temp_child_combined` AS
     FROM new_children 
 
     UNION ALL
-
+    
     SELECT fp_id AS id, parent_ticket_id, pii_comments, pii_private_notes 
     FROM `data-rivers-testing.qalert.temp_prev_parent_now_child`
     ),
@@ -266,7 +268,7 @@ CREATE OR REPLACE TABLE `data-rivers-testing.qalert.temp_child_combined` AS
         FROM combined_children 
         GROUP BY p_id
     )
-
+    
     -- Selection of all above processing into a temp table
     SELECT 
         child_count.*,
@@ -307,8 +309,7 @@ integrate_children = BigQueryOperator(
 query_replace_last_update = f"""
 /*
 Tickets are continually updated throughout their life. In the vast majority of cases a ticket will be created and 
-then further processed (creating status changes) over a timeline which causes the ticket's lifespan to encompass 
-multiple
+then further processed (creating status changes) over a timeline which causes the ticket's lifespan to encompass multiple
 DAG runs. ONLY THE CURRENT STATUS of each ticket, which been updated since the last DAG run, is returned in the 
 current DAG run. Thus, a ticket appears multiple times in our DAG. 
 
@@ -391,14 +392,14 @@ replace_last_update = BigQueryOperator(
         dag = dag
 )
 
+
 query_delete_old_insert_new_records = f"""
 /*
 All tickets that ever receive an update (or are simply created) should be stored with their current status
 for historical purposes. This query does just that. The data are simply inserted into all_tickets_current_status. If 
 the ticket has been seen before, it is already in all_tickets_current_status. Rather than simply add the newest ticket, 
 this query also deletes the prior entry for that ticket. The key to understanding this is: The API does not return the
-FULL HISTORY of each ticket, but rather a snapshot of the ticket's current status. This means that if the status is 
-updated 
+FULL HISTORY of each ticket, but rather a snapshot of the ticket's current status. This means that if the status is updated 
 multiple times between DAG runs, only the final status is recorded. While the FULL HISTORY has obvious value, this is 
 not available and it less confusing to simply store a current snapshot of the ticket's history. 
 
@@ -422,6 +423,7 @@ delete_old_insert_new_records = BigQueryOperator(
         dag = dag
 )
 
+
 # Create a table from all_linked_requests that has all columns EXCEPT those that have potential PII. This table is
 # subsequently exported to WPRDC. BQ will not currently (2021-10-01) allow data to be pushed from a query and it must
 # be stored in a table prior to the push. Thus, this is a 2 step process also involving the operator below.
@@ -443,6 +445,7 @@ drop_pii_for_export = BigQueryOperator(
         dag = dag
 )
 
+
 # Export table as CSV to WPRDC bucket
 wprdc_export = BigQueryToCloudStorageOperator(
         task_id = 'wprdc_export',
@@ -450,6 +453,7 @@ wprdc_export = BigQueryToCloudStorageOperator(
         destination_cloud_storage_uris = [f"gs://{os.environ['GCS_PREFIX']}_wprdc/qalert_requests_" + "{{ ds }}.csv"],
         dag = dag
 )
+
 
 # Clean up
 beam_cleanup = BashOperator(

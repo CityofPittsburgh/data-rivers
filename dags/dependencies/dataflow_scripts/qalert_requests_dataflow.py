@@ -8,72 +8,116 @@ from apache_beam.io import ReadFromText
 from apache_beam.io.avroio import WriteToAvro
 
 from dataflow_utils import dataflow_utils
-from dataflow_utils.dataflow_utils import JsonCoder, SwapFieldNames, GetDateStrings, generate_args, get_schema
+from dataflow_utils.dataflow_utils import JsonCoder, SwapFieldNames, generate_args, FilterFields, \
+    ColumnsCamelToSnakeCase, GetDateStringsFromUnix, ChangeDataTypes, unix_to_date_strings, \
+    GoogleMapsClassifyAndGeocode, AnonymizeAddressBlock, AnonymizeLatLong
 
 
 class GetStatus(beam.DoFn):
     def process(self, datum):
-        status = ''
-        if datum['statusCode'] == 0:
-            status = 'open'
-        elif datum['statusCode'] == 1:
-            status = 'closed'
-        elif datum['statusCode'] == 3:
-            status = 'in progress'
-        elif datum['statusCode'] == 4:
-            status = 'on hold'
+        if datum['status_code'] == "0":
+            datum["status_name"] = 'open'
+        elif datum['status_code'] == "1":
+            datum["status_name"] = 'closed'
+        elif datum['status_code'] == "3":
+            datum["status_name"] = 'in progress'
+        elif datum['status_code'] == "4":
+            datum["status_name"] = 'on hold'
         else:
             pass
-        datum['status'] = status
         yield datum
 
 
 class GetClosedDate(beam.DoFn):
     def process(self, datum):
-        if datum['status'] == 'closed':
-            datum['closedOn'] = datum['lastAction']
-            datum['closedOnUnix'] = datum['lastActionUnix']
+        if datum['status_name'] == 'closed':
+            datum['closed_date_unix'] = datum['last_action_unix']
+            datum['closed_date_utc'], datum['closed_date_est'] = unix_to_date_strings(datum['last_action_unix'])
         else:
-            datum['closedOn'] = None
-            datum['closedOnUnix'] = None
+            datum['closed_date_unix'], datum['closed_date_utc'], datum['closed_date_est'] = None, None, None
         yield datum
 
 
-def run(argv=None):
-    """
-    If you want to run just this file for rapid development, add the arg '-r DirectRunner' and add
-    GCS paths for --input and --avro_output, e.g.
-    python qalert_requests_dataflow.py --input gs://pghpa_test_qalert/requests/2020/06/2020-06-17_requests.json
-    --avro_output gs://pghpa_test_qalert/requests/avro_output/2020/06/2020-06-17/ -r DirectRunner
-    """
+class DetectChildTicketStatus(beam.DoFn):
+    def process(self, datum):
+        if datum['parent_ticket_id'] == "0":
+            datum['child_ticket'] = False
+        else:
+            datum['child_ticket'] = True
+        yield datum
+
+
+def run(argv = None):
+    # assign the name for the job and specify the AVRO upload location (GCS bucket), arg parser object,
+    # and avro schema to validate data with. Return the arg parser values, PipelineOptions, and avro_schemas (dict)
 
     known_args, pipeline_options, avro_schema = generate_args(
-        job_name='qalert-requests-dataflow',
-        bucket='{}_qalert'.format(os.environ['GCS_PREFIX']),
-        argv=argv,
-        schema_name='City_of_Pittsburgh_QAlert_Requests'
+            job_name = 'qalert-requests-dataflow',
+            bucket = f"{os.environ['GCS_PREFIX']}_qalert",
+            argv = argv,
+            schema_name = 'qalert_requests',
+            limit_workers = [True, 10]
     )
 
-    with beam.Pipeline(options=pipeline_options) as p:
+    with beam.Pipeline(options = pipeline_options) as p:
+        field_name_swaps = [('master', 'parent_ticket_id'),
+                            ('addDateUnix', 'create_date_unix'),
+                            ('lastActionUnix', 'last_action_unix'),
+                            ("status", "status_code"),
+                            ('streetNum', 'pii_street_num'),
+                            ('streetName', 'street'),
+                            ("crossStreetName", "cross_street"),
+                            ("comments", "pii_comments"),
+                            ("privateNotes", "pii_private_notes"),
+                            ("latitude", "pii_lat"),
+                            ("longitude", "pii_long"),
+                            ("cityName", "city"),
+                            ('typeId', 'request_type_id'),
+                            ('typeName', 'request_type_name')]
 
-        date_conversions = [('lastActionUnix', 'lastAction'), ('addDateUnix', 'createDate')]
-        field_name_swaps = [('addDateUnix', 'createDateUnix'),
-                            ('status', 'statusCode'),
-                            ('latitude', 'lat'),
-                            ('longitude', 'long'),
-                            ('master', 'masterRequestId'),
-                            ('typeId', 'requestTypeId'),
-                            ('typeName', 'requestType')]
+        drop_fields = ['addDate', 'lastAction', 'displayDate', 'displayLastAction',
+                       'district', 'submitter', 'priorityValue', 'aggregatorId',
+                       'priorityToDisplay', 'aggregatorInfo', 'resumeDate', "cityId"]
 
-        lines = p | ReadFromText(known_args.input, coder=JsonCoder())
+        date_conversions = [('last_action_unix', 'last_action_utc', 'last_action_est'),
+                            ('create_date_unix', 'create_date_utc', 'create_date_est')]
+
+        type_changes = [("id", "str"), ("parent_ticket_id", "str"), ("status_code", "str"), ("street_id", "str"),
+                        ("cross_street_id", "str"), ("request_type_id", "str")]
+
+        gmap_key = os.environ["GMAP_API_KEY"]
+
+        loc_names = {
+                "street_num_field"  : "pii_street_num",
+                "street_name_field" : "street",
+                "cross_street_field": "cross_street",
+                "city_field"        : "city",
+                "lat_field"         : "pii_lat",
+                "long_field"        : "pii_long"
+        }
+
+        block_anon_accuracy = [("pii_google_formatted_address", 100)]
+        lat_long_accuracy = [("pii_lat", "pii_long", 200)]
+
+        lines = p | ReadFromText(known_args.input, coder = JsonCoder())
 
         load = (
                 lines
-                | beam.ParDo(GetDateStrings(date_conversions))
                 | beam.ParDo(SwapFieldNames(field_name_swaps))
+                | beam.ParDo(FilterFields(drop_fields))
+                | beam.ParDo(ColumnsCamelToSnakeCase())
+                | beam.ParDo(GetDateStringsFromUnix(date_conversions))
+                | beam.ParDo(ChangeDataTypes(type_changes))
                 | beam.ParDo(GetStatus())
                 | beam.ParDo(GetClosedDate())
-                | WriteToAvro(known_args.avro_output, schema=avro_schema, file_name_suffix='.avro', use_fastavro=True))
+                | beam.ParDo(DetectChildTicketStatus())
+                | beam.ParDo(GoogleMapsClassifyAndGeocode(key = gmap_key, loc_field_names = loc_names,
+                                                          partitioned_address = True))
+                | beam.ParDo(AnonymizeLatLong(lat_long_accuracy))
+                | beam.ParDo(AnonymizeAddressBlock(block_anon_accuracy))
+                | WriteToAvro(known_args.avro_output, schema = avro_schema, file_name_suffix = '.avro',
+                              use_fastavro = True)
+        )
 
 
 if __name__ == '__main__':
