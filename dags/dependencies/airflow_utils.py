@@ -75,7 +75,7 @@ def get_ds_month(ds):
 
 
 # TODO: phase out the usage of build_revgeo_query() in favor of build_rev_geo_time_bound_query()
-def build_revgeo_time_bound_query(dataset, raw_table, new_table_name, create_date, id_col, lat_field, long_field,
+def  build_revgeo_time_bound_query(dataset, raw_table, new_table_name, create_date, id_col, lat_field, long_field,
                                   cols_in_order):
     """
     Take a table with lat/long values and reverse-geocode it into a new a final table.
@@ -90,10 +90,10 @@ def build_revgeo_time_bound_query(dataset, raw_table, new_table_name, create_dat
     This sequence of two queries accomplishes several things. At the start of query 1 a table is created which is
     then overwritten in query 2.
     This avoided circular references to views prompting a BQ error and avoids excessive WITH aliasing.
-    It may be possible to avoid this approach but this approach, but this methodology was the most readable solution
-    that was found by 9/30/2021.
+    It may be possible to avoid this approach, but this methodology was the most readable solution
+    that was found (9/30/2021).
 
-    Query 1 can be divided into 2 components ((A and B)notated below). The first (1A) joins all lat/long coords with
+    Query 1 can be divided into 2 components ((A and B) notated below). The first (1A) joins all lat/long coords with
     their surrounding geo boundaries.
     The columns for these boundaries (e.g. fire_zone, ward, etc.) are already nulled, and thus are overwritten.
     However, records that cannot be localized are dropped. The second component (1B) remedies this by using a UNION
@@ -103,18 +103,16 @@ def build_revgeo_time_bound_query(dataset, raw_table, new_table_name, create_dat
     Query 1B also has an unexpected behavior. Some records are duplicated (with differing neighborhoods assigned
     despite having identical lat/long).
     The source of this behavior is unclear. Because these records have different neighborhoods, a SELECT DISTINCT
-    will not dedupe the table,
-    as the records are not techncially identical. It appers that BigQuery does not allow selection of all columns
-    based on a distinct column (e.g. ID).
+    will not dedupe the table, as the records are not techncially identical. It appers that BigQuery does not allow
+    selection of all columns based on a distinct column (e.g. ID).
 
     Query 2 represents the most straightforward solution (9/30/2021), which was to partition the table by ID into a
     row number count, serving as
     a count of each appearance of an ID. A WHERE statement then exludes records that have a count is greater than 1.
     This approach is not perfect.
     It drops all appearances of a duplicated ID after the first. This may not be the best record to keep, but again,
-    was the most succint solution available.
-    This error occurs in less than 1% of records, so the potential negative of effects of this solution are probably
-    minimal.
+    was the most succint solution available. This error occurs in less than 1% of records, so the potential negative
+    of effects of this solution are probably minimal.
 
     Additional explanation is provided inline throughout the query.
 
@@ -225,10 +223,11 @@ def build_revgeo_time_bound_query(dataset, raw_table, new_table_name, create_dat
           DISTINCT *
         FROM
           geo
+        
         /* the UNION operator selects the rows from the inpput table that could not be joined on a geozone (this done 
-        in conjuction
-        with operation on IDs that do not appear in geo)*/
+        in conjuction with operation on IDs that do not appear in geo)*/
         UNION ALL
+        
         SELECT
           DISTINCT `{os.environ["GCLOUD_PROJECT"]}.{dataset}.{raw_table}`.* EXCEPT (neighborhood_name,
             council_district,
