@@ -460,7 +460,7 @@ def format_dataflow_call(script_name, bucket_name, sub_direc, dataset_id):
                 f"{dataset_id}.json"
     output_arg = f" --avro_output gs://{os.environ['GCS_PREFIX']}_{bucket_name}/{sub_direc}/avro_output/" \
                  f"{date_direc}/{ts}/"
-    return exec_script_cmd + input_arg + output_arg, date_direc, ts
+    return exec_script_cmd + input_arg + output_arg
 
 
 def build_city_limits_query(dataset, raw_table, lat_field = 'lat', long_field = 'long'):
