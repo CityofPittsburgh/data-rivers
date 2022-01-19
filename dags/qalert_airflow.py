@@ -89,7 +89,8 @@ gcs_to_bq = GoogleCloudStorageToBigQueryOperator(
 # source of the error is instrinsic to dataflow and may not be fixable). Also, dedupe the results (someties the same
 # ticket appears in the computer system more than 1 time (a QAlert glitch)
 query_format_dedupe = f"""
-WITH formatted AS
+CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_actions` AS
+WITH formatted  AS 
     (
     SELECT 
         DISTINCT * EXCEPT (pii_lat, pii_long, anon_lat, anon_long),
@@ -106,10 +107,9 @@ format_dedupe = BigQueryOperator(
         task_id = 'format_dedupe',
         sql = query_format_dedupe,
         use_legacy_sql = False,
-        destination_dataset_table = f"{os.environ['GCLOUD_PROJECT']}:qalert.new_actions",
-        write_disposition = 'WRITE_TRUNCATE',
         dag = dag
 )
+
 
 # Query new tickets to determine if they are in the city limits
 query_city_lim = build_city_limits_query('qalert', 'incoming_actions', 'pii_lat', 'pii_long')
