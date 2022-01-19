@@ -65,7 +65,7 @@ gcs_loader = BashOperator(
 
 
 # Run dataflow_script
-df_cmd_str, date_direc, ts = format_dataflow_call("qalert_requests_dataflow.py", "qalert", "requests", "requests")
+df_cmd_str = format_dataflow_call("qalert_requests_dataflow.py", "qalert", "requests", "requests")
 dataflow = BashOperator(
         task_id = 'dataflow',
         bash_command = df_cmd_str,
