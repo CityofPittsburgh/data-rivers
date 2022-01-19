@@ -1,3 +1,16 @@
+# SPECIAL NOTE: This DAG is meant to fulfill backfills of the Qalert dataset exclusively. The DAG has a seperate GCS
+# loader, uses the same Dataflow script as the regular DAG, and performs the same SQL queries. The GCS loader and
+# Dataflow script require temporary codebase changes- The GCS loader requires a variable called BACKFILL_STOP to be
+# input by the user. This is located on line 15 of the qalert_gcs_backfill.py script and is used to determine the end
+# point of the backfill. The Dataflow script has an argument, limit_workers, that must be set in the generate_args
+# step of the Dataflow pipeline initialization. This argument allows the user to throttle the number of Dataflow
+# workers that are used in script execution; it is located on 59 of the qalert_requests_dataflow.py script. The argument
+# is necessary for large backfills that could overload an API's maximum request limit. The Google Maps API calls in
+# the Dataflow script, for example, need to be throttled if an excessive number of requests are made per minute.
+# Finally, the Dataflow script needs to be pointed to the location of the backfill data. This is often located in
+# seperate directory structure from the incoming data in normal DAG run. Thus, in_cmd and out_cmd (lines 76 and 77)
+# of this script need to be manually set to the desired location of the backfill data.
+
 from __future__ import absolute_import
 
 import os
@@ -61,8 +74,7 @@ gcs_loader = BashOperator(
 
 # Run dataflow_script
 py_cmd = f"python {os.environ['DAGS_PATH']}/dependencies/dataflow_scripts/qalert_requests_dataflow.py"
-in_cmd = f" --input gs://{os.environ['GCS_PREFIX']}_qalert/requests/backfill/data" \
-  "/backfilled_requests_formatted.json"
+in_cmd = f" --input gs://{os.environ['GCS_PREFIX']}_qalert/requests/backfill/2022-01-28/backfilled_requests_formatted.json"
 out_cmd = f" --avro_output gs://{os.environ['GCS_PREFIX']}_qalert/requests/backfill/2022-01-28/avro_output/"
 df_cmd_str = py_cmd + in_cmd + out_cmd
 dataflow = BashOperator(
@@ -88,7 +100,8 @@ gcs_to_bq = GoogleCloudStorageToBigQueryOperator(
 # source of the error is instrinsic to dataflow and may not be fixable). Also, dedupe the results (someties the same
 # ticket appears in the computer system more than 1 time (a QAlert glitch)
 query_format_dedupe = f"""
-WITH formatted AS
+CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_actions` AS
+WITH formatted  AS 
     (
     SELECT 
         DISTINCT * EXCEPT (pii_lat, pii_long, anon_lat, anon_long),
@@ -105,9 +118,7 @@ format_dedupe = BigQueryOperator(
         task_id = 'format_dedupe',
         sql = query_format_dedupe,
         use_legacy_sql = False,
-        destination_dataset_table = f"{os.environ['GCLOUD_PROJECT']}:qalert.new_actions",
-        write_disposition = 'WRITE_TRUNCATE',
-        dag = dag
+            dag = dag
 )
 
 # Query new tickets to determine if they are in the city limits
