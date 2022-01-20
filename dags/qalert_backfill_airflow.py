@@ -1,8 +1,10 @@
 # SPECIAL NOTE: This DAG is meant to fulfill backfills of the Qalert dataset exclusively. The DAG has a seperate GCS
-# loader, uses the same Dataflow script as the regular DAG, and performs the same SQL queries. The GCS loader and
-# Dataflow script require temporary codebase changes- The GCS loader requires a variable called BACKFILL_STOP to be
-# input by the user. This is located on line 15 of the qalert_gcs_backfill.py script and is used to determine the end
-# point of the backfill. The Dataflow script has an argument, limit_workers, that must be set in the generate_args
+# loader, uses the same Dataflow script as the regular DAG, and performs the same SQL queries. The DAG, GCS loader, and
+# Dataflow script require temporary codebase changes-
+# The GCS loader requires a variable called BACKFILL_STOP to be input by the user. This is located on line 15 of the
+# qalert_gcs_backfill.py script and is used to determine the end point of the backfill. On lines 102-104 of the same
+# script, the target directories for the GCS loader output must also be set.
+# The Dataflow script has an optional argument, limit_workers, that must be set in the generate_args
 # step of the Dataflow pipeline initialization. This argument allows the user to throttle the number of Dataflow
 # workers that are used in script execution; it is located on 59 of the qalert_requests_dataflow.py script. The argument
 # is necessary for large backfills that could overload an API's maximum request limit. The Google Maps API calls in
@@ -74,8 +76,9 @@ gcs_loader = BashOperator(
 
 # Run dataflow_script
 py_cmd = f"python {os.environ['DAGS_PATH']}/dependencies/dataflow_scripts/qalert_requests_dataflow.py"
-in_cmd = f" --input gs://{os.environ['GCS_PREFIX']}_qalert/requests/backfill/2022-01-28/backfilled_requests_formatted.json"
-out_cmd = f" --avro_output gs://{os.environ['GCS_PREFIX']}_qalert/requests/backfill/2022-01-28/avro_output/"
+in_cmd = \
+    f" --input gs://{os.environ['GCS_PREFIX']}_qalert/requests/backfill/2022-01-19/backfilled_requests_formatted.json"
+out_cmd = f" --avro_output gs://{os.environ['GCS_PREFIX']}_qalert/requests/backfill/2022-01-19/avro_output/"
 df_cmd_str = py_cmd + in_cmd + out_cmd
 dataflow = BashOperator(
         task_id = 'dataflow',
