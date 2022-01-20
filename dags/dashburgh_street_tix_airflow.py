@@ -68,10 +68,9 @@ format_street_tix = BigQueryOperator(
     task_id='dashburgh_format_street_tix',
     sql=query,
     use_legacy_sql=False,
-    destination_dataset_table=f"{os.environ['GCLOUD_PROJECT']}:scratch.dashburgh_street_tix",
+    destination_dataset_table=f"{os.environ['GCLOUD_PROJECT']}:qalert.dashburgh_street_tix",
     write_disposition='WRITE_TRUNCATE',
     create_disposition='CREATE_IF_NEEDED',
-    time_partitioning={'type': 'WEEK'},
     dag=dag
 )
 
