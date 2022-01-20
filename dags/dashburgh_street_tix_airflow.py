@@ -16,10 +16,10 @@ dag = DAG(
 )
 
 query = """SELECT DISTINCT id, dept, tix.request_type_name, closed_date_est
-        FROM `data-rivers-testing.qalert.all_linked_requests` tix
+        FROM `{}.qalert.all_linked_requests` tix
         INNER JOIN
             (SELECT request_type_name, COUNT(*) AS `count`
-            FROM `data-rivers-testing.qalert.all_linked_requests`
+            FROM `{}.qalert.all_linked_requests`
             WHERE request_type_name  IN (
                 'Angle Iron', 'Barricades', 'City Steps, Need Cleared', 
                 'Curb/Request for Asphalt Windrow', 'Drainage/Leak', 'Graffiti, Removal', 
@@ -51,13 +51,13 @@ query = """SELECT DISTINCT id, dept, tix.request_type_name, closed_date_est
                     'DPW - Division 3', 'DPW - Division 5', 'DPW - Division 6', 
                     'DPW - Street Maintenance'
                     )
-        AND create_date_unix >= 1577854800"""
+        AND create_date_unix >= 1577854800""".format(os.environ['GCLOUD_PROJECT'])
 
 format_street_tix = BigQueryOperator(
     task_id='dashburgh_format_street_tix',
     sql=query,
     use_legacy_sql=False,
-    destination_dataset_table='data-rivers-testing:scratch.dashburgh_street_tix',
+    destination_dataset_table='{}:scratch.dashburgh_street_tix'.format(os.environ['GCLOUD_PROJECT']),
     write_disposition='WRITE_APPEND',
     time_partitioning={'type': 'WEEK'},
     dag=dag
