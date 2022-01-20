@@ -12,7 +12,7 @@ from gcs_utils import json_to_gcs, replace_pii, find_last_successful_run
 API_LIMIT = 2000
 # init the backfill constants (qalert system went online 4/20/15)
 DEFAULT_RUN_START = "2015-04-19 00:00:00"
-BACKFILL_STOP = datetime.strptime("2021-12-01 00:00:00", "%Y-%m-%d %H:%M:%S")
+BACKFILL_STOP = datetime.strptime("2022-01-20 00:00:00", "%Y-%m-%d %H:%M:%S")
 INCREMENT_DAYS = 14
 
 # init the GCS client for compose operation (to append each batch of data to a growing json)
@@ -37,7 +37,7 @@ while datetime.strptime(run_stop_win, "%Y-%m-%d %H:%M:%S") <= BACKFILL_STOP:
     while full_requests is None:
         # increment the run stop window (begins the same as the start window). This line will repeat if no records
         # are returned and the stop window will expand
-        run_stop_win = str(datetime.strptime(run_stop_win, "%Y-%m-%d %H:%M:%S") + timedelta(days = INCREMENT_DAYS))
+        run_stop_win = str(datetime.strptime(run_start_win, "%Y-%m-%d %H:%M:%S") + timedelta(days = INCREMENT_DAYS))
 
         # init qscend API vars (requires a value (any value) for the user-agent field)
         headers = {'User-Agent': 'City of Pittsburgh ETL'}
@@ -99,9 +99,9 @@ while datetime.strptime(run_stop_win, "%Y-%m-%d %H:%M:%S") <= BACKFILL_STOP:
         full_requests[i]["comments"] = all_comms[i].strip()
 
     # each run of data extracted from the API will be appended to a growing JSON and saved as an individual JSON
-    append_target_path = "requests/backfill/data/backfilled_requests.json"
-    curr_run_target_path = f"requests/backfill/data/{run_stop_win.split(' ')[0]}.json"
-    temp_target_path = "requests/backfill/data/temp_uploaded_blob.json"
+    append_target_path = "requests/backfill/2022-01-19/backfilled_requests.json"
+    curr_run_target_path = f"requests/backfill/2022-01-19/{run_stop_win.split(' ')[0]}.json"
+    temp_target_path = "requests/backfill/2022-01-19/temp_uploaded_blob.json"
 
     # load each run's data as a unique file
     json_to_gcs(curr_run_target_path, full_requests, bucket)
