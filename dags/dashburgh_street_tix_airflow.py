@@ -20,7 +20,7 @@ dag = DAG(
 )
 
 query = f"""-- create a table containing every unique ticket fulfilled by a DPW Streets Division
-        SELECT DISTINCT id, dept, tix.request_type_name, closed_date_est
+        SELECT DISTINCT group_id AS id, dept, tix.request_type_name, closed_date_est
         FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` tix
         INNER JOIN
             (SELECT request_type_name, COUNT(*) AS `count`
