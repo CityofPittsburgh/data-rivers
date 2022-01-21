@@ -5,6 +5,7 @@
 from __future__ import absolute_import
 
 import os
+from datetime import datetime
 
 from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
@@ -52,9 +53,10 @@ dag = DAG(
         'qalert_requests',
         default_args = default_args,
         schedule_interval = '0 * * * *',
+        start_date = datetime(2021, 1, 21),
+        catchup = False,
         user_defined_filters = {'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year}
 )
-
 
 # Run gcs_loader
 gcs_loader = BashOperator(
