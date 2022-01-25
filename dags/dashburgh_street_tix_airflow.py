@@ -15,7 +15,7 @@ from dependencies.airflow_utils import get_ds_month, get_ds_year, default_args
 dag = DAG(
     'dashburgh_street_tix',
     default_args=default_args,
-    schedule_interval='@weekly',
+    schedule_interval='@daily',
     user_defined_filters={'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year}
 )
 
