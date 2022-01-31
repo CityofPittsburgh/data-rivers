@@ -74,6 +74,10 @@ def get_ds_month(ds):
     return ds.split('-')[1]
 
 
+def get_ds_day(ds):
+    return ds.split('-')[2]
+
+
 # TODO: phase out the usage of build_revgeo_query() in favor of build_rev_geo_time_bound_query()
 def  build_revgeo_time_bound_query(dataset, raw_table, new_table_name, create_date, id_col, lat_field, long_field,
                                   cols_in_order):
