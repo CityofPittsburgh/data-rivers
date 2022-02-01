@@ -1,5 +1,6 @@
 import os
 import time
+import argparse
 
 import requests
 import pendulum
@@ -13,12 +14,19 @@ API_LIMIT = 2000
 
 bucket = f"{os.environ['GCS_PREFIX']}_qalert"
 
+parser = argparse.ArgumentParser()
+parser.add_argument('--output_arg', dest='out_loc', required=True,
+                    help='fully specified location to upload the ndjson file')
+args = vars(parser.parse_args())
+
+
 # find the last successful DAG run (needs to be specified in UTC YYYY-MM-DD HH:MM:SS) if there was no previous good
 # run default to yesterday (this does not handle a full self-healing backfill); this is used to initialize the
 # payload below
 yesterday = datetime.combine(datetime.now(tz = pendulum.timezone("utc")) - timedelta(1),
                              datetime.min.time()).strftime("%Y-%m-%d %H:%M:%S")
 run_start_win, first_run = find_last_successful_run(bucket, "requests/successful_run_log/log.json", yesterday)
+
 
 # qscend API requires a value (any value) for the user-agent field
 headers = {'User-Agent': 'City of Pittsburgh ETL'}
@@ -94,10 +102,4 @@ for i in range(len(full_requests)):
 
 
 # load to gcs
-target_direc = "requests"
-year = curr_run.split('-')[0]
-month = curr_run.split('-')[1]
-day = curr_run.split('-')[2].split(' ')[0]
-mod_date_time = curr_run.replace(" ", "_")
-target_path = f"{target_direc}/{year}/{month}/{day}/{mod_date_time}_requests.json"
-json_to_gcs(target_path, full_requests, bucket)
+json_to_gcs(args["out_loc"], full_requests, bucket)

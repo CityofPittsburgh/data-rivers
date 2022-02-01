@@ -14,9 +14,8 @@ from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 from airflow.contrib.operators.bigquery_to_gcs import BigQueryToCloudStorageOperator
 
 from dependencies import airflow_utils
-from dependencies.airflow_utils import get_ds_year, get_ds_month, default_args, build_city_limits_query, \
-    build_revgeo_time_bound_query, format_dataflow_call
-
+from dependencies.airflow_utils import get_ds_year, get_ds_month, get_ds_day, default_args, build_city_limits_query, \
+    build_revgeo_time_bound_query
 
 COLS_IN_ORDER = """id, parent_ticket_id, child_ticket, dept, status_name, status_code, request_type_name, 
 request_type_id, origin, pii_comments, pii_private_notes, create_date_est, create_date_utc, create_date_unix, 
@@ -46,31 +45,39 @@ anon_google_formatted_address, neighborhood_name, council_district, ward, police
 dpw_enviro, dpw_parks, pii_lat, pii_long, anon_lat, anon_long"""
 
 
-# TODO: change interval to 5 min. Alter bucket/table declarations appropriately
-# This DAG will run every 60 which is a departure from our SOP. the schedule interval reflects this in CRON
-# nomemclature. The 5 min interval was chosen to accomodate WPRDC's needs.
 dag = DAG(
         'qalert_requests',
         default_args = default_args,
-        schedule_interval = '0 * * * *',
+        schedule_interval = '@hourly',
         start_date = datetime(2021, 1, 21),
         catchup = False,
-        user_defined_filters = {'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year}
+        user_defined_filters = {'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year,
+                                'get_ds_day': get_ds_day},
+        max_active_runs = 1
 )
 
+
+# initialize gcs locations
+bucket = f"gs://{os.environ['GCS_PREFIX']}_qalert"
+dataset = "requests"
+path = "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds|get_ds_day }}/{{ run_id }}"
+json_loc = f"{path}_requests.json"
+avro_loc = f"avro_output/{path}/"
+
+
 # Run gcs_loader
+exec_gcs = f"python {os.environ['GCS_LOADER_PATH']}/qalert_gcs.py"
 gcs_loader = BashOperator(
         task_id = 'gcs_loader',
-        bash_command = F"python {os.environ['DAGS_PATH']}/dependencies/gcs_loaders/qalert_gcs.py",
+        bash_command = f"{exec_gcs} --output_arg {dataset}/{json_loc}",
         dag = dag
 )
 
 
-# Run dataflow_script
-df_cmd_str = format_dataflow_call("qalert_requests_dataflow.py", "qalert", "requests", "requests")
+exec_df = f"python {os.environ['DATAFLOW_SCRIPT_PATH']}/qalert_requests_dataflow.py"
 dataflow = BashOperator(
         task_id = 'dataflow',
-        bash_command = df_cmd_str,
+        bash_command = f"{exec_df} --input {bucket}/{dataset}/{json_loc} --avro_output {bucket}/{dataset}/{avro_loc}",
         dag = dag
 )
 
@@ -79,7 +86,7 @@ gcs_to_bq = GoogleCloudStorageToBigQueryOperator(
         task_id = 'gcs_to_bq',
         destination_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}:qalert.incoming_actions",
         bucket = f"{os.environ['GCS_PREFIX']}_qalert",
-        source_objects = [f"requests/avro_output/*.avro"],
+        source_objects = [f"{dataset}/{avro_loc}*.avro"],
         write_disposition = 'WRITE_TRUNCATE',
         create_disposition = 'CREATE_IF_NEEDED',
         source_format = 'AVRO',
@@ -111,7 +118,6 @@ format_dedupe = BigQueryOperator(
         use_legacy_sql = False,
         dag = dag
 )
-
 
 # Query new tickets to determine if they are in the city limits
 query_city_lim = build_city_limits_query('qalert', 'incoming_actions', 'pii_lat', 'pii_long')
