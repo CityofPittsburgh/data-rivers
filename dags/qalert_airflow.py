@@ -44,9 +44,7 @@ closed_date_unix, street, cross_street, street_id, cross_street_id, city, addres
 anon_google_formatted_address, neighborhood_name, council_district, ward, police_zone, fire_zone, dpw_streets, 
 dpw_enviro, dpw_parks, pii_lat, pii_long, anon_lat, anon_long"""
 
-# TODO: change interval to 5 min. Alter bucket/table declarations appropriately
-# This DAG will run every 60 which is a departure from our SOP. the schedule interval reflects this in CRON
-# nomemclature. The 5 min interval was chosen to accomodate WPRDC's needs.
+
 dag = DAG(
         'qalert_requests',
         default_args = default_args,
@@ -59,34 +57,27 @@ dag = DAG(
 )
 
 
-run_ym = "".join(["{{ ds|get_ds_year }}/", "{{ ds|get_ds_month }}"])
-run_d = "{{ ds|get_ds_day }}"
-run_ts = "{{ ts }}"
-run_ts = "{{ run_id }}"
+# initialize gcs locations
+bucket = f"gs://{os.environ['GCS_PREFIX']}_qalert"
+dataset = "requests"
+path = "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds|get_ds_day }}/{{ run_id }}"
+json_loc = f"{path}_requests.json"
+avro_loc = f"avro_output/{path}/"
 
-
-# direc_prefix = f"gs://{os.environ['GCLOUD_PROJECT']}/"
-bucket = "requests/"
-
-exec_gcs = f"python {os.environ['GCS_LOADER_PATH']}/qalert_gcs.py"
-json_loc_arg = f"{run_ym}/{run_d}/{run_ts}_requests.json"
-cmds_gcs = "".join([exec_gcs, f" --output_arg {bucket}{json_loc_arg}"])
 
 # Run gcs_loader
+exec_gcs = f"python {os.environ['GCS_LOADER_PATH']}/qalert_gcs.py"
 gcs_loader = BashOperator(
         task_id = 'gcs_loader',
-        bash_command = cmds_gcs,
+        bash_command = f"{exec_gcs} --output_arg {dataset}/{json_loc}",
         dag = dag
 )
 
 
 exec_df = f"python {os.environ['DATAFLOW_SCRIPT_PATH']}/qalert_requests_dataflow.py"
-avro_loc = f"{os.environ['GCS_PREFIX']}/{bucket}avro_output/"
-cmds_df = "".join([exec_df, f" --input {bucket}{json_loc_arg}", f" --avro_output {avro_loc}"])
-
 dataflow = BashOperator(
         task_id = 'dataflow',
-        bash_command = cmds_df,
+        bash_command = f"{exec_df} --input {bucket}/{dataset}/{json_loc} --avro_output {bucket}/{dataset}/{avro_loc}",
         dag = dag
 )
 
@@ -95,7 +86,7 @@ gcs_to_bq = GoogleCloudStorageToBigQueryOperator(
         task_id = 'gcs_to_bq',
         destination_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}:qalert.incoming_actions",
         bucket = f"{os.environ['GCS_PREFIX']}_qalert",
-        source_objects = [f"requests/avro_output/*.avro"],
+        source_objects = [f"{dataset}/{avro_loc}*.avro"],
         write_disposition = 'WRITE_TRUNCATE',
         create_disposition = 'CREATE_IF_NEEDED',
         source_format = 'AVRO',
