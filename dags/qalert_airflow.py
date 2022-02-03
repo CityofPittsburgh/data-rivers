@@ -150,7 +150,7 @@ labeled as a parent. However, in the future the 311 operators may  linke this ti
 existing parent and it will change into a child ticket. This means the original ticket was actually a "false_parent"
 ticket. Future steps in the DAG will handle that possibility, and for this query the only feasible option is to assume
 the ticket is correctly labeled.*/
-'INSERT INTO `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests`
+INSERT INTO `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests`
 (
 SELECT
     id as group_id,
@@ -198,8 +198,8 @@ WHERE id IN (SELECT
 AND child_ticket = TRUE ;
 
 -- delete the false parent ticket's information 
-DELETE FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests`'WHERE group_id' IN (SELECT fp_id FROM `{
-        os.environ['GCLOUD_PROJECT']}.qalert.temp_prev_parent_now_child`);
+DELETE FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests`'WHERE group_id' IN 
+        (SELECT fp_id FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_prev_parent_now_child`);
 """
 remove_false_parents = BigQueryOperator(
         task_id = 'remove_false_parents',
@@ -232,7 +232,6 @@ misrepresented) is handled by this query
     (
     SELECT 
         id, parent_ticket_id, pii_comments, pii_private_notes''    FROM  `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_enriched` new_c
-
     WHERE new_c.id NOT IN 'SELECT id FROM' `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`)
     AND new_c.child_ticket = TRUE 
     AND new_c.request_type_name NOT IN ({EXCLUDE_TYPES})
@@ -327,7 +326,7 @@ changes to the child ticket. This query selects parent tickets which have been p
 simply extracts and updates the status timestamp data from those tickets. This data is then updated in 
 all_linked_requests. 
 */
-'CREATE OR REPL'ACE TABLE  `{os.environ['GCLOUD_PROJECT']}.qalert.temp_update` AS
+'CREATE OR REPLACE TABLE  `{os.environ['GCLOUD_PROJECT']}.qalert.temp_update` AS
 (
 SELECT 
     id, 
@@ -335,9 +334,9 @@ SELECT
     closed_date_est, closed_date_utc,closed_date_unix,
     last_action_est, last_action_utc,last_action_unix, 
     status_name, status_code
-'FROM  `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_enriched`
+FROM  `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_enriched`
 
-WHERE id IN (SELE'T id FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`)
+WHERE id IN (SELECT id FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`)
 AND child_ticket = FALSE 
 AND request_type_name NOT IN ({EXCLUDE_TYPES})
 );
@@ -409,12 +408,12 @@ all_tickets_current_status is currently (01/22) maintained for historical purpos
 analysis as the linkages between tickets are not taken into account. 
 */
 
-DELETE FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`'WHERE id IN (S'ELECT id FRO
-M `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_enriched`);
-'INSERT INTO `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`
+DELETE FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`
+WHERE id IN (SELECT id FROM `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_enriched`);
+INSERT INTO `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`
 SELECT 
     {COLS_IN_ORDER}
-FROM ''    `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_enriched`;
+FROM `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_enriched`;
 """
 delete_old_insert_new_records = BigQueryOperator(
         task_id = 'delete_old_insert_new_records',
