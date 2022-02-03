@@ -162,7 +162,7 @@ SELECT
 
 FROM
     `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_enriched`
-WHERE id NOT IN SELECT id FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`)
+WHERE id NOT IN (SELECT id FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`)
 AND child_ticket = False
 AND request_type_name NOT IN ({EXCLUDE_TYPES})
 );
