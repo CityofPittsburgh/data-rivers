@@ -150,6 +150,7 @@ labeled as a parent. However, in the future the 311 operators may  linke this ti
 existing parent and it will change into a child ticket. This means the original ticket was actually a "false_parent"
 ticket. Future steps in the DAG will handle that possibility, and for this query the only feasible option is to assume
 the ticket is correctly labeled.*/
+
 INSERT INTO `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests`
 (
 SELECT
@@ -161,7 +162,7 @@ SELECT
 
 FROM
     `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_enriched`
-WHERE id NOT IN 'SELECT id FROM' `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`)
+WHERE id NOT IN SELECT id FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`)
 AND child_ticket = False
 AND request_type_name NOT IN ({EXCLUDE_TYPES})
 );
