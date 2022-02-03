@@ -187,11 +187,11 @@ the remove_false_parents query will aggregate this child's information and integ
 along with the other child tickets
 */
 
--- extract the newly identified child's information for integration in the next query'CREATE OR REPL'ACE TABLE 
-`{os.environ['GCLOUD_PROJECT']}.qalert.temp_prev_parent_now_child` AS
+-- extract the newly identified child's information for integration in the next query
+CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.temp_prev_parent_now_child` AS
 SELECT 
-    id AS fp_id,parent_ticket_id, pii_comments, pii_pr'vate_notes
-FRO'M `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_enriched`
+    id AS fp_id,parent_ticket_id, pii_comments, pii_private_notes
+FROM `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_enriched`
 
 WHERE id IN (SELECT 
                 group_id
@@ -199,7 +199,8 @@ WHERE id IN (SELECT
 AND child_ticket = TRUE ;
 
 -- delete the false parent ticket's information 
-DELETE FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests`'WHERE group_id' IN 
+DELETE FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests`
+WHERE group_id IN 
         (SELECT fp_id FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_prev_parent_now_child`);
 """
 remove_false_parents = BigQueryOperator(
@@ -226,14 +227,16 @@ the other newly identified children (those which were never associated with a fa
 Thus, the need to combine ALL OF THE CHILD TICKETS (both those associated with a false parent and those never being 
 misrepresented) is handled by this query
 */
-'CREATE OR REPL'ACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.temp_child_combined` AS
+CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.temp_child_combined` AS
 (
     -- children never seen before and without a false parent
     WITH new_children AS
     (
     SELECT 
-        id, parent_ticket_id, pii_comments, pii_private_notes''    FROM  `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_enriched` new_c
-    WHERE new_c.id NOT IN 'SELECT id FROM' `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`)
+        id, parent_ticket_id, pii_comments, pii_private_notes
+    FROM  
+        `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_enriched` new_c
+    WHERE new_c.id NOT IN (SELECT id FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`)
     AND new_c.child_ticket = TRUE 
     AND new_c.request_type_name NOT IN ({EXCLUDE_TYPES})
     ),
@@ -246,7 +249,7 @@ misrepresented) is handled by this query
 
     UNION ALL
 
-    SELECT fp_id AS id, parent_ticket_id, pii_comments, pii_private_notes''
+    SELECT fp_id AS id, parent_ticket_id, pii_comments, pii_private_notes
     FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_prev_parent_now_child`
     ),
 
@@ -327,7 +330,7 @@ changes to the child ticket. This query selects parent tickets which have been p
 simply extracts and updates the status timestamp data from those tickets. This data is then updated in 
 all_linked_requests. 
 */
-'CREATE OR REPLACE TABLE  `{os.environ['GCLOUD_PROJECT']}.qalert.temp_update` AS
+CREATE OR REPLACE TABLE  `{os.environ['GCLOUD_PROJECT']}.qalert.temp_update` AS
 (
 SELECT 
     id, 
