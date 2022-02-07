@@ -16,7 +16,7 @@ deploy_plugins:
 	
 	gsutil cp -r ./plugins/hooks/*.py gs://us-east1-data-rivers-8605f7ab-bucket/plugins/hooks && \
 	gsutil cp -r ./plugins/operators/*.py gs://us-east1-data-rivers-8605f7ab-bucket/plugins/operators
-	
+
 
 deploy_af2_dags:
 	gsutil cp -r ./af2_dags/*.py gs://us-east1-data-rivers-8605f7ab-bucket/dags && \
