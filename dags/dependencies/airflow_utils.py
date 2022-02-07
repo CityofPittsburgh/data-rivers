@@ -428,6 +428,9 @@ def find_backfill_date(bucket_name, subfolder):
         return str(yesterday.date())
 
 
+
+# TODO: this function will be deprecated and should not be used. It is here for the time being to maintain
+#  institutional knowledge. A better strategy can be seen in the qalert_airflow.py DAG.
 def format_gcs_call(script_name, bucket_name, direc):
     exec_script_cmd = 'python {}'.format(os.environ['DAGS_PATH']) + '/dependencies/gcs_loaders/{}'.format(script_name)
     since_arg = ' --since {}'.format(find_backfill_date(bucket_name, direc))
@@ -435,6 +438,8 @@ def format_gcs_call(script_name, bucket_name, direc):
     return exec_script_cmd + since_arg + exec_date_arg
 
 
+# TODO: this function will be deprecated and should not be used. It is here for the time being to maintain
+#  institutional knowledge. A better strategy can be seen in the qalert_airflow.py DAG.
 def format_dataflow_call(script_name, bucket_name, sub_direc, dataset_id):
     """
         Find the date of the last time a GCS loader was run successfully and use
