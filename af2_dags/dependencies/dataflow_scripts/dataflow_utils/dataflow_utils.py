@@ -64,6 +64,7 @@ class ChangeDataTypes(beam.DoFn, ABC):
 
     def process(self, datum):
         try:
+            # if the value is to be converted to int or float but is already NaN then make it None
             for type_change in self.type_changes:
                 if type(datum[type_change[0]]) == int or type(datum[type_change[0]]) == float:
                     if math.isnan(datum[type_change[0]]):
@@ -80,6 +81,66 @@ class ChangeDataTypes(beam.DoFn, ABC):
                         datum[type_change[0]] = bool(datum[type_change[0]])
                 except ValueError:
                     datum[type_change[0]] = None
+        except TypeError:
+            pass
+
+        yield datum
+
+
+class FilterOutliers(beam.DoFn, ABC):
+    def __init__(self, outlier_check):
+        """
+        :param
+        """
+        self.outlier_check = outlier_check
+
+    def process(self, datum):
+        try:
+            # if the value is to be converted to int or float but is already NaN then make it None
+            for oc in self.outlier_check:
+                if datum[oc[0]] > oc[1] or oc[0] < oc[2]:
+                    datum[oc[0]] = None
+        except TypeError:
+            pass
+
+        yield datum
+
+
+class ConvertBooleans(beam.DoFn, ABC):
+    def __init__(self, bool_changes, include_defaults):
+        """
+        :param bool_changes: list of tuples; each tuple consists of the field we want to change, the value
+        representing True, value represnting False (thus, custom values can be targeted), and finally an indicator of
+        how to treat missing values (e.g. make them all False). The tuples are set for all fields invidually to allow
+        multiple sets of targets and missing value solutions.
+        :param include_defaults: boolean to indicate if a list of common (default) values should also be taken into
+        account. This allows unexpected values to be taken into account.
+        """
+
+        self.bool_changes = bool_changes
+        self.include_defaults = include_defaults
+
+    def process(self, datum):
+        try:
+            for val in self.bool_changes:
+                if self.include_defaults:
+                    t_vals = ["yes", "y", "t", "true", "1", "postive", str(val[1].lower())]
+                    f_vals = ["no", "n", "f", "false", "0", "negative", str(val[2].lower())]
+
+                else:
+                    t_vals = str(self.bool_changes[1]).lower()
+                    f_vals = str(self.bool_changes[2]).lower()
+
+                try:
+                    if not datum[val[0]]:
+                        datum[val[0]] = val[3]
+                    elif str(datum[val[0]]).lower() in t_vals:
+                        datum[val[0]] = True
+                    elif str(datum[val[0]]).lower() in f_vals:
+                        datum[val[0]] = False
+
+                except ValueError:
+                    datum[val[0]] = val[3]
         except TypeError:
             pass
 
@@ -199,20 +260,25 @@ class StandardizeTimes(beam.DoFn, ABC):
 
     def process(self, datum):
         for time_change in self.time_changes:
-            parse_dt = parser.parse(datum[time_change[0]])
-            clean_dt = parse_dt.replace(tzinfo = None)
-            try:
-                pytz.all_timezones.index(time_change[1])
-            except ValueError:
-                pass
+            if datum[time_change[0]]:
+                parse_dt = parser.parse(datum[time_change[0]])
+                clean_dt = parse_dt.replace(tzinfo = None)
+                try:
+                    pytz.all_timezones.index(time_change[1])
+                except ValueError:
+                    pass
+                else:
+                    loc_time = pytz.timezone(time_change[1]).localize(clean_dt, is_dst = None)
+                    utc_conv = loc_time.astimezone(tz = pytz.utc)
+                    east_conv = loc_time.astimezone(tz = pytz.timezone('America/New_York'))
+                    unix_conv = utc_conv.timestamp()
+                    datum.update({'{}_UTC'.format(time_change[0]) : str(utc_conv),
+                                  '{}_EAST'.format(time_change[0]): str(east_conv),
+                                  '{}_UNIX'.format(time_change[0]): unix_conv})
             else:
-                loc_time = pytz.timezone(time_change[1]).localize(clean_dt, is_dst = None)
-                utc_conv = loc_time.astimezone(tz = pytz.utc)
-                east_conv = loc_time.astimezone(tz = pytz.timezone('America/New_York'))
-                unix_conv = utc_conv.timestamp()
-                datum.update({'{}_UTC'.format(time_change[0]) : str(utc_conv),
-                              '{}_EAST'.format(time_change[0]): str(east_conv),
-                              '{}_UNIX'.format(time_change[0]): unix_conv})
+                datum.update({'{}_UTC'.format(time_change[0]) : None,
+                              '{}_EAST'.format(time_change[0]): None,
+                              '{}_UNIX'.format(time_change[0]): None})
 
         yield datum
 
@@ -601,7 +667,6 @@ def regularize_and_geocode_address(datum, self):
 
             # increment count for reporting
             attempt_ct += 1
-
 
     # update the lat/long
     try:
