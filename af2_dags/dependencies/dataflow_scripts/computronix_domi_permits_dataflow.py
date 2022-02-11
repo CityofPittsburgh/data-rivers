@@ -153,7 +153,6 @@ def run(argv = None):
                 | beam.ParDo(GoogleMapsClassifyAndGeocode(key = gmap_key, loc_field_names = loc_names,
                                                           partitioned_address = False, contains_pii = False,
                                                           del_org_input = True))
-
                 | WriteToAvro(known_args.avro_output, schema = avro_schema, file_name_suffix = '.avro',
                               use_fastavro = True))
 
