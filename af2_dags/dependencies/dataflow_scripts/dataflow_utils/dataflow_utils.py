@@ -98,7 +98,7 @@ class FilterOutliers(beam.DoFn, ABC):
         try:
             # if the value is to be converted to int or float but is already NaN then make it None
             for oc in self.outlier_check:
-                if datum[oc[0]] > oc[1] or oc[0] < oc[2]:
+                if datum[oc[0]] < oc[1] or datum[oc[0]] > oc[2]:
                     datum[oc[0]] = None
         except TypeError:
             pass
@@ -110,7 +110,7 @@ class ConvertBooleans(beam.DoFn, ABC):
     def __init__(self, bool_changes, include_defaults):
         """
         :param bool_changes: list of tuples; each tuple consists of the field we want to change, the value
-        representing True, value represnting False (thus, custom values can be targeted), and finally an indicator of
+        representing True, value representing False (thus, custom values can be targeted), and finally an indicator of
         how to treat missing values (e.g. make them all False). The tuples are set for all fields invidually to allow
         multiple sets of targets and missing value solutions.
         :param include_defaults: boolean to indicate if a list of common (default) values should also be taken into
@@ -124,12 +124,12 @@ class ConvertBooleans(beam.DoFn, ABC):
         try:
             for val in self.bool_changes:
                 if self.include_defaults:
-                    t_vals = ["yes", "y", "t", "true", "1", "postive", str(val[1].lower())]
+                    t_vals = ["yes", "y", "t", "true", "1", "positive", str(val[1].lower())]
                     f_vals = ["no", "n", "f", "false", "0", "negative", str(val[2].lower())]
 
                 else:
-                    t_vals = str(self.bool_changes[1]).lower()
-                    f_vals = str(self.bool_changes[2]).lower()
+                    t_vals = str(val[1].lower())
+                    f_vals = str(val[2].lower())
 
                 try:
                     if not datum[val[0]]:

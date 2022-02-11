@@ -125,7 +125,7 @@ def run(argv = None):
         # TODO: WRITE A DOC STRING FOR OUTLIER FUNC WHEN FULLY CONFIDENT
         # Because the data are hand entered in the CX system, occassionally bizarre (and extreme) values can be
         # input. On the surface this is not terribly problematic. However, outlier variables can cause runtime
-        # exceptions if they exceede range limitations (for example a field that is an int receiving a 64 bit value).
+        # exceptions if they exceed range limitations (for example a field that is an int receiving a 64 bit value).
         # We will detect extreme values present in the following fields and Null them as appropriate
         outliers_conv = [("num_dumpsters", MIN_DUMPSTERS, MAX_DUMPSTERS), ("num_machines", MIN_MACHINES, MAX_MACHINES)]
 

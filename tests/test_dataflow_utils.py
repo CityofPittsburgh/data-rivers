@@ -11,6 +11,7 @@ import requests
 import pytz
 
 from dataflow_utils import dataflow_utils
+from af2_dags.dependencies.dataflow_scripts.dataflow_utils import dataflow_utils as af2_dataflow_utils
 from numpy import random
 
 
@@ -38,6 +39,29 @@ class TestDataflowUtils(unittest.TestCase):
                     'bool1': True, 'bool2': True, 'nan_float': None, 'nan_int': None, 'nan_str': None}
         cdt = dataflow_utils.ChangeDataTypes(type_changes)
         self.assertEqual(next(cdt.process(datum)), expected)
+
+    def test_convert_booleans(self):
+        datum = {'bool_1': 'yeah', 'bool_2': 'nope',
+                 'bool_3': 'nah', 'bool_4': 'yup',
+                 'bool_5': '', 'bool_6': None}
+        bool_changes = [('bool_1', 'yeah', 'nah', 'N/A'),
+                        ('bool_2', 'yup', 'nope', False),
+                        ('bool_3', 'yeah', 'nah', 'N/A'),
+                        ('bool_4', 'yup', 'nope', False),
+                        ('bool_5', 'yeah', 'nah', 'N/A'),
+                        ('bool_6', 'yup', 'nope', False)]
+        expected = {'bool_1': True, 'bool_2': False,
+                    'bool_3': False, 'bool_4': True,
+                    'bool_5': 'N/A', 'bool_6': False}
+        cb = af2_dataflow_utils.ConvertBooleans(bool_changes, include_defaults = False)
+        self.assertEqual(next(cb.process(datum)), expected)
+
+    def test_filter_outliers(self):
+        datum = {"num_bridges": 446, "num_super_bowls": 6}
+        outliers_conv = [("num_bridges", 1, 445), ("num_super_bowls", 6, 9999)]
+        expected = {"num_bridges": None, "num_super_bowls": 6}
+        fo = af2_dataflow_utils.FilterOutliers(outliers_conv)
+        self.assertEqual(next(fo.process(datum)), expected)
 
     def test_google_maps_classify_and_geocode(self):
         datum = [{'streetName': '5TH AVE', 'streetNum': '5939', 'crossStreetName': '', 'cityName': 'Pittsburgh', 'latitude': 0.0, 'longitude': 0.0},
