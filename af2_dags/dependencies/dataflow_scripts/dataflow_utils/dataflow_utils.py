@@ -191,17 +191,17 @@ class GetDateStringsFromUnix(beam.DoFn, ABC):
 
 
 class GoogleMapsClassifyAndGeocode(beam.DoFn, ABC):
-    def __init__(self, key, loc_field_names, partitioned_address):
+    def __init__(self, key, loc_field_names, partitioned_address, contains_pii, del_org_input ):
         """
         :param partitioned_address: a boolean that idenitifies whether an address is broken into multiple components
         :param loc_field_names: dictionary of 7 field name keys that contain the following information:
-        :param address_field: name of field that contains single-line addresses
-        :param street_num_field: name of field that contains house numbers
-        :param street_name_field: name of field that contains street address names
-        :param cross_street_field: name of field that contains intersecting street names
-        :param city_field: name of field that contains the city a given street address belongs to
-        :param lat_field: name of field that contains the latitude of an address
-        :param long_field: name of field that contains the longitude of an address
+            :param address_field: name of field that contains single-line addresses
+            :param street_num_field: name of field that contains house numbers
+            :param street_name_field: name of field that contains street address names
+            :param cross_street_field: name of field that contains intersecting street names
+            :param city_field: name of field that contains the city a given street address belongs to
+            :param lat_field: name of field that contains the latitude of an address
+            :param long_field: name of field that contains the longitude of an address
         """
         self.partioned_address = partitioned_address
         if partitioned_address:
@@ -217,18 +217,32 @@ class GoogleMapsClassifyAndGeocode(beam.DoFn, ABC):
 
         self.api_key = key
 
+        self.pii_vals = contains_pii
+        self.del_org_input = del_org_input
+
+
     def process(self, datum):
         datum[self.lat_field] = float(datum[self.lat_field])
         datum[self.long_field] = float(datum[self.long_field])
-        datum['pii_input_address'] = None
-        datum['pii_google_formatted_address'] = None
+
+        if self.pii_vals:
+            input_name = 'pii_input_address'
+            formatted_name = "pii_google_formatted_address"
+
+        else:
+            input_name = 'input_address'
+            formatted_name = "google_formatted_address"
+
+        datum[input_name] = None
+        datum[formatted_name] = None
         datum['address_type'] = None
 
         if self.partioned_address:
             datum = id_underspecified_addresses(datum, self)
         if datum['address_type'] not in ['Missing', 'Coordinates Only']:
-            datum = regularize_and_geocode_address(datum, self)
-
+            datum = regularize_and_geocode_address(datum, self, input_name, formatted_name)
+        if self.del_org_input:
+            datum.pop(self.address_field)
         yield datum
 
 
@@ -244,7 +258,7 @@ class GeocodeAddress(beam.DoFn):
 
 
 class StandardizeTimes(beam.DoFn, ABC):
-    def __init__(self, time_changes):
+    def __init__(self, time_changes, del_old_cols):
         """
         :param time_changes: list of tuples; each tuple consists of an existing field name containing date strings +
         the name of the timezone the given date string belongs to.
@@ -257,6 +271,7 @@ class StandardizeTimes(beam.DoFn, ABC):
         (JF)
         """
         self.time_changes = time_changes
+        self.del_old_cols = del_old_cols
 
     def process(self, datum):
         for time_change in self.time_changes:
@@ -275,10 +290,14 @@ class StandardizeTimes(beam.DoFn, ABC):
                     datum.update({'{}_UTC'.format(time_change[0]) : str(utc_conv),
                                   '{}_EAST'.format(time_change[0]): str(east_conv),
                                   '{}_UNIX'.format(time_change[0]): unix_conv})
+                    if self.del_old_cols:
+                        datum.pop(time_change[0])
             else:
                 datum.update({'{}_UTC'.format(time_change[0]) : None,
                               '{}_EAST'.format(time_change[0]): None,
                               '{}_UNIX'.format(time_change[0]): None})
+                if self.del_old_cols:
+                    datum.pop(time_change[0])
 
         yield datum
 
@@ -600,7 +619,7 @@ def id_underspecified_addresses(datum, self):
 
 
 # This functions geocodes an address using Google Maps AND standardizes the address formatting
-def regularize_and_geocode_address(datum, self):
+def regularize_and_geocode_address(datum, self, i_name, f_name):
     """
     Take in addresses of different formats, regularize them to USPS/Google Maps format, then geocode lat/long values
     :return: datum in PCollection (dict) with two new fields (lat, long) containing coordinates
@@ -619,7 +638,7 @@ def regularize_and_geocode_address(datum, self):
         address = str(datum[self.street_num_field]) + ' ' + str(datum[self.street_name_field]) + ', ' + str(
                 datum[self.city_field])
     if 'none' not in address.lower():
-        datum['pii_input_address'] = address
+        datum[i_name] = address
     else:
         address = 'Pittsburgh, PA, USA'
 
@@ -646,7 +665,7 @@ def regularize_and_geocode_address(datum, self):
                 # if data could be mapped to PGH (if the formatted address is simply the city/state/country then API
                 # could not find a good result
                 if re.search(r'\bPA\b', fmt_address) and fmt_address != 'Pittsburgh, PA, USA':
-                    datum['pii_google_formatted_address'] = fmt_address
+                    datum[f_name] = fmt_address
                     coords['lat'] = str(api_coords.get('lat'))
                     coords['long'] = str(api_coords.get('lng'))
                 else:
@@ -668,7 +687,7 @@ def regularize_and_geocode_address(datum, self):
             # increment count for reporting
             attempt_ct += 1
 
-    # update the lat/long
+    # update the lat/long (potentially overwriting the input, depending on what was passed in)
     try:
         datum[self.lat_field] = coords['lat']
         datum[self.long_field] = coords['long']
