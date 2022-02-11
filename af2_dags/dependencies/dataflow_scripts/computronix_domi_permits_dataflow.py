@@ -9,7 +9,7 @@ from apache_beam.io.avroio import WriteToAvro
 
 import dataflow_utils
 from dataflow_utils.dataflow_utils import JsonCoder, SwapFieldNames, ChangeDataTypes, ConvertBooleans, \
-    FilterOutliers, StandardizeTimes, generate_args
+    FilterOutliers, StandardizeTimes, GoogleMapsClassifyAndGeocode, generate_args
 
 MIN_DUMPSTERS = 0
 MAX_DUMPSTERS = 20
@@ -56,7 +56,7 @@ class ParseNestedFields(beam.DoFn):
         self.extract_field(datum, 'DOMISTREETCLOSURE', 'FROMDATE', 'street_close_date_start')
         self.extract_field(datum, 'DOMISTREETCLOSURE', 'TODATE', 'street_close_stop')
         self.extract_field(datum, 'DOMISTREETCLOSURE', 'WEEKDAYWORKHOURS', 'street_close_wkday_hours')
-        self.extract_field(datum, 'DOMISTREETCLOSURE', 'WEEKENDWORKHOURS', 'street_close_wkday_hours')
+        self.extract_field(datum, 'DOMISTREETCLOSURE', 'WEEKENDWORKHOURS', 'street_close_wkend_hours')
         # location
         self.extract_field(datum, 'DOMISTREETCLOSURE', 'PRIMARYSTREET', 'primary_street')
         self.extract_field(datum, 'DOMISTREETCLOSURE', 'FROMSTREET', 'closure_origin')
@@ -79,23 +79,6 @@ class ParseNestedFields(beam.DoFn):
         del datum['LOCATION']
 
         yield datum
-
-
-# TODO: this needs to be converted to the gmap version
-# class GeocodeAddress(beam.DoFn):
-#     """
-#     Geocode if datum has address but no lat/long
-#     """
-#     def process(self, datum):
-#
-#         if datum['ADDRESS'] and (not datum['lat'] or not datum['long']):
-#             coords = geocode_address(datum, 'ADDRESS')
-#             datum['lat'] = coords['lat']
-#             datum['long'] = coords['long']
-#         else:
-#             pass
-#
-#         yield datum
 
 
 def run(argv = None):
@@ -151,9 +134,10 @@ def run(argv = None):
         time_conv = [("effective_date", "UTC"), ("exp_date", "UTC"), ("work_date_start", "UTC"),
                      ("work_date_stop", "UTC"), ("date_end", "UTC"), ('street_close_date_start', "UTC"),
                      ('street_close_stop', "UTC"), ('street_close_wkday_hours', "UTC"),
-                     ('street_close_wkday_hours', "UTC")]
+                     ('street_close_wkend_hours', "UTC")]
 
         gmap_key = os.environ["GMAP_API_KEY"]
+        loc_names = {"address_field": "address", "lat_field": "lat", "long_field": "long"}
 
         lines = p | ReadFromText(known_args.input, coder = JsonCoder())
 
@@ -164,9 +148,11 @@ def run(argv = None):
                 | beam.ParDo(ChangeDataTypes(data_type_changes))
                 | beam.ParDo(ConvertBooleans(bool_changes, include_defaults = True))
                 | beam.ParDo(FilterOutliers(outliers_conv))
-                | beam.ParDo(StandardizeTimes(time_conv))
-                # | beam.ParDo(GoogleMapsClassifyAndGeocode(key = gmap_key, loc_field_names = loc_names,
-                #                                           partitioned_address = True))
+                # ToDo: Modify the doc string
+                | beam.ParDo(StandardizeTimes(time_conv, del_old_cols = True))
+                | beam.ParDo(GoogleMapsClassifyAndGeocode(key = gmap_key, loc_field_names = loc_names,
+                                                          partitioned_address = False, contains_pii = False,
+                                                          del_org_input = True))
 
                 | WriteToAvro(known_args.avro_output, schema = avro_schema, file_name_suffix = '.avro',
                               use_fastavro = True))
