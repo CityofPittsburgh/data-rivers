@@ -42,7 +42,7 @@ request_type_name, request_type_id, create_date_est, create_date_utc,
 create_date_unix, last_action_est, last_action_unix, last_action_utc, closed_date_est, closed_date_utc,  
 closed_date_unix, street, cross_street, street_id, cross_street_id, city, address_type,  
 anon_google_formatted_address, neighborhood_name, council_district, ward, police_zone, fire_zone, dpw_streets, 
-dpw_enviro, dpw_parks, pii_lat, pii_long, anon_lat, anon_long"""
+dpw_enviro, dpw_parks, anon_lat, anon_long"""
 
 
 dag = DAG(
