@@ -1,11 +1,21 @@
-# TODO: When Airflow 2.0 is released, upgrade the package, sub in DataFlowPythonOperator for BashOperator,
-#  and pass the argument 'py_interpreter=python3'
-
+# SPECIAL NOTE: This DAG is meant to fulfill backfills of the Qalert dataset exclusively. The DAG has a seperate GCS
+# loader, uses the same Dataflow script as the regular DAG, and performs the same SQL queries. The DAG, GCS loader, and
+# Dataflow script require temporary codebase changes-
+# The GCS loader requires a variable called BACKFILL_STOP to be input by the user. This is located on line 15 of the
+# qalert_gcs_backfill.py script and is used to determine the end point of the backfill. On lines 102-104 of the same
+# script, the target directories for the GCS loader output must also be set.
+# The Dataflow script has an optional argument, limit_workers, that must be set in the generate_args
+# step of the Dataflow pipeline initialization. This argument allows the user to throttle the number of Dataflow
+# workers that are used in script execution; it is located on 59 of the qalert_requests_dataflow.py script. The argument
+# is necessary for large backfills that could overload an API's maximum request limit. The Google Maps API calls in
+# the Dataflow script, for example, need to be throttled if an excessive number of requests are made per minute.
+# Finally, the Dataflow script needs to be pointed to the location of the backfill data. This is often located in
+# seperate directory structure from the incoming data in normal DAG run. Thus, in_cmd and out_cmd (lines 76 and 77)
+# of this script need to be manually set to the desired location of the backfill data.
 
 from __future__ import absolute_import
 
 import os
-from datetime import datetime
 
 from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
@@ -14,8 +24,9 @@ from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 from airflow.contrib.operators.bigquery_to_gcs import BigQueryToCloudStorageOperator
 
 from dependencies import airflow_utils
-from dependencies.airflow_utils import get_ds_year, get_ds_month, get_ds_day, default_args, build_city_limits_query, \
+from dependencies.airflow_utils import get_ds_year, get_ds_month, default_args, build_city_limits_query, \
     build_revgeo_time_bound_query
+
 
 COLS_IN_ORDER = """id, parent_ticket_id, child_ticket, dept, status_name, status_code, request_type_name, 
 request_type_id, origin, pii_comments, pii_private_notes, create_date_est, create_date_utc, create_date_unix, 
@@ -42,42 +53,36 @@ request_type_name, request_type_id, create_date_est, create_date_utc,
 create_date_unix, last_action_est, last_action_unix, last_action_utc, closed_date_est, closed_date_utc,  
 closed_date_unix, street, cross_street, street_id, cross_street_id, city, address_type,  
 anon_google_formatted_address, neighborhood_name, council_district, ward, police_zone, fire_zone, dpw_streets, 
-dpw_enviro, dpw_parks, anon_lat, anon_long"""
+dpw_enviro, dpw_parks, pii_lat, pii_long, anon_lat, anon_long"""
 
 
+# This DAG schedule interval set to None because it will only ever be triggered manually
 dag = DAG(
-        'qalert_requests',
+        'qalert_backfill_requests',
         default_args = default_args,
-        schedule_interval = '@hourly',
-        start_date = datetime(2021, 1, 21),
-        catchup = False,
-        user_defined_filters = {'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year,
-                                'get_ds_day': get_ds_day},
-        max_active_runs = 1
+        schedule_interval = None,
+        user_defined_filters = {'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year}
 )
 
-
-# initialize gcs locations
-bucket = f"gs://{os.environ['GCS_PREFIX']}_qalert"
-dataset = "requests"
-path = "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds|get_ds_day }}/{{ run_id }}"
-json_loc = f"{path}_requests.json"
-avro_loc = f"avro_output/{path}/"
-
-
+# Note: The GCS loader can be run outside of the DAG for testing purposes. (Execution time for 04-2015 throug 11-2021
+#  backfill was approx 1 hour). Comment/Uncomment as needed.
 # Run gcs_loader
-exec_gcs = f"python {os.environ['GCS_LOADER_PATH']}/qalert_gcs.py"
 gcs_loader = BashOperator(
         task_id = 'gcs_loader',
-        bash_command = f"{exec_gcs} --output_arg {dataset}/{json_loc}",
+        bash_command = F"python {os.environ['DAGS_PATH']}/dependencies/gcs_loaders/qalert_gcs_backfill.py",
         dag = dag
 )
 
 
-exec_df = f"python {os.environ['DATAFLOW_SCRIPT_PATH']}/qalert_requests_dataflow.py"
+# Run dataflow_script
+py_cmd = f"python {os.environ['DAGS_PATH']}/dependencies/dataflow_scripts/qalert_requests_dataflow.py"
+in_cmd = \
+    f" --input gs://{os.environ['GCS_PREFIX']}_qalert/requests/backfill/2022-01-19/backfilled_requests_formatted.json"
+out_cmd = f" --avro_output gs://{os.environ['GCS_PREFIX']}_qalert/requests/backfill/2022-01-19/avro_output/"
+df_cmd_str = py_cmd + in_cmd + out_cmd
 dataflow = BashOperator(
         task_id = 'dataflow',
-        bash_command = f"{exec_df} --input {bucket}/{dataset}/{json_loc} --avro_output {bucket}/{dataset}/{avro_loc}",
+        bash_command = df_cmd_str,
         dag = dag
 )
 
@@ -86,7 +91,7 @@ gcs_to_bq = GoogleCloudStorageToBigQueryOperator(
         task_id = 'gcs_to_bq',
         destination_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}:qalert.incoming_actions",
         bucket = f"{os.environ['GCS_PREFIX']}_qalert",
-        source_objects = [f"{dataset}/{avro_loc}*.avro"],
+        source_objects = [f"requests/backfill/2022-01-28/*.avro"],
         write_disposition = 'WRITE_TRUNCATE',
         create_disposition = 'CREATE_IF_NEEDED',
         source_format = 'AVRO',
@@ -116,7 +121,7 @@ format_dedupe = BigQueryOperator(
         task_id = 'format_dedupe',
         sql = query_format_dedupe,
         use_legacy_sql = False,
-        dag = dag
+            dag = dag
 )
 
 # Query new tickets to determine if they are in the city limits
@@ -141,7 +146,8 @@ geojoin = BigQueryOperator(
         dag = dag
 )
 
-query_insert_new_parent = f"""
+
+query_insert_new_parent =f"""
 /*
 This query check that a ticket has never been seen before (checks all_tix_current_status) AND
 that the ticket is a parent. Satisfying both conditions means that the ticket needs to be placed in all_linked_requests
@@ -151,7 +157,7 @@ existing parent and it will change into a child ticket. This means the original 
 ticket. Future steps in the DAG will handle that possibility, and for this query the only feasible option is to assume
 the ticket is correctly labeled.*/
 
-INSERT INTO `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests`
+INSERT INTO `data-rivers-testing.qalert.all_linked_requests`
 (
 SELECT
     id as group_id,
@@ -161,8 +167,8 @@ SELECT
     {LINKED_COLS_IN_ORDER}
 
 FROM
-    `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_enriched`
-WHERE id NOT IN (SELECT id FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`)
+    `data-rivers-testing.qalert.incoming_enriched`
+WHERE id NOT IN (SELECT id FROM `data-rivers-testing.qalert.all_tickets_current_status`)
 AND child_ticket = False
 AND request_type_name NOT IN ({EXCLUDE_TYPES})
 );
@@ -173,6 +179,7 @@ insert_new_parent = BigQueryOperator(
         use_legacy_sql = False,
         dag = dag
 )
+
 
 query_remove_false_parents = f"""
 /*
@@ -188,20 +195,19 @@ along with the other child tickets
 */
 
 -- extract the newly identified child's information for integration in the next query
-CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.temp_prev_parent_now_child` AS
+CREATE OR REPLACE TABLE `data-rivers-testing.qalert.temp_prev_parent_now_child` AS
 SELECT 
     id AS fp_id,parent_ticket_id, pii_comments, pii_private_notes
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_enriched`
+FROM `data-rivers-testing.qalert.incoming_enriched`
 
 WHERE id IN (SELECT 
                 group_id
-             FROM`{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests`)
+             FROM `data-rivers-testing.qalert.all_linked_requests`)
 AND child_ticket = TRUE ;
 
 -- delete the false parent ticket's information 
-DELETE FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests`
-WHERE group_id IN 
-        (SELECT fp_id FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_prev_parent_now_child`);
+DELETE FROM `data-rivers-testing.qalert.all_linked_requests`
+WHERE group_id IN (SELECT fp_id FROM `data-rivers-testing.qalert.temp_prev_parent_now_child`);
 """
 remove_false_parents = BigQueryOperator(
         task_id = 'remove_false_parents',
@@ -209,6 +215,7 @@ remove_false_parents = BigQueryOperator(
         use_legacy_sql = False,
         dag = dag
 )
+
 
 query_integrate_children = f"""
 /*
@@ -227,20 +234,21 @@ the other newly identified children (those which were never associated with a fa
 Thus, the need to combine ALL OF THE CHILD TICKETS (both those associated with a false parent and those never being 
 misrepresented) is handled by this query
 */
-CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.temp_child_combined` AS
+
+CREATE OR REPLACE TABLE `data-rivers-testing.qalert.temp_child_combined` AS
 (
     -- children never seen before and without a false parent
     WITH new_children AS
     (
     SELECT 
         id, parent_ticket_id, pii_comments, pii_private_notes
-    FROM  
-        `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_enriched` new_c
-    WHERE new_c.id NOT IN (SELECT id FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`)
+    FROM  `data-rivers-testing.qalert.incoming_enriched` new_c
+
+    WHERE new_c.id NOT IN (SELECT id FROM `data-rivers-testing.qalert.all_tickets_current_status`)
     AND new_c.child_ticket = TRUE 
     AND new_c.request_type_name NOT IN ({EXCLUDE_TYPES})
     ),
-
+    
     -- children above plus the children of false parent tickets
     combined_children AS
     (
@@ -248,9 +256,9 @@ CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.temp_child_combin
     FROM new_children 
 
     UNION ALL
-
-    SELECT fp_id AS id, parent_ticket_id, pii_comments, pii_private_notes
-    FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_prev_parent_now_child`
+    
+    SELECT fp_id AS id, parent_ticket_id, pii_comments, pii_private_notes 
+    FROM `data-rivers-testing.qalert.temp_prev_parent_now_child`
     ),
 
     -- from ALL children tickets, concatenate the necessary string data
@@ -274,7 +282,7 @@ CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.temp_child_combin
         FROM combined_children 
         GROUP BY p_id
     )
-
+    
     -- Selection of all above processing into a temp table
     SELECT 
         child_count.*,
@@ -285,24 +293,24 @@ CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.temp_child_combin
 );
 
 -- update existing entries inside all_linked_requests
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
+UPDATE `data-rivers-testing.qalert.all_linked_requests` alr
 SET alr.num_requests = tcc.cts + alr.num_requests
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_child_combined` tcc
+FROM `data-rivers-testing.qalert.temp_child_combined` tcc
 WHERE alr.group_id = tcc.p_id;
 
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
+UPDATE `data-rivers-testing.qalert.all_linked_requests` alr
 SET alr.child_ids =  CONCAT(alr.child_ids,tcc.child_ids)
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_child_combined` tcc
+FROM `data-rivers-testing.qalert.temp_child_combined` tcc
 WHERE alr.group_id = tcc.p_id;
 
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
+UPDATE `data-rivers-testing.qalert.all_linked_requests` alr
 SET alr.pii_comments =  CONCAT(alr.pii_comments,tcc.child_pii_comments)
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_child_combined` tcc
+FROM `data-rivers-testing.qalert.temp_child_combined` tcc
 WHERE alr.group_id = tcc.p_id;
 
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
+UPDATE `data-rivers-testing.qalert.all_linked_requests` alr
 SET alr.pii_private_notes =  CONCAT(alr.pii_private_notes,tcc.child_pii_notes)
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_child_combined` tcc
+FROM `data-rivers-testing.qalert.temp_child_combined` tcc
 WHERE alr.group_id = tcc.p_id;
 """
 integrate_children = BigQueryOperator(
@@ -315,8 +323,7 @@ integrate_children = BigQueryOperator(
 query_replace_last_update = f"""
 /*
 Tickets are continually updated throughout their life. In the vast majority of cases a ticket will be created and 
-then further processed (creating status changes) over a timeline which causes the ticket's lifespan to encompass 
-multiple
+then further processed (creating status changes) over a timeline which causes the ticket's lifespan to encompass multiple
 DAG runs. ONLY THE CURRENT STATUS of each ticket, which been updated since the last DAG run, is returned in the 
 current DAG run. Thus, a ticket appears multiple times in our DAG. 
 
@@ -330,7 +337,8 @@ changes to the child ticket. This query selects parent tickets which have been p
 simply extracts and updates the status timestamp data from those tickets. This data is then updated in 
 all_linked_requests. 
 */
-CREATE OR REPLACE TABLE  `{os.environ['GCLOUD_PROJECT']}.qalert.temp_update` AS
+
+CREATE OR REPLACE TABLE  `data-rivers-testing.qalert.temp_update` AS
 (
 SELECT 
     id, 
@@ -338,56 +346,57 @@ SELECT
     closed_date_est, closed_date_utc,closed_date_unix,
     last_action_est, last_action_utc,last_action_unix, 
     status_name, status_code
-FROM  `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_enriched`
 
-WHERE id IN (SELECT id FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`)
+FROM  `data-rivers-testing.qalert.incoming_enriched`
+
+WHERE id IN (SELECT id FROM `data-rivers-testing.qalert.all_tickets_current_status`)
 AND child_ticket = FALSE 
 AND request_type_name NOT IN ({EXCLUDE_TYPES})
 );
 
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
+UPDATE `data-rivers-testing.qalert.all_linked_requests` alr
 SET alr.parent_closed = tu.p_closed
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_update` tu
+FROM `data-rivers-testing.qalert.temp_update` tu
 WHERE alr.group_id = tu.id;
 
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
+UPDATE `data-rivers-testing.qalert.all_linked_requests` alr
 SET alr.status_name = tu.status_name
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_update` tu
+FROM `data-rivers-testing.qalert.temp_update` tu
 WHERE alr.group_id = tu.id;
 
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
+UPDATE `data-rivers-testing.qalert.all_linked_requests` alr
 SET alr.status_code = tu.status_code
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_update` tu
+FROM `data-rivers-testing.qalert.temp_update` tu
 WHERE alr.group_id = tu.id;
 
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
+UPDATE `data-rivers-testing.qalert.all_linked_requests` alr
 SET alr.closed_date_est = tu.closed_date_est
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_update` tu
+FROM `data-rivers-testing.qalert.temp_update` tu
 WHERE alr.group_id = tu.id;
 
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
+UPDATE `data-rivers-testing.qalert.all_linked_requests` alr
 SET alr.closed_date_utc = tu.closed_date_utc
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_update` tu
+FROM `data-rivers-testing.qalert.temp_update` tu
 WHERE alr.group_id = tu.id;
 
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
+UPDATE `data-rivers-testing.qalert.all_linked_requests` alr
 SET alr.closed_date_unix = tu.closed_date_unix
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_update` tu
+FROM `data-rivers-testing.qalert.temp_update` tu
 WHERE alr.group_id = tu.id;
 
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
+UPDATE `data-rivers-testing.qalert.all_linked_requests` alr
 SET alr.last_action_est = tu.last_action_est
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_update` tu
+FROM `data-rivers-testing.qalert.temp_update` tu
 WHERE alr.group_id = tu.id;
 
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
+UPDATE `data-rivers-testing.qalert.all_linked_requests` alr
 SET alr.last_action_utc = tu.last_action_utc
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_update` tu
+FROM `data-rivers-testing.qalert.temp_update` tu
 WHERE alr.group_id = tu.id;
 
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
+UPDATE `data-rivers-testing.qalert.all_linked_requests` alr
 SET alr.last_action_unix = tu.last_action_unix
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_update` tu
+FROM `data-rivers-testing.qalert.temp_update` tu
 WHERE alr.group_id = tu.id;
 """
 replace_last_update = BigQueryOperator(
@@ -397,14 +406,14 @@ replace_last_update = BigQueryOperator(
         dag = dag
 )
 
+
 query_delete_old_insert_new_records = f"""
 /*
 All tickets that ever receive an update (or are simply created) should be stored with their current status
 for historical purposes. This query does just that. The data are simply inserted into all_tickets_current_status. If 
 the ticket has been seen before, it is already in all_tickets_current_status. Rather than simply add the newest ticket, 
 this query also deletes the prior entry for that ticket. The key to understanding this is: The API does not return the
-FULL HISTORY of each ticket, but rather a snapshot of the ticket's current status. This means that if the status is 
-updated 
+FULL HISTORY of each ticket, but rather a snapshot of the ticket's current status. This means that if the status is updated 
 multiple times between DAG runs, only the final status is recorded. While the FULL HISTORY has obvious value, this is 
 not available and it less confusing to simply store a current snapshot of the ticket's history. 
 
@@ -412,12 +421,14 @@ all_tickets_current_status is currently (01/22) maintained for historical purpos
 analysis as the linkages between tickets are not taken into account. 
 */
 
-DELETE FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`
-WHERE id IN (SELECT id FROM `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_enriched`);
-INSERT INTO `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`
+DELETE FROM `data-rivers-testing.qalert.all_tickets_current_status`
+WHERE id IN (SELECT id FROM `data-rivers-testing.qalert.incoming_enriched`);
+
+INSERT INTO `data-rivers-testing.qalert.all_tickets_current_status`
 SELECT 
     {COLS_IN_ORDER}
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_enriched`;
+FROM 
+    `data-rivers-testing.qalert.incoming_enriched`;
 """
 delete_old_insert_new_records = BigQueryOperator(
         task_id = 'delete_old_insert_new_records',
@@ -425,6 +436,7 @@ delete_old_insert_new_records = BigQueryOperator(
         use_legacy_sql = False,
         dag = dag
 )
+
 
 # Create a table from all_linked_requests that has all columns EXCEPT those that have potential PII. This table is
 # subsequently exported to WPRDC. BQ will not currently (2021-10-01) allow data to be pushed from a query and it must
@@ -447,13 +459,15 @@ drop_pii_for_export = BigQueryOperator(
         dag = dag
 )
 
+
 # Export table as CSV to WPRDC bucket
 wprdc_export = BigQueryToCloudStorageOperator(
         task_id = 'wprdc_export',
         source_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}:qalert.data_export_scrubbed",
-        destination_cloud_storage_uris = [f"gs://{os.environ['GCS_PREFIX']}_wprdc/qalert_requests_{path}.csv"],
+        destination_cloud_storage_uris = [f"gs://{os.environ['GCS_PREFIX']}_wprdc/qalert_requests_" + "{{ ds }}.csv"],
         dag = dag
 )
+
 
 # Clean up
 beam_cleanup = BashOperator(

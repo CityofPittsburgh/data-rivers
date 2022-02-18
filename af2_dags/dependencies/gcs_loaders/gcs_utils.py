@@ -516,32 +516,6 @@ def rmsprod_setup():
 
     return args, execution_year, execution_month, execution_date, bucket, conn
 
-def json_linter(ndjson: str):
-    """
-    :Author - Pranav Banthia
-    :param ndjson - NDJson is a json file where each line is an individual json object. The delimiter is a new line \n
-                    This function takes in a param called ndjson which is a string object.
-
-    We parse each line of the string assuming that every line is an individual json object. If there are any exceptions
-    such as multiple json objects on the same line then we handle that situation in the except block. Returns an ndjson
-    as a string
-    """
-    result_ndjson = []
-    for i, line in enumerate(ndjson.split('\n')):
-        try:
-            json.loads(line)
-            result_ndjson.append(line)
-        except:
-            json_split = line.split('}{')
-            for idx in range(len(json_split)):
-                if idx == 0:
-                    result_ndjson.append(json_split[idx] + '}')
-                elif idx == (len(json_split)-1):
-                    result_ndjson.append('{' + json_split[idx])
-                else:
-                    result_ndjson.append('{' + json_split[idx] + '}')
-
-    return '\n'.join(result_ndjson)
 
 # TODO: helper to convert geojson -> ndjson
 
