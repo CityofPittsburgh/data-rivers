@@ -1,0 +1,85 @@
+CREATE OR REPLACE TABLE `data-rivers-testing.qalert.incoming_enriched` AS
+
+WITH
+  sel_zones AS (
+  SELECT
+    raw.id,
+    CAST (t_hoods.zone AS STRING) AS neighborhood_name,
+    CAST (t_cd.zone AS STRING) AS council_district,
+    CAST (t_w.zone AS STRING) AS ward,
+    CAST (t_fz.zone AS STRING) AS fire_zone,
+    CAST (t_pz.zone AS STRING) AS police_zone,
+    CAST (t_st.zone AS STRING) AS dpw_streets,
+    CAST (t_es.zone AS STRING) AS dpw_enviro,
+    CAST (t_pk.zone AS STRING) AS dpw_parks
+  FROM
+    `data-rivers-testing.qalert.test_zones` raw
+  
+  -- neighborhoods
+  JOIN `data-rivers.timebound_geography.neighborhoods` AS t_hoods ON
+    ST_CONTAINS(t_hoods.geometry, ST_GEOGPOINT(raw.pii_long, raw.pii_lat))
+    AND TIMESTAMP(PARSE_DATE('%m/%d/%Y',t_hoods.start_date)) <= TIMESTAMP(raw.create_date_est)
+    AND IFNULL(TIMESTAMP(PARSE_DATE('%m/%d/%Y', t_hoods.end_date)),
+      CURRENT_TIMESTAMP()) >= TIMESTAMP(raw.create_date_est)
+  -- council districts
+  JOIN `data-rivers.timebound_geography.council_districts` AS t_cd ON
+    ST_CONTAINS(t_cd.geometry, ST_GEOGPOINT(raw.pii_long, raw.pii_lat))
+    AND TIMESTAMP(PARSE_DATE('%m/%d/%Y',t_cd.start_date)) <= TIMESTAMP(raw.create_date_est)
+    AND IFNULL(TIMESTAMP(PARSE_DATE('%m/%d/%Y', t_cd.end_date)),
+        CURRENT_TIMESTAMP()) >= TIMESTAMP(raw.create_date_est)
+  -- wards
+  JOIN `data-rivers.timebound_geography.wards` AS t_w ON
+    ST_CONTAINS(t_w.geometry, ST_GEOGPOINT(raw.pii_long, raw.pii_lat))
+    AND TIMESTAMP(PARSE_DATE('%m/%d/%Y',t_w.start_date)) <= TIMESTAMP(raw.create_date_est)
+    AND IFNULL(TIMESTAMP(PARSE_DATE('%m/%d/%Y', t_w.end_date)),
+    CURRENT_TIMESTAMP()) >= TIMESTAMP(raw.create_date_est)
+  -- fire zones
+  JOIN `data-rivers.timebound_geography.fire_zones` AS t_fz ON
+    ST_CONTAINS(t_fz.geometry, ST_GEOGPOINT(raw.pii_long, raw.pii_lat))
+     AND TIMESTAMP(PARSE_DATE('%m/%d/%Y',t_fz.start_date)) <= TIMESTAMP(raw.create_date_est)
+    AND IFNULL(TIMESTAMP(PARSE_DATE('%m/%d/%Y', t_fz.end_date)),
+      CURRENT_TIMESTAMP()) >= TIMESTAMP(raw.create_date_est)
+  -- police zones
+  JOIN `data-rivers.timebound_geography.police_zones` AS t_pz ON
+    ST_CONTAINS(t_pz.geometry, ST_GEOGPOINT(raw.pii_long, raw.pii_lat))
+    AND TIMESTAMP(PARSE_DATE('%m/%d/%Y',t_pz.start_date)) <= TIMESTAMP(raw.create_date_est)
+    AND IFNULL(TIMESTAMP(PARSE_DATE('%m/%d/%Y', t_pz.end_date)),
+      CURRENT_TIMESTAMP()) >= TIMESTAMP(raw.create_date_est)
+  -- DPW streets division
+  JOIN `data-rivers.timebound_geography.dpw_streets_divisions` AS t_st ON
+    ST_CONTAINS(t_st.geometry, ST_GEOGPOINT(raw.pii_long, raw.pii_lat))
+    AND TIMESTAMP(PARSE_DATE('%m/%d/%Y',t_st.start_date)) <= TIMESTAMP(raw.create_date_est)
+    AND IFNULL(TIMESTAMP(PARSE_DATE('%m/%d/%Y', t_st.end_date)),
+      CURRENT_TIMESTAMP()) >= TIMESTAMP(raw.create_date_est)
+  -- DPW environment services division
+  JOIN `data-rivers.timebound_geography.dpw_es_divisions` AS t_es ON 
+    ST_CONTAINS(t_es.geometry, ST_GEOGPOINT(raw.pii_long, raw.pii_lat))
+    AND TIMESTAMP(PARSE_DATE('%m/%d/%Y',t_es.start_date)) <= TIMESTAMP(raw.create_date_est)
+    AND IFNULL(TIMESTAMP(PARSE_DATE('%m/%d/%Y', t_es.end_date)),
+        CURRENT_TIMESTAMP()) >= TIMESTAMP(raw.create_date_est)
+  -- DPW parks division
+  JOIN `data-rivers.timebound_geography.dpw_parks_divisions` AS t_pk ON
+    ST_CONTAINS(t_pk.geometry, ST_GEOGPOINT(raw.pii_long, raw.pii_lat))
+    AND TIMESTAMP(PARSE_DATE('%m/%d/%Y', t_pk.start_date)) <= TIMESTAMP(raw.create_date_est)
+    AND IFNULL(TIMESTAMP(PARSE_DATE('%m/%d/%Y', t_pk.end_date)),
+      CURRENT_TIMESTAMP()) >= TIMESTAMP(raw.create_date_est)
+),
+
+all_records AS (
+SELECT 
+    raw.*,
+    sel_zones.* EXCEPT (id)
+FROM `data-rivers-testing.qalert.test_zones` raw
+LEFT OUTER JOIN sel_zones ON sel_zones.id = raw.id
+),
+
+ids_counted AS (
+    SELECT
+        *, ROW_NUMBER() OVER (PARTITION BY all_records.id) AS id_count
+    FROM all_records
+    )
+
+SELECT
+* EXCEPT (id_count)
+FROM ids_counted
+WHERE id_count = 1
