@@ -122,7 +122,7 @@ def run(argv = None):
                         ("metered_parking", "Y", "N", False), ("print_on_permit", "Y", "N", False),
                         ("travel_lane", "Y", "N", False), ("validated", "Y", "N", False)]
 
-        # TODO: WRITE A DOC STRING FOR OUTLIER FUNC WHEN FULLY CONFIDENT
+        # TODO: WRITE A DOC STRING FOR OUTLIER FUNC WHEN FULLY CONFIDENT FUNCTION IS WORKING WELL
         # Because the data are hand entered in the CX system, occassionally bizarre (and extreme) values can be
         # input. On the surface this is not terribly problematic. However, outlier variables can cause runtime
         # exceptions if they exceed range limitations (for example a field that is an int receiving a 64 bit value).
@@ -130,7 +130,6 @@ def run(argv = None):
         outliers_conv = [("num_dumpsters", MIN_DUMPSTERS, MAX_DUMPSTERS), ("num_machines", MIN_MACHINES, MAX_MACHINES)]
 
         # fields to convert and append with EST and UNIX from UTC timestamps
-
         time_conv = [("effective_date", "UTC"), ("exp_date", "UTC"), ("work_date_start", "UTC"),
                      ("work_date_stop", "UTC"), ("date_end", "UTC"), ('street_close_date_start', "UTC"),
                      ('street_close_stop', "UTC"), ('street_close_wkday_hours', "UTC"),
