@@ -288,7 +288,7 @@ class StandardizeTimes(beam.DoFn, ABC):
                     east_conv = loc_time.astimezone(tz = pytz.timezone('America/New_York'))
                     unix_conv = utc_conv.timestamp()
                     datum.update({'{}_UTC'.format(time_change[0]) : str(utc_conv),
-                                  '{}_EAST'.format(time_change[0]): str(east_conv),
+                                  '{}_EST'.format(time_change[0]): str(east_conv),
                                   '{}_UNIX'.format(time_change[0]): unix_conv})
                     if self.del_old_cols:
                         datum.pop(time_change[0])
