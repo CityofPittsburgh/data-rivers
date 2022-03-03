@@ -61,6 +61,7 @@ class ParseNestedFields(beam.DoFn):
         self.extract_field(datum, 'DOMISTREETCLOSURE', 'PRIMARYSTREET', 'primary_street')
         self.extract_field(datum, 'DOMISTREETCLOSURE', 'FROMSTREET', 'closure_origin')
         self.extract_field(datum, 'DOMISTREETCLOSURE', 'TOSTREET', 'closure_end_pt')
+
         # bool_indicators
         self.extract_field(datum, 'DOMISTREETCLOSURE', 'CALCULATECLOSURE', 'calc_closure')
         self.extract_field(datum, 'DOMISTREETCLOSURE', 'METEREDPARKING', 'metered_parking')
@@ -93,9 +94,10 @@ def run(argv = None):
         # the CX data is sometimes nested, which is unnested by the helper function declared above. Within that
         # function new fields are created and the naming convention that is used is snake case. Thus, some of the new
         # field names are derived from that parsing function and the rest are changed here.
-        field_name_swaps = [("STATUSDESCRIPTION", "status"),
+        field_name_swaps = [("DETOUR", "detour"),
+                            ("STATUSDESCRIPTION", "status"),
                             ("APPLICANTCUSTOMFORMATTEDNAME", "applicant_formatted_name"),
-                            ("ALLCONTRACTORSNAME", "contractors_name"),
+                            ("ALLCONTRACTORSNAME", "contractor_name"),
                             ("APPLICANTCUSTOMEROBJECTID", "applicant_obj_id"),
                             ("JOBID", "id"),
                             ("PARENTJOBID", "parent_id"),
