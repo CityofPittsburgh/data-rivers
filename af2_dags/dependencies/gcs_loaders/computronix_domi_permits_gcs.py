@@ -3,15 +3,6 @@ import argparse
 
 from gcs_utils import json_to_gcs, get_computronix_odata, filter_fields
 
-
-
-
-
-
-
-
-
-
 bucket = f"gs://{os.environ['GCS_PREFIX']}_computronix"
 
 parser = argparse.ArgumentParser()
