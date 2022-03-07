@@ -8,7 +8,7 @@ from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOperator
 
 from dependencies import airflow_utils
-from dependencies.airflow_utils import get_ds_year, get_ds_month, default_args, build_revgeo_query
+from dependencies.airflow_utils import get_ds_year, get_ds_month, get_ds_day, default_args, build_revgeo_query
 
 # TODO: When Airflow 2.0 is released, upgrade the package, sub in DataFlowPythonOperator for BashOperator,
 # and pass the argument 'py_interpreter=python3'
@@ -17,8 +17,9 @@ from dependencies.airflow_utils import get_ds_year, get_ds_month, default_args, 
 dag = DAG(
     'computronix_domi_permits',
     default_args=default_args,
-    schedule_interval='@daily',
-    user_defined_filters={'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year}
+    schedule_interval='@hourly',
+    user_defined_filters = {'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year,
+                            'get_ds_day'  : get_ds_day}
 )
 
 
@@ -34,7 +35,7 @@ avro_loc = f"avro_output/{path}/"
 exec_gcs = f"python {os.environ['GCS_LOADER_PATH']}/computronix_domi_permits_gcs.py"
 computronix_domi_permits_gcs = BashOperator(
     task_id='computronix_domi_permits_gcs',
-    bash_command= exec_gcs,
+    bash_command= f"{exec_gcs} --output_arg {dataset}/{json_loc}",
     dag=dag
 )
 
