@@ -46,6 +46,12 @@ EXPAND_FIELDS = [
     'DOMISTREETCLOSURE'
 ]
 
+
+#TODO: add in a look back to prev run and only pull new since then-> CX doesn't seem to keep records based on time.
+# The API seems to return all records (ever) in pulls of 200 (over and over). If we can determine we already have X
+# records we can only pull from X+1 perhaps
+
+
 domi_permits = get_computronix_odata('DOMIPERMIT', expand_fields=EXPAND_FIELDS)
 trimmed_permits = filter_fields(domi_permits, RELEVANT_FIELDS)
 
