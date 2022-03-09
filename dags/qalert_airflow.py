@@ -133,7 +133,7 @@ city_limits = BigQueryOperator(
 # FINAL ENRICHMENT OF NEW DATA
 # Join all the geo information (e.g. DPW districts, etc) to the new data
 query_geo_join = build_revgeo_time_bound_query('qalert', 'incoming_actions', "incoming_enriched",
-                                               'create_date_est', 'id', 'pii_lat', 'pii_long', COLS_IN_ORDER)
+                                               'create_date_est', 'id', 'pii_lat', 'pii_long')
 geojoin = BigQueryOperator(
         task_id = 'geojoin',
         sql = query_geo_join,
