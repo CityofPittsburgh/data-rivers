@@ -48,7 +48,7 @@ dpw_enviro, dpw_parks, anon_lat, anon_long, within_city"""
 dag = DAG(
         'qalert_requests',
         default_args = default_args,
-        schedule_interval = '@hourly',
+        schedule_interval = None,
         start_date = datetime(2021, 1, 21),
         catchup = False,
         user_defined_filters = {'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year,
