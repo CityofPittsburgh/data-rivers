@@ -393,7 +393,7 @@ def build_city_limits_query(dataset, raw_table, new_table_name, lat_field = 'lat
     """
 
     return f""" 
-    CREATE OR REPLACE TABLE `{os.environ["GCLOUD_PROJECT"]}.{dataset}.{new_table_name}}` AS
+    CREATE OR REPLACE TABLE `{os.environ["GCLOUD_PROJECT"]}.{dataset}.{new_table_name}` AS
 WITH bounds_found AS
     (
     SELECT
