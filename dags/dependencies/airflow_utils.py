@@ -375,7 +375,7 @@ def format_dataflow_call(script_name, bucket_name, sub_direc, dataset_id):
     return exec_script_cmd + input_arg + output_arg
 
 
-def build_city_limits_query(dataset, raw_table, lat_field = 'lat', long_field = 'long'):
+def build_city_limits_query(dataset, raw_table, new_table_name, lat_field = 'lat', long_field = 'long'):
     """
     Determine whether a set of coordinates fall within the borders of the City of Pittsburgh,
     while also falling outside the borders of Mt. Oliver. If an address is within the city,
@@ -392,22 +392,50 @@ def build_city_limits_query(dataset, raw_table, lat_field = 'lat', long_field = 
     the boundary polygons as strings, and then convert those strings to polygons using ST_GEOGFROMTEXT.
     """
 
-    return f"""
-    UPDATE `{os.environ['GCLOUD_PROJECT']}.{dataset}.{raw_table}`
-    SET address_type = IF ( 
-       ((ST_COVERS((ST_GEOGFROMTEXT((SELECT geometry FROM `data-rivers.geography.pittsburgh_and_mt_oliver_borders`
-                                      WHERE city = 'Mt. Oliver'))),
-               ST_GEOGPOINT(`{os.environ['GCLOUD_PROJECT']}.{dataset}.{raw_table}`.{long_field},
-                    `{os.environ['GCLOUD_PROJECT']}.{dataset}.{raw_table}`.{lat_field})))
-        OR NOT 
-        ST_COVERS((ST_GEOGFROMTEXT((SELECT geometry FROM `data-rivers.geography.pittsburgh_and_mt_oliver_borders`
-                                     WHERE city = 'Pittsburgh'))),
-                   ST_GEOGPOINT(`{os.environ['GCLOUD_PROJECT']}.{dataset}.{raw_table}`.{long_field}, 
-                   `{os.environ['GCLOUD_PROJECT']}.{dataset}.{raw_table}`.{lat_field}))
-       ), 'Outside of City', address_type )
-    WHERE `{os.environ['GCLOUD_PROJECT']}.{dataset}.{raw_table}`.{long_field} IS NOT NULL AND 
-    `{os.environ['GCLOUD_PROJECT']}.{dataset}.{raw_table}`.{lat_field} IS NOT NULL
-    """
+    return f""" 
+    CREATE OR REPLACE TABLE `{os.environ["GCLOUD_PROJECT"]}.{dataset}.{new_table_name}}` AS
+WITH bounds_found AS
+    (
+    SELECT
+        raw.*, 
+        lims.within_city
+    FROM
+    `{os.environ["GCLOUD_PROJECT"]}.{dataset}.{raw_table}` AS raw
+    JOIN
+    (SELECT * FROM `data-rivers.geography.city_and_mt_oliver_borders` WHERE city= "Pittsburgh") AS lims
+    ON
+    ST_CONTAINS(lims.geometry,
+        ST_GEOGPOINT(raw.pii_long,raw.pii_lat))
+    
+    
+    
+    UNION ALL
+    
+    
+    SELECT
+        raw.*, 
+        lims.within_city
+    FROM 
+    `{os.environ["GCLOUD_PROJECT"]}.{dataset}.{raw_table}` AS raw
+    JOIN
+    (SELECT * FROM `data-rivers.geography.city_and_mt_oliver_borders` WHERE city= "Mt. Oliver") AS lims
+    ON
+    ST_CONTAINS(lims.geometry,
+        ST_GEOGPOINT(raw.pii_long,raw.pii_lat))
+    )
+    
+    
+    
+    SELECT * FROM bounds_found
+    
+    UNION ALL 
+    
+    SELECT 
+        raw_2.*,
+        IF(CAST(id AS INT64) > 0, FALSE, FALSE) as within_city
+    FROM `{os.environ["GCLOUD_PROJECT"]}.{dataset}.{raw_table}` raw_2
+    WHERE raw_2.id NOT IN (SELECT id FROM bounds_found) 
+"""
 
 
 if __name__ == '__main__':
