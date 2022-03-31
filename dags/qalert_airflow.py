@@ -23,7 +23,7 @@ last_action_est, last_action_unix, last_action_utc, closed_date_est, closed_date
 pii_street_num, street, cross_street, street_id, cross_street_id, city, pii_input_address, 
 pii_google_formatted_address, address_type, anon_google_formatted_address, neighborhood_name, 
 council_district, ward, police_zone, fire_zone, dpw_streets, dpw_enviro, dpw_parks, pii_lat, pii_long, anon_lat, 
-anon_long"""
+anon_long, within_city"""
 
 LINKED_COLS_IN_ORDER = """status_name, status_code, dept, 
 request_type_name, request_type_id, pii_comments, pii_private_notes, create_date_est, create_date_utc, 
@@ -31,7 +31,7 @@ create_date_unix, last_action_est, last_action_unix, last_action_utc, closed_dat
 pii_street_num, street, cross_street, street_id, cross_street_id, city, pii_input_address, 
 pii_google_formatted_address, address_type, anon_google_formatted_address, neighborhood_name, 
 council_district, ward, police_zone, fire_zone, dpw_streets, dpw_enviro, dpw_parks, pii_lat, pii_long, anon_lat, 
-anon_long"""
+anon_long, within_city"""
 
 EXCLUDE_TYPES = """'Hold - 311', 'Graffiti, Owner Refused DPW Removal', 'Medical Exemption - Tote', 
 'Snow Angel Volunteer', 'Claim form (Law)','Snow Angel Intake', 'Application Request', 'Reject to 311', 'Referral', 
@@ -42,7 +42,7 @@ request_type_name, request_type_id, create_date_est, create_date_utc,
 create_date_unix, last_action_est, last_action_unix, last_action_utc, closed_date_est, closed_date_utc,  
 closed_date_unix, street, cross_street, street_id, cross_street_id, city, address_type,  
 anon_google_formatted_address, neighborhood_name, council_district, ward, police_zone, fire_zone, dpw_streets, 
-dpw_enviro, dpw_parks, anon_lat, anon_long"""
+dpw_enviro, dpw_parks, anon_lat, anon_long, within_city"""
 
 
 dag = DAG(
