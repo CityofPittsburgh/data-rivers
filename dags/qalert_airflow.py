@@ -110,7 +110,11 @@ WITH formatted  AS
     FROM 
         {os.environ['GCLOUD_PROJECT']}.qalert.incoming_actions
     )
-SELECT {COLS_IN_ORDER} FROM formatted
+-- drop the final column through slicing the string (-13). final column is added in next query     
+SELECT 
+    {COLS_IN_ORDER[:-13]} 
+FROM 
+    formatted
 """
 format_dedupe = BigQueryOperator(
         task_id = 'format_dedupe',
@@ -120,7 +124,7 @@ format_dedupe = BigQueryOperator(
 )
 
 # Query new tickets to determine if they are in the city limits
-query_city_lim = build_city_limits_query('qalert', 'incoming_actions', 'pii_lat', 'pii_long')
+query_city_lim = build_city_limits_query('qalert', 'incoming_actions', 'incoming_actions', 'pii_lat', 'pii_long')
 city_limits = BigQueryOperator(
         task_id = 'city_limits',
         sql = query_city_lim,
@@ -133,7 +137,7 @@ city_limits = BigQueryOperator(
 # FINAL ENRICHMENT OF NEW DATA
 # Join all the geo information (e.g. DPW districts, etc) to the new data
 query_geo_join = build_revgeo_time_bound_query('qalert', 'incoming_actions', "incoming_enriched",
-                                               'create_date_est', 'id', 'pii_lat', 'pii_long')
+                                               'create_date_utc', 'id', 'pii_lat', 'pii_long')
 geojoin = BigQueryOperator(
         task_id = 'geojoin',
         sql = query_geo_join,
