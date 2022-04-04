@@ -402,34 +402,12 @@ WITH bounds_found AS
     FROM
     `{os.environ["GCLOUD_PROJECT"]}.{dataset}.{raw_table}` AS raw
     JOIN
-    (SELECT * FROM `data-rivers.geography.city_and_mt_oliver_borders` WHERE city= "Pittsburgh") AS lims
-    ON
-    ST_CONTAINS(lims.geometry,
-        ST_GEOGPOINT(raw.pii_long,raw.pii_lat))
-    
-    
-    
-    UNION ALL
-    
-    
-    SELECT
-        raw.*, 
-        lims.within_city
-    FROM 
-    `{os.environ["GCLOUD_PROJECT"]}.{dataset}.{raw_table}` AS raw
-    JOIN
-    (SELECT * FROM `data-rivers.geography.city_and_mt_oliver_borders` WHERE city= "Mt. Oliver") AS lims
-    ON
-    ST_CONTAINS(lims.geometry,
-        ST_GEOGPOINT(raw.pii_long,raw.pii_lat))
-    )
-    
-    
+    `data-rivers.geography.city_and_mt_oliver_borders`  lims
+    ON ST_CONTAINS(lims.geometry, ST_GEOGPOINT(raw.pii_long,raw.pii_lat))
+    )  
     
     SELECT * FROM bounds_found
-    
     UNION ALL 
-    
     SELECT 
         raw_2.*,
         IF(CAST(id AS INT64) > 0, FALSE, FALSE) as within_city
