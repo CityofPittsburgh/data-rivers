@@ -117,61 +117,69 @@ def build_revgeo_time_bound_query(dataset, raw_table, new_table_name, create_dat
       FROM
         `{os.environ["GCLOUD_PROJECT"]}.{dataset}.{raw_table}` raw
       
+      
+      
+      
+      
+      
+      
+      
       -- neighborhoods
       JOIN `data-rivers.timebound_geography.neighborhoods` AS t_hoods ON
         ST_CONTAINS(t_hoods.geometry, ST_GEOGPOINT(raw.{long_field}, raw.{lat_field}))
-        AND TIMESTAMP(PARSE_DATE('%m/%d/%Y',t_hoods.start_date)) <= TIMESTAMP(raw.{create_date})
-        AND IFNULL(TIMESTAMP(PARSE_DATE('%m/%d/%Y', t_hoods.end_date)),
-          CURRENT_TIMESTAMP()) >= TIMESTAMP(raw.{create_date})
+        AND TIMESTAMP(PARSE_DATETIME('%m/%d/%Y %H:%M:%S-00:00',t_hoods.start_date)) <= TIMESTAMP(raw.{create_date})
+        AND IFNULL(TIMESTAMP(PARSE_DATETIME('%m/%d/%Y %H:%M:%S-00:00', t_hoods.end_date)),
+            CURRENT_TIMESTAMP()) >= TIMESTAMP(raw.{create_date})
+      
       
       -- council districts
       JOIN `data-rivers.timebound_geography.council_districts` AS t_cd ON
         ST_CONTAINS(t_cd.geometry, ST_GEOGPOINT(raw.{long_field}, raw.{lat_field}))
-        AND TIMESTAMP(PARSE_DATE('%m/%d/%Y',t_cd.start_date)) <= TIMESTAMP(raw.{create_date})
-        AND IFNULL(TIMESTAMP(PARSE_DATE('%m/%d/%Y', t_cd.end_date)),
+        AND TIMESTAMP(PARSE_DATETIME('%m/%d/%Y %H:%M:%S-00:00',t_cd.start_date)) <= TIMESTAMP(raw.{create_date})
+        AND IFNULL(TIMESTAMP(PARSE_DATETIME('%m/%d/%Y %H:%M:%S-00:00', t_cd.end_date)),
             CURRENT_TIMESTAMP()) >= TIMESTAMP(raw.{create_date})
       
       -- wards
       JOIN `data-rivers.timebound_geography.wards` AS t_w ON
         ST_CONTAINS(t_w.geometry, ST_GEOGPOINT(raw.{long_field}, raw.{lat_field}))
-        AND TIMESTAMP(PARSE_DATE('%m/%d/%Y',t_w.start_date)) <= TIMESTAMP(raw.{create_date})
-        AND IFNULL(TIMESTAMP(PARSE_DATE('%m/%d/%Y', t_w.end_date)),
-        CURRENT_TIMESTAMP()) >= TIMESTAMP(raw.{create_date})
+        AND TIMESTAMP(PARSE_DATETIME('%m/%d/%Y %H:%M:%S-00:00',t_w.start_date)) <= TIMESTAMP(raw.{create_date})
+        AND IFNULL(TIMESTAMP(PARSE_DATETIME('%m/%d/%Y %H:%M:%S-00:00', t_w.end_date)),
+            CURRENT_TIMESTAMP()) >= TIMESTAMP(raw.{create_date})
       
       -- fire zones
       JOIN `data-rivers.timebound_geography.fire_zones` AS t_fz ON
-        ST_CONTAINS(t_fz.geometry, ST_GEOGPOINT(raw.{long_field}, raw.{lat_field}))
-         AND TIMESTAMP(PARSE_DATE('%m/%d/%Y',t_fz.start_date)) <= TIMESTAMP(raw.{create_date})
-        AND IFNULL(TIMESTAMP(PARSE_DATE('%m/%d/%Y', t_fz.end_date)),
-          CURRENT_TIMESTAMP()) >= TIMESTAMP(raw.{create_date})
+         ST_CONTAINS(t_fz.geometry, ST_GEOGPOINT(raw.{long_field}, raw.{lat_field}))
+        AND TIMESTAMP(PARSE_DATETIME('%m/%d/%Y %H:%M:%S-00:00',t_fz.start_date)) <= TIMESTAMP(raw.{create_date})
+        AND IFNULL(TIMESTAMP(PARSE_DATETIME('%m/%d/%Y %H:%M:%S-00:00', t_fz.end_date)),
+            CURRENT_TIMESTAMP()) >= TIMESTAMP(raw.{create_date})
       
       -- police zones
       JOIN `data-rivers.timebound_geography.police_zones` AS t_pz ON
-        ST_CONTAINS(t_pz.geometry, ST_GEOGPOINT(raw.{long_field}, raw.{lat_field}))
-        AND TIMESTAMP(PARSE_DATE('%m/%d/%Y',t_pz.start_date)) <= TIMESTAMP(raw.{create_date})
-        AND IFNULL(TIMESTAMP(PARSE_DATE('%m/%d/%Y', t_pz.end_date)),
-          CURRENT_TIMESTAMP()) >= TIMESTAMP(raw.{create_date})
+         ST_CONTAINS(t_pz.geometry, ST_GEOGPOINT(raw.{long_field}, raw.{lat_field}))
+        AND TIMESTAMP(PARSE_DATETIME('%m/%d/%Y %H:%M:%S-00:00',t_pz.start_date)) <= TIMESTAMP(raw.{create_date})
+        AND IFNULL(TIMESTAMP(PARSE_DATETIME('%m/%d/%Y %H:%M:%S-00:00', t_pz.end_date)),
+            CURRENT_TIMESTAMP()) >= TIMESTAMP(raw.{create_date})
       
       -- DPW streets division
       JOIN `data-rivers.timebound_geography.dpw_streets_divisions` AS t_st ON
-        ST_CONTAINS(t_st.geometry, ST_GEOGPOINT(raw.{long_field}, raw.{lat_field}))
-        AND TIMESTAMP(PARSE_DATE('%m/%d/%Y',t_st.start_date)) <= TIMESTAMP(raw.{create_date})
-        AND IFNULL(TIMESTAMP(PARSE_DATE('%m/%d/%Y', t_st.end_date)),
-          CURRENT_TIMESTAMP()) >= TIMESTAMP(raw.{create_date})
+       ST_CONTAINS(t_st.geometry, ST_GEOGPOINT(raw.{long_field}, raw.{lat_field}))
+        AND TIMESTAMP(PARSE_DATETIME('%m/%d/%Y %H:%M:%S-00:00',t_st.start_date)) <= TIMESTAMP(raw.{create_date})
+        AND IFNULL(TIMESTAMP(PARSE_DATETIME('%m/%d/%Y %H:%M:%S-00:00', t_st.end_date)),
+            CURRENT_TIMESTAMP()) >= TIMESTAMP(raw.{create_date})
       
       -- DPW environment services division
       JOIN `data-rivers.timebound_geography.dpw_es_divisions` AS t_es ON 
-        ST_CONTAINS(t_es.geometry, ST_GEOGPOINT(raw.{long_field}, raw.{lat_field}))
-        AND TIMESTAMP(PARSE_DATE('%m/%d/%Y',t_es.start_date)) <= TIMESTAMP(raw.{create_date})
-        AND IFNULL(TIMESTAMP(PARSE_DATE('%m/%d/%Y', t_es.end_date)),
+         ST_CONTAINS(t_es.geometry, ST_GEOGPOINT(raw.{long_field}, raw.{lat_field}))
+        AND TIMESTAMP(PARSE_DATETIME('%m/%d/%Y %H:%M:%S-00:00',t_es.start_date)) <= TIMESTAMP(raw.{create_date})
+        AND IFNULL(TIMESTAMP(PARSE_DATETIME('%m/%d/%Y %H:%M:%S-00:00', t_es.end_date)),
             CURRENT_TIMESTAMP()) >= TIMESTAMP(raw.{create_date})
       
       -- DPW parks division
       JOIN `data-rivers.timebound_geography.dpw_parks_divisions` AS t_pk ON
-        ST_CONTAINS(t_pk.geometry, ST_GEOGPOINT(raw.{long_field}, raw.{lat_field}))
-        AND TIMESTAMP(PARSE_DATE('%m/%d/%Y', t_pk.start_date)) <= TIMESTAMP(raw.{create_date})
-        AND IFNULL(TIMESTAMP(PARSE_DATE('%m/%d/%Y', t_pk.end_date)),
-          CURRENT_TIMESTAMP()) >= TIMESTAMP(raw.{create_date})
+         ST_CONTAINS(t_pk.geometry, ST_GEOGPOINT(raw.{long_field}, raw.{lat_field}))
+        AND TIMESTAMP(PARSE_DATETIME('%m/%d/%Y %H:%M:%S-00:00',t_pk.start_date)) <= TIMESTAMP(raw.{create_date})
+        AND IFNULL(TIMESTAMP(PARSE_DATETIME('%m/%d/%Y %H:%M:%S-00:00', t_pk.end_date)),
+            CURRENT_TIMESTAMP()) >= TIMESTAMP(raw.{create_date})
     )
     
     -- join in the zones that were assigned in sel_zones with ALL of the records (including those that could not be rev coded above)
