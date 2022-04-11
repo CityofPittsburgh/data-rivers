@@ -21,8 +21,8 @@ dag = DAG(
 )
 
 # initialize gcs locations
-bucket = f"gs://{os.environ['GCS_PREFIX']}_weather"
 dataset = "weather"
+bucket = f"{os.environ['GCS_PREFIX']}_{dataset}"
 path = "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}"
 
 prev_day_weather_gcs = BashOperator(
@@ -36,7 +36,7 @@ prev_day_weather_bq_load = GoogleCloudStorageToBigQueryOperator(
         task_id = 'prev_day_weather_bq_load',
         destination_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}.{dataset}.daily_weather",
         bucket = bucket,
-        source_objects = [f"{dataset}/{path}/*.avro"],
+        source_objects = [f"{dataset}/{path}/"+"{{ prev_ds }}_weather_report.avro"],
         write_disposition='WRITE_APPEND',
         create_disposition='CREATE_IF_NEEDED',
         source_format = 'AVRO',
