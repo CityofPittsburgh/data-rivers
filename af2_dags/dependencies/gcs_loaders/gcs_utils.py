@@ -13,6 +13,10 @@ import requests
 import pandas as pd
 import jaydebeapi
 
+import avro.schema
+from avro.datafile import DataFileReader, DataFileWriter
+from avro.io import DatumReader, DatumWriter
+
 from datetime import datetime
 from google.cloud import storage, dlp
 
@@ -278,6 +282,32 @@ def upload_file_gcs(bucket_name, source_file_name, destination_blob_name):
     print("File {} uploaded to {}.".format(source_file_name, destination_blob_name))
 
     os.remove(source_file_name)
+
+
+def avro_to_gcs(path, file_name, avro_object_list, bucket_name, schema_def):
+    """
+    take list of dicts in memory and upload to GCS as AVRO
+    """
+    avro_bucket = "pghpa_avro_schemas"
+    blob = storage.Blob(
+        name=schema_def,
+        bucket=storage_client.get_bucket(avro_bucket),
+    )
+
+    schema_text = blob.download_as_string()
+    schema = avro.schema.Parse(schema_text)
+
+    writer = DataFileWriter(open(file_name, "wb"), DatumWriter(), schema)
+    for item in avro_object_list:
+       writer.append(item)
+    writer.close()
+
+    upload_file_gcs(bucket_name, file_name, f"{path}/{file_name}")
+
+    logging.info(
+        'Successfully uploaded blob %r to bucket %r.', path, bucket_name)
+
+    print('Successfully uploaded blob {} to bucket {}'.format(path, bucket_name))
 
 
 def json_to_gcs(path, json_object_list, bucket_name):
