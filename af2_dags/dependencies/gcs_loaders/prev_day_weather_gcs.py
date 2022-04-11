@@ -4,6 +4,7 @@ import time
 from datetime import datetime
 import requests
 import json
+import pytz
 import tzlocal
 
 from gcs_utils import json_to_gcs, avro_to_gcs
@@ -43,10 +44,13 @@ hourly_conditions = tempWeatherDict['hourly']
 datum = []
 
 for hour in hourly_conditions:
-    date_stamp = (datetime.fromtimestamp(hour['dt'])).date()
-    hour_stamp = (datetime.fromtimestamp(hour['dt'])).time()
-    date_str = str(date_stamp) + " " + str(hour_stamp)
+    date_time = datetime.fromtimestamp(hour['dt'])
+    utc_conv = date_time.astimezone(tz=pytz.utc)
+    est_conv = date_time.astimezone(tz=pytz.timezone('America/New_York'))
+    unix_time = int(hour['dt'])
 
+    utc_date_str = str(utc_conv)
+    est_date_str = str(est_conv)
 
     temp = int(round(float(hour['temp'])))
     feel = int(round(float(hour['feels_like'])))
@@ -54,11 +58,12 @@ for hour in hourly_conditions:
 
     cond = str(hour['weather'][0]['main'])
     id = str(hour['weather'][0]['id'])
+    icon = str(hour['weather'][0]['icon'])
     desc = str(hour['weather'][0]['description'])
 
-    hour_dict = dict({"date_time": date_str, "temp": temp, "feels_like": feel,
-                      "humidity": humid, "conditions": cond, "icon_id": id,
-                      "description": desc})
+    hour_dict = dict({"utc_date_time": utc_date_str, "est_date_time": est_date_str, "unix_date_time": unix_time,
+                      "temp": temp, "feels_like": feel, "humidity": humid, "conditions": cond,
+                      "icon_id": icon, "weather_id": id, "description": desc})
     datum.append(hour_dict)
 
 
