@@ -27,15 +27,15 @@ path = "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}"
 
 prev_day_weather_gcs = BashOperator(
     task_id='prev_day_weather_gcs',
-    bash_command=f"python {os.environ['DAGS_PATH']}/dependencies/gcs_loaders"
+    bash_command=f"python {os.environ['GCS_LOADER_PATH']}"
                  "/prev_day_weather_gcs.py --lookback_date {{ prev_ds }}",
     dag=dag
 )
 
 prev_day_weather_bq_load = GoogleCloudStorageToBigQueryOperator(
         task_id = 'prev_day_weather_bq_load',
-        destination_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}:weather.daily_weather",
-        bucket = f"{os.environ['GCS_PREFIX']}_weather",
+        destination_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}.{dataset}.daily_weather",
+        bucket = bucket,
         source_objects = [f"{dataset}/{path}/*.avro"],
         write_disposition='WRITE_APPEND',
         create_disposition='CREATE_IF_NEEDED',
