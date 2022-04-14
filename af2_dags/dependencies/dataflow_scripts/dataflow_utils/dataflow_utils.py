@@ -191,7 +191,7 @@ class GetDateStringsFromUnix(beam.DoFn, ABC):
 
 
 class GoogleMapsClassifyAndGeocode(beam.DoFn, ABC):
-    def __init__(self, key, loc_field_names, partitioned_address, contains_pii, del_org_input ):
+    def __init__(self, key, loc_field_names, partitioned_address, contains_pii, del_org_input, preserve_coords):
         """
         :param partitioned_address: a boolean that idenitifies whether an address is broken into multiple components
         :param loc_field_names: dictionary of 7 field name keys that contain the following information:
@@ -203,7 +203,7 @@ class GoogleMapsClassifyAndGeocode(beam.DoFn, ABC):
             :param lat_field: name of field that contains the latitude of an address
             :param long_field: name of field that contains the longitude of an address
         """
-        self.partioned_address = partitioned_address
+        self.partitioned_address = partitioned_address
         if partitioned_address:
             self.street_num_field = loc_field_names["street_num_field"]
             self.street_name_field = loc_field_names["street_name_field"]
@@ -219,11 +219,13 @@ class GoogleMapsClassifyAndGeocode(beam.DoFn, ABC):
 
         self.pii_vals = contains_pii
         self.del_org_input = del_org_input
+        self.preserve_coords = preserve_coords
 
 
     def process(self, datum):
-        datum[self.lat_field] = float(datum[self.lat_field])
-        datum[self.long_field] = float(datum[self.long_field])
+        if datum[self.lat_field] and datum[self.long_field]:
+            datum[self.lat_field] = float(datum[self.lat_field])
+            datum[self.long_field] = float(datum[self.long_field])
 
         if self.pii_vals:
             input_name = 'pii_input_address'
@@ -237,10 +239,10 @@ class GoogleMapsClassifyAndGeocode(beam.DoFn, ABC):
         datum[formatted_name] = None
         datum['address_type'] = None
 
-        if self.partioned_address:
+        if self.partitioned_address:
             datum = id_underspecified_addresses(datum, self)
         if datum['address_type'] not in ['Missing', 'Coordinates Only']:
-            datum = regularize_and_geocode_address(datum, self, input_name, formatted_name)
+            datum = regularize_and_geocode_address(datum, self, input_name, formatted_name, self.preserve_coords)
         if self.del_org_input:
             datum.pop(self.address_field)
         yield datum
@@ -619,7 +621,7 @@ def id_underspecified_addresses(datum, self):
 
 
 # This functions geocodes an address using Google Maps AND standardizes the address formatting
-def regularize_and_geocode_address(datum, self, i_name, f_name):
+def regularize_and_geocode_address(datum, self, i_name, f_name, preserve_coords):
     """
     Take in addresses of different formats, regularize them to USPS/Google Maps format, then geocode lat/long values
     :return: datum in PCollection (dict) with two new fields (lat, long) containing coordinates
@@ -631,7 +633,7 @@ def regularize_and_geocode_address(datum, self, i_name, f_name):
     if datum['address_type'] == 'Intersection':
         address = str(datum[self.street_name_field]) + ' and ' + str(datum[self.cross_street_field]) + ', ' + str(
                 datum[self.city_field])
-    elif not self.partioned_address:
+    elif not self.partitioned_address:
         address = datum[self.address_field]
         datum['address_type'] = 'Precise'
     else:
@@ -688,12 +690,23 @@ def regularize_and_geocode_address(datum, self, i_name, f_name):
             attempt_ct += 1
 
     # update the lat/long (potentially overwriting the input, depending on what was passed in)
+    google_lat_field = self.lat_field
+    google_long_field = self.long_field
+    if preserve_coords:
+        original_lat_field = "input_" + self.lat_field
+        original_long_field = "input_" + self.long_field
+        google_lat_field = "google_" + self.lat_field
+        google_long_field = "google_" + self.long_field
+        datum[original_lat_field] = str(datum[self.lat_field])
+        datum[original_long_field] = str(datum[self.long_field])
+        datum.pop(self.lat_field)
+        datum.pop(self.long_field)
     try:
-        datum[self.lat_field] = coords['lat']
-        datum[self.long_field] = coords['long']
+        datum[google_lat_field] = coords['lat']
+        datum[google_long_field] = coords['long']
     except TypeError:
-        datum[self.lat_field] = None
-        datum[self.long_field] = None
+        datum[google_lat_field] = None
+        datum[google_long_field] = None
 
     return datum
 
