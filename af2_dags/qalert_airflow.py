@@ -104,14 +104,14 @@ WITH formatted  AS
     SELECT 
         DISTINCT * EXCEPT (input_pii_lat, input_pii_long, google_pii_lat, google_pii_long, 
                            input_anon_lat, input_anon_long, google_anon_lat, google_anon_long),
-        CAST(input_pii_lat AS FLOAT64) AS pii_lat,
-        CAST(input_pii_long AS FLOAT64) AS pii_long,
-        CAST(google_pii_lat AS FLOAT64) AS pii_lat,
-        CAST(google_pii_long AS FLOAT64) AS pii_long,
-        CAST(input_anon_lat AS FLOAT64) AS anon_lat,
-        CAST(input_anon_long AS FLOAT64) AS anon_long,
-        CAST(anon_lat AS FLOAT64) AS anon_lat,
-        CAST(anon_long AS FLOAT64) AS anon_long,
+        CAST(input_pii_lat AS FLOAT64) AS input_pii_lat,
+        CAST(input_pii_long AS FLOAT64) AS input_pii_long,
+        CAST(google_pii_lat AS FLOAT64) AS google_pii_lat,
+        CAST(google_pii_long AS FLOAT64) AS google_pii_long,
+        CAST(input_anon_lat AS FLOAT64) AS input_anon_lat,
+        CAST(input_anon_long AS FLOAT64) AS input_anon_long,
+        CAST(google_anon_lat AS FLOAT64) AS google_anon_lat,
+        CAST(google_anon_long AS FLOAT64) AS google_anon_long,
     FROM 
         {os.environ['GCLOUD_PROJECT']}.qalert.enriched_incoming_actions
     )
