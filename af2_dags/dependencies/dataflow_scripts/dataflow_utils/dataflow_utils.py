@@ -226,6 +226,9 @@ class GoogleMapsClassifyAndGeocode(beam.DoFn, ABC):
         if datum[self.lat_field] and datum[self.long_field]:
             datum[self.lat_field] = float(datum[self.lat_field])
             datum[self.long_field] = float(datum[self.long_field])
+        else:
+            datum[self.lat_field] = float(0.0)
+            datum[self.long_field] = float(0.0)
 
         if self.pii_vals:
             input_name = 'pii_input_address'
@@ -355,11 +358,13 @@ class AnonymizeLatLong(beam.DoFn, ABC):
             for (k1, k2) in self.accuracy_converter:
                 if k1 <= accuracy <= k2:
                     acc = self.accuracy_converter[(k1, k2)]
-
-            datum['anon_' + lat.strip('pii_')] = str(round(float(datum[lat]), acc)) if datum[lat] else None
-            datum['anon_' + long.strip('pii_')] = str(round(float(datum[long]), acc)) if datum[long] else None
-            datum[lat] = str(datum[lat]) if datum[lat] else None
-            datum[long] = str(datum[long]) if datum[long] else None
+            try:
+                datum[lat.replace("pii_", "anon_")] = str(round(float(datum[lat]), acc)) if datum[lat] else None
+                datum[long.replace("pii_", "anon_")] = str(round(float(datum[long]), acc)) if datum[long] else None
+                datum[lat] = str(datum[lat]) if datum[lat] else None
+                datum[long] = str(datum[long]) if datum[long] else None
+            except KeyError:
+                pass
 
         yield datum
 
@@ -383,7 +388,7 @@ class AnonymizeAddressBlock(beam.DoFn, ABC):
         """
         for (field, accuracy) in self.anon_values:
             address = datum[field]
-            new_field_name = 'anon_' + field.strip('pii_')
+            new_field_name = field.replace("pii_", "anon_")
             if address:
                 block_num = re.findall(r"^[0-9]*", address)
 
