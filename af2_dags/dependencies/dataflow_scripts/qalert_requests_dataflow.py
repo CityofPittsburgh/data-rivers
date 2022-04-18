@@ -113,8 +113,9 @@ def run(argv = None):
                 | beam.ParDo(GetStatus())
                 | beam.ParDo(GetClosedDate())
                 | beam.ParDo(DetectChildTicketStatus())
-                | beam.ParDo(GoogleMapsClassifyAndGeocode(key = gmap_key, loc_field_names = loc_names,
-                                                          partitioned_address = True))
+                | beam.ParDo(GoogleMapsClassifyAndGeocode(key=gmap_key, loc_field_names=loc_names,
+                                                          partitioned_address=True, contains_pii=True,
+                                                          del_org_input=False, preserve_coords=True))
                 | beam.ParDo(AnonymizeLatLong(lat_long_accuracy))
                 | beam.ParDo(AnonymizeAddressBlock(block_anon_accuracy))
                 | WriteToAvro(known_args.avro_output, schema = avro_schema, file_name_suffix = '.avro',
