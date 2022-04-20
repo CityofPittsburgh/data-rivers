@@ -23,7 +23,7 @@ last_action_est, last_action_unix, last_action_utc, closed_date_est, closed_date
 pii_street_num, street, cross_street, street_id, cross_street_id, city, pii_input_address, 
 pii_google_formatted_address, address_type, anon_google_formatted_address, neighborhood_name, 
 council_district, ward, police_zone, fire_zone, dpw_streets, dpw_enviro, dpw_parks, input_pii_lat, input_pii_long, 
-google_pii_lat, google_pii_long, input_anon_lat, input_anon_long, google_anon_lat, google_anon_long, within_city"""
+google_pii_lat, google_pii_long, input_anon_lat, input_anon_long, google_anon_lat, google_anon_long"""
 
 LINKED_COLS_IN_ORDER = """status_name, status_code, dept, 
 request_type_name, request_type_id, pii_comments, pii_private_notes, create_date_est, create_date_utc, 
@@ -31,7 +31,7 @@ create_date_unix, last_action_est, last_action_unix, last_action_utc, closed_dat
 pii_street_num, street, cross_street, street_id, cross_street_id, city, pii_input_address, 
 pii_google_formatted_address, address_type, anon_google_formatted_address, neighborhood_name, 
 council_district, ward, police_zone, fire_zone, dpw_streets, dpw_enviro, dpw_parks, input_pii_lat, input_pii_long, 
-google_pii_lat, google_pii_long, input_anon_lat, input_anon_long, google_anon_lat, google_anon_long, within_city"""
+google_pii_lat, google_pii_long, input_anon_lat, input_anon_long, google_anon_lat, google_anon_long"""
 
 EXCLUDE_TYPES = """'Hold - 311', 'Graffiti, Owner Refused DPW Removal', 'Medical Exemption - Tote', 
 'Snow Angel Volunteer', 'Claim form (Law)','Snow Angel Intake', 'Application Request', 'Reject to 311', 'Referral', 
@@ -42,7 +42,7 @@ request_type_name, request_type_id, create_date_est, create_date_utc,
 create_date_unix, last_action_est, last_action_unix, last_action_utc, closed_date_est, closed_date_utc,  
 closed_date_unix, street, cross_street, street_id, cross_street_id, city, address_type,  
 anon_google_formatted_address, neighborhood_name, council_district, ward, police_zone, fire_zone, dpw_streets, 
-dpw_enviro, dpw_parks, input_anon_lat, input_anon_long, google_anon_lat, google_anon_long, within_city"""
+dpw_enviro, dpw_parks, input_anon_lat, input_anon_long, google_anon_lat, google_anon_long"""
 
 
 dag = DAG(
@@ -87,7 +87,7 @@ gcs_to_bq = GoogleCloudStorageToBigQueryOperator(
         destination_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}:qalert.enriched_incoming_actions",
         bucket = f"{os.environ['GCS_PREFIX']}_qalert",
         source_objects = [f"{dataset}/{avro_loc}*.avro"],
-        write_disposition = 'WRITE_APPEND',
+        write_disposition = 'WRITE_TRUNCATE',
         create_disposition = 'CREATE_IF_NEEDED',
         source_format = 'AVRO',
         autodetect = True,
@@ -406,34 +406,34 @@ geojoin = BigQueryOperator(
 #         dag = dag
 # )
 #
-# query_delete_old_insert_new_records = f"""
-# /*
-# All tickets that ever receive an update (or are simply created) should be stored with their current status
-# for historical purposes. This query does just that. The data are simply inserted into all_tickets_current_status. If
-# the ticket has been seen before, it is already in all_tickets_current_status. Rather than simply add the newest ticket,
-# this query also deletes the prior entry for that ticket. The key to understanding this is: The API does not return the
-# FULL HISTORY of each ticket, but rather a snapshot of the ticket's current status. This means that if the status is
-# updated
-# multiple times between DAG runs, only the final status is recorded. While the FULL HISTORY has obvious value, this is
-# not available and it less confusing to simply store a current snapshot of the ticket's history.
-#
-# all_tickets_current_status is currently (01/22) maintained for historical purposes.  This table has less value for
-# analysis as the linkages between tickets are not taken into account.
-# */
-#
-# DELETE FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`
-# WHERE id IN (SELECT id FROM `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_enriched`);
-# INSERT INTO `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`
-# SELECT
-#     {COLS_IN_ORDER}
-# FROM `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_enriched`;
-# """
-# delete_old_insert_new_records = BigQueryOperator(
-#         task_id = 'delete_old_insert_new_records',
-#         sql = query_delete_old_insert_new_records,
-#         use_legacy_sql = False,
-#         dag = dag
-# )
+query_delete_old_insert_new_records = f"""
+/*
+All tickets that ever receive an update (or are simply created) should be stored with their current status
+for historical purposes. This query does just that. The data are simply inserted into all_tickets_current_status. If
+the ticket has been seen before, it is already in all_tickets_current_status. Rather than simply add the newest ticket,
+this query also deletes the prior entry for that ticket. The key to understanding this is: The API does not return the
+FULL HISTORY of each ticket, but rather a snapshot of the ticket's current status. This means that if the status is
+updated
+multiple times between DAG runs, only the final status is recorded. While the FULL HISTORY has obvious value, this is
+not available and it less confusing to simply store a current snapshot of the ticket's history.
+
+all_tickets_current_status is currently (01/22) maintained for historical purposes.  This table has less value for
+analysis as the linkages between tickets are not taken into account.
+*/
+
+DELETE FROM `{os.environ['GCLOUD_PROJECT']}.qalert.compare_lat_longs_all_tix`
+WHERE id IN (SELECT id FROM `{os.environ['GCLOUD_PROJECT']}.qalert.test_incoming_enriched`);
+INSERT INTO `{os.environ['GCLOUD_PROJECT']}.qalert.compare_lat_longs_all_tix`
+SELECT
+    {COLS_IN_ORDER}
+FROM `{os.environ['GCLOUD_PROJECT']}.qalert.test_incoming_enriched`;
+"""
+delete_old_insert_new_records = BigQueryOperator(
+        task_id = 'delete_old_insert_new_records',
+        sql = query_delete_old_insert_new_records,
+        use_legacy_sql = False,
+        dag = dag
+)
 #
 # # Create a table from all_linked_requests that has all columns EXCEPT those that have potential PII. This table is
 # # subsequently exported to WPRDC. BQ will not currently (2021-10-01) allow data to be pushed from a query and it must
@@ -472,6 +472,6 @@ beam_cleanup = BashOperator(
 )
 
 # DAG execution:
-gcs_loader >> dataflow >> gcs_to_bq >> format_dedupe >> city_limits >> geojoin >> beam_cleanup
+gcs_loader >> dataflow >> gcs_to_bq >> format_dedupe >> city_limits >> geojoin >> delete_old_insert_new_records >> beam_cleanup
 #insert_new_parent >> remove_false_parents >> integrate_children >> replace_last_update >> delete_old_insert_new_records >> \
 #drop_pii_for_export >> wprdc_export >> beam_cleanup
