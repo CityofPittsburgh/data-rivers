@@ -371,14 +371,10 @@ def select_expand_odata(url, tables):
         :return: list of dicts representing ODATA API results
         """
 
+    odata_url = F"{url}{tables[0][0]}?$select={tables[0][2][0]}"
 
-    # if only one table
-    if len(tables) == 1:
-        odata_url = F"{url}{tables[0][0]}?$select={tables[0][2][0]}"
-
-    # if at least one expansion
-    else:
-        odata_url = F"{url}{tables[0][0]}?$select={tables[0][2][0]}"
+    # if more than one table
+    if len(tables) > 1:
         odata_url += ',&$expand='
 
         for t in tables[1:]:
