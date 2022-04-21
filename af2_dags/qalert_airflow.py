@@ -117,7 +117,7 @@ WITH formatted  AS
     )
 -- drop the final column through slicing the string (-13). final column is added in next query     
 SELECT 
-    {COLS_IN_ORDER[:-13]} 
+    {COLS_IN_ORDER} 
 FROM 
     formatted
 """
