@@ -8,32 +8,43 @@ from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOperator
 
 from dependencies import airflow_utils
-from dependencies.airflow_utils import get_ds_year, get_ds_month, default_args, build_revgeo_query
+from dependencies.airflow_utils import get_ds_year, get_ds_month, get_ds_day, default_args, build_revgeo_query
 
 # TODO: When Airflow 2.0 is released, upgrade the package, sub in DataFlowPythonOperator for BashOperator,
 # and pass the argument 'py_interpreter=python3'
 
+
 dag = DAG(
     'computronix_domi_permits',
     default_args=default_args,
-    schedule_interval='@daily',
-    user_defined_filters={'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year}
+    schedule_interval='@hourly',
+    user_defined_filters = {'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year,
+                            'get_ds_day'  : get_ds_day}
 )
 
+
+# initialize GCS and BQ locations
+bucket = f"gs://{os.environ['GCS_PREFIX']}_computronix"
+dataset = "domi_permits"
+path = "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds|get_ds_day }}/{{ run_id }}"
+json_loc = f"{path}_permits.json"
+avro_loc = f"avro_output/{path}/"
+
+
+# Run GCS loader
+exec_gcs = f"python {os.environ['GCS_LOADER_PATH']}/computronix_domi_permits_gcs.py"
 computronix_domi_permits_gcs = BashOperator(
     task_id='computronix_domi_permits_gcs',
-    bash_command="python {}".format(os.environ['DAGS_PATH']) + "/dependencies/gcs_loaders"
-                 "/computronix_domi_permits_gcs.py --execution_date {{ ds }}",
+    bash_command= f"{exec_gcs} --output_arg {dataset}/{json_loc}",
     dag=dag
 )
 
+
+# Run DF script
+exec_df = f"python {os.environ['DATAFLOW_SCRIPT_PATH']}/computronix_domi_permits_dataflow.py"
 computronix_domi_permits_dataflow = BashOperator(
     task_id='computronix_domi_permits_dataflow',
-    bash_command="python {}/dependencies/dataflow_scripts/computronix_domi_permits_dataflow.py --input gs://{}_"
-                 "computronix/domi_permits/".format(os.environ['DAGS_PATH'], os.environ['GCS_PREFIX']) +
-                 "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds }}_domi_permits.json --avro_output " +
-                 "gs://{}_computronix/domi_permits/avro_output/".format(os.environ['GCS_PREFIX']) +
-                 "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds }}/",
+    bash_command= f"{exec_df} --input {bucket}/{dataset}/{json_loc} --avro_output {bucket}/{dataset}/{avro_loc}",
     dag=dag
 )
 
