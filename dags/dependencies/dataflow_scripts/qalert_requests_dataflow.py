@@ -35,6 +35,7 @@ class GetClosedDate(beam.DoFn):
             datum['closed_date_utc'], datum['closed_date_est'] = unix_to_date_strings(datum['last_action_unix'])
         else:
             datum['closed_date_unix'], datum['closed_date_utc'], datum['closed_date_est'] = None, None, None
+        datum.pop('close_date')
         yield datum
 
 
