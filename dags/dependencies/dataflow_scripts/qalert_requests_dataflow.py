@@ -7,10 +7,18 @@ import apache_beam as beam
 from apache_beam.io import ReadFromText
 from apache_beam.io.avroio import WriteToAvro
 
-from dataflow_utils import dataflow_utils
-from dataflow_utils.dataflow_utils import JsonCoder, SwapFieldNames, generate_args, FilterFields, \
-    ColumnsCamelToSnakeCase, GetDateStringsFromUnix, ChangeDataTypes, unix_to_date_strings, \
-    GoogleMapsClassifyAndGeocode, AnonymizeAddressBlock, AnonymizeLatLong
+
+#TODO: remove these imports once confirmed to work
+
+# from dataflow_utils import dataflow_utils
+# from dataflow_utils.dataflow_utils import JsonCoder, SwapFieldNames, generate_args, FilterFields, \
+#     ColumnsCamelToSnakeCase, GetDateStringsFromUnix, ChangeDataTypes, unix_to_date_strings, \
+#     GoogleMapsClassifyAndGeocode, AnonymizeAddressBlock, AnonymizeLatLong
+
+
+from af2_dags.dependencies.dataflow_scripts.dataflow_utils.dataflow_utils import JsonCoder, SwapFieldNames, \
+    generate_args, FilterFields, ColumnsCamelToSnakeCase, GetDateStringsFromUnix, ChangeDataTypes, \
+    unix_to_date_strings, GoogleMapsClassifyAndGeocode, AnonymizeAddressBlock, AnonymizeLatLong
 
 
 class GetStatus(beam.DoFn):
@@ -113,7 +121,8 @@ def run(argv = None):
                 | beam.ParDo(GetClosedDate())
                 | beam.ParDo(DetectChildTicketStatus())
                 | beam.ParDo(GoogleMapsClassifyAndGeocode(key = gmap_key, loc_field_names = loc_names,
-                                                          partitioned_address = True))
+                                                          partitioned_address = True, contains_pii = True,
+                                                          del_org_input = False))
                 | beam.ParDo(AnonymizeLatLong(lat_long_accuracy))
                 | beam.ParDo(AnonymizeAddressBlock(block_anon_accuracy))
                 | WriteToAvro(known_args.avro_output, schema = avro_schema, file_name_suffix = '.avro',
