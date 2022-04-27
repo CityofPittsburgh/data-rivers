@@ -190,8 +190,8 @@ class GetDateStringsFromUnix(beam.DoFn, ABC):
         yield datum
 
 
-class GoogleMapsClassifyAndGeocode(beam.DoFn, ABC):
-    def __init__(self, key, loc_field_names, partitioned_address, contains_pii, del_org_input, preserve_coords):
+class FormatAndClassifyAddress(beam.DoFn, ABC):
+    def __init__(self, loc_field_names, contains_pii):
         """
         :param partitioned_address: a boolean that idenitifies whether an address is broken into multiple components
         :param loc_field_names: dictionary of 7 field name keys that contain the following information:
@@ -203,24 +203,14 @@ class GoogleMapsClassifyAndGeocode(beam.DoFn, ABC):
             :param lat_field: name of field that contains the latitude of an address
             :param long_field: name of field that contains the longitude of an address
         """
-        self.partitioned_address = partitioned_address
-        if partitioned_address:
-            self.street_num_field = loc_field_names["street_num_field"]
-            self.street_name_field = loc_field_names["street_name_field"]
-            self.cross_street_field = loc_field_names["cross_street_field"]
-            self.city_field = loc_field_names["city_field"]
-        else:
-            self.address_field = loc_field_names["address_field"]
-
+        self.street_num_field = loc_field_names["street_num_field"]
+        self.street_name_field = loc_field_names["street_name_field"]
+        self.cross_street_field = loc_field_names["cross_street_field"]
+        self.city_field = loc_field_names["city_field"]
         self.lat_field = loc_field_names["lat_field"]
         self.long_field = loc_field_names["long_field"]
 
-        self.api_key = key
-
         self.pii_vals = contains_pii
-        self.del_org_input = del_org_input
-        self.preserve_coords = preserve_coords
-
 
     def process(self, datum):
         if datum[self.lat_field] and datum[self.long_field]:
@@ -230,22 +220,39 @@ class GoogleMapsClassifyAndGeocode(beam.DoFn, ABC):
             datum[self.lat_field] = float(0.0)
             datum[self.long_field] = float(0.0)
 
-        if self.pii_vals:
-            input_name = 'pii_input_address'
-            formatted_name = "pii_google_formatted_address"
+        datum['address_type'] = None
+        datum = id_underspecified_addresses(datum, self)
 
+        yield datum
+
+
+class GoogleMapsGeocodeAddress(beam.DoFn, ABC):
+    def __init__(self, key, loc_field_names, del_org_input):
+        """
+        :param key: string containing the Google Maps API key, extracted from an environmental variable
+        :param loc_field_names: dictionary of 3 field name keys that contain the following information:
+            :param address_field: name of field that contains single-line addresses
+            :param lat_field: name of field that contains the latitude of an address
+            :param long_field: name of field that contains the longitude of an address
+        :param del_org_input: boolean that determines if the original address and lat/long fields will be preserved
+        """
+        self.address_field = loc_field_names["address_field"]
+        self.lat_field = loc_field_names["lat_field"]
+        self.long_field = loc_field_names["long_field"]
+
+        self.api_key = key
+        self.del_org_input = del_org_input
+
+    def process(self, datum):
+        if "pii" in self.address_field:
+            formatted_name = "pii_google_formatted_address"
         else:
-            input_name = 'input_address'
             formatted_name = "google_formatted_address"
 
-        datum[input_name] = None
         datum[formatted_name] = None
-        datum['address_type'] = None
 
-        if self.partitioned_address:
-            datum = id_underspecified_addresses(datum, self)
         if datum['address_type'] not in ['Missing', 'Coordinates Only']:
-            datum = regularize_and_geocode_address(datum, self, input_name, formatted_name, self.preserve_coords)
+            datum = regularize_and_geocode_address(datum, self, formatted_name, self.del_org_input)
         if self.del_org_input:
             datum.pop(self.address_field)
         yield datum
@@ -601,18 +608,31 @@ def gmap_geocode_address(datum, address_field, self):
 # GoogleMapsClassifyAndGeocode()
 def id_underspecified_addresses(datum, self):
     """
-    Identify whether a given street address, partitioned into street name, street number, and cross street name,
-    is underspecified or not. An underspecified address is defined as any address that does not have an exact
-    street number and is not an intersection. Examples of underspecified addresses are block numbers or
-    ranges of addresses.
-    :return: datum in PCollection (dict) with new field (address_type) identifying level of address specificity
+    Concatenate partitioned addresses (broken into street name, street number, and cross street name) into a
+    single-line address, and identify whether a given street address is underspecified or not. An underspecified address
+    is defined as any address that does not have an exact street number and is not an intersection.
+    Examples of underspecified addresses are block numbers or ranges of addresses.
+    :return: datum in PCollection (dict) with two new fields: address_type, which identifies level of address specificity,
+    and input_name (pii_input_address or input_address) that contains a concatenated single-line address made up of
+    street number, street name, and city name
     """
+    if self.pii_vals:
+        input_name = 'pii_input_address'
+    else:
+        input_name = 'input_address'
+    address = None
+
     if datum[self.street_name_field]:
+        address = str(datum[self.street_num_field]) + ' ' + str(datum[self.street_name_field]) + \
+                  ', ' + str(datum[self.city_field])
         if datum[self.street_num_field].isnumeric():
             address_type = 'Precise'
         else:
             if not datum[self.street_num_field] and datum[self.cross_street_field]:
                 address_type = 'Intersection'
+                address = str(datum[self.street_name_field]) + ' and ' + \
+                          str(datum[self.cross_street_field]) + ', ' + \
+                          str(datum[self.city_field])
             else:
                 address_type = 'Underspecified'
     elif datum[self.lat_field] != 0.0 and datum[self.long_field] != 0.0:
@@ -621,37 +641,28 @@ def id_underspecified_addresses(datum, self):
         datum[self.long_field] = str(datum[self.long_field])
     else:
         address_type = 'Missing'
+
+    datum[input_name] = address
     datum['address_type'] = address_type
     return datum
 
 
 # This functions geocodes an address using Google Maps AND standardizes the address formatting
-def regularize_and_geocode_address(datum, self, i_name, f_name, preserve_coords):
+def regularize_and_geocode_address(datum, self, f_name, del_org_input):
     """
     Take in addresses of different formats, regularize them to USPS/Google Maps format, then geocode lat/long values
     :return: datum in PCollection (dict) with two new fields (lat, long) containing coordinates
     """
-
     base_url = "https://maps.googleapis.com/maps/api/geocode/json"
 
-    # format address according to address type and initialize lat/long
-    if datum['address_type'] == 'Intersection':
-        address = str(datum[self.street_name_field]) + ' and ' + str(datum[self.cross_street_field]) + ', ' + str(
-                datum[self.city_field])
-    elif not self.partitioned_address:
-        address = datum[self.address_field]
-        datum['address_type'] = 'Precise'
-    else:
-        address = str(datum[self.street_num_field]) + ' ' + str(datum[self.street_name_field]) + ', ' + str(
-                datum[self.city_field])
-    if 'none' not in address.lower():
-        datum[i_name] = address
-    else:
+    if 'none' in datum[self.address_field].lower() or not datum[self.address_field]:
         address = 'Pittsburgh, PA, USA'
+    else:
+        address = datum[self.address_field]
 
     coords = {'lat': None, 'long': None}
 
-    # set delays for exponetial backoff (prevents exceeding API quota) and is only used if API call fails
+    # set delays for exponential backoff (prevents exceeding API quota) and is only used if API call fails
     curr_delay = 0.1
     max_delay = 10
     attempt_ct = 1
@@ -688,7 +699,7 @@ def regularize_and_geocode_address(datum, self, i_name, f_name, preserve_coords)
 
             # all other conditions trigger break and are noted in data
             if curr_delay > max_delay:
-                datum["pii_google_formatted_address"] = f"API not accessible after {attempt_ct} attempts"
+                datum[f_name] = f"API not accessible after {attempt_ct} attempts"
                 break
 
             # increment count for reporting
@@ -697,13 +708,13 @@ def regularize_and_geocode_address(datum, self, i_name, f_name, preserve_coords)
     # update the lat/long (potentially overwriting the input, depending on what was passed in)
     google_lat_field = self.lat_field
     google_long_field = self.long_field
-    if preserve_coords:
-        original_lat_field = "input_" + self.lat_field
-        original_long_field = "input_" + self.long_field
+    if not del_org_input:
+        org_lat_field = "input_" + self.lat_field
+        org_long_field = "input_" + self.long_field
         google_lat_field = "google_" + self.lat_field
         google_long_field = "google_" + self.long_field
-        datum[original_lat_field] = str(datum[self.lat_field])
-        datum[original_long_field] = str(datum[self.long_field])
+        datum[org_lat_field] = str(datum[self.lat_field])
+        datum[org_long_field] = str(datum[self.long_field])
         datum.pop(self.lat_field)
         datum.pop(self.long_field)
     try:
