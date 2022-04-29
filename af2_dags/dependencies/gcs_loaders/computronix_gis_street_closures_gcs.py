@@ -30,7 +30,7 @@ sel_fields = [
 # "STREETCLOSUREDOMISTREETSEGMENT" is a nested join into 'DOMISTREETCLOSURE'
 tables = [
             ("DOMIPERMIT", False, [sel_fields[0]]),
-            ('DOMISTREETCLOSURE', ["STREETCLOSUREDOMISTREETSEGMENT"], [sel_fields[2], sel_fields[3]])
+            ('DOMISTREETCLOSURE', ["STREETCLOSUREDOMISTREETSEGMENT"], [sel_fields[1], sel_fields[2]])
          ]
 
 # extract the data from ODATA API
