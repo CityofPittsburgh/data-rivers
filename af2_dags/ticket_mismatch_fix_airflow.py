@@ -31,7 +31,7 @@ create_query = f"""-- create a temporary table with the most up-to-date request 
                         geos.pii_input_address, geos.pii_google_formatted_address, geos.address_type, 
                         geos.anon_google_formatted_address, geos.neighborhood_name, geos.council_district, geos.ward,
                         geos.police_zone, geos.fire_zone, geos.dpw_streets, geos.dpw_enviro, geos.dpw_parks,
-                        geos.pii_lat, geos.pii_long, geos.anon_lat, geos.anon_long
+                        geos.pii_lat, geos.pii_long, geos.anon_lat, geos.anon_long, geos.within_city
         FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
         INNER JOIN
         (SELECT id, request_type_name, request_type_id
@@ -42,7 +42,7 @@ create_query = f"""-- create a temporary table with the most up-to-date request 
         (SELECT id, pii_street_num, street, cross_street, street_id, cross_street_id,
                 city, pii_input_address, pii_google_formatted_address, anon_google_formatted_address,
                 address_type, neighborhood_name, council_district, ward, police_zone, fire_zone,
-                dpw_streets, dpw_enviro, dpw_parks, pii_lat, pii_long, anon_lat, anon_long
+                dpw_streets, dpw_enviro, dpw_parks, pii_lat, pii_long, anon_lat, anon_long, within_city
         FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`
         WHERE child_ticket = FALSE AND
         neighborhood_name IS NOT NULL AND council_district IS NOT NULL AND
@@ -55,7 +55,7 @@ create_query = f"""-- create a temporary table with the most up-to-date request 
         OR alr.council_district != geos.council_district OR alr.ward != geos.ward
         OR alr.police_zone != geos.police_zone OR alr.fire_zone != geos.fire_zone
         OR alr.dpw_streets != geos.dpw_streets OR alr.dpw_enviro != geos.dpw_enviro
-        OR alr.dpw_parks != geos.dpw_parks
+        OR alr.dpw_parks != geos.dpw_parks OR alr.within_city != geos.within_city
         """
 
 create_mismatch_table = BigQueryOperator(
@@ -84,7 +84,7 @@ upd_query = f"""-- update all_linked_requests with the data stored in the tempor
             alr.dpw_streets = temp.dpw_streets, alr.dpw_enviro = temp.dpw_enviro, 
             alr.dpw_parks = temp.dpw_parks, geos.pii_lat = temp.geos.pii_lat,
             alr.pii_long = temp.pii_long, alr.anon_lat = temp.anon_lat,
-            alr.anon_long = temp.anon_long
+            alr.anon_long = temp.anon_long, alr.within_city = temp.within_city
             FROM `{os.environ['GCLOUD_PROJECT']}:qalert.temp_curr_status_merge` temp
             WHERE alr.group_id = temp.group_id
             """
