@@ -32,10 +32,10 @@ create_query = f"""-- create a temporary table with the most up-to-date request 
                         geos.anon_google_formatted_address, geos.neighborhood_name, geos.council_district, geos.ward,
                         geos.police_zone, geos.fire_zone, geos.dpw_streets, geos.dpw_enviro, geos.dpw_parks,
                         geos.pii_lat, geos.pii_long, geos.anon_lat, geos.anon_long
-        FROM `data-rivers.qalert.all_linked_requests` alr
+        FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
         INNER JOIN
         (SELECT id, request_type_name, request_type_id
-        FROM `data-rivers.qalert.all_tickets_current_status`
+        FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`
         WHERE child_ticket = FALSE AND request_type_name IS NOT NULL) req_types
         ON alr.group_id = req_types.id
         INNER JOIN
@@ -43,7 +43,7 @@ create_query = f"""-- create a temporary table with the most up-to-date request 
                 city, pii_input_address, pii_google_formatted_address, anon_google_formatted_address,
                 address_type, neighborhood_name, council_district, ward, police_zone, fire_zone,
                 dpw_streets, dpw_enviro, dpw_parks, pii_lat, pii_long, anon_lat, anon_long
-        FROM `data-rivers.qalert.all_tickets_current_status`
+        FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`
         WHERE child_ticket = FALSE AND
         neighborhood_name IS NOT NULL AND council_district IS NOT NULL AND
         council_district IS NOT NULL AND ward IS NOT NULL AND
