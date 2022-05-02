@@ -69,7 +69,7 @@ create_mismatch_table = BigQueryOperator(
 )
 
 upd_query = f"""-- update all_linked_requests with the data stored in the temporary mismatch table
-            UPDATE `{os.environ['GCLOUD_PROJECT']}:qalert.all_linked_requests` alr
+            UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
             SET alr.request_type_name = temp.request_type_name, alr.request_type_id = temp.request_type_id,
             alr.pii_street_num = temp.pii_street_num, alr.street = temp.street, 
             alr.cross_street = temp.cross_street, alr.street_id = temp.street_id, 
@@ -85,7 +85,7 @@ upd_query = f"""-- update all_linked_requests with the data stored in the tempor
             alr.dpw_parks = temp.dpw_parks, geos.pii_lat = temp.geos.pii_lat,
             alr.pii_long = temp.pii_long, alr.anon_lat = temp.anon_lat,
             alr.anon_long = temp.anon_long, alr.within_city = temp.within_city
-            FROM `{os.environ['GCLOUD_PROJECT']}:qalert.temp_curr_status_merge` temp
+            FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_curr_status_merge` temp
             WHERE alr.group_id = temp.group_id
             """
 
