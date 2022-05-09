@@ -13,7 +13,7 @@ from dependencies.airflow_utils import get_ds_month, get_ds_year, default_args
 # between their records in all_tickets_current_status and all_linked_requests in BigQuery
 
 dag = DAG(
-    'ticket_mismatch_fix',
+    'fix_unsynced_311_records',
     default_args=default_args,
     schedule_interval='@daily',
     user_defined_filters={'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year}
@@ -22,29 +22,23 @@ dag = DAG(
 create_query = f"""-- create a temporary table with the most up-to-date request types and
                    -- geographic DATA sourced from all_tickets_current_status where the 
                    -- request type and geo data does not match that found in all_linked_requests
-        SELECT DISTINCT group_id, req_types.request_type_name, req_types.request_type_id, req_types.origin,
-                        geos.pii_street_num, geos.street, geos.cross_street, geos.street_id, geos.cross_street_id,
-                        geos.city, geos.pii_input_address, geos.pii_google_formatted_address, geos.address_type, 
-                        geos.anon_google_formatted_address, geos.neighborhood_name, geos.council_district, geos.ward,
-                        geos.police_zone, geos.fire_zone, geos.dpw_streets, geos.dpw_enviro, geos.dpw_parks,
-                        geos.pii_lat, geos.pii_long, geos.anon_lat, geos.anon_long, geos.within_city
+        SELECT group_id, req_types.request_type_name, req_types.request_type_id, req_types.origin,
+               geos.pii_street_num, geos.street, geos.cross_street, geos.street_id, geos.cross_street_id,
+               geos.city, geos.pii_input_address, geos.pii_google_formatted_address, geos.address_type, 
+               geos.anon_google_formatted_address, geos.neighborhood_name, geos.council_district, geos.ward,
+               geos.police_zone, geos.fire_zone, geos.dpw_streets, geos.dpw_enviro, geos.dpw_parks,
+               geos.pii_lat, geos.pii_long, geos.anon_lat, geos.anon_long, geos.within_city
         FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
         INNER JOIN
         (SELECT DISTINCT id, request_type_name, request_type_id, origin
-        FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`
-        WHERE child_ticket = FALSE AND request_type_name IS NOT NULL AND origin IS NOT NULL) req_types
+        FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`) req_types
         ON alr.group_id = req_types.id
         INNER JOIN
         (SELECT DISTINCT id, pii_street_num, street, cross_street, street_id, cross_street_id,
                 city, pii_input_address, pii_google_formatted_address, anon_google_formatted_address,
                 address_type, neighborhood_name, council_district, ward, police_zone, fire_zone,
                 dpw_streets, dpw_enviro, dpw_parks, pii_lat, pii_long, anon_lat, anon_long, within_city
-        FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`
-        WHERE child_ticket = FALSE AND
-        neighborhood_name IS NOT NULL AND council_district IS NOT NULL AND
-        council_district IS NOT NULL AND ward IS NOT NULL AND
-        police_zone IS NOT NULL AND fire_zone IS NOT NULL AND
-        dpw_streets IS NOT NULL AND dpw_enviro IS NOT NULL AND dpw_parks IS NOT NULL) geos
+        FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`) geos
         ON alr.group_id = geos.id
         WHERE IFNULL(alr.request_type_name, "") != req_types.request_type_name
         OR IFNULL(alr.origin, "") != req_types.origin
@@ -98,10 +92,10 @@ fix_ticket_mismatches = BigQueryOperator(
     dag=dag
 )
 
-mismatch_beam_cleanup = BashOperator(
-    task_id='mismatch_beam_cleanup',
+beam_cleanup = BashOperator(
+    task_id='beam_cleanup',
     bash_command=airflow_utils.beam_cleanup_statement('{}_ticket_mismatch_fix'.format(os.environ['GCS_PREFIX'])),
     dag=dag
 )
 
-create_mismatch_table >> fix_ticket_mismatches >> mismatch_beam_cleanup
+create_mismatch_table >> fix_ticket_mismatches >> beam_cleanup
