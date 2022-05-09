@@ -5,6 +5,8 @@ import logging
 import re
 import json
 import os
+from json import JSONDecodeError
+
 import pytz
 import math
 from datetime import datetime
@@ -39,7 +41,14 @@ class JsonCoder(object):
         return json.dumps(x)
 
     def decode(self, x):
-        return json.loads(x)
+        try:
+            return json.loads(x)
+        except JSONDecodeError:
+            print("Error decoding dict:" + str(x))
+            # split_1, split_2 = str(x).split("}{")
+            # split_1 = split_1[2:len(split_1)] + "}"
+            # split_2 = "{" + split_2[0:len(split_2)-1]
+            # return json.loads(split_1), json.loads(split_2)
 
 
 class ColumnsCamelToSnakeCase(beam.DoFn, ABC):
@@ -154,8 +163,11 @@ class SwapFieldNames(beam.DoFn, ABC):
 
     def process(self, datum):
         for name_change in self.name_changes:
-            datum[name_change[1]] = datum[name_change[0]]
-            del datum[name_change[0]]
+            try:
+                datum[name_change[1]] = datum[name_change[0]]
+                del datum[name_change[0]]
+            except TypeError:
+                print(datum)
 
         yield datum
 
