@@ -52,7 +52,7 @@ gcs_loader = BashOperator(
 )
 
 # Run dataflow_script
-py_cmd = f"python {os.environ['DAGS_PATH']}/dependencies/dataflow_scripts/qalert_requests_dataflow.py"
+py_cmd = f"python {os.environ['DAGS_PATH']}/dependencies/dataflow_scripts/qalert_lat_long_backfill_dataflow.py"
 in_cmd = \
     f" --input gs://{os.environ['GCS_PREFIX']}_qalert/requests/backfill/2022-05-03/backfilled_lat_long_requests.json"
 out_cmd = f" --avro_output gs://{os.environ['GCS_PREFIX']}_qalert/requests/backfill/2022-05-03/avro_output/"
@@ -105,7 +105,7 @@ query_join_tables = f"""
 CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_complete_lat_longs` AS
 SELECT 
     group_id, child_ids, num_requests, parent_closed, status_name, 
-    status_code, dept, request_type_name, request_type_id, 
+    status_code, dept, request_type_name, request_type_id, origin,
     pii_comments, pii_private_notes, create_date_est, create_date_utc, 
     create_date_unix, last_action_est, last_action_utc, last_action_unix, 
     closed_date_est, closed_date_utc, closed_date_unix, pii_street_num, 
@@ -166,5 +166,5 @@ beam_cleanup = BashOperator(
 )
 
 # DAG execution:
-gcs_loader >> dataflow >> gcs_to_bq >> format_dedupe >>  \
+gcs_loader >> dataflow >> gcs_to_bq >> format_dedupe >>  join_lat_longs >> \
 drop_pii_for_export >> wprdc_export >> beam_cleanup
