@@ -366,8 +366,8 @@ class AnonymizeLatLong(beam.DoFn, ABC):
                 if k1 <= accuracy <= k2:
                     acc = self.accuracy_converter[(k1, k2)]
 
-            datum['anon_' + lat.strip('pii_')] = str(round(float(datum[lat]), acc)) if datum[lat] else None
-            datum['anon_' + long.strip('pii_')] = str(round(float(datum[long]), acc)) if datum[long] else None
+            datum['anon' + lat.strip('pii')] = str(round(float(datum[lat]), acc)) if datum[lat] else None
+            datum['anon' + long.strip('pii')] = str(round(float(datum[long]), acc)) if datum[long] else None
             datum[lat] = str(datum[lat]) if datum[lat] else None
             datum[long] = str(datum[long]) if datum[long] else None
 
