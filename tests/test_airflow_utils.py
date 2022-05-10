@@ -3,16 +3,11 @@ from __future__ import division
 # patches unittest.TestCase to be python3 compatible
 import datetime
 
-import future.tests.base  # pylint: disable=unused-import
 import unittest
-import numpy as np
-import requests
 
 from dateutil import parser
 from google.cloud import bigquery, storage
-import airflow_utils
-
-import os
+from deprecated import airflow_utils
 
 bq_client = bigquery.Client()
 storage_client = storage.Client()

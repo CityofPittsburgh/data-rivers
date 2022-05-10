@@ -7,8 +7,8 @@ from airflow.operators.bash_operator import BashOperator
 from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOperator
 
-from dependencies import airflow_utils
-from dependencies.airflow_utils import get_ds_year, get_ds_month, get_ds_day, default_args, build_revgeo_query
+from deprecated import airflow_utils
+from deprecated.airflow_utils import get_ds_year, get_ds_month, get_ds_day, default_args, build_revgeo_query
 
 # TODO: When Airflow 2.0 is released, upgrade the package, sub in DataFlowPythonOperator for BashOperator,
 # and pass the argument 'py_interpreter=python3'
@@ -73,7 +73,7 @@ computronix_domi_permits_geojoin = BigQueryOperator(
 
 computronix_domi_permits_beam_cleanup = BashOperator(
     task_id='computronix_domi_permits_beam_cleanup',
-    bash_command=airflow_utils.beam_cleanup_statement('{}_computronix'.format(os.environ['GCS_PREFIX'])),
+    bash_command= airflow_utils.beam_cleanup_statement('{}_computronix'.format(os.environ['GCS_PREFIX'])),
     dag=dag
 )
 

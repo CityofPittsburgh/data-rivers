@@ -5,8 +5,8 @@ import os
 from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
 from airflow.contrib.operators.bigquery_operator import BigQueryOperator
-from dependencies import airflow_utils
-from dependencies.airflow_utils import get_ds_month, get_ds_year, default_args
+from deprecated import airflow_utils
+from deprecated.airflow_utils import get_ds_month, get_ds_year, default_args
 
 # The goal of this mini-DAG is to perform a weekly pull of all DPW Streets Maintenance tasks
 # and store it in a table, which is then accessed by a Power BI chart to be displayed in the
@@ -76,7 +76,7 @@ format_street_tix = BigQueryOperator(
 
 qalert_beam_cleanup = BashOperator(
     task_id='dashburgh_street_tix_beam_cleanup',
-    bash_command=airflow_utils.beam_cleanup_statement('{}_dashburgh_street_tix'.format(os.environ['GCS_PREFIX'])),
+    bash_command= airflow_utils.beam_cleanup_statement('{}_dashburgh_street_tix'.format(os.environ['GCS_PREFIX'])),
     dag=dag
 )
 

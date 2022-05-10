@@ -4,13 +4,12 @@ from __future__ import division
 import datetime
 import os
 
-import future.tests.base  # pylint: disable=unused-import
 import unittest
 import numpy as np
 import requests
 import pytz
 
-from dataflow_utils import dataflow_utils
+import dataflow_utils
 from af2_dags.dependencies.dataflow_scripts.dataflow_utils import dataflow_utils as af2_dataflow_utils
 from numpy import random
 
