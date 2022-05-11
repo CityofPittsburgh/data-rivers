@@ -124,7 +124,7 @@ format_dedupe = BigQueryOperator(
 )
 
 # Query new tickets to determine if they are in the city limits
-query_city_lim = build_city_limits_query('qalert', 'incoming_actions', 'incoming_actions', 'pii_lat', 'pii_long')
+query_city_lim = build_city_limits_query('qalert', 'incoming_actions', 'pii_lat', 'pii_long')
 city_limits = BigQueryOperator(
         task_id = 'city_limits',
         sql = query_city_lim,
