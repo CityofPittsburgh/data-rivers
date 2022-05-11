@@ -7,7 +7,7 @@ from airflow.operators.bash_operator import BashOperator
 from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOperator
 from dependencies import airflow_utils
-from dependencies.airflow_utils import get_ds_month, get_ds_year, default_args
+from airflow_utils import get_ds_month, get_ds_year, default_args
 
 # The goal of this mini-DAG is to perform a daily pull of the previous day's weather in Pittsburgh
 # using the OpenWeatherMap API. This weather data will be used to provide context to pothole fill
