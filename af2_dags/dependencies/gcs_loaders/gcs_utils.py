@@ -3,7 +3,6 @@ from __future__ import print_function
 import argparse
 import os
 import logging
-import time
 import re
 import json
 import ckanapi
@@ -14,8 +13,8 @@ import pandas as pd
 import jaydebeapi
 
 import avro.schema
-from avro.datafile import DataFileReader, DataFileWriter
-from avro.io import DatumReader, DatumWriter
+from avro.datafile import DataFileWriter
+from avro.io import DatumWriter
 
 from datetime import datetime
 from google.cloud import storage, dlp

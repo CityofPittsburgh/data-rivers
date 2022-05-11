@@ -1,13 +1,11 @@
 import os
 import argparse
-import time
 from datetime import datetime
 import requests
 import json
 import pytz
-import tzlocal
 
-from gcs_utils import json_to_gcs, avro_to_gcs
+from gcs_utils import avro_to_gcs
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-l', '--lookback_date', dest='lookback_date',
