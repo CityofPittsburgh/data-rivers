@@ -9,38 +9,22 @@ from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 from airflow.contrib.operators.bigquery_to_gcs import BigQueryToCloudStorageOperator
 
 from dependencies import airflow_utils
-from dependencies.airflow_utils import get_ds_year, get_ds_month, default_args, build_city_limits_query, \
-    build_revgeo_time_bound_query
+from dependencies.airflow_utils import get_ds_year, get_ds_month, get_ds_day, default_args
 
 COLS_IN_ORDER = """id, parent_ticket_id, child_ticket, input_pii_lat, input_pii_long, 
 input_anon_lat, input_anon_long"""
 
-LINKED_COLS_IN_ORDER = """status_name, status_code, dept, 
-request_type_name, request_type_id, pii_comments, pii_private_notes, create_date_est, create_date_utc, 
-create_date_unix, last_action_est, last_action_unix, last_action_utc, closed_date_est, closed_date_utc, closed_date_unix, 
-pii_street_num, street, cross_street, street_id, cross_street_id, city, pii_input_address, 
-pii_google_formatted_address, address_type, anon_google_formatted_address, neighborhood_name, 
-council_district, ward, police_zone, fire_zone, dpw_streets, dpw_enviro, dpw_parks, pii_lat, pii_long, anon_lat, 
-anon_long"""
-
-EXCLUDE_TYPES = """'Hold - 311', 'Graffiti, Owner Refused DPW Removal', 'Medical Exemption - Tote', 
-'Snow Angel Volunteer', 'Claim form (Law)','Snow Angel Intake', 'Application Request', 'Reject to 311', 'Referral', 
-'Question'"""
-
-SAFE_FIELDS = """status_name, status_code, dept, 
-request_type_name, request_type_id, create_date_est, create_date_utc, 
-create_date_unix, last_action_est, last_action_unix, last_action_utc, closed_date_est, closed_date_utc,  
-closed_date_unix, street, cross_street, street_id, cross_street_id, city, address_type,  
-anon_google_formatted_address, neighborhood_name, council_district, ward, police_zone, fire_zone,
-dpw_streets, dpw_enviro, dpw_parks, anon_input_lat, anon_input_long, anon_google_lat, anon_google_long"""
 
 # This DAG schedule interval set to None because it will only ever be triggered manually
 dag = DAG(
     'qalert_backfill_lat_longs',
     default_args=default_args,
     schedule_interval=None,
-    user_defined_filters={'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year}
+    user_defined_filters={'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year,
+                          'get_ds_day': get_ds_day}
 )
+
+path = "{{ ds|get_ds_year }}-{{ ds|get_ds_month }}-{{ ds|get_ds_day }}"
 
 # Note: The GCS loader can be run outside of the DAG for testing purposes. (Execution time for 04-2015 throug 11-2021
 # backfill was approx 1 hour). Comment/Uncomment as needed.
@@ -54,8 +38,8 @@ gcs_loader = BashOperator(
 # Run dataflow_script
 py_cmd = f"python {os.environ['DAGS_PATH']}/dependencies/dataflow_scripts/qalert_lat_long_backfill_dataflow.py"
 in_cmd = \
-    f" --input gs://{os.environ['GCS_PREFIX']}_qalert/requests/backfill/2022-05-03/backfilled_lat_long_requests.json"
-out_cmd = f" --avro_output gs://{os.environ['GCS_PREFIX']}_qalert/requests/backfill/2022-05-03/avro_output/"
+    f" --input gs://{os.environ['GCS_PREFIX']}_qalert/requests/backfill/{path}/backfilled_lat_long_requests.json"
+out_cmd = f" --avro_output gs://{os.environ['GCS_PREFIX']}_qalert/requests/backfill/{path}/avro_output/"
 df_cmd_str = py_cmd + in_cmd + out_cmd
 dataflow = BashOperator(
     task_id='dataflow',
@@ -68,7 +52,7 @@ gcs_to_bq = GoogleCloudStorageToBigQueryOperator(
     task_id='gcs_to_bq',
     destination_project_dataset_table=f"{os.environ['GCLOUD_PROJECT']}:qalert.original_lat_longs",
     bucket=f"{os.environ['GCS_PREFIX']}_qalert",
-    source_objects=[f"requests/backfill/2022-05-03/avro_output/*.avro"],
+    source_objects=[f"requests/backfill/{path}/avro_output/*.avro"],
     write_disposition='WRITE_TRUNCATE',
     create_disposition='CREATE_IF_NEEDED',
     source_format='AVRO',
