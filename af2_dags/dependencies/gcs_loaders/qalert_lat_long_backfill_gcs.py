@@ -1,18 +1,20 @@
 import os
 
 import requests
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 import numpy as np
 from math import ceil
 from google.cloud import storage
 
 from gcs_utils import json_to_gcs, replace_pii, find_last_successful_run
 
+today = date.today()
+
 # set the limit for how many records can be simulataneously sent to the Google DLP API
 API_LIMIT = 2000
 # init the backfill constants (qalert system went online 4/20/15)
 DEFAULT_RUN_START = "2015-04-19 00:00:00"
-BACKFILL_STOP = datetime.strptime("2022-05-03 00:00:00", "%Y-%m-%d %H:%M:%S")
+BACKFILL_STOP = today.strftime("%Y-%m-%d %H:%M:%S")
 INCREMENT_DAYS = 14
 
 # init the GCS client for compose operation (to append each batch of data to a growing json)
@@ -29,7 +31,8 @@ while datetime.strptime(run_stop_win, "%Y-%m-%d %H:%M:%S") <= BACKFILL_STOP:
     # find the last successful DAG run (needs to be specified in UTC YYYY-MM-DD HH:MM:SS); this is used to initialize
     # the payload below; if the Backfill DAG hasn't been run yet, then use the DEFAULT_RUN_START; Increment each pull
     # window by 2 weeks;  the last date to use for the backfill is specified by BACKFILL_STOP
-    run_start_win, first_run = DEFAULT_RUN_START, True
+    run_start_win, first_run = find_last_successful_run(bucket, "requests/backfill/successful_run_log/log.json",
+                                                        DEFAULT_RUN_START)
 
     # run the api call until records are returned (full requests != None); increment the stop window each loop
     full_requests = None
@@ -56,7 +59,7 @@ while datetime.strptime(run_stop_win, "%Y-%m-%d %H:%M:%S") <= BACKFILL_STOP:
             res.append(result)
 
 
-            # write the successful run information (used by each successive run to find the backfill start date)
+    # write the successful run information (used by each successive run to find the backfill start date)
     successful_run = {
             "requests_retrieved": len(res),
             "since"             : run_start_win,
@@ -66,9 +69,9 @@ while datetime.strptime(run_stop_win, "%Y-%m-%d %H:%M:%S") <= BACKFILL_STOP:
     json_to_gcs("requests/backfill/successful_run_log/log.json", [successful_run],
                 bucket)
 
-    append_target_path = "requests/backfill/2022-05-03/backfilled_lat_long_requests.json"
-    curr_run_target_path = f"requests/backfill/2022-05-03/{run_stop_win.split(' ')[0]}.json"
-    temp_target_path = "requests/backfill/2022-05-03/temp_uploaded_blob.json"
+    append_target_path = f"requests/backfill/{BACKFILL_STOP.split(' ')[0]}/backfilled_lat_long_requests.json"
+    curr_run_target_path = f"requests/backfill/{BACKFILL_STOP.split(' ')[0]}/{run_stop_win.split(' ')[0]}.json"
+    temp_target_path = f"requests/backfill/{BACKFILL_STOP.split(' ')[0]}/temp_uploaded_blob.json"
 
     # load each run's data as a unique file
     json_to_gcs(curr_run_target_path, res, bucket)
