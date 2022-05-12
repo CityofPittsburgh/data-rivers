@@ -36,12 +36,12 @@ def run(argv = None):
 
     with beam.Pipeline(options = pipeline_options) as p:
         field_name_swaps = [("master", "parent_ticket_id"),
-                            ("latitude", "pii_input_lat"),
-                            ("longitude", "pii_input_long")]
+                            ("latitude", "input_pii_lat"),
+                            ("longitude", "input_pii_long")]
 
         type_changes = [("id", "str"), ("parent_ticket_id", "str")]
 
-        lat_long_accuracy = [("pii_input_lat", "pii_input_long", 200)]
+        lat_long_accuracy = [("input_pii_lat", "input_pii_long", 200)]
 
         lines = p | ReadFromText(known_args.input, coder = JsonCoder())
 
