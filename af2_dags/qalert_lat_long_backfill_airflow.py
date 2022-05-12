@@ -129,35 +129,6 @@ join_lat_longs = BigQueryOperator(
     dag=dag
 )
 
-# Create a table from all_tickets_complete_lat_longs that has all columns EXCEPT those that have potential PII. This table is
-# subsequently exported to WPRDC. BQ will not currently (2022-05-03) allow data to be pushed from a query and it must
-# be stored in a table prior to the push. Thus, this is a 2 step process also involving the operator below.
-query_drop_pii = f"""
-CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.full_lat_long_data_scrubbed` AS
-SELECT 
-    group_id, 
-    child_ids, 
-    num_requests, 
-    parent_closed,
-    {SAFE_FIELDS}
-FROM 
-    `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_complete_lat_longs`
-"""
-drop_pii_for_export = BigQueryOperator(
-    task_id='drop_pii_for_export',
-    sql=query_drop_pii,
-    use_legacy_sql=False,
-    dag=dag
-)
-
-# Export table as CSV to WPRDC bucket
-wprdc_export = BigQueryToCloudStorageOperator(
-    task_id='wprdc_export',
-    source_project_dataset_table=f"{os.environ['GCLOUD_PROJECT']}:qalert.full_lat_long_data_scrubbed",
-    destination_cloud_storage_uris=[f"gs://{os.environ['GCS_PREFIX']}_wprdc/qalert_lat_longs_backfill_" + "{{ ds }}.csv"],
-    dag=dag
-)
-
 # Clean up
 beam_cleanup = BashOperator(
     task_id='qalert_beam_cleanup',
@@ -166,5 +137,4 @@ beam_cleanup = BashOperator(
 )
 
 # DAG execution:
-gcs_loader >> dataflow >> gcs_to_bq >> format_dedupe >>  join_lat_longs >> \
-drop_pii_for_export >> wprdc_export >> beam_cleanup
+gcs_loader >> dataflow >> gcs_to_bq >> format_dedupe >> join_lat_longs >> beam_cleanup
