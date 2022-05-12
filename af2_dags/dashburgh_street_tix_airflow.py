@@ -6,7 +6,7 @@ from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
 from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 from dependencies import airflow_utils
-from airflow_utils import get_ds_month, get_ds_year, default_args
+from dependencies.airflow_utils import get_ds_month, get_ds_year, default_args
 
 # The goal of this mini-DAG is to perform a weekly pull of all DPW Streets Maintenance tasks
 # and store it in a table, which is then accessed by a Power BI chart to be displayed in the

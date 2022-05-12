@@ -8,7 +8,7 @@ from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOperator
 
 from dependencies import airflow_utils
-from airflow_utils import get_ds_year, get_ds_month, get_ds_day, default_args, build_revgeo_query
+from dependencies.airflow_utils import get_ds_year, get_ds_month, get_ds_day, default_args, build_revgeo_query
 
 # TODO: When Airflow 2.0 is released, upgrade the package, sub in DataFlowPythonOperator for BashOperator,
 # and pass the argument 'py_interpreter=python3'
