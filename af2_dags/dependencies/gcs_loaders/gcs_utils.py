@@ -287,7 +287,7 @@ def avro_to_gcs(path, file_name, avro_object_list, bucket_name, schema_def):
     """
     take list of dicts in memory and upload to GCS as AVRO
     """
-    avro_bucket = "pghpa_avro_schemas"
+    avro_bucket = F"{os.environ['GCS_PREFIX']}_avro_schemas"
     blob = storage.Blob(
         name=schema_def,
         bucket=storage_client.get_bucket(avro_bucket),
