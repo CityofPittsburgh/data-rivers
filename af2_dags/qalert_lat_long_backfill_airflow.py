@@ -12,8 +12,8 @@ from dependencies import airflow_utils
 from dependencies.airflow_utils import get_ds_year, get_ds_month, default_args, build_city_limits_query, \
     build_revgeo_time_bound_query
 
-COLS_IN_ORDER = """id, parent_ticket_id, child_ticket, pii_input_lat, pii_input_long, 
-anon_input_lat, anon_input_long"""
+COLS_IN_ORDER = """id, parent_ticket_id, child_ticket, input_pii_lat, input_pii_long, 
+input_anon_lat, input_anon_long"""
 
 LINKED_COLS_IN_ORDER = """status_name, status_code, dept, 
 request_type_name, request_type_id, pii_comments, pii_private_notes, create_date_est, create_date_utc, 
@@ -68,7 +68,7 @@ gcs_to_bq = GoogleCloudStorageToBigQueryOperator(
     task_id='gcs_to_bq',
     destination_project_dataset_table=f"{os.environ['GCLOUD_PROJECT']}:qalert.original_lat_longs",
     bucket=f"{os.environ['GCS_PREFIX']}_qalert",
-    source_objects=[f"requests/backfill/2022-05-03/*.avro"],
+    source_objects=[f"requests/backfill/2022-05-03/avro_output/*.avro"],
     write_disposition='WRITE_TRUNCATE',
     create_disposition='CREATE_IF_NEEDED',
     source_format='AVRO',
@@ -84,11 +84,11 @@ CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.original_lat_long
 WITH formatted  AS 
     (
     SELECT 
-        DISTINCT * EXCEPT (pii_input_lat, pii_input_long, anon_input_lat, anon_input_long),
-        CAST(pii_input_lat AS FLOAT64) AS pii_input_lat,
-        CAST(pii_input_long AS FLOAT64) AS pii_input_long,
-        CAST(anon_input_lat AS FLOAT64) AS anon_input_lat,
-        CAST(anon_input_long AS FLOAT64) AS anon_input_long,
+        DISTINCT * EXCEPT (input_pii_lat, input_pii_long, input_anon_lat, input_anon_long),
+        CAST(input_pii_lat AS FLOAT64) AS input_pii_lat,
+        CAST(input_pii_long AS FLOAT64) AS input_pii_long,
+        CAST(input_anon_lat AS FLOAT64) AS input_anon_lat,
+        CAST(input_anon_long AS FLOAT64) AS input_anon_long,
     FROM 
         {os.environ['GCLOUD_PROJECT']}.qalert.original_lat_longs
     )
