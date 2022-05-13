@@ -8,10 +8,6 @@ from datetime import datetime, timedelta
 import numpy as np
 from math import ceil
 
-#TODO: remove the import below which pointed to the AF1 util functions
-
-# from gcs_utils import json_to_gcs, replace_pii, find_last_successful_run
-from af2_dags.dependencies.gcs_loaders import gcs_utils
 from gcs_utils import json_to_gcs, replace_pii, find_last_successful_run
 
 
