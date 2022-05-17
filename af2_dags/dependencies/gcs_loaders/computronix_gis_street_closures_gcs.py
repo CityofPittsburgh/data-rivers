@@ -9,7 +9,9 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--output_arg', dest='out_loc', required=True,
                     help='fully specified location to upload the ndjson file')
 args = vars(parser.parse_args())
-bucket = f"gs://{os.environ['GCS_PREFIX']}_computronix"
+
+bucket = f"{os.environ['GCS_PREFIX']}_computronix"
+
 
 
 # CX ODATA API URL base
