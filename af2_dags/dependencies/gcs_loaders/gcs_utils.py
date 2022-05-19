@@ -365,7 +365,7 @@ def get_computronix_odata(endpoint, params=None, expand_fields=None):
     return records
 
 
-def select_expand_odata(url, tables, limit_results=True):
+def select_expand_odata(url, tables, limit_results=False):
     """
         General ODATA API query generator. This function will format the query, request from the API, and loop through
         all result pages, Data are returned as a list of dicts. Note- This function is used for Selects and Joins (
@@ -421,10 +421,10 @@ def select_expand_odata(url, tables, limit_results=True):
         try:
             res = requests.get(odata_url)
             records.extend(res.json()['value'])
-            if '@odata.nextLink' in res.json().keys():
-                odata_url = res.json()['@odata.nextLink']
-            elif limit_results:
+            if limit_results:
                 more_links = False
+            elif '@odata.nextLink' in res.json().keys():
+                odata_url = res.json()['@odata.nextLink']
             else:
                 more_links = False
         except requests.exceptions.RequestException:
