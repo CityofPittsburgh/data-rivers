@@ -216,7 +216,7 @@ class FilterOutliers(beam.DoFn, ABC):
         yield datum
 
 
-class FilterFields(beam.DoFn):
+class FilterFields(beam.DoFn, ABC):
     def __init__(self, relevant_fields, exclude_relevant_fields = True):
         self.relevant_fields = relevant_fields
         self.exclude_relevant_fields = exclude_relevant_fields
@@ -302,7 +302,7 @@ class GoogleMapsClassifyAndGeocode(beam.DoFn, ABC):
         yield datum
 
 
-class GeocodeAddress(beam.DoFn):
+class GeocodeAddress(beam.DoFn, ABC):
 
     def __init__(self, address_field):
         self.address_field = address_field
@@ -323,7 +323,7 @@ class JsonCoder(object):
         return json.loads(x)
 
 
-class ReformatPhoneNumbers(beam.DoFn):
+class ReformatPhoneNumbers(beam.DoFn, ABC):
     """
     Method to standardize phone number format according to North American Number Plan.
     Step 1 - Filter out only the digits by cleaning the input string
@@ -401,8 +401,6 @@ class SwapFieldNames(beam.DoFn, ABC):
             del datum[name_change[0]]
 
         yield datum
-
-
 
 
 def generate_args(job_name, bucket, argv, schema_name, limit_workers = [False, None]):
