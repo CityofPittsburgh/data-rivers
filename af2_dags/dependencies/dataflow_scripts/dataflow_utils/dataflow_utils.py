@@ -32,26 +32,83 @@ DEFAULT_DATAFLOW_ARGS = [
 ]
 
 
-class JsonCoder(object):
-    """A JSON coder interpreting each line as a JSON string."""
+class AnonymizeAddressBlock(beam.DoFn, ABC):
+    def __init__(self, anon_vals):
+        """
+        :param anon_vals - Tuple of (field_name, accuracy) where accuracy determines the number of digits to be masked
+                           in the block number. From a given address we extract the block number . User
+                           specified number of trailing digits can be masked off from the block number to anonymize
+                           and hide sensitive information.
 
-    def encode(self, x):
-        return json.dumps(x)
+        example     input -> Address = 123 Main Street, Pittsburgh   Accuracy - 100
+                    output -> 123, Main Street, 100  (depicting 100th block of main street)
+        """
+        self.anon_values = anon_vals
 
-    def decode(self, x):
-        return json.loads(x)
-
-
-class ColumnsCamelToSnakeCase(beam.DoFn, ABC):
     def process(self, datum):
-        cleaned_datum = {camel_to_snake_case(k): v for k, v in datum.items()}
-        yield cleaned_datum
+        """
+        :param datum - complete address along with street name and block number
+        """
+        for (field, accuracy) in self.anon_values:
+            address = datum[field]
+            new_field_name = 'anon_' + field.strip('pii_')
+            if address:
+                block_num = re.findall(r"^[0-9]*", address)
+
+                # return the stripped number if present, else return empty string
+                block_num = block_num[0] if block_num else ""
+
+                # anonymize block
+                # Replace the field in datum with the masked values
+                if block_num:
+                    anon_block_num = str((int(block_num) // accuracy) * accuracy)
+                    num_zeros = str(accuracy).count('0')
+                    anon_block_num = anon_block_num[:-num_zeros] + anon_block_num[-num_zeros:].replace('0', 'X')
+                    datum[new_field_name] = re.sub(r"^[0-9]*", anon_block_num, address)
+                else:
+                    datum[new_field_name] = address
+            else:
+                datum[new_field_name] = None
+
+        yield datum
 
 
-class ColumnsToLowerCase(beam.DoFn, ABC):
+class AnonymizeLatLong(beam.DoFn, ABC):
+    def __init__(self, anon_val):
+        """
+        :param accuracy - desired meter accuracy of the lat-long coordinates after rounding the decimals. Default 200m
+
+        var: accuracy_converter - Dictionary of Accuracy versus decimal places whose values represent the number of
+             decimal points and key gives a range of accuracy in metres.
+             http://wiki.gis.com/wiki/index.php/Decimal_degrees
+
+        This helper rounds off decimal places from extremely long latitude and longitude coordinates. The exact
+        precisionis defined by the meter accuracy variable passed by the user
+        """
+        self.anon_values = anon_val
+        self.accuracy_converter = {
+                (5000, 14999): 1,
+                (500, 4999)  : 2,
+                (50, 499)    : 3,
+                (5, 49)      : 4,
+                (0, 4)       : 5
+        }
+
     def process(self, datum):
-        cleaned_datum = {k.lower(): v for k, v in datum.items()}
-        yield cleaned_datum
+        """
+        :param datum - (lat, long) tuple of Latitude and Longitude values
+        """
+        for (lat, long, accuracy) in self.anon_values:
+            for (k1, k2) in self.accuracy_converter:
+                if k1 <= accuracy <= k2:
+                    acc = self.accuracy_converter[(k1, k2)]
+
+            datum['anon_' + lat.strip('pii_')] = str(round(float(datum[lat]), acc)) if datum[lat] else None
+            datum['anon_' + long.strip('pii_')] = str(round(float(datum[long]), acc)) if datum[long] else None
+            datum[lat] = str(datum[lat]) if datum[lat] else None
+            datum[long] = str(datum[long]) if datum[long] else None
+
+        yield datum
 
 
 class ChangeDataTypes(beam.DoFn, ABC):
@@ -87,23 +144,16 @@ class ChangeDataTypes(beam.DoFn, ABC):
         yield datum
 
 
-class FilterOutliers(beam.DoFn, ABC):
-    def __init__(self, outlier_check):
-        """
-        :param
-        """
-        self.outlier_check = outlier_check
-
+class ColumnsCamelToSnakeCase(beam.DoFn, ABC):
     def process(self, datum):
-        try:
-            # if the value is to be converted to int or float but is already NaN then make it None
-            for oc in self.outlier_check:
-                if datum[oc[0]] < oc[1] or datum[oc[0]] > oc[2]:
-                    datum[oc[0]] = None
-        except TypeError:
-            pass
+        cleaned_datum = {camel_to_snake_case(k): v for k, v in datum.items()}
+        yield cleaned_datum
 
-        yield datum
+
+class ColumnsToLowerCase(beam.DoFn, ABC):
+    def process(self, datum):
+        cleaned_datum = {k.lower(): v for k, v in datum.items()}
+        yield cleaned_datum
 
 
 class ConvertBooleans(beam.DoFn, ABC):
@@ -147,20 +197,26 @@ class ConvertBooleans(beam.DoFn, ABC):
         yield datum
 
 
-class SwapFieldNames(beam.DoFn, ABC):
-    def __init__(self, name_changes):
-        """:param name_changes: list of tuples consisting of existing field name + name to which it should be changed"""
-        self.name_changes = name_changes
+class FilterOutliers(beam.DoFn, ABC):
+    def __init__(self, outlier_check):
+        """
+        :param
+        """
+        self.outlier_check = outlier_check
 
     def process(self, datum):
-        for name_change in self.name_changes:
-            datum[name_change[1]] = datum[name_change[0]]
-            del datum[name_change[0]]
+        try:
+            # if the value is to be converted to int or float but is already NaN then make it None
+            for oc in self.outlier_check:
+                if datum[oc[0]] < oc[1] or datum[oc[0]] > oc[2]:
+                    datum[oc[0]] = None
+        except TypeError:
+            pass
 
         yield datum
 
 
-class FilterFields(beam.DoFn):
+class FilterFields(beam.DoFn, ABC):
     def __init__(self, relevant_fields, exclude_relevant_fields = True):
         self.relevant_fields = relevant_fields
         self.exclude_relevant_fields = exclude_relevant_fields
@@ -246,7 +302,7 @@ class GoogleMapsClassifyAndGeocode(beam.DoFn, ABC):
         yield datum
 
 
-class GeocodeAddress(beam.DoFn):
+class GeocodeAddress(beam.DoFn, ABC):
 
     def __init__(self, address_field):
         self.address_field = address_field
@@ -255,6 +311,38 @@ class GeocodeAddress(beam.DoFn):
         geocode_address(datum, self.address_field)
 
         yield datum
+
+
+class JsonCoder(object):
+    """A JSON coder interpreting each line as a JSON string."""
+
+    def encode(self, x):
+        return json.dumps(x)
+
+    def decode(self, x):
+        return json.loads(x)
+
+
+class ReformatPhoneNumbers(beam.DoFn, ABC):
+    """
+    Method to standardize phone number format according to North American Number Plan.
+    Step 1 - Filter out only the digits by cleaning the input string
+             Remove commas, punctuations, leading/lagging white spaces, special characters and alphabets
+    Step 2 - Separate the country code and area code from the phone number. Default country code is +1
+    Step 3 - Format it into +x (xxx) xxx-xxxx     +CountryCode (AreaCode) xxx-xxxx
+    """
+
+    def process(self, datum):
+        """
+        :param datum - Non formatted phone number with/without country code
+        """
+        digits = "".join(re.findall(r'\d+', datum))
+        regex = r'\d{4}$|\d{3}'
+
+        if len(digits) > 10:
+            yield "+" + digits[:-10] + " (%s) %s-%s" % tuple(re.findall(regex, digits[-10:]))
+        else:
+            yield "+1" + " (%s) %s-%s" % tuple(re.findall(regex, digits))
 
 
 class StandardizeTimes(beam.DoFn, ABC):
@@ -302,103 +390,15 @@ class StandardizeTimes(beam.DoFn, ABC):
         yield datum
 
 
-class ReformatPhoneNumbers(beam.DoFn):
-    """
-    Method to standardize phone number format according to North American Number Plan.
-    Step 1 - Filter out only the digits by cleaning the input string
-             Remove commas, punctuations, leading/lagging white spaces, special characters and alphabets
-    Step 2 - Separate the country code and area code from the phone number. Default country code is +1
-    Step 3 - Format it into +x (xxx) xxx-xxxx     +CountryCode (AreaCode) xxx-xxxx
-    """
+class SwapFieldNames(beam.DoFn, ABC):
+    def __init__(self, name_changes):
+        """:param name_changes: list of tuples consisting of existing field name + name to which it should be changed"""
+        self.name_changes = name_changes
 
     def process(self, datum):
-        """
-        :param datum - Non formatted phone number with/without country code
-        """
-        digits = "".join(re.findall(r'\d+', datum))
-        regex = r'\d{4}$|\d{3}'
-
-        if len(digits) > 10:
-            yield "+" + digits[:-10] + " (%s) %s-%s" % tuple(re.findall(regex, digits[-10:]))
-        else:
-            yield "+1" + " (%s) %s-%s" % tuple(re.findall(regex, digits))
-
-
-class AnonymizeLatLong(beam.DoFn, ABC):
-    def __init__(self, anon_val):
-        """
-        :param accuracy - desired meter accuracy of the lat-long coordinates after rounding the decimals. Default 200m
-
-        var: accuracy_converter - Dictionary of Accuracy versus decimal places whose values represent the number of
-             decimal points and key gives a range of accuracy in metres.
-             http://wiki.gis.com/wiki/index.php/Decimal_degrees
-
-        This helper rounds off decimal places from extremely long latitude and longitude coordinates. The exact
-        precisionis defined by the meter accuracy variable passed by the user
-        """
-        self.anon_values = anon_val
-        self.accuracy_converter = {
-                (5000, 14999): 1,
-                (500, 4999)  : 2,
-                (50, 499)    : 3,
-                (5, 49)      : 4,
-                (0, 4)       : 5
-        }
-
-    def process(self, datum):
-        """
-        :param datum - (lat, long) tuple of Latitude and Longitude values
-        """
-        for (lat, long, accuracy) in self.anon_values:
-            for (k1, k2) in self.accuracy_converter:
-                if k1 <= accuracy <= k2:
-                    acc = self.accuracy_converter[(k1, k2)]
-
-            datum['anon_' + lat.strip('pii_')] = str(round(float(datum[lat]), acc)) if datum[lat] else None
-            datum['anon_' + long.strip('pii_')] = str(round(float(datum[long]), acc)) if datum[long] else None
-            datum[lat] = str(datum[lat]) if datum[lat] else None
-            datum[long] = str(datum[long]) if datum[long] else None
-
-        yield datum
-
-
-class AnonymizeAddressBlock(beam.DoFn, ABC):
-    def __init__(self, anon_vals):
-        """
-        :param anon_vals - Tuple of (field_name, accuracy) where accuracy determines the number of digits to be masked
-                           in the block number. From a given address we extract the block number . User
-                           specified number of trailing digits can be masked off from the block number to anonymize
-                           and hide sensitive information.
-
-        example     input -> Address = 123 Main Street, Pittsburgh   Accuracy - 100
-                    output -> 123, Main Street, 100  (depicting 100th block of main street)
-        """
-        self.anon_values = anon_vals
-
-    def process(self, datum):
-        """
-        :param datum - complete address along with street name and block number
-        """
-        for (field, accuracy) in self.anon_values:
-            address = datum[field]
-            new_field_name = 'anon_' + field.strip('pii_')
-            if address:
-                block_num = re.findall(r"^[0-9]*", address)
-
-                # return the stripped number if present, else return empty string
-                block_num = block_num[0] if block_num else ""
-
-                # anonymize block
-                # Replace the field in datum with the masked values
-                if block_num:
-                    anon_block_num = str((int(block_num) // accuracy) * accuracy)
-                    num_zeros = str(accuracy).count('0')
-                    anon_block_num = anon_block_num[:-num_zeros] + anon_block_num[-num_zeros:].replace('0', 'X')
-                    datum[new_field_name] = re.sub(r"^[0-9]*", anon_block_num, address)
-                else:
-                    datum[new_field_name] = address
-            else:
-                datum[new_field_name] = None
+        for name_change in self.name_changes:
+            datum[name_change[1]] = datum[name_change[0]]
+            del datum[name_change[0]]
 
         yield datum
 
