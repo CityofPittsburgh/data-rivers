@@ -247,7 +247,7 @@ class GetDateStringsFromUnix(beam.DoFn, ABC):
 
 
 class GoogleMapsClassifyAndGeocode(beam.DoFn, ABC):
-    def __init__(self, key, loc_field_names, partitioned_address, contains_pii, del_org_input ):
+    def __init__(self, key, loc_field_names, partitioned_address, contains_pii, del_org_input):
         """
         :param partitioned_address: a boolean that idenitifies whether an address is broken into multiple components
         :param loc_field_names: dictionary of 7 field name keys that contain the following information:
@@ -275,7 +275,6 @@ class GoogleMapsClassifyAndGeocode(beam.DoFn, ABC):
 
         self.pii_vals = contains_pii
         self.del_org_input = del_org_input
-
 
     def process(self, datum):
         datum[self.lat_field] = float(datum[self.lat_field])
@@ -363,7 +362,7 @@ class StandardizeTimes(beam.DoFn, ABC):
 
     def process(self, datum):
         for time_change in self.time_changes:
-            if datum[time_change[0]]:
+            if time_change[0] in datum.keys() and datum[time_change[0]] is not None:
                 parse_dt = parser.parse(datum[time_change[0]])
                 clean_dt = parse_dt.replace(tzinfo = None)
                 try:
@@ -376,8 +375,8 @@ class StandardizeTimes(beam.DoFn, ABC):
                     east_conv = loc_time.astimezone(tz = pytz.timezone('America/New_York'))
                     unix_conv = utc_conv.timestamp()
                     datum.update({'{}_UTC'.format(time_change[0]) : str(utc_conv),
-                                  '{}_EST'.format(time_change[0]): str(east_conv),
-                                  '{}_UNIX'.format(time_change[0]): unix_conv})
+                                  '{}_EST'.format(time_change[0]) : str(east_conv),
+                                  '{}_UNIX'.format(time_change[0]): int(unix_conv)})
                     if self.del_old_cols:
                         datum.pop(time_change[0])
             else:
