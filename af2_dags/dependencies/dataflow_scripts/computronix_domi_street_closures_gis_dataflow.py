@@ -8,8 +8,10 @@ import apache_beam as beam
 from apache_beam.io import ReadFromText
 from apache_beam.io.avroio import WriteToAvro
 
-import dataflow_utils
-from dataflow_utils.dataflow_utils import JsonCoder, SwapFieldNames, ConvertBooleans, StandardizeTimes, generate_args
+# import dataflow_utils
+# from dataflow_utils.dataflow_utils \
+from af2_dags.dependencies.dataflow_scripts.dataflow_utils.dataflow_utils import JsonCoder, SwapFieldNames, \
+    ConvertBooleans, StandardizeTimes, generate_args
 
 
 # The CX data contains fields that are nested. We need to extract that information, which is accomplished by this
@@ -23,7 +25,7 @@ from dataflow_utils.dataflow_utils import JsonCoder, SwapFieldNames, ConvertBool
 # GIS team for compliance with their software as of 05/2022
 
 
-class UnNestRenameFields(beam.DoFn, ABC):
+class UnNestRenameFields(beam.DoFn):
     def __init__(self, nested_data):
         """
 
@@ -58,7 +60,14 @@ class UnNestRenameFields(beam.DoFn, ABC):
                 datum["carte_id"] = str(s["CARTEID"])
                 # yield will return datum without exiting the loop
                 yield datum
+
+        # if there is street segment, the relevant columns don't exist. all columns must be present in each datum,
+        # so we populate them with None values here
         else:
+            for (onk, nuk) in zip(old_nest_keys, new_unnest_keys):
+                datum[nuk] = None
+            datum["closure_id"] = None
+            datum["carte_id"] = None
             del datum["street_closure"]
             yield datum
 
@@ -89,9 +98,9 @@ def run(argv = None):
 
         times = [("create_date", "EST"), ("from_date", "EST"), ("to_date", "EST")]
 
-        bool_convs = [("full_closure", "Y", "N", None), ("travel_lane", "Y", "N", None),
-                      ("parking_lane", "Y", "N", None), ("metered_parking", "Y", "N", None),
-                      ("sidewalk", "Y", "N", None), ("validated", "Y", "N", None)]
+        bool_convs = [("full_closure", "Y", "N", False), ("travel_lane", "Y", "N", False),
+                      ("parking_lane", "Y", "N", False), ("metered_parking", "Y", "N", False),
+                      ("sidewalk", "Y", "N", False), ("validated", "Y", "N", False)]
 
         lines = p | ReadFromText(known_args.input, coder = JsonCoder())
 
