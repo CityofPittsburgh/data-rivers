@@ -36,7 +36,7 @@ tables = [
          ]
 
 # extract the data from ODATA API
-domi_str_close = select_expand_odata(url, tables, limit_results = False)
+domi_str_close = select_expand_odata(url, tables, limit_results = True)
 
 # load data into GCS
 # out loc = <dataset>/<full date>/<run_id>_str_closures.json
