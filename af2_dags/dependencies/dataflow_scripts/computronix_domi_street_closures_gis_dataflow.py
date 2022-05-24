@@ -11,7 +11,7 @@ from apache_beam.io.avroio import WriteToAvro
 # import dataflow_utils
 # from dataflow_utils.dataflow_utils \
 from af2_dags.dependencies.dataflow_scripts.dataflow_utils.dataflow_utils import JsonCoder, SwapFieldNames, \
-    ConvertBooleans, StandardizeTimes, generate_args
+    ConvertBooleans, StandardizeTimes, FilterFields, generate_args
 
 
 # The CX data contains fields that are nested. We need to extract that information, which is accomplished by this
@@ -58,10 +58,11 @@ class UnNestRenameFields(beam.DoFn):
             for s in segs:
                 datum["closure_id"] = str(s["UNIQUEID"])
                 datum["carte_id"] = str(s["CARTEID"])
+
                 # yield will return datum without exiting the loop
                 yield datum
 
-        # if there is street segment, the relevant columns don't exist. all columns must be present in each datum,
+        # if there is not a street segment, the relevant columns don't exist. all columns must be present in each datum,
         # so we populate them with None values here
         else:
             for (onk, nuk) in zip(old_nest_keys, new_unnest_keys):
@@ -102,14 +103,17 @@ def run(argv = None):
                       ("parking_lane", "Y", "N", False), ("metered_parking", "Y", "N", False),
                       ("sidewalk", "Y", "N", False), ("validated", "Y", "N", False)]
 
+        drops = ["create_date", "from_date", "to_date"]
+
         lines = p | ReadFromText(known_args.input, coder = JsonCoder())
 
         load = (
                 lines
                 | beam.ParDo(SwapFieldNames(name_swaps))
                 | beam.ParDo(UnNestRenameFields(nested))
-                | beam.ParDo(StandardizeTimes(times, True))
+                | beam.ParDo(StandardizeTimes(times, False))
                 | beam.ParDo(ConvertBooleans(bool_convs, True))
+                | beam.ParDo(FilterFields(drops))
                 | WriteToAvro(known_args.avro_output, schema = avro_schema, file_name_suffix = '.avro',
                               use_fastavro = True))
 
