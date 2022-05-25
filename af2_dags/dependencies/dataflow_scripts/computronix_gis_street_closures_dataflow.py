@@ -8,10 +8,8 @@ import apache_beam as beam
 from apache_beam.io import ReadFromText
 from apache_beam.io.avroio import WriteToAvro
 
-# import dataflow_utils
-# from dataflow_utils.dataflow_utils \
-from af2_dags.dependencies.dataflow_scripts.dataflow_utils.dataflow_utils import JsonCoder, SwapFieldNames, \
-    ConvertBooleans, StandardizeTimes, FilterFields, generate_args
+from dataflow_utils.dataflow_utils import JsonCoder, SwapFieldNames, ConvertBooleans, StandardizeTimes, \
+    FilterFields, generate_args
 
 
 # The CX data contains fields that are nested. We need to extract that information, which is accomplished by this
@@ -70,6 +68,7 @@ class UnNestRenameFields(beam.DoFn):
             datum["closure_id"] = None
             datum["carte_id"] = None
             del datum["street_closure"]
+            del datum["street_segment"]
             yield datum
 
 
@@ -78,7 +77,7 @@ def run(argv = None):
             job_name = 'computronix-domi-street-closures-gis',
             bucket = '{}_computronix'.format(os.environ['GCS_PREFIX']),
             argv = argv,
-            schema_name = 'domi_permits_computronix_2022_refactor'
+            schema_name = 'computronix_gis_street_closures'
     )
 
     with beam.Pipeline(options = pipeline_options) as p:
