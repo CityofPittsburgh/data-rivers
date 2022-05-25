@@ -6,8 +6,8 @@ from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
 from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOperator
 
-from dependencies import airflow_utils
-from dependencies.airflow_utils import get_ds_year, get_ds_month, default_args
+from deprecated import airflow_utils
+from deprecated.airflow_utils import get_ds_year, get_ds_month, default_args
 
 # TODO: When Airflow 2.0 is released, upgrade the package, sub in DataFlowPythonOperator for BashOperator,
 # and pass the argument 'py_interpreter=python3'
@@ -74,7 +74,7 @@ twilio_service_desk_bq = GoogleCloudStorageToBigQueryOperator(
 
 twilio_beam_cleanup = BashOperator(
     task_id='twilio_beam_cleanup',
-    bash_command=airflow_utils.beam_cleanup_statement('{}_twilio'.format(os.environ['GCS_PREFIX'])),
+    bash_command= airflow_utils.beam_cleanup_statement('{}_twilio'.format(os.environ['GCS_PREFIX'])),
     dag=dag
 )
 

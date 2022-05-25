@@ -3,7 +3,6 @@ from __future__ import print_function
 import argparse
 import os
 import logging
-import time
 import re
 import json
 import ckanapi
@@ -14,8 +13,8 @@ import pandas as pd
 import jaydebeapi
 
 import avro.schema
-from avro.datafile import DataFileReader, DataFileWriter
-from avro.io import DatumReader, DatumWriter
+from avro.datafile import DataFileWriter
+from avro.io import DatumWriter
 
 from datetime import datetime
 from google.cloud import storage, dlp
@@ -288,14 +287,14 @@ def avro_to_gcs(path, file_name, avro_object_list, bucket_name, schema_def):
     """
     take list of dicts in memory and upload to GCS as AVRO
     """
-    avro_bucket = "pghpa_avro_schemas"
+    avro_bucket = F"{os.environ['GCS_PREFIX']}_avro_schemas"
     blob = storage.Blob(
         name=schema_def,
         bucket=storage_client.get_bucket(avro_bucket),
     )
 
     schema_text = blob.download_as_string()
-    schema = avro.schema.Parse(schema_text)
+    schema = avro.schema.parse(schema_text)
 
     writer = DataFileWriter(open(file_name, "wb"), DatumWriter(), schema)
     for item in avro_object_list:
@@ -636,23 +635,29 @@ def find_last_successful_run(bucket_name, good_run_path, look_back_date):
         return str(look_back_date), first_run
 
 
-def fix_nd_json_new_line_sep(nd_json: str):
+def json_linter(ndjson: str):
     """
     :Author - Pranav Banthia
-    :param nd_json - NDJson is a json file where each line is an individual json object. The delimiter is a new line \n
+    :param ndjson - NDJson is a json file where each line is an individual json object. The delimiter is a new line \n
                     This function takes in a param called ndjson which is a string object.
+
     We parse each line of the string assuming that every line is an individual json object. If there are any exceptions
-    such as two json objects on the same line then we handle that situation in the except block. Returns an ndjson
+    such as multiple json objects on the same line then we handle that situation in the except block. Returns an ndjson
     as a string
     """
     result_ndjson = []
-    for i, line in enumerate(nd_json.split('\n')):
+    for i, line in enumerate(ndjson.split('\n')):
         try:
             json.loads(line)
             result_ndjson.append(line)
-        except json.JSONDecodeError:
+        except:
             json_split = line.split('}{')
-            result_ndjson.append(json_split[0] + '}')
-            result_ndjson.append('{' + json_split[1])
+            for idx in range(len(json_split)):
+                if idx == 0:
+                    result_ndjson.append(json_split[idx] + '}')
+                elif idx == (len(json_split)-1):
+                    result_ndjson.append('{' + json_split[idx])
+                else:
+                    result_ndjson.append('{' + json_split[idx] + '}')
 
     return '\n'.join(result_ndjson)

@@ -10,6 +10,8 @@ from math import ceil
 
 from gcs_utils import json_to_gcs, replace_pii, find_last_successful_run
 
+
+
 API_LIMIT = 2000
 
 bucket = f"{os.environ['GCS_PREFIX']}_qalert"
