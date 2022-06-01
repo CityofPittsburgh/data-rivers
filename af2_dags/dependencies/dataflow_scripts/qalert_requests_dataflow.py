@@ -8,15 +8,9 @@ from apache_beam.io import ReadFromText
 from apache_beam.io.avroio import WriteToAvro
 
 
-#TODO: remove these imports once confirmed to work
-
-# from dataflow_utils import dataflow_utils
-# from dataflow_utils.dataflow_utils import JsonCoder, SwapFieldNames, generate_args, FilterFields, \
-#     ColumnsCamelToSnakeCase, GetDateStringsFromUnix, ChangeDataTypes, unix_to_date_strings, \
-#     GoogleMapsClassifyAndGeocode, AnonymizeAddressBlock, AnonymizeLatLong
-
-
-from af2_dags.dependencies.dataflow_scripts.dataflow_utils.dataflow_utils import JsonCoder, SwapFieldNames, \
+# import util modules.
+# util modules located one level down in directory (./dataflow_util_modules/datflow_utils.py)
+from dataflow_utils.dataflow_utils import JsonCoder, SwapFieldNames, \
     generate_args, FilterFields, ColumnsCamelToSnakeCase, GetDateStringsFromUnix, ChangeDataTypes, \
     unix_to_date_strings, GoogleMapsClassifyAndGeocode, AnonymizeAddressBlock, AnonymizeLatLong
 
