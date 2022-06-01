@@ -101,7 +101,8 @@ def build_revgeo_time_bound_query(dataset, raw_table, new_table_name, create_dat
     return f"""
     CREATE OR REPLACE TABLE `{os.environ["GCLOUD_PROJECT"]}.{dataset}.{new_table_name}` AS
 
-    -- return zones for all records that it is possible to rev geocode. some records will not be possible to process (bad lat/long etc) and will be pulled in via the next blocked
+    -- return zones for all records that it is possible to rev geocode. some records will not be possible to process 
+    (bad lat/long etc) and will be pulled in via the next blocked
     WITH
       sel_zones AS (
       SELECT
@@ -116,13 +117,6 @@ def build_revgeo_time_bound_query(dataset, raw_table, new_table_name, create_dat
         CAST (t_pk.zone AS STRING) AS dpw_parks
       FROM
         `{os.environ["GCLOUD_PROJECT"]}.{dataset}.{raw_table}` raw
-
-
-
-
-
-
-
 
       -- neighborhoods
       JOIN `data-rivers.timebound_geography.neighborhoods` AS t_hoods ON
@@ -182,7 +176,8 @@ def build_revgeo_time_bound_query(dataset, raw_table, new_table_name, create_dat
             CURRENT_TIMESTAMP()) >= TIMESTAMP(raw.{create_date})
     )
 
-    -- join in the zones that were assigned in sel_zones with ALL of the records (including those that could not be rev coded above)
+    -- join in the zones that were assigned in sel_zones with ALL of the records (including those that could not be 
+    rev coded above)
     SELECT 
         raw.* EXCEPT(neighborhood_name, council_district, ward, fire_zone, police_zone, dpw_streets, dpw_enviro, 
         dpw_parks),
