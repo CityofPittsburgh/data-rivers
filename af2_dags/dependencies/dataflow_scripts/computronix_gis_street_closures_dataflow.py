@@ -2,14 +2,15 @@ from __future__ import absolute_import
 
 import logging
 import os
-from abc import ABC
 
 import apache_beam as beam
 from apache_beam.io import ReadFromText
 from apache_beam.io.avroio import WriteToAvro
 
+# import util modules.
+# util modules located one level down in directory (./dataflow_util_modules/datflow_utils.py)
 from dataflow_utils.dataflow_utils import JsonCoder, SwapFieldNames, ConvertBooleans, StandardizeTimes, \
-    FilterFields, generate_args
+    FilterFields, ConvertStringCase, generate_args
 
 
 # The CX data contains fields that are nested. We need to extract that information, which is accomplished by this
@@ -47,11 +48,6 @@ class UnNestRenameFields(beam.DoFn):
             # over them, each time simply adding the segment info to the existing copy of datum (preserving the data)
             segs = datum["street_segment"]
 
-            # after this extraction, these columns have no content and can be deleted. this needs to be done outside
-            # of the loop to prevent a key error
-            del datum["street_closure"]
-            del datum["street_segment"]
-
             # loop through the segments
             for s in segs:
                 datum["closure_id"] = str(s["UNIQUEID"])
@@ -67,9 +63,21 @@ class UnNestRenameFields(beam.DoFn):
                 datum[nuk] = None
             datum["closure_id"] = None
             datum["carte_id"] = None
-            del datum["street_closure"]
-            del datum["street_segment"]
+            # del datum["street_closure"]
+            # del datum["street_segment"]
             yield datum
+
+
+
+class MarkAsProcessed(beam.DoFn):
+    def __init__(self):
+        """
+
+        """
+
+    def process(self, datum):
+        datum["fully_processed"] = True
+        yield datum
 
 
 def run(argv = None):
@@ -102,7 +110,12 @@ def run(argv = None):
                       ("parking_lane", "Y", "N", False), ("metered_parking", "Y", "N", False),
                       ("sidewalk", "Y", "N", False), ("validated", "Y", "N", False)]
 
-        drops = ["create_date", "from_date", "to_date"]
+        str_convs = [("ext_file_num", "upper"), ("permit_type", "title"), ("work_desc", "sentence"),
+                     ("type_work_desc", "title"), ("contractor_name", "title"), ("special_instructions", "sentence"),
+                     ("weekday_hours", "upper"), ("weekend_hours", "upper"), ("primary_street", "upper"),
+                     ("from_street", "upper"), ("to_street", "upper")]
+
+        drops = ["create_date", "from_date", "to_date", "street_segment", "street_closure"]
 
         lines = p | ReadFromText(known_args.input, coder = JsonCoder())
 
@@ -110,9 +123,11 @@ def run(argv = None):
                 lines
                 | beam.ParDo(SwapFieldNames(name_swaps))
                 | beam.ParDo(UnNestRenameFields(nested))
-                | beam.ParDo(StandardizeTimes(times, False))
                 | beam.ParDo(ConvertBooleans(bool_convs, True))
+                | beam.ParDo(ConvertStringCase(str_convs))
+                | beam.ParDo(StandardizeTimes(times, True, "fully_processed"))
                 | beam.ParDo(FilterFields(drops))
+                | beam.ParDo(MarkAsProcessed())
                 | WriteToAvro(known_args.avro_output, schema = avro_schema, file_name_suffix = '.avro',
                               use_fastavro = True))
 
