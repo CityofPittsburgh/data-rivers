@@ -197,6 +197,32 @@ class ConvertBooleans(beam.DoFn, ABC):
         yield datum
 
 
+class ConvertStringCase(beam.DoFn, ABC):
+    def __init__(self, str_changes):
+        """
+        :param str_changes: list of tuples; each tuple consists of the field we want to change and the string format
+        we want (upper, lower, sentence case, etc)
+        """
+
+        self.str_changes = str_changes
+
+    def process(self, datum):
+        for val in self.str_changes:
+
+            if val[1] is "upper":
+                datum[val[0]] = datum[val[0]].upper()
+            elif val[1] is "lower":
+                datum[val[0]] = datum[val[0]].lower()
+            elif val[1] is "sentence":
+                datum[val[0]] = datum[val[0]].sentence()
+            elif val[1] is "title":
+                datum[val[0]] = datum[val[0]].title()
+            elif val[1] is "capitalize":
+                datum[val[0]] = datum[val[0]].capitalize()
+
+        yield datum
+
+
 class FilterOutliers(beam.DoFn, ABC):
     def __init__(self, outlier_check):
         """
@@ -217,13 +243,13 @@ class FilterOutliers(beam.DoFn, ABC):
 
 
 class FilterFields(beam.DoFn, ABC):
-    def __init__(self, relevant_fields, exclude_relevant_fields = True):
-        self.relevant_fields = relevant_fields
-        self.exclude_relevant_fields = exclude_relevant_fields
+    def __init__(self, target_fields, exclude_target_fields = True):
+        self.target_fields = target_fields
+        self.exclude_target_fields = exclude_target_fields
 
     def process(self, datum):
         if datum is not None:
-            datum = filter_fields(datum, self.relevant_fields, self.exclude_relevant_fields)
+            datum = filter_fields(datum, self.target_fields, self.exclude_target_fields)
             yield datum
         else:
             logging.info('got NoneType datum')
@@ -345,7 +371,7 @@ class ReformatPhoneNumbers(beam.DoFn, ABC):
 
 
 class StandardizeTimes(beam.DoFn, ABC):
-    def __init__(self, time_changes, del_old_cols):
+    def __init__(self, time_changes, skip_processed = False, indicator_of_process_completion = ""):
         """
         :param time_changes: list of tuples; each tuple consists of an existing field name containing date strings +
         the name of the timezone the given date string belongs to.
@@ -358,33 +384,33 @@ class StandardizeTimes(beam.DoFn, ABC):
         (JF)
         """
         self.time_changes = time_changes
-        self.del_old_cols = del_old_cols
+        self.skip_processed = skip_processed
+        self.indicator_of_process_conmpletion = indicator_of_process_completion
 
     def process(self, datum):
-        for time_change in self.time_changes:
-            if time_change[0] in datum.keys() and datum[time_change[0]] is not None:
-                parse_dt = parser.parse(datum[time_change[0]])
-                clean_dt = parse_dt.replace(tzinfo = None)
-                try:
-                    pytz.all_timezones.index(time_change[1])
-                except ValueError:
-                    pass
+
+        if self.skip_processed and not self.indicator_of_process_conmpletion:
+            for time_change in self.time_changes:
+
+                if datum[time_change[0]] is not None:
+                    parse_dt = parser.parse(datum[time_change[0]])
+                    clean_dt = parse_dt.replace(tzinfo = None)
+                    try:
+                        pytz.all_timezones.index(time_change[1])
+                    except ValueError:
+                        pass
+                    else:
+                        loc_time = pytz.timezone(time_change[1]).localize(clean_dt, is_dst = None)
+                        utc_conv = loc_time.astimezone(tz = pytz.utc)
+                        east_conv = loc_time.astimezone(tz = pytz.timezone('America/New_York'))
+                        unix_conv = utc_conv.timestamp()
+                        datum.update({'{}_UTC'.format(time_change[0]) : str(utc_conv),
+                                      '{}_EST'.format(time_change[0]) : str(east_conv),
+                                      '{}_UNIX'.format(time_change[0]): int(unix_conv)})
                 else:
-                    loc_time = pytz.timezone(time_change[1]).localize(clean_dt, is_dst = None)
-                    utc_conv = loc_time.astimezone(tz = pytz.utc)
-                    east_conv = loc_time.astimezone(tz = pytz.timezone('America/New_York'))
-                    unix_conv = utc_conv.timestamp()
-                    datum.update({'{}_UTC'.format(time_change[0]) : str(utc_conv),
-                                  '{}_EST'.format(time_change[0]) : str(east_conv),
-                                  '{}_UNIX'.format(time_change[0]): int(unix_conv)})
-                    if self.del_old_cols:
-                        datum.pop(time_change[0])
-            else:
-                datum.update({'{}_UTC'.format(time_change[0]) : None,
-                              '{}_EAST'.format(time_change[0]): None,
-                              '{}_UNIX'.format(time_change[0]): None})
-                if self.del_old_cols:
-                    datum.pop(time_change[0])
+                    datum.update({'{}_UTC'.format(time_change[0]) : None,
+                                  '{}_EST'.format(time_change[0]) : None,
+                                  '{}_UNIX'.format(time_change[0]): None})
 
         yield datum
 
@@ -737,28 +763,46 @@ def extract_field_from_nested_list(datum, source_field, list_index, nested_field
     return datum
 
 
-def filter_fields(datum, relevant_fields, exclude_relevant_fields = True):
+
+
+
+
+
+
+
+
+
+
+
+# only if it is there!!!!!!!!!
+
+
+
+
+
+def filter_fields(datum, target_fields, exclude_target_fields = True):
     """
     :param datum: datum in PCollection (dict)
-    :param relevant_fields: list of fields to drop or to preserve (dropping all others) (list)
-    :param exclude_relevant_fields: preserve or drop relevant fields arg. we add this as an option because in some
+    :param target_fields: list of fields to drop or to preserve (dropping all others) (list)
+    :param exclude_target_fields: preserve or drop relevant fields arg. we add this as an option because in some
     cases the list
     of fields we want to preserve is much longer than the list of those we want to drop, and vice verse, so having this
-    option allows us to make the hard-coded RELEVANT_FIELDS arg in the dataflow script as terse as possible (bool)
+    option allows us to make the hard-coded target_fields arg in the dataflow script as terse as possible (bool)
     :return:
     """
     fields_for_deletion = []
-    if exclude_relevant_fields:
+    if exclude_target_fields:
         for k, v in datum.items():
-            if k in relevant_fields:
+            if k in target_fields:
                 fields_for_deletion.append(k)
     else:
         for k, v in datum.items():
-            if k not in relevant_fields:
+            if k not in target_fields:
                 fields_for_deletion.append(k)
 
     for field in fields_for_deletion:
-        datum.pop(field, None)
+        if field in datum.keys():
+            datum.pop(field, None)
 
     return datum
 
