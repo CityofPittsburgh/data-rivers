@@ -175,11 +175,8 @@ class SwapFieldNames(beam.DoFn, ABC):
 
     def process(self, datum):
         for name_change in self.name_changes:
-            try:
-                datum[name_change[1]] = datum[name_change[0]]
-                del datum[name_change[0]]
-            except TypeError:
-                print(datum)
+            datum[name_change[1]] = datum[name_change[0]]
+            del datum[name_change[0]]
 
         yield datum
 
