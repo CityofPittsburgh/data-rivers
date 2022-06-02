@@ -38,8 +38,8 @@ gcs_loader = BashOperator(
 # Run dataflow_script
 py_cmd = f"python {os.environ['DAGS_PATH']}/dependencies/dataflow_scripts/qalert_lat_long_backfill_dataflow.py"
 in_cmd = \
-    f" --input gs://{os.environ['GCS_PREFIX']}_qalert/requests/backfill/{path}/backfilled_lat_long_requests.json"
-out_cmd = f" --avro_output gs://{os.environ['GCS_PREFIX']}_qalert/requests/backfill/{path}/avro_output/"
+    f" --input gs://{os.environ['GCS_PREFIX']}_qalert/requests/backfill/lat_long_backfill/{path}/backfilled_lat_long_requests.json"
+out_cmd = f" --avro_output gs://{os.environ['GCS_PREFIX']}_qalert/requests/backfill/lat_long_backfill/{path}/avro_output/"
 df_cmd_str = py_cmd + in_cmd + out_cmd
 dataflow = BashOperator(
     task_id='dataflow',
@@ -52,7 +52,7 @@ gcs_to_bq = GoogleCloudStorageToBigQueryOperator(
     task_id='gcs_to_bq',
     destination_project_dataset_table=f"{os.environ['GCLOUD_PROJECT']}:qalert.original_lat_longs",
     bucket=f"{os.environ['GCS_PREFIX']}_qalert",
-    source_objects=[f"requests/backfill/{path}/avro_output/*.avro"],
+    source_objects=[f"requests/backfill/lat_long_backfill/{path}/avro_output/*.avro"],
     write_disposition='WRITE_TRUNCATE',
     create_disposition='CREATE_IF_NEEDED',
     source_format='AVRO',
