@@ -5,6 +5,8 @@ import logging
 import re
 import json
 import os
+from json import JSONDecodeError
+
 import pytz
 import math
 from datetime import datetime
@@ -32,6 +34,35 @@ DEFAULT_DATAFLOW_ARGS = [
 ]
 
 
+class JsonCoder(object):
+    """A JSON coder interpreting each line as a JSON string."""
+
+    def encode(self, x):
+        return json.dumps(x)
+      
+    def decode(self, x):
+        try:
+            return json.loads(x)
+        except JSONDecodeError:
+            if "}{" in str(x):
+                splits = []
+                split_1, split_2 = str(x).split("}{")
+                split_1 = split_1[2:len(split_1)] + "}"
+                splits.append(split_1)
+                split_2 = "{" + split_2[0:len(split_2)-1]
+                splits.append(split_2)
+                for dict in splits:
+                    return JsonCoder.decode(self, dict)
+            elif "\\'" or '\\"' in str(x):
+                if "\\'" in str(x):
+                    fixed = str(x).replace("\\'", "'")
+                elif '\\"' in str(x):
+                    fixed = str(x).replace('\\"', '\"')
+                return JsonCoder.decode(self, fixed)
+            else:
+                pass
+    
+    
 class AnonymizeAddressBlock(beam.DoFn, ABC):
     def __init__(self, anon_vals):
         """
@@ -54,7 +85,6 @@ class AnonymizeAddressBlock(beam.DoFn, ABC):
             new_field_name = 'anon_' + field.strip('pii_')
             if address:
                 block_num = re.findall(r"^[0-9]*", address)
-
                 # return the stripped number if present, else return empty string
                 block_num = block_num[0] if block_num else ""
 
@@ -103,8 +133,8 @@ class AnonymizeLatLong(beam.DoFn, ABC):
                 if k1 <= accuracy <= k2:
                     acc = self.accuracy_converter[(k1, k2)]
 
-            datum['anon_' + lat.strip('pii_')] = str(round(float(datum[lat]), acc)) if datum[lat] else None
-            datum['anon_' + long.strip('pii_')] = str(round(float(datum[long]), acc)) if datum[long] else None
+            datum[lat.replace('pii', 'anon')] = str(round(float(datum[lat]), acc)) if datum[lat] else None
+            datum[long.replace('pii', 'anon')] = str(round(float(datum[long]), acc)) if datum[long] else None
             datum[lat] = str(datum[lat]) if datum[lat] else None
             datum[long] = str(datum[long]) if datum[long] else None
 
