@@ -44,11 +44,23 @@ class JsonCoder(object):
         try:
             return json.loads(x)
         except JSONDecodeError:
-            print("Error decoding dict:" + str(x))
-            # split_1, split_2 = str(x).split("}{")
-            # split_1 = split_1[2:len(split_1)] + "}"
-            # split_2 = "{" + split_2[0:len(split_2)-1]
-            # return json.loads(split_1), json.loads(split_2)
+            if "}{" in str(x):
+                splits = []
+                split_1, split_2 = str(x).split("}{")
+                split_1 = split_1[2:len(split_1)] + "}"
+                splits.append(split_1)
+                split_2 = "{" + split_2[0:len(split_2)-1]
+                splits.append(split_2)
+                for dict in splits:
+                    return JsonCoder.decode(self, dict)
+            elif "\\'" or '\\"' in str(x):
+                if "\\'" in str(x):
+                    fixed = str(x).replace("\\'", "'")
+                elif '\\"' in str(x):
+                    fixed = str(x).replace('\\"', '\"')
+                return JsonCoder.decode(self, fixed)
+            else:
+                pass
 
 
 class ColumnsCamelToSnakeCase(beam.DoFn, ABC):
