@@ -5,11 +5,10 @@ import os
 from airflow import DAG
 from airflow.operators.docker_operator import DockerOperator
 from airflow.operators.bash_operator import BashOperator
-from airflow.contrib.operators.dataflow_operator import DataFlowPythonOperator
 from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOperator
 from airflow.contrib.operators.bigquery_operator import BigQueryOperator
-from dependencies import airflow_utils
-from dependencies.airflow_utils import build_revgeo_query, get_ds_month, get_ds_year, default_args
+from deprecated import airflow_utils
+from deprecated.airflow_utils import build_revgeo_query, get_ds_month, get_ds_year, default_args
 
 # TODO: When Airflow 2.0 is released, upgrade the package, upgrade the virtualenv to Python3,
 # and add the arg py_interpreter='python3' to DataFlowPythonOperator
@@ -77,7 +76,7 @@ bq_geojoin = BigQueryOperator(
 
 beam_cleanup = BashOperator(
     task_id='firearms_beam_cleanup',
-    bash_command=airflow_utils.beam_cleanup_statement('{}_firearm_seizures'.format(os.environ['GCS_PREFIX'])),
+    bash_command= airflow_utils.beam_cleanup_statement('{}_firearm_seizures'.format(os.environ['GCS_PREFIX'])),
     dag=dag
 )
 

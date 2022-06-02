@@ -23,7 +23,7 @@ last_action_est, last_action_unix, last_action_utc, closed_date_est, closed_date
 pii_street_num, street, cross_street, street_id, cross_street_id, city, pii_input_address, 
 pii_google_formatted_address, address_type, anon_google_formatted_address, neighborhood_name, 
 council_district, ward, police_zone, fire_zone, dpw_streets, dpw_enviro, dpw_parks, pii_lat, pii_long, anon_lat, 
-anon_long"""
+anon_long, within_city"""
 
 LINKED_COLS_IN_ORDER = """status_name, status_code, dept, 
 request_type_name, request_type_id, pii_comments, pii_private_notes, create_date_est, create_date_utc, 
@@ -31,7 +31,7 @@ create_date_unix, last_action_est, last_action_unix, last_action_utc, closed_dat
 pii_street_num, street, cross_street, street_id, cross_street_id, city, pii_input_address, 
 pii_google_formatted_address, address_type, anon_google_formatted_address, neighborhood_name, 
 council_district, ward, police_zone, fire_zone, dpw_streets, dpw_enviro, dpw_parks, pii_lat, pii_long, anon_lat, 
-anon_long"""
+anon_long, within_city"""
 
 EXCLUDE_TYPES = """'Hold - 311', 'Graffiti, Owner Refused DPW Removal', 'Medical Exemption - Tote', 
 'Snow Angel Volunteer', 'Claim form (Law)','Snow Angel Intake', 'Application Request', 'Reject to 311', 'Referral', 
@@ -42,7 +42,7 @@ request_type_name, request_type_id, create_date_est, create_date_utc,
 create_date_unix, last_action_est, last_action_unix, last_action_utc, closed_date_est, closed_date_utc,  
 closed_date_unix, street, cross_street, street_id, cross_street_id, city, address_type,  
 anon_google_formatted_address, neighborhood_name, council_district, ward, police_zone, fire_zone, dpw_streets, 
-dpw_enviro, dpw_parks, anon_lat, anon_long"""
+dpw_enviro, dpw_parks, anon_lat, anon_long, within_city"""
 
 
 dag = DAG(
@@ -66,7 +66,7 @@ avro_loc = f"avro_output/{path}/"
 
 
 # Run gcs_loader
-exec_gcs = f"python {os.environ['GCS_LOADER_PATH']}/qalert_gcs.py"
+exec_gcs = f"python {os.environ['GCS_LOADER_PATH']}/qalert_requests_gcs.py"
 gcs_loader = BashOperator(
         task_id = 'gcs_loader',
         bash_command = f"{exec_gcs} --output_arg {dataset}/{json_loc}",
@@ -110,7 +110,11 @@ WITH formatted  AS
     FROM 
         {os.environ['GCLOUD_PROJECT']}.qalert.incoming_actions
     )
-SELECT {COLS_IN_ORDER} FROM formatted
+-- drop the final column through slicing the string (-13). final column is added in next query     
+SELECT 
+    {COLS_IN_ORDER[:-13]} 
+FROM 
+    formatted
 """
 format_dedupe = BigQueryOperator(
         task_id = 'format_dedupe',
@@ -133,7 +137,7 @@ city_limits = BigQueryOperator(
 # FINAL ENRICHMENT OF NEW DATA
 # Join all the geo information (e.g. DPW districts, etc) to the new data
 query_geo_join = build_revgeo_time_bound_query('qalert', 'incoming_actions', "incoming_enriched",
-                                               'create_date_est', 'id', 'pii_lat', 'pii_long', COLS_IN_ORDER)
+                                               'create_date_utc', 'id', 'pii_lat', 'pii_long')
 geojoin = BigQueryOperator(
         task_id = 'geojoin',
         sql = query_geo_join,

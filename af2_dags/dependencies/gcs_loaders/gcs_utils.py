@@ -3,7 +3,6 @@ from __future__ import print_function
 import argparse
 import os
 import logging
-import time
 import re
 import json
 import ckanapi
@@ -14,8 +13,8 @@ import pandas as pd
 import jaydebeapi
 
 import avro.schema
-from avro.datafile import DataFileReader, DataFileWriter
-from avro.io import DatumReader, DatumWriter
+from avro.datafile import DataFileWriter
+from avro.io import DatumWriter
 
 from datetime import datetime
 from google.cloud import storage, dlp
@@ -288,14 +287,14 @@ def avro_to_gcs(path, file_name, avro_object_list, bucket_name, schema_def):
     """
     take list of dicts in memory and upload to GCS as AVRO
     """
-    avro_bucket = "pghpa_avro_schemas"
+    avro_bucket = F"{os.environ['GCS_PREFIX']}_avro_schemas"
     blob = storage.Blob(
         name=schema_def,
         bucket=storage_client.get_bucket(avro_bucket),
     )
 
     schema_text = blob.download_as_string()
-    schema = avro.schema.Parse(schema_text)
+    schema = avro.schema.parse(schema_text)
 
     writer = DataFileWriter(open(file_name, "wb"), DatumWriter(), schema)
     for item in avro_object_list:
@@ -356,6 +355,74 @@ def get_computronix_odata(endpoint, params=None, expand_fields=None):
             res = requests.get(odata_url)
             records.extend(res.json()['value'])
             if '@odata.nextLink' in res.json().keys():
+                odata_url = res.json()['@odata.nextLink']
+            else:
+                more_links = False
+        except requests.exceptions.RequestException:
+            more_links = False
+
+    return records
+
+
+def select_expand_odata(url, tables, limit_results=False):
+    """
+        General ODATA API query generator. This function will format the query, request from the API, and loop through
+        all result pages, Data are returned as a list of dicts. Note- This function is used for Selects and Joins (
+        expansions) ONLY. More complicated queries need to be customized.
+
+        :param url (str): full URL base for the API (not including the base table that will form the beginning of the query
+        :param tables (list): List of tuples. Each tuple contains the following elements in this order-
+            [
+                ( 'Table Name', ['Table(s) to form nested expansion on'], [String(s) of columns to select from the
+                tables] )
+            ]
+            The first value in each tuple is a string. The second is a LIST of strings (still put the string in a
+            list even if it is only value). The third is a list of strings.
+            EXAMPLE:
+            tables = [
+                        ("base_table",False,["id"]),
+                        ("abc",False,["name"]),
+                        ("def",["hij","klm"],["phone", "address", "DOB, age"])
+                    ]
+
+            The input above would 1) select the property "id" from "base_table". 2) expand the above data on "abc"
+            and select "name" from "abc". 3) expand the above data on table "def" and select "phone" from that table.
+            4) perform a nested expansion of both "hij" and "klm" on "def". "address" will be selected from "hij" and
+            "DOB, age" will be selected from "klm". Remember- this will nest "hij" and "klm" into "def" expansion.
+            This will NOT nest "klm" in "hij"
+
+            All operations will begin with the base_table
+
+            To simply select all columns from a table use a star in the third value of the tuple (e.g. ["*"])
+
+            Insert a False into the second value of the table to avoid nested expansions. If only 1 table is needed,
+            just use 1 tuple.
+        :return: list of dicts representing ODATA API results
+        """
+
+    odata_url = F"{url}{tables[0][0]}?$select={tables[0][2][0]}"
+
+    # if more than one table
+    if len(tables) > 1:
+        odata_url += ',&$expand='
+
+        for t in tables[1:]:
+            odata_url += F'{t[0]}($select={t[2][0]}'
+            if t[1]:
+                for (sub_t, sub_cols) in zip(t[1], t[2][1:]):
+                    odata_url += F',;$expand={sub_t}($select={sub_cols})'
+
+            odata_url += '),'
+
+    more_links = True
+    records = []
+    while more_links:
+        try:
+            res = requests.get(odata_url)
+            records.extend(res.json()['value'])
+            if limit_results:
+                more_links = False
+            elif '@odata.nextLink' in res.json().keys():
                 odata_url = res.json()['@odata.nextLink']
             else:
                 more_links = False
@@ -568,23 +635,29 @@ def find_last_successful_run(bucket_name, good_run_path, look_back_date):
         return str(look_back_date), first_run
 
 
-def fix_nd_json_new_line_sep(nd_json: str):
+def json_linter(ndjson: str):
     """
     :Author - Pranav Banthia
-    :param nd_json - NDJson is a json file where each line is an individual json object. The delimiter is a new line \n
+    :param ndjson - NDJson is a json file where each line is an individual json object. The delimiter is a new line \n
                     This function takes in a param called ndjson which is a string object.
+
     We parse each line of the string assuming that every line is an individual json object. If there are any exceptions
-    such as two json objects on the same line then we handle that situation in the except block. Returns an ndjson
+    such as multiple json objects on the same line then we handle that situation in the except block. Returns an ndjson
     as a string
     """
     result_ndjson = []
-    for i, line in enumerate(nd_json.split('\n')):
+    for i, line in enumerate(ndjson.split('\n')):
         try:
             json.loads(line)
             result_ndjson.append(line)
-        except json.JSONDecodeError:
+        except:
             json_split = line.split('}{')
-            result_ndjson.append(json_split[0] + '}')
-            result_ndjson.append('{' + json_split[1])
+            for idx in range(len(json_split)):
+                if idx == 0:
+                    result_ndjson.append(json_split[idx] + '}')
+                elif idx == (len(json_split)-1):
+                    result_ndjson.append('{' + json_split[idx])
+                else:
+                    result_ndjson.append('{' + json_split[idx] + '}')
 
     return '\n'.join(result_ndjson)

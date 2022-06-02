@@ -1,13 +1,10 @@
 from __future__ import absolute_import
 from __future__ import division
 # patches unittest.TestCase to be python3 compatible
-import future.tests.base  # pylint: disable=unused-import
 
-import os
-import sys
 import unittest
 
-from dags.dependencies.gcs_loaders import gcs_utils
+from deprecated import gcs_utils
 
 
 # TODO: mock mssql and oracle db connections, queries, results; mock google DLP
