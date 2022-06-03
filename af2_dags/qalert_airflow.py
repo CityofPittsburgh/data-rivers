@@ -150,262 +150,262 @@ geojoin = BigQueryOperator(
         dag = dag
 )
 
-# query_insert_new_parent = f"""
-# /*
-# This query check that a ticket has never been seen before (checks all_tix_current_status) AND
-# that the ticket is a parent. Satisfying both conditions means that the ticket needs to be placed in all_linked_requests
-# There is one catch that is caused by the way tickets are manually linked: This newly recorded request is
-# labeled as a parent. However, in the future the 311 operators may  linke this ticket with another
-# existing parent and it will change into a child ticket. This means the original ticket was actually a "false_parent"
-# ticket. Future steps in the DAG will handle that possibility, and for this query the only feasible option is to assume
-# the ticket is correctly labeled.*/
-#
-# INSERT INTO `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests`
-# (
-# SELECT
-#     id as group_id,
-#     "" as child_ids,
-#     1 as num_requests,
-#     IF(status_name = "closed", TRUE, FALSE) as parent_closed,
-#     {LINKED_COLS_IN_ORDER}
-#
-# FROM
-#     `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_enriched`
-# WHERE id NOT IN (SELECT id FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`)
-# AND child_ticket = False
-# AND request_type_name NOT IN ({EXCLUDE_TYPES})
-# );
-# """
-# insert_new_parent = BigQueryOperator(
-#         task_id = 'insert_new_parent',
-#         sql = query_insert_new_parent,
-#         use_legacy_sql = False,
-#         dag = dag
-# )
-#
-# query_remove_false_parents = f"""
-# /*
-# As mentioned in then query_insert_new_parent description:
-# Sometimes a ticket is initially identified as a parent ticket and then is reclassified as a child
-# (thus the original ticket was a "false parent"). The original ticket's data must be deleted from all_linked_requests.
-# Next, the incoming child ticket (corresponding to the false parent ticket) needs to be treated as any other newly
-# arrived child ticket- which is to say that its identifiers and comments/notes need to be 1) extracted and
-# 2) inserted into the appropriate linkage family in all_linked_requests. This query handles
-# deletion of the false_parent from all_linked_requests and extraction of the newly identified child ticket's data.
-# the remove_false_parents query will aggregate this child's information and integrate it into all_linked_requests
-# along with the other child tickets
-# */
-#
-# -- extract the newly identified child's information for integration in the next query
-# CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.temp_prev_parent_now_child` AS
-# SELECT
-#     id AS fp_id,parent_ticket_id, pii_comments, pii_private_notes
-# FROM `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_enriched`
-#
-# WHERE id IN (SELECT
-#                 group_id
-#              FROM`{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests`)
-# AND child_ticket = TRUE ;
-#
-# -- delete the false parent ticket's information
-# DELETE FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests`
-# WHERE group_id IN
-#         (SELECT fp_id FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_prev_parent_now_child`);
-# """
-# remove_false_parents = BigQueryOperator(
-#         task_id = 'remove_false_parents',
-#         sql = query_remove_false_parents,
-#         use_legacy_sql = False,
-#         dag = dag
-# )
-#
-# query_integrate_children = f"""
-# /*
-# In query_remove_false_parents: false parent tix were found and eliminated.
-#
-# This query will combine together all the relevant information for each child ticket (within its linkage family).
-#
-# One complication of the workflow is the false parent tickets that were identified and eliminated in
-# query_remove_false_parents.
-# The incoming information from the child ticket (not the information from the false_parent entry into
-# all_linked_requests) was extracted in that query. Identification and deletion of false parents, and extraction of
-# the corresponding child's information, occurs at the earliest instance that the false parent is discovered. Thus,
-# the information from the child ticket's processed in query_remove_false_parents can be considered a child that has
-# never been observed before. This ultimately means that the newly observed child's data needs to be combined into
-# the other newly identified children (those which were never associated with a false parent).
-# Thus, the need to combine ALL OF THE CHILD TICKETS (both those associated with a false parent and those never being
-# misrepresented) is handled by this query
-# */
-# CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.temp_child_combined` AS
-# (
-#     -- children never seen before and without a false parent
-#     WITH new_children AS
-#     (
-#     SELECT
-#         id, parent_ticket_id, pii_comments, pii_private_notes
-#     FROM
-#         `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_enriched` new_c
-#     WHERE new_c.id NOT IN (SELECT id FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`)
-#     AND new_c.child_ticket = TRUE
-#     AND new_c.request_type_name NOT IN ({EXCLUDE_TYPES})
-#     ),
-#
-#     -- children above plus the children of false parent tickets
-#     combined_children AS
-#     (
-#     SELECT *
-#     FROM new_children
-#
-#     UNION ALL
-#
-#     SELECT fp_id AS id, parent_ticket_id, pii_comments, pii_private_notes
-#     FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_prev_parent_now_child`
-#     ),
-#
-#     -- from ALL children tickets, concatenate the necessary string data
-#     concat_fields AS
-#     (
-#     SELECT
-#         parent_ticket_id AS concat_p_id,
-#         STRING_AGG(id, ", ") AS child_ids,
-#         STRING_AGG(pii_comments, " <BREAK> ") AS child_pii_comments,
-#         STRING_AGG(pii_private_notes, " <BREAK> ") AS child_pii_notes
-#     FROM combined_children
-#     GROUP BY concat_p_id
-#     ),
-#
-#     -- Sum all children within the linkage family
-#     child_count AS
-#     (
-#         SELECT
-#             parent_ticket_id AS p_id,
-#             COUNT(id) AS cts
-#         FROM combined_children
-#         GROUP BY p_id
-#     )
-#
-#     -- Selection of all above processing into a temp table
-#     SELECT
-#         child_count.*,
-#         concat_fields.* EXCEPT (concat_p_id)
-#     FROM child_count
-#     JOIN concat_fields ON
-#     child_count.p_id = concat_fields.concat_p_id
-# );
-#
-# -- update existing entries inside all_linked_requests
-# UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
-# SET alr.num_requests = tcc.cts + alr.num_requests
-# FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_child_combined` tcc
-# WHERE alr.group_id = tcc.p_id;
-#
-# UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
-# SET alr.child_ids =  CONCAT(alr.child_ids,tcc.child_ids)
-# FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_child_combined` tcc
-# WHERE alr.group_id = tcc.p_id;
-#
-# UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
-# SET alr.pii_comments =  CONCAT(alr.pii_comments,tcc.child_pii_comments)
-# FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_child_combined` tcc
-# WHERE alr.group_id = tcc.p_id;
-#
-# UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
-# SET alr.pii_private_notes =  CONCAT(alr.pii_private_notes,tcc.child_pii_notes)
-# FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_child_combined` tcc
-# WHERE alr.group_id = tcc.p_id;
-# """
-# integrate_children = BigQueryOperator(
-#         task_id = 'integrate_children',
-#         sql = query_integrate_children,
-#         use_legacy_sql = False,
-#         dag = dag
-# )
-#
-# query_replace_last_update = f"""
-# /*
-# Tickets are continually updated throughout their life. In the vast majority of cases a ticket will be created and
-# then further processed (creating status changes) over a timeline which causes the ticket's lifespan to encompass
-# multiple
-# DAG runs. ONLY THE CURRENT STATUS of each ticket, which been updated since the last DAG run, is returned in the
-# current DAG run. Thus, a ticket appears multiple times in our DAG.
-#
-# The only consequential information that consecutive updates contain are changes to the status, the time of the last
-# update of the status, and the closure time (if applicable). The fact that child and parent tickets refer to the
-# same underlying request creates the possibility that only a child OR parent could theoretically be updated. This
-# occurred prior to 08/21 and it is currently (01/22) unclear if this will continue to happen (the API was updated to
-# account for this). Most likely all relevant updates will by synchronized with the parent ticket. The most feasible
-# solution to extracting update status/times is to take this information ONLY from the parent ticket and disregard
-# changes to the child ticket. This query selects parent tickets which have been previously recorded in the system and
-# simply extracts and updates the status timestamp data from those tickets. This data is then updated in
-# all_linked_requests.
-# */
-# CREATE OR REPLACE TABLE  `{os.environ['GCLOUD_PROJECT']}.qalert.temp_update` AS
-# (
-# SELECT
-#     id,
-#     IF (status_name = "closed", TRUE, FALSE) AS p_closed,
-#     closed_date_est, closed_date_utc,closed_date_unix,
-#     last_action_est, last_action_utc,last_action_unix,
-#     status_name, status_code
-# FROM  `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_enriched`
-#
-# WHERE id IN (SELECT id FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`)
-# AND child_ticket = FALSE
-# AND request_type_name NOT IN ({EXCLUDE_TYPES})
-# );
-#
-# UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
-# SET alr.parent_closed = tu.p_closed
-# FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_update` tu
-# WHERE alr.group_id = tu.id;
-#
-# UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
-# SET alr.status_name = tu.status_name
-# FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_update` tu
-# WHERE alr.group_id = tu.id;
-#
-# UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
-# SET alr.status_code = tu.status_code
-# FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_update` tu
-# WHERE alr.group_id = tu.id;
-#
-# UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
-# SET alr.closed_date_est = tu.closed_date_est
-# FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_update` tu
-# WHERE alr.group_id = tu.id;
-#
-# UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
-# SET alr.closed_date_utc = tu.closed_date_utc
-# FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_update` tu
-# WHERE alr.group_id = tu.id;
-#
-# UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
-# SET alr.closed_date_unix = tu.closed_date_unix
-# FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_update` tu
-# WHERE alr.group_id = tu.id;
-#
-# UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
-# SET alr.last_action_est = tu.last_action_est
-# FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_update` tu
-# WHERE alr.group_id = tu.id;
-#
-# UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
-# SET alr.last_action_utc = tu.last_action_utc
-# FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_update` tu
-# WHERE alr.group_id = tu.id;
-#
-# UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
-# SET alr.last_action_unix = tu.last_action_unix
-# FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_update` tu
-# WHERE alr.group_id = tu.id;
-# """
-# replace_last_update = BigQueryOperator(
-#         task_id = 'replace_last_update',
-#         sql = query_replace_last_update,
-#         use_legacy_sql = False,
-#         dag = dag
-# )
-#
+query_insert_new_parent = f"""
+/*
+This query check that a ticket has never been seen before (checks all_tix_current_status) AND
+that the ticket is a parent. Satisfying both conditions means that the ticket needs to be placed in all_linked_requests
+There is one catch that is caused by the way tickets are manually linked: This newly recorded request is
+labeled as a parent. However, in the future the 311 operators may  linke this ticket with another
+existing parent and it will change into a child ticket. This means the original ticket was actually a "false_parent"
+ticket. Future steps in the DAG will handle that possibility, and for this query the only feasible option is to assume
+the ticket is correctly labeled.*/
+
+INSERT INTO `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests`
+(
+SELECT
+    id as group_id,
+    "" as child_ids,
+    1 as num_requests,
+    IF(status_name = "closed", TRUE, FALSE) as parent_closed,
+    {LINKED_COLS_IN_ORDER}
+
+FROM
+    `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_enriched`
+WHERE id NOT IN (SELECT id FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`)
+AND child_ticket = False
+AND request_type_name NOT IN ({EXCLUDE_TYPES})
+);
+"""
+insert_new_parent = BigQueryOperator(
+        task_id = 'insert_new_parent',
+        sql = query_insert_new_parent,
+        use_legacy_sql = False,
+        dag = dag
+)
+
+query_remove_false_parents = f"""
+/*
+As mentioned in then query_insert_new_parent description:
+Sometimes a ticket is initially identified as a parent ticket and then is reclassified as a child
+(thus the original ticket was a "false parent"). The original ticket's data must be deleted from all_linked_requests.
+Next, the incoming child ticket (corresponding to the false parent ticket) needs to be treated as any other newly
+arrived child ticket- which is to say that its identifiers and comments/notes need to be 1) extracted and
+2) inserted into the appropriate linkage family in all_linked_requests. This query handles
+deletion of the false_parent from all_linked_requests and extraction of the newly identified child ticket's data.
+the remove_false_parents query will aggregate this child's information and integrate it into all_linked_requests
+along with the other child tickets
+*/
+
+-- extract the newly identified child's information for integration in the next query
+CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.temp_prev_parent_now_child` AS
+SELECT
+    id AS fp_id,parent_ticket_id, pii_comments, pii_private_notes
+FROM `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_enriched`
+
+WHERE id IN (SELECT
+                group_id
+             FROM`{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests`)
+AND child_ticket = TRUE ;
+
+-- delete the false parent ticket's information
+DELETE FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests`
+WHERE group_id IN
+        (SELECT fp_id FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_prev_parent_now_child`);
+"""
+remove_false_parents = BigQueryOperator(
+        task_id = 'remove_false_parents',
+        sql = query_remove_false_parents,
+        use_legacy_sql = False,
+        dag = dag
+)
+
+query_integrate_children = f"""
+/*
+In query_remove_false_parents: false parent tix were found and eliminated.
+
+This query will combine together all the relevant information for each child ticket (within its linkage family).
+
+One complication of the workflow is the false parent tickets that were identified and eliminated in
+query_remove_false_parents.
+The incoming information from the child ticket (not the information from the false_parent entry into
+all_linked_requests) was extracted in that query. Identification and deletion of false parents, and extraction of
+the corresponding child's information, occurs at the earliest instance that the false parent is discovered. Thus,
+the information from the child ticket's processed in query_remove_false_parents can be considered a child that has
+never been observed before. This ultimately means that the newly observed child's data needs to be combined into
+the other newly identified children (those which were never associated with a false parent).
+Thus, the need to combine ALL OF THE CHILD TICKETS (both those associated with a false parent and those never being
+misrepresented) is handled by this query
+*/
+CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.temp_child_combined` AS
+(
+    -- children never seen before and without a false parent
+    WITH new_children AS
+    (
+    SELECT
+        id, parent_ticket_id, pii_comments, pii_private_notes
+    FROM
+        `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_enriched` new_c
+    WHERE new_c.id NOT IN (SELECT id FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`)
+    AND new_c.child_ticket = TRUE
+    AND new_c.request_type_name NOT IN ({EXCLUDE_TYPES})
+    ),
+
+    -- children above plus the children of false parent tickets
+    combined_children AS
+    (
+    SELECT *
+    FROM new_children
+
+    UNION ALL
+
+    SELECT fp_id AS id, parent_ticket_id, pii_comments, pii_private_notes
+    FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_prev_parent_now_child`
+    ),
+
+    -- from ALL children tickets, concatenate the necessary string data
+    concat_fields AS
+    (
+    SELECT
+        parent_ticket_id AS concat_p_id,
+        STRING_AGG(id, ", ") AS child_ids,
+        STRING_AGG(pii_comments, " <BREAK> ") AS child_pii_comments,
+        STRING_AGG(pii_private_notes, " <BREAK> ") AS child_pii_notes
+    FROM combined_children
+    GROUP BY concat_p_id
+    ),
+
+    -- Sum all children within the linkage family
+    child_count AS
+    (
+        SELECT
+            parent_ticket_id AS p_id,
+            COUNT(id) AS cts
+        FROM combined_children
+        GROUP BY p_id
+    )
+
+    -- Selection of all above processing into a temp table
+    SELECT
+        child_count.*,
+        concat_fields.* EXCEPT (concat_p_id)
+    FROM child_count
+    JOIN concat_fields ON
+    child_count.p_id = concat_fields.concat_p_id
+);
+
+-- update existing entries inside all_linked_requests
+UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
+SET alr.num_requests = tcc.cts + alr.num_requests
+FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_child_combined` tcc
+WHERE alr.group_id = tcc.p_id;
+
+UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
+SET alr.child_ids =  CONCAT(alr.child_ids,tcc.child_ids)
+FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_child_combined` tcc
+WHERE alr.group_id = tcc.p_id;
+
+UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
+SET alr.pii_comments =  CONCAT(alr.pii_comments,tcc.child_pii_comments)
+FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_child_combined` tcc
+WHERE alr.group_id = tcc.p_id;
+
+UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
+SET alr.pii_private_notes =  CONCAT(alr.pii_private_notes,tcc.child_pii_notes)
+FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_child_combined` tcc
+WHERE alr.group_id = tcc.p_id;
+"""
+integrate_children = BigQueryOperator(
+        task_id = 'integrate_children',
+        sql = query_integrate_children,
+        use_legacy_sql = False,
+        dag = dag
+)
+
+query_replace_last_update = f"""
+/*
+Tickets are continually updated throughout their life. In the vast majority of cases a ticket will be created and
+then further processed (creating status changes) over a timeline which causes the ticket's lifespan to encompass
+multiple
+DAG runs. ONLY THE CURRENT STATUS of each ticket, which been updated since the last DAG run, is returned in the
+current DAG run. Thus, a ticket appears multiple times in our DAG.
+
+The only consequential information that consecutive updates contain are changes to the status, the time of the last
+update of the status, and the closure time (if applicable). The fact that child and parent tickets refer to the
+same underlying request creates the possibility that only a child OR parent could theoretically be updated. This
+occurred prior to 08/21 and it is currently (01/22) unclear if this will continue to happen (the API was updated to
+account for this). Most likely all relevant updates will by synchronized with the parent ticket. The most feasible
+solution to extracting update status/times is to take this information ONLY from the parent ticket and disregard
+changes to the child ticket. This query selects parent tickets which have been previously recorded in the system and
+simply extracts and updates the status timestamp data from those tickets. This data is then updated in
+all_linked_requests.
+*/
+CREATE OR REPLACE TABLE  `{os.environ['GCLOUD_PROJECT']}.qalert.temp_update` AS
+(
+SELECT
+    id,
+    IF (status_name = "closed", TRUE, FALSE) AS p_closed,
+    closed_date_est, closed_date_utc,closed_date_unix,
+    last_action_est, last_action_utc,last_action_unix,
+    status_name, status_code
+FROM  `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_enriched`
+
+WHERE id IN (SELECT id FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`)
+AND child_ticket = FALSE
+AND request_type_name NOT IN ({EXCLUDE_TYPES})
+);
+
+UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
+SET alr.parent_closed = tu.p_closed
+FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_update` tu
+WHERE alr.group_id = tu.id;
+
+UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
+SET alr.status_name = tu.status_name
+FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_update` tu
+WHERE alr.group_id = tu.id;
+
+UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
+SET alr.status_code = tu.status_code
+FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_update` tu
+WHERE alr.group_id = tu.id;
+
+UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
+SET alr.closed_date_est = tu.closed_date_est
+FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_update` tu
+WHERE alr.group_id = tu.id;
+
+UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
+SET alr.closed_date_utc = tu.closed_date_utc
+FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_update` tu
+WHERE alr.group_id = tu.id;
+
+UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
+SET alr.closed_date_unix = tu.closed_date_unix
+FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_update` tu
+WHERE alr.group_id = tu.id;
+
+UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
+SET alr.last_action_est = tu.last_action_est
+FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_update` tu
+WHERE alr.group_id = tu.id;
+
+UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
+SET alr.last_action_utc = tu.last_action_utc
+FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_update` tu
+WHERE alr.group_id = tu.id;
+
+UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
+SET alr.last_action_unix = tu.last_action_unix
+FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_update` tu
+WHERE alr.group_id = tu.id;
+"""
+replace_last_update = BigQueryOperator(
+        task_id = 'replace_last_update',
+        sql = query_replace_last_update,
+        use_legacy_sql = False,
+        dag = dag
+)
+
 query_delete_old_insert_new_records = f"""
 /*
 All tickets that ever receive an update (or are simply created) should be stored with their current status
@@ -434,35 +434,35 @@ delete_old_insert_new_records = BigQueryOperator(
         use_legacy_sql = False,
         dag = dag
 )
-#
-# # Create a table from all_linked_requests that has all columns EXCEPT those that have potential PII. This table is
-# # subsequently exported to WPRDC. BQ will not currently (2021-10-01) allow data to be pushed from a query and it must
-# # be stored in a table prior to the push. Thus, this is a 2 step process also involving the operator below.
-# query_drop_pii = f"""
-# CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.data_export_scrubbed` AS
-# SELECT
-#     group_id,
-#     child_ids,
-#     num_requests,
-#     parent_closed,
-#     {SAFE_FIELDS}
-# FROM
-#     `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests`
-# """
-# drop_pii_for_export = BigQueryOperator(
-#         task_id = 'drop_pii_for_export',
-#         sql = query_drop_pii,
-#         use_legacy_sql = False,
-#         dag = dag
-# )
-#
-# # Export table as CSV to WPRDC bucket
-# wprdc_export = BigQueryToCloudStorageOperator(
-#         task_id = 'wprdc_export',
-#         source_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}:qalert.data_export_scrubbed",
-#         destination_cloud_storage_uris = [f"gs://{os.environ['GCS_PREFIX']}_wprdc/qalert_requests_{path}.csv"],
-#         dag = dag
-# )
+
+# Create a table from all_linked_requests that has all columns EXCEPT those that have potential PII. This table is
+# subsequently exported to WPRDC. BQ will not currently (2021-10-01) allow data to be pushed from a query and it must
+# be stored in a table prior to the push. Thus, this is a 2 step process also involving the operator below.
+query_drop_pii = f"""
+CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.data_export_scrubbed` AS
+SELECT
+    group_id,
+    child_ids,
+    num_requests,
+    parent_closed,
+    {SAFE_FIELDS}
+FROM
+    `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests`
+"""
+drop_pii_for_export = BigQueryOperator(
+        task_id = 'drop_pii_for_export',
+        sql = query_drop_pii,
+        use_legacy_sql = False,
+        dag = dag
+)
+
+# Export table as CSV to WPRDC bucket
+wprdc_export = BigQueryToCloudStorageOperator(
+        task_id = 'wprdc_export',
+        source_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}:qalert.data_export_scrubbed",
+        destination_cloud_storage_uris = [f"gs://{os.environ['GCS_PREFIX']}_wprdc/qalert_requests_{path}.csv"],
+        dag = dag
+)
 
 # Clean up
 beam_cleanup = BashOperator(
@@ -472,6 +472,6 @@ beam_cleanup = BashOperator(
 )
 
 # DAG execution:
-gcs_loader >> dataflow >> gcs_to_bq >> format_dedupe >> city_limits >> geojoin >> delete_old_insert_new_records >> beam_cleanup
-#insert_new_parent >> remove_false_parents >> integrate_children >> replace_last_update >> delete_old_insert_new_records >> \
-#drop_pii_for_export >> wprdc_export >> beam_cleanup
+gcs_loader >> dataflow >> gcs_to_bq >> format_dedupe >> city_limits >> geojoin >> insert_new_parent >> \
+remove_false_parents >> integrate_children >> replace_last_update >> delete_old_insert_new_records >> \
+drop_pii_for_export >> wprdc_export >> beam_cleanup
