@@ -5,6 +5,8 @@ import logging
 import re
 import json
 import os
+from json import JSONDecodeError
+
 import pytz
 import math
 from datetime import datetime
@@ -37,21 +39,108 @@ class JsonCoder(object):
 
     def encode(self, x):
         return json.dumps(x)
-
+      
     def decode(self, x):
-        return json.loads(x)
+        try:
+            return json.loads(x)
+        except JSONDecodeError:
+            if "}{" in str(x):
+                splits = []
+                split_1, split_2 = str(x).split("}{")
+                split_1 = split_1[2:len(split_1)] + "}"
+                splits.append(split_1)
+                split_2 = "{" + split_2[0:len(split_2)-1]
+                splits.append(split_2)
+                for dict in splits:
+                    return JsonCoder.decode(self, dict)
+            elif "\\'" or '\\"' in str(x):
+                if "\\'" in str(x):
+                    fixed = str(x).replace("\\'", "'")
+                elif '\\"' in str(x):
+                    fixed = str(x).replace('\\"', '\"')
+                return JsonCoder.decode(self, fixed)
+            else:
+                pass
+    
+    
+class AnonymizeAddressBlock(beam.DoFn, ABC):
+    def __init__(self, anon_vals):
+        """
+        :param anon_vals - Tuple of (field_name, accuracy) where accuracy determines the number of digits to be masked
+                           in the block number. From a given address we extract the block number . User
+                           specified number of trailing digits can be masked off from the block number to anonymize
+                           and hide sensitive information.
 
+        example     input -> Address = 123 Main Street, Pittsburgh   Accuracy - 100
+                    output -> 123, Main Street, 100  (depicting 100th block of main street)
+        """
+        self.anon_values = anon_vals
 
-class ColumnsCamelToSnakeCase(beam.DoFn, ABC):
     def process(self, datum):
-        cleaned_datum = {camel_to_snake_case(k): v for k, v in datum.items()}
-        yield cleaned_datum
+        """
+        :param datum - complete address along with street name and block number
+        """
+        for (field, accuracy) in self.anon_values:
+            address = datum[field]
+            new_field_name = field.replace("pii_", "anon_")
+            if address:
+                block_num = re.findall(r"^[0-9]*", address)
+                # return the stripped number if present, else return empty string
+                block_num = block_num[0] if block_num else ""
+
+                # anonymize block
+                # Replace the field in datum with the masked values
+                if block_num:
+                    anon_block_num = str((int(block_num) // accuracy) * accuracy)
+                    num_zeros = str(accuracy).count('0')
+                    anon_block_num = anon_block_num[:-num_zeros] + anon_block_num[-num_zeros:].replace('0', 'X')
+                    datum[new_field_name] = re.sub(r"^[0-9]*", anon_block_num, address)
+                else:
+                    datum[new_field_name] = address
+            else:
+                datum[new_field_name] = None
+
+        yield datum
 
 
-class ColumnsToLowerCase(beam.DoFn, ABC):
+class AnonymizeLatLong(beam.DoFn, ABC):
+    def __init__(self, anon_val):
+        """
+        :param accuracy - desired meter accuracy of the lat-long coordinates after rounding the decimals. Default 200m
+
+        var: accuracy_converter - Dictionary of Accuracy versus decimal places whose values represent the number of
+             decimal points and key gives a range of accuracy in metres.
+             http://wiki.gis.com/wiki/index.php/Decimal_degrees
+
+        This helper rounds off decimal places from extremely long latitude and longitude coordinates. The exact
+        precisionis defined by the meter accuracy variable passed by the user
+        """
+        self.anon_values = anon_val
+        self.accuracy_converter = {
+                (5000, 14999): 1,
+                (500, 4999)  : 2,
+                (50, 499)    : 3,
+                (5, 49)      : 4,
+                (0, 4)       : 5
+        }
+
     def process(self, datum):
-        cleaned_datum = {k.lower(): v for k, v in datum.items()}
-        yield cleaned_datum
+        """
+        :param datum - (lat, long) tuple of Latitude and Longitude values
+        """
+        for (lat, long, accuracy) in self.anon_values:
+            for (k1, k2) in self.accuracy_converter:
+                if k1 <= accuracy <= k2:
+                    acc = self.accuracy_converter[(k1, k2)]
+            try:
+                datum[lat.replace("pii_", "anon_")] = str(round(float(datum[lat]), acc)) if datum[lat] else None
+                datum[long.replace("pii_", "anon_")] = str(round(float(datum[long]), acc)) if datum[long] else None
+                datum[lat] = str(datum[lat]) if datum[lat] else None
+                datum[long] = str(datum[long]) if datum[long] else None
+            except KeyError:
+                pass
+
+        yield datum
 
 
 class ChangeDataTypes(beam.DoFn, ABC):
@@ -87,23 +176,16 @@ class ChangeDataTypes(beam.DoFn, ABC):
         yield datum
 
 
-class FilterOutliers(beam.DoFn, ABC):
-    def __init__(self, outlier_check):
-        """
-        :param
-        """
-        self.outlier_check = outlier_check
-
+class ColumnsCamelToSnakeCase(beam.DoFn, ABC):
     def process(self, datum):
-        try:
-            # if the value is to be converted to int or float but is already NaN then make it None
-            for oc in self.outlier_check:
-                if datum[oc[0]] < oc[1] or datum[oc[0]] > oc[2]:
-                    datum[oc[0]] = None
-        except TypeError:
-            pass
+        cleaned_datum = {camel_to_snake_case(k): v for k, v in datum.items()}
+        yield cleaned_datum
 
-        yield datum
+
+class ColumnsToLowerCase(beam.DoFn, ABC):
+    def process(self, datum):
+        cleaned_datum = {k.lower(): v for k, v in datum.items()}
+        yield cleaned_datum
 
 
 class ConvertBooleans(beam.DoFn, ABC):
@@ -147,27 +229,59 @@ class ConvertBooleans(beam.DoFn, ABC):
         yield datum
 
 
-class SwapFieldNames(beam.DoFn, ABC):
-    def __init__(self, name_changes):
-        """:param name_changes: list of tuples consisting of existing field name + name to which it should be changed"""
-        self.name_changes = name_changes
+class ConvertStringCase(beam.DoFn, ABC):
+    def __init__(self, str_changes):
+        """
+        :param str_changes: list of tuples; each tuple consists of the field we want to change and the string format
+        we want (upper, lower, sentence case, etc)
+        """
+
+        self.str_changes = str_changes
 
     def process(self, datum):
-        for name_change in self.name_changes:
-            datum[name_change[1]] = datum[name_change[0]]
-            del datum[name_change[0]]
+        for val in self.str_changes:
+
+            if val[1] is "upper":
+                datum[val[0]] = datum[val[0]].upper()
+            elif val[1] is "lower":
+                datum[val[0]] = datum[val[0]].lower()
+            elif val[1] is "sentence":
+                datum[val[0]] = datum[val[0]].sentence()
+            elif val[1] is "title":
+                datum[val[0]] = datum[val[0]].title()
+            elif val[1] is "capitalize":
+                datum[val[0]] = datum[val[0]].capitalize()
 
         yield datum
 
 
-class FilterFields(beam.DoFn):
-    def __init__(self, relevant_fields, exclude_relevant_fields = True):
-        self.relevant_fields = relevant_fields
-        self.exclude_relevant_fields = exclude_relevant_fields
+class FilterOutliers(beam.DoFn, ABC):
+    def __init__(self, outlier_check):
+        """
+        :param
+        """
+        self.outlier_check = outlier_check
+
+    def process(self, datum):
+        try:
+            # if the value is to be converted to int or float but is already NaN then make it None
+            for oc in self.outlier_check:
+                if datum[oc[0]] < oc[1] or datum[oc[0]] > oc[2]:
+                    datum[oc[0]] = None
+        except TypeError:
+            pass
+
+        yield datum
+
+
+class FilterFields(beam.DoFn, ABC):
+    def __init__(self, target_fields, exclude_target_fields = True):
+        self.target_fields = target_fields
+        self.exclude_target_fields = exclude_target_fields
 
     def process(self, datum):
         if datum is not None:
-            datum = filter_fields(datum, self.relevant_fields, self.exclude_relevant_fields)
+            datum = filter_fields(datum, self.target_fields, self.exclude_target_fields)
             yield datum
         else:
             logging.info('got NoneType datum')
@@ -258,7 +372,7 @@ class GoogleMapsGeocodeAddress(beam.DoFn, ABC):
         yield datum
 
 
-class GeocodeAddress(beam.DoFn):
+class GeocodeAddress(beam.DoFn, ABC):
 
     def __init__(self, address_field):
         self.address_field = address_field
@@ -269,52 +383,7 @@ class GeocodeAddress(beam.DoFn):
         yield datum
 
 
-class StandardizeTimes(beam.DoFn, ABC):
-    def __init__(self, time_changes, del_old_cols):
-        """
-        :param time_changes: list of tuples; each tuple consists of an existing field name containing date strings +
-        the name of the timezone the given date string belongs to.
-        The function takes in date string values and standardizes them to datetimes in UTC, Eastern, and Unix.
-        formats. It is powerful enough to handle datetimes in a variety of timezones and string formats.
-        The user must provide a timezone name contained within pytz.all_timezones.
-        As of June 2021, a list of accepted timezones can be found on
-        https://en.wikipedia.org/wiki/List_of_tz_database_time_zones#List
-        Please note that the timezone names are subject to change and the code would have to be updated accordingly.
-        (JF)
-        """
-        self.time_changes = time_changes
-        self.del_old_cols = del_old_cols
-
-    def process(self, datum):
-        for time_change in self.time_changes:
-            if datum[time_change[0]]:
-                parse_dt = parser.parse(datum[time_change[0]])
-                clean_dt = parse_dt.replace(tzinfo = None)
-                try:
-                    pytz.all_timezones.index(time_change[1])
-                except ValueError:
-                    pass
-                else:
-                    loc_time = pytz.timezone(time_change[1]).localize(clean_dt, is_dst = None)
-                    utc_conv = loc_time.astimezone(tz = pytz.utc)
-                    east_conv = loc_time.astimezone(tz = pytz.timezone('America/New_York'))
-                    unix_conv = utc_conv.timestamp()
-                    datum.update({'{}_UTC'.format(time_change[0]) : str(utc_conv),
-                                  '{}_EST'.format(time_change[0]): str(east_conv),
-                                  '{}_UNIX'.format(time_change[0]): unix_conv})
-                    if self.del_old_cols:
-                        datum.pop(time_change[0])
-            else:
-                datum.update({'{}_UTC'.format(time_change[0]) : None,
-                              '{}_EAST'.format(time_change[0]): None,
-                              '{}_UNIX'.format(time_change[0]): None})
-                if self.del_old_cols:
-                    datum.pop(time_change[0])
-
-        yield datum
-
-
-class ReformatPhoneNumbers(beam.DoFn):
+class ReformatPhoneNumbers(beam.DoFn, ABC):
     """
     Method to standardize phone number format according to North American Number Plan.
     Step 1 - Filter out only the digits by cleaning the input string
@@ -336,83 +405,59 @@ class ReformatPhoneNumbers(beam.DoFn):
             yield "+1" + " (%s) %s-%s" % tuple(re.findall(regex, digits))
 
 
-class AnonymizeLatLong(beam.DoFn, ABC):
-    def __init__(self, anon_val):
+class StandardizeTimes(beam.DoFn, ABC):
+    def __init__(self, time_changes, skip_processed = False, indicator_of_process_completion = ""):
         """
-        :param accuracy - desired meter accuracy of the lat-long coordinates after rounding the decimals. Default 200m
-
-        var: accuracy_converter - Dictionary of Accuracy versus decimal places whose values represent the number of
-             decimal points and key gives a range of accuracy in metres.
-             http://wiki.gis.com/wiki/index.php/Decimal_degrees
-
-        This helper rounds off decimal places from extremely long latitude and longitude coordinates. The exact
-        precisionis defined by the meter accuracy variable passed by the user
+        :param time_changes: list of tuples; each tuple consists of an existing field name containing date strings +
+        the name of the timezone the given date string belongs to.
+        The function takes in date string values and standardizes them to datetimes in UTC, Eastern, and Unix.
+        formats. It is powerful enough to handle datetimes in a variety of timezones and string formats.
+        The user must provide a timezone name contained within pytz.all_timezones.
+        As of June 2021, a list of accepted timezones can be found on
+        https://en.wikipedia.org/wiki/List_of_tz_database_time_zones#List
+        Please note that the timezone names are subject to change and the code would have to be updated accordingly.
+        (JF)
         """
-        self.anon_values = anon_val
-        self.accuracy_converter = {
-                (5000, 14999): 1,
-                (500, 4999)  : 2,
-                (50, 499)    : 3,
-                (5, 49)      : 4,
-                (0, 4)       : 5
-        }
+        self.time_changes = time_changes
+        self.skip_processed = skip_processed
+        self.indicator_of_process_conmpletion = indicator_of_process_completion
 
     def process(self, datum):
-        """
-        :param datum - (lat, long) tuple of Latitude and Longitude values
-        """
-        for (lat, long, accuracy) in self.anon_values:
-            for (k1, k2) in self.accuracy_converter:
-                if k1 <= accuracy <= k2:
-                    acc = self.accuracy_converter[(k1, k2)]
-            try:
-                datum[lat.replace("pii_", "anon_")] = str(round(float(datum[lat]), acc)) if datum[lat] else None
-                datum[long.replace("pii_", "anon_")] = str(round(float(datum[long]), acc)) if datum[long] else None
-                datum[lat] = str(datum[lat]) if datum[lat] else None
-                datum[long] = str(datum[long]) if datum[long] else None
-            except KeyError:
-                pass
+        if self.skip_processed and not self.indicator_of_process_conmpletion:
+            for time_change in self.time_changes:
+                if datum[time_change[0]] is not None:
+                    parse_dt = parser.parse(datum[time_change[0]])
+                    clean_dt = parse_dt.replace(tzinfo = None)
+                    try:
+                        pytz.all_timezones.index(time_change[1])
+                    except ValueError:
+                        pass
+                    else:
+                        loc_time = pytz.timezone(time_change[1]).localize(clean_dt, is_dst = None)
+                        utc_conv = loc_time.astimezone(tz = pytz.utc)
+                        east_conv = loc_time.astimezone(tz = pytz.timezone('America/New_York'))
+                        unix_conv = utc_conv.timestamp()
+                        datum.update({'{}_UTC'.format(time_change[0]) : str(utc_conv),
+                                      '{}_EST'.format(time_change[0]) : str(east_conv),
+                                      '{}_UNIX'.format(time_change[0]): int(unix_conv)})
+                else:
+                    datum.update({'{}_UTC'.format(time_change[0]) : None,
+                                  '{}_EST'.format(time_change[0]) : None,
+                                  '{}_UNIX'.format(time_change[0]): None})
 
         yield datum
 
 
-class AnonymizeAddressBlock(beam.DoFn, ABC):
-    def __init__(self, anon_vals):
-        """
-        :param anon_vals - Tuple of (field_name, accuracy) where accuracy determines the number of digits to be masked
-                           in the block number. From a given address we extract the block number . User
-                           specified number of trailing digits can be masked off from the block number to anonymize
-                           and hide sensitive information.
-
-        example     input -> Address = 123 Main Street, Pittsburgh   Accuracy - 100
-                    output -> 123, Main Street, 100  (depicting 100th block of main street)
-        """
-        self.anon_values = anon_vals
+class SwapFieldNames(beam.DoFn, ABC):
+    def __init__(self, name_changes):
+        """:param name_changes: list of tuples consisting of existing field name + name to which it should be changed"""
+        self.name_changes = name_changes
 
     def process(self, datum):
-        """
-        :param datum - complete address along with street name and block number
-        """
-        for (field, accuracy) in self.anon_values:
-            address = datum[field]
-            new_field_name = field.replace("pii_", "anon_")
-            if address:
-                block_num = re.findall(r"^[0-9]*", address)
 
-                # return the stripped number if present, else return empty string
-                block_num = block_num[0] if block_num else ""
-
-                # anonymize block
-                # Replace the field in datum with the masked values
-                if block_num:
-                    anon_block_num = str((int(block_num) // accuracy) * accuracy)
-                    num_zeros = str(accuracy).count('0')
-                    anon_block_num = anon_block_num[:-num_zeros] + anon_block_num[-num_zeros:].replace('0', 'X')
-                    datum[new_field_name] = re.sub(r"^[0-9]*", anon_block_num, address)
-                else:
-                    datum[new_field_name] = address
-            else:
-                datum[new_field_name] = None
+        for name_change in self.name_changes:
+            datum[name_change[1]] = datum[name_change[0]]
+            del datum[name_change[0]]
 
         yield datum
 
@@ -484,7 +529,7 @@ def download_schema(bucket_name, source_blob_name, destination_file_name):
 
 def get_schema(schema_name):
     """Read avsc from cloud storage and return json object stored in memory"""
-    bucket = storage_client.get_bucket('pghpa_avro_schemas')
+    bucket = storage_client.get_bucket(F"{os.environ['GCS_PREFIX']}_avro_schemas")
     blob = bucket.get_blob('{}.avsc'.format(schema_name))
     schema_string = blob.download_as_string()
     return json.loads(schema_string)
@@ -767,28 +812,29 @@ def extract_field_from_nested_list(datum, source_field, list_index, nested_field
     return datum
 
 
-def filter_fields(datum, relevant_fields, exclude_relevant_fields = True):
+def filter_fields(datum, target_fields, exclude_target_fields = True):
     """
     :param datum: datum in PCollection (dict)
-    :param relevant_fields: list of fields to drop or to preserve (dropping all others) (list)
-    :param exclude_relevant_fields: preserve or drop relevant fields arg. we add this as an option because in some
+    :param target_fields: list of fields to drop or to preserve (dropping all others) (list)
+    :param exclude_target_fields: preserve or drop relevant fields arg. we add this as an option because in some
     cases the list
     of fields we want to preserve is much longer than the list of those we want to drop, and vice verse, so having this
-    option allows us to make the hard-coded RELEVANT_FIELDS arg in the dataflow script as terse as possible (bool)
+    option allows us to make the hard-coded target_fields arg in the dataflow script as terse as possible (bool)
     :return:
     """
     fields_for_deletion = []
-    if exclude_relevant_fields:
+    if exclude_target_fields:
         for k, v in datum.items():
-            if k in relevant_fields:
+            if k in target_fields:
                 fields_for_deletion.append(k)
     else:
         for k, v in datum.items():
-            if k not in relevant_fields:
+            if k not in target_fields:
                 fields_for_deletion.append(k)
 
     for field in fields_for_deletion:
-        datum.pop(field, None)
+        if field in datum.keys():
+            datum.pop(field, None)
 
     return datum
 

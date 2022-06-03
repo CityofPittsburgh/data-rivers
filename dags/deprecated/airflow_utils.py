@@ -411,7 +411,7 @@ WITH bounds_found AS
     `{os.environ["GCLOUD_PROJECT"]}.{dataset}.{raw_table}` AS raw
     JOIN
     `data-rivers.geography.city_and_mt_oliver_borders`  lims
-    ON ST_CONTAINS(lims.geometry, ST_GEOGPOINT(raw.pii_long,raw.pii_lat))
+    ON ST_CONTAINS(lims.geometry, ST_GEOGPOINT(raw.{lat_field},raw.{long_field}))
     )  
     
     SELECT * FROM bounds_found

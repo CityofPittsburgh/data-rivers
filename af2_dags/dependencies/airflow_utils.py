@@ -50,10 +50,11 @@ def on_failure(context):
         pass
 
 
+#TODO: email can be added in later, but that functionality is currently not used. expect this to change soon (05/22)
+# 'email'                   : os.environ['EMAIL'],
 default_args = {
         'depends_on_past'         : False,
         'start_date'              : yesterday,
-        'email'                   : os.environ['EMAIL'],
         'email_on_failure'        : True,
         'email_on_retry'          : False,
         'retries'                 : 1,

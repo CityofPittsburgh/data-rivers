@@ -1,17 +1,15 @@
-import requests
 import os
 import argparse
 
-from gcs_utils import storage_client, json_to_gcs, get_computronix_odata, filter_fields
+from gcs_utils import json_to_gcs, get_computronix_odata, filter_fields
 
+bucket = f"gs://{os.environ['GCS_PREFIX']}_computronix"
 
 parser = argparse.ArgumentParser()
-parser.add_argument('-e', '--execution_date', dest='execution_date',
-                    required=True,
-                    help='DAG execution date (YYYY-MM-DD)')
+parser.add_argument('--output_arg', dest='out_loc', required=True,
+                    help='fully specified location to upload the ndjson file')
 args = vars(parser.parse_args())
 
-bucket = '{}_computronix'.format(os.environ['GCS_PREFIX'])
 
 RELEVANT_FIELDS = [
     'EXTERNALFILENUM',
@@ -51,7 +49,4 @@ EXPAND_FIELDS = [
 domi_permits = get_computronix_odata('DOMIPERMIT', expand_fields=EXPAND_FIELDS)
 trimmed_permits = filter_fields(domi_permits, RELEVANT_FIELDS)
 
-json_to_gcs('domi_permits/{}/{}/{}_domi_permits.json'.format(args['execution_date'].split('-')[0],
-                                                             args['execution_date'].split('-')[1],
-                                                             args['execution_date']),
-            trimmed_permits, bucket)
+json_to_gcs(args["out_loc"],trimmed_permits, bucket)

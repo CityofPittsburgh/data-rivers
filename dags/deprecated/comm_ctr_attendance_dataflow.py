@@ -8,7 +8,7 @@ from apache_beam.io import ReadFromText
 from apache_beam.io.avroio import WriteToAvro
 
 from dataflow_utils import dataflow_utils
-from dataflow_utils.dataflow_utils import generate_args, JsonCoder, ColumnsCamelToSnakeCase
+from dataflow_utils.dataflow_utils import ColumnsCamelToSnakeCase
 
 
 def run(argv=None):
@@ -22,7 +22,7 @@ def run(argv=None):
 
     with beam.Pipeline(options=pipeline_options) as p:
         # Read the text file[pattern] into a PCollection.
-        lines = p | ReadFromText(known_args.input, coder=dataflow_utils.JsonCoder())
+        lines = p | ReadFromText(known_args.input, coder= dataflow_utils.JsonCoder())
 
         load = (
                 lines

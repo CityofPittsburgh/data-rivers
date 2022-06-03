@@ -23,7 +23,7 @@ last_action_est, last_action_unix, last_action_utc, closed_date_est, closed_date
 pii_street_num, street, cross_street, street_id, cross_street_id, city, pii_input_address, 
 pii_google_formatted_address, address_type, anon_google_formatted_address, neighborhood_name, 
 council_district, ward, police_zone, fire_zone, dpw_streets, dpw_enviro, dpw_parks, input_pii_lat, input_pii_long, 
-google_pii_lat, google_pii_long, input_anon_lat, input_anon_long, google_anon_lat, google_anon_long"""
+google_pii_lat, google_pii_long, input_anon_lat, input_anon_long, google_anon_lat, google_anon_long, within_city"""
 
 LINKED_COLS_IN_ORDER = """status_name, status_code, dept, 
 request_type_name, request_type_id, pii_comments, pii_private_notes, create_date_est, create_date_utc, 
@@ -31,7 +31,7 @@ create_date_unix, last_action_est, last_action_unix, last_action_utc, closed_dat
 pii_street_num, street, cross_street, street_id, cross_street_id, city, pii_input_address, 
 pii_google_formatted_address, address_type, anon_google_formatted_address, neighborhood_name, 
 council_district, ward, police_zone, fire_zone, dpw_streets, dpw_enviro, dpw_parks, input_pii_lat, input_pii_long, 
-google_pii_lat, google_pii_long, input_anon_lat, input_anon_long, google_anon_lat, google_anon_long"""
+google_pii_lat, google_pii_long, input_anon_lat, input_anon_long, google_anon_lat, google_anon_long, within_city"""
 
 EXCLUDE_TYPES = """'Hold - 311', 'Graffiti, Owner Refused DPW Removal', 'Medical Exemption - Tote', 
 'Snow Angel Volunteer', 'Claim form (Law)','Snow Angel Intake', 'Application Request', 'Reject to 311', 'Referral', 
@@ -42,7 +42,7 @@ request_type_name, request_type_id, create_date_est, create_date_utc,
 create_date_unix, last_action_est, last_action_unix, last_action_utc, closed_date_est, closed_date_utc,  
 closed_date_unix, street, cross_street, street_id, cross_street_id, city, address_type,  
 anon_google_formatted_address, neighborhood_name, council_district, ward, police_zone, fire_zone, dpw_streets, 
-dpw_enviro, dpw_parks, input_anon_lat, input_anon_long, google_anon_lat, google_anon_long"""
+dpw_enviro, dpw_parks, input_anon_lat, input_anon_long, google_anon_lat, google_anon_long, within_city"""
 
 
 dag = DAG(
@@ -66,7 +66,7 @@ avro_loc = f"avro_output/{path}/"
 
 
 # Run gcs_loader
-exec_gcs = f"python {os.environ['GCS_LOADER_PATH']}/qalert_gcs.py"
+exec_gcs = f"python {os.environ['GCS_LOADER_PATH']}/qalert_requests_gcs.py"
 gcs_loader = BashOperator(
         task_id = 'gcs_loader',
         bash_command = f"{exec_gcs} --output_arg {dataset}/{json_loc}",
@@ -84,7 +84,7 @@ dataflow = BashOperator(
 # Load AVRO data produced by dataflow_script into BQ temp table
 gcs_to_bq = GoogleCloudStorageToBigQueryOperator(
         task_id = 'gcs_to_bq',
-        destination_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}:qalert.enriched_incoming_actions",
+        destination_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}:qalert.incoming_actions",
         bucket = f"{os.environ['GCS_PREFIX']}_qalert",
         source_objects = [f"{dataset}/{avro_loc}*.avro"],
         write_disposition = 'WRITE_TRUNCATE',
@@ -129,7 +129,7 @@ format_dedupe = BigQueryOperator(
 )
 
 # Query new tickets to determine if they are in the city limits
-query_city_lim = build_city_limits_query('qalert', 'enriched_incoming_actions', 'input_pii_lat', 'input_pii_long')
+query_city_lim = build_city_limits_query('qalert', 'incoming_actions', 'input_pii_lat', 'input_pii_long')
 city_limits = BigQueryOperator(
         task_id = 'city_limits',
         sql = query_city_lim,
@@ -141,7 +141,7 @@ city_limits = BigQueryOperator(
 #  for clearer explanation)
 # FINAL ENRICHMENT OF NEW DATA
 # Join all the geo information (e.g. DPW districts, etc) to the new data
-query_geo_join = build_revgeo_time_bound_query('qalert', 'enriched_incoming_actions', "test_incoming_enriched",
+query_geo_join = build_revgeo_time_bound_query('qalert', 'enriched_incoming_actions', "incoming_enriched",
                                                'create_date_utc', 'id', 'input_pii_lat', 'input_pii_long')
 geojoin = BigQueryOperator(
         task_id = 'geojoin',
@@ -198,18 +198,17 @@ along with the other child tickets
 
 -- extract the newly identified child's information for integration in the next query
 CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.temp_prev_parent_now_child` AS
-SELECT
-    id AS fp_id,parent_ticket_id, pii_comments, pii_private_notes
+SELECT 
+    id AS fp_id, parent_ticket_id, pii_comments, pii_private_notes
 FROM `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_enriched`
-
-WHERE id IN (SELECT
+WHERE id IN (SELECT 
                 group_id
              FROM`{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests`)
 AND child_ticket = TRUE ;
 
--- delete the false parent ticket's information
+-- delete the false parent ticket's information 
 DELETE FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests`
-WHERE group_id IN
+WHERE group_id IN 
         (SELECT fp_id FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_prev_parent_now_child`);
 """
 remove_false_parents = BigQueryOperator(
@@ -221,6 +220,7 @@ remove_false_parents = BigQueryOperator(
 
 query_integrate_children = f"""
 /*
+<<<<<<< HEAD
 In query_remove_false_parents: false parent tix were found and eliminated.
 
 This query will combine together all the relevant information for each child ticket (within its linkage family).
@@ -421,12 +421,12 @@ all_tickets_current_status is currently (01/22) maintained for historical purpos
 analysis as the linkages between tickets are not taken into account.
 */
 
-DELETE FROM `{os.environ['GCLOUD_PROJECT']}.qalert.compare_lat_longs_all_tix`
-WHERE id IN (SELECT id FROM `{os.environ['GCLOUD_PROJECT']}.qalert.test_incoming_enriched`);
-INSERT INTO `{os.environ['GCLOUD_PROJECT']}.qalert.compare_lat_longs_all_tix`
-SELECT
+DELETE FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`
+WHERE id IN (SELECT id FROM `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_enriched`);
+INSERT INTO `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`
+SELECT 
     {COLS_IN_ORDER}
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.test_incoming_enriched`;
+FROM `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_enriched`;
 """
 delete_old_insert_new_records = BigQueryOperator(
         task_id = 'delete_old_insert_new_records',
