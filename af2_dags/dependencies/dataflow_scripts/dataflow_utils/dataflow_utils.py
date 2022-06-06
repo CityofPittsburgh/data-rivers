@@ -368,16 +368,6 @@ class GeocodeAddress(beam.DoFn, ABC):
         yield datum
 
 
-class JsonCoder(object):
-    """A JSON coder interpreting each line as a JSON string."""
-
-    def encode(self, x):
-        return json.dumps(x)
-
-    def decode(self, x):
-        return json.loads(x)
-
-
 class ReformatPhoneNumbers(beam.DoFn, ABC):
     """
     Method to standardize phone number format according to North American Number Plan.
