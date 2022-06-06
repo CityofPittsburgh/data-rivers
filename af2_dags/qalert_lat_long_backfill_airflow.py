@@ -50,6 +50,7 @@ dataflow = BashOperator(
 # Load AVRO data produced by dataflow_script into BQ temp table
 gcs_to_bq = GoogleCloudStorageToBigQueryOperator(
     task_id='gcs_to_bq',
+    bigquery_conn_id='google_cloud_default',
     destination_project_dataset_table=f"{os.environ['GCLOUD_PROJECT']}:qalert.original_lat_longs",
     bucket=f"{os.environ['GCS_PREFIX']}_qalert",
     source_objects=[f"requests/backfill/lat_long_backfill/{path}/avro_output/*.avro"],
@@ -57,6 +58,7 @@ gcs_to_bq = GoogleCloudStorageToBigQueryOperator(
     create_disposition='CREATE_IF_NEEDED',
     source_format='AVRO',
     autodetect=True,
+    use_legacy_sql=False,
     dag=dag
 )
 
@@ -81,6 +83,7 @@ SELECT {COLS_IN_ORDER} FROM formatted
 format_dedupe = BigQueryOperator(
     task_id='format_dedupe',
     sql=query_format_dedupe,
+    bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
 )
