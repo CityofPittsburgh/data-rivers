@@ -112,6 +112,7 @@ WHERE org.child_ticket = False
 join_lat_longs = BigQueryOperator(
     task_id='join_lat_longs',
     sql=query_join_tables,
+    bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
 )
