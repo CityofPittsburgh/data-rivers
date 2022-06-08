@@ -371,7 +371,7 @@ class ReformatPhoneNumbers(beam.DoFn, ABC):
 
 
 class StandardizeTimes(beam.DoFn, ABC):
-    def __init__(self, time_changes, skip_processed = False, indicator_of_process_completion = ""):
+    def __init__(self, time_changes):
         """
         :param time_changes: list of tuples; each tuple consists of an existing field name containing date strings +
         the name of the timezone the given date string belongs to.
@@ -384,33 +384,31 @@ class StandardizeTimes(beam.DoFn, ABC):
         (JF)
         """
         self.time_changes = time_changes
-        self.skip_processed = skip_processed
-        self.indicator_of_process_conmpletion = indicator_of_process_completion
 
     def process(self, datum):
 
-        if self.skip_processed and not self.indicator_of_process_conmpletion:
-            for time_change in self.time_changes:
 
-                if datum[time_change[0]] is not None:
-                    parse_dt = parser.parse(datum[time_change[0]])
-                    clean_dt = parse_dt.replace(tzinfo = None)
-                    try:
-                        pytz.all_timezones.index(time_change[1])
-                    except ValueError:
-                        pass
-                    else:
-                        loc_time = pytz.timezone(time_change[1]).localize(clean_dt, is_dst = None)
-                        utc_conv = loc_time.astimezone(tz = pytz.utc)
-                        east_conv = loc_time.astimezone(tz = pytz.timezone('America/New_York'))
-                        unix_conv = utc_conv.timestamp()
-                        datum.update({'{}_UTC'.format(time_change[0]) : str(utc_conv),
-                                      '{}_EST'.format(time_change[0]) : str(east_conv),
-                                      '{}_UNIX'.format(time_change[0]): int(unix_conv)})
+        for time_change in self.time_changes:
+
+            if datum[time_change[0]] is not None:
+                parse_dt = parser.parse(datum[time_change[0]])
+                clean_dt = parse_dt.replace(tzinfo = None)
+                try:
+                    pytz.all_timezones.index(time_change[1])
+                except ValueError:
+                    pass
                 else:
-                    datum.update({'{}_UTC'.format(time_change[0]) : None,
-                                  '{}_EST'.format(time_change[0]) : None,
-                                  '{}_UNIX'.format(time_change[0]): None})
+                    loc_time = pytz.timezone(time_change[1]).localize(clean_dt, is_dst = None)
+                    utc_conv = loc_time.astimezone(tz = pytz.utc)
+                    east_conv = loc_time.astimezone(tz = pytz.timezone('America/New_York'))
+                    unix_conv = utc_conv.timestamp()
+                    datum.update({'{}_UTC'.format(time_change[0]) : str(utc_conv),
+                                  '{}_EST'.format(time_change[0]) : str(east_conv),
+                                  '{}_UNIX'.format(time_change[0]): int(unix_conv)})
+            else:
+                datum.update({'{}_UTC'.format(time_change[0]) : None,
+                              '{}_EST'.format(time_change[0]) : None,
+                              '{}_UNIX'.format(time_change[0]): None})
 
         yield datum
 

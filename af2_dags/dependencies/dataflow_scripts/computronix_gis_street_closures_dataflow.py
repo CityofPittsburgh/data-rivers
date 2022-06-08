@@ -47,9 +47,11 @@ class UnNestRenameFields(beam.DoFn):
             # being unique. this is easy to accomplish by first extracting the segments to a local var, then looping
             # over them, each time simply adding the segment info to the existing copy of datum (preserving the data)
             segs = datum["street_segment"]
-
+            # total_num = len(segs)
             # loop through the segments
+            # for s, num in (segs, range(total_num)):
             for s in segs:
+
                 datum["closure_id"] = str(s["UNIQUEID"])
                 datum["carte_id"] = str(s["CARTEID"])
 
@@ -63,21 +65,8 @@ class UnNestRenameFields(beam.DoFn):
                 datum[nuk] = None
             datum["closure_id"] = None
             datum["carte_id"] = None
-            # del datum["street_closure"]
-            # del datum["street_segment"]
+
             yield datum
-
-
-
-class MarkAsProcessed(beam.DoFn):
-    def __init__(self):
-        """
-
-        """
-
-    def process(self, datum):
-        datum["fully_processed"] = True
-        yield datum
 
 
 def run(argv = None):
@@ -125,9 +114,8 @@ def run(argv = None):
                 | beam.ParDo(UnNestRenameFields(nested))
                 | beam.ParDo(ConvertBooleans(bool_convs, True))
                 | beam.ParDo(ConvertStringCase(str_convs))
-                | beam.ParDo(StandardizeTimes(times, True, "fully_processed"))
+                | beam.ParDo(StandardizeTimes(times))
                 | beam.ParDo(FilterFields(drops))
-                | beam.ParDo(MarkAsProcessed())
                 | WriteToAvro(known_args.avro_output, schema = avro_schema, file_name_suffix = '.avro',
                               use_fastavro = True))
 
