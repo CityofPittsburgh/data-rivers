@@ -27,7 +27,7 @@ google_pii_lat, google_pii_long, input_anon_lat, input_anon_long, google_anon_la
 
 LINKED_COLS_IN_ORDER = """status_name, status_code, dept, 
 request_type_name, request_type_id, origin, pii_comments, pii_private_notes, create_date_est, create_date_utc, 
-create_date_unix, last_action_est, last_action_unix, last_action_utc, closed_date_est, closed_date_utc, closed_date_unix, 
+create_date_unix, last_action_est, last_action_utc, last_action_unix, closed_date_est, closed_date_utc, closed_date_unix, 
 pii_street_num, street, cross_street, street_id, cross_street_id, city, pii_input_address, 
 pii_google_formatted_address, address_type, anon_google_formatted_address, neighborhood_name, 
 council_district, ward, police_zone, fire_zone, dpw_streets, dpw_enviro, dpw_parks, input_pii_lat, input_pii_long, 
@@ -226,7 +226,6 @@ remove_false_parents = BigQueryOperator(
 
 query_integrate_children = f"""
 /*
-<<<<<<< HEAD
 In query_remove_false_parents: false parent tix were found and eliminated.
 
 This query will combine together all the relevant information for each child ticket (within its linkage family).
