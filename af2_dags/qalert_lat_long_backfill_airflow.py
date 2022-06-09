@@ -15,6 +15,11 @@ COLS_IN_ORDER = """id, parent_ticket_id, child_ticket, input_pii_lat, input_pii_
 input_anon_lat, input_anon_long"""
 
 
+# STEPS TO TAKE BEFORE EXECUTING DAG:
+# 1.) Create lat_long_backfill folder within qalert/requests/backfill GCS bucket
+# 2.) Create successful_run_log sub-folder within the directory created in step 1
+# 3.) Make backups of all_linked_requests and all_tickets_current_status in case something goes wrong
+
 # This DAG schedule interval set to None because it will only ever be triggered manually
 dag = DAG(
     'qalert_backfill_lat_longs',
@@ -88,8 +93,50 @@ format_dedupe = BigQueryOperator(
     dag=dag
 )
 
+query_add_origin = f"""
+ALTER TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests`
+ADD COLUMN origin STRING;
+
+UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
+SET alr.origin = atcs.origin
+FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status` atcs
+WHERE atcs.id = alr.group_id;
+"""
+add_origin_column = BigQueryOperator(
+    task_id='add_origin_column',
+    sql=query_add_origin,
+    bigquery_conn_id='google_cloud_default',
+    use_legacy_sql=False,
+    dag=dag
+)
+
+query_remove_within_city = f"""
+UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests`
+SET address_type = "Outside of City"
+WHERE within_city = false;
+
+UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`
+SET address_type = "Outside of City"
+WHERE within_city = false;
+
+CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests`
+AS SELECT * EXCEPT (within_city)
+FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests`;
+
+CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`
+AS SELECT * EXCEPT (within_city)
+FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`;
+"""
+remove_within_city = BigQueryOperator(
+    task_id='remove_within_city',
+    sql=query_remove_within_city,
+    bigquery_conn_id='google_cloud_default',
+    use_legacy_sql=False,
+    dag=dag
+)
+
 query_join_tables = f"""
-CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_complete_lat_longs` AS
+CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` AS
 SELECT 
     group_id, child_ids, num_requests, parent_closed, status_name, 
     status_code, dept, request_type_name, request_type_id, origin,
@@ -98,7 +145,7 @@ SELECT
     closed_date_est, closed_date_utc, closed_date_unix, pii_street_num, 
     street, cross_street, street_id, cross_street_id, city, 
     pii_input_address, pii_google_formatted_address, anon_google_formatted_address,
-    address_type, within_city, neighborhood_name, council_district, ward,
+    address_type, neighborhood_name, council_district, ward,
     police_zone, fire_zone, dpw_streets, dpw_enviro, dpw_parks,
     alr.pii_lat AS google_pii_lat, alr.pii_long AS google_pii_long, 
     alr.anon_lat AS gooogle_anon_lat, alr.anon_long AS google_anon_long,
@@ -106,8 +153,26 @@ SELECT
     org.input_anon_lat AS input_anon_lat, org.input_anon_long AS input_anon_long
 FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
 JOIN `{os.environ['GCLOUD_PROJECT']}.qalert.original_lat_longs` org
-ON alr.group_id = org.id
-WHERE org.child_ticket = False
+ON alr.group_id = org.id;
+
+CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status` AS
+SELECT 
+    id, parent_ticket_id, child_ticket, dept, status_name, 
+    status_code, request_type_name, request_type_id, origin,
+    pii_comments, pii_private_notes, create_date_est, create_date_utc, 
+    create_date_unix, last_action_est, last_action_utc, last_action_unix, 
+    closed_date_est, closed_date_utc, closed_date_unix, pii_street_num, 
+    street, cross_street, street_id, cross_street_id, city, 
+    pii_input_address, pii_google_formatted_address, anon_google_formatted_address,
+    address_type, neighborhood_name, council_district, ward,
+    police_zone, fire_zone, dpw_streets, dpw_enviro, dpw_parks,
+    atcs.pii_lat AS google_pii_lat, atcs.pii_long AS google_pii_long, 
+    atcs.anon_lat AS gooogle_anon_lat, atcs.anon_long AS google_anon_long,
+    org.input_pii_lat AS input_pii_lat, org.input_pii_long AS input_pii_long,
+    org.input_anon_lat AS input_anon_lat, org.input_anon_long AS input_anon_long
+FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status` atcs
+JOIN `{os.environ['GCLOUD_PROJECT']}.qalert.original_lat_longs` org
+ON alr.group_id = org.id;
 """
 join_lat_longs = BigQueryOperator(
     task_id='join_lat_longs',
@@ -125,4 +190,5 @@ beam_cleanup = BashOperator(
 )
 
 # DAG execution:
-gcs_loader >> dataflow >> gcs_to_bq >> format_dedupe >> join_lat_longs >> beam_cleanup
+gcs_loader >> dataflow >> gcs_to_bq >> format_dedupe >> add_origin_column >> remove_within_city >> \
+join_lat_longs >> beam_cleanup
