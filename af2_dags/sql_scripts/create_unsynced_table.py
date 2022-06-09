@@ -20,7 +20,8 @@ SELECT DISTINCT group_id, req_types.request_type_name, req_types.request_type_id
        geos.city, geos.pii_input_address, geos.pii_google_formatted_address, geos.address_type, 
        geos.anon_google_formatted_address, geos.neighborhood_name, geos.council_district, geos.ward,
        geos.police_zone, geos.fire_zone, geos.dpw_streets, geos.dpw_enviro, geos.dpw_parks,
-       geos.pii_lat, geos.pii_long, geos.anon_lat, geos.anon_long, geos.within_city
+       geos.input_pii_lat, geos.input_pii_long, geos.google_pii_lat, geos.google_pii_long, 
+       geos.input_anon_lat, geos.input_anon_long, geos.google_anon_lat, geos.google_anon_long
 FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
 INNER JOIN
 (SELECT DISTINCT id, request_type_name, request_type_id, origin
@@ -30,7 +31,8 @@ INNER JOIN
 (SELECT DISTINCT id, pii_street_num, street, cross_street, street_id, cross_street_id,
         city, pii_input_address, pii_google_formatted_address, anon_google_formatted_address,
         address_type, neighborhood_name, council_district, ward, police_zone, fire_zone,
-        dpw_streets, dpw_enviro, dpw_parks, pii_lat, pii_long, anon_lat, anon_long, within_city
+        dpw_streets, dpw_enviro, dpw_parks, input_pii_lat, input_pii_long, google_pii_lat, google_pii_long, 
+        input_anon_lat, input_anon_long, google_anon_lat, google_anon_long
 FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`) geos
 ON alr.group_id = geos.id
 WHERE IFNULL(alr.request_type_name, "") != IFNULL(req_types.request_type_name, "")
@@ -44,7 +46,6 @@ OR IFNULL(alr.fire_zone, "") != IFNULL(geos.fire_zone, "")
 OR IFNULL(alr.dpw_streets, "") != IFNULL(geos.dpw_streets, "")
 OR IFNULL(alr.dpw_enviro, "") != IFNULL(geos.dpw_enviro, "")
 OR IFNULL(alr.dpw_parks, "") != IFNULL(geos.dpw_parks, "")
-OR alr.within_city != geos.within_city
 """
 
 query_job = bq_client.query(sql, job_config=job_config)

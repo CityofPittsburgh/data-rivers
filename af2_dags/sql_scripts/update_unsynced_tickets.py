@@ -20,9 +20,11 @@ sql = f"""-- update all_linked_requests with the data stored in the temporary mi
             alr.council_district = temp.council_district, alr.ward = temp.ward,
             alr.police_zone = temp.police_zone, alr.fire_zone = temp.fire_zone, 
             alr.dpw_streets = temp.dpw_streets, alr.dpw_enviro = temp.dpw_enviro, 
-            alr.dpw_parks = temp.dpw_parks, alr.pii_lat = temp.pii_lat,
-            alr.pii_long = temp.pii_long, alr.anon_lat = temp.anon_lat,
-            alr.anon_long = temp.anon_long, alr.within_city = temp.within_city
+            alr.dpw_parks = temp.dpw_parks, alr.input_pii_lat = temp.input_pii_lat,
+            alr.input_pii_long = temp.input_pii_long, alr.input_anon_lat = temp.input_anon_lat,
+            alr.input_anon_long = temp.input_anon_long, alr.google_pii_lat = temp.google_pii_lat,
+            alr.google_pii_long = temp.google_pii_long, alr.google_anon_lat = temp.google_anon_lat,
+            alr.google_anon_long = temp.google_anon_long
             FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_curr_status_merge` temp
             WHERE alr.group_id = temp.group_id
             """
