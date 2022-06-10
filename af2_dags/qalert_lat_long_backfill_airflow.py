@@ -110,30 +110,30 @@ add_origin_column = BigQueryOperator(
     dag=dag
 )
 
-query_remove_within_city = f"""
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests`
-SET address_type = "Outside of City"
-WHERE within_city = false;
-
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`
-SET address_type = "Outside of City"
-WHERE within_city = false;
-
-CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests`
-AS SELECT * EXCEPT (within_city)
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests`;
-
-CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`
-AS SELECT * EXCEPT (within_city)
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`;
-"""
-remove_within_city = BigQueryOperator(
-    task_id='remove_within_city',
-    sql=query_remove_within_city,
-    bigquery_conn_id='google_cloud_default',
-    use_legacy_sql=False,
-    dag=dag
-)
+# query_remove_within_city = f"""
+# UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests`
+# SET address_type = "Outside of City"
+# WHERE within_city = false;
+#
+# UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`
+# SET address_type = "Outside of City"
+# WHERE within_city = false;
+#
+# CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests`
+# AS SELECT * EXCEPT (within_city)
+# FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests`;
+#
+# CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`
+# AS SELECT * EXCEPT (within_city)
+# FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`;
+# """
+# remove_within_city = BigQueryOperator(
+#     task_id='remove_within_city',
+#     sql=query_remove_within_city,
+#     bigquery_conn_id='google_cloud_default',
+#     use_legacy_sql=False,
+#     dag=dag
+# )
 
 query_join_tables = f"""
 CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` AS
@@ -190,5 +190,5 @@ beam_cleanup = BashOperator(
 )
 
 # DAG execution:
-gcs_loader >> dataflow >> gcs_to_bq >> format_dedupe >> add_origin_column >> remove_within_city >> \
-join_lat_longs >> beam_cleanup
+gcs_loader >> dataflow >> gcs_to_bq >> format_dedupe >> add_origin_column >> join_lat_longs >> beam_cleanup
+# remove_within_city >>
