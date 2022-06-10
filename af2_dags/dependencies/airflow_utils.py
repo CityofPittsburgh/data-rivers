@@ -103,7 +103,7 @@ def build_revgeo_time_bound_query(dataset, raw_table, new_table_name, create_dat
     CREATE OR REPLACE TABLE `{os.environ["GCLOUD_PROJECT"]}.{dataset}.{new_table_name}` AS
 
     -- return zones for all records that it is possible to rev geocode. some records will not be possible to process 
-    (bad lat/long etc) and will be pulled in via the next blocked
+    -- (bad lat/long etc) and will be pulled in via the next blocked
     WITH
       sel_zones AS (
       SELECT
@@ -178,7 +178,7 @@ def build_revgeo_time_bound_query(dataset, raw_table, new_table_name, create_dat
     )
 
     -- join in the zones that were assigned in sel_zones with ALL of the records (including those that could not be 
-    rev coded above)
+    -- rev coded above)
     SELECT 
         raw.* EXCEPT(neighborhood_name, council_district, ward, fire_zone, police_zone, dpw_streets, dpw_enviro, 
         dpw_parks),
@@ -186,7 +186,6 @@ def build_revgeo_time_bound_query(dataset, raw_table, new_table_name, create_dat
     FROM `{os.environ["GCLOUD_PROJECT"]}.{dataset}.{raw_table}` raw
     LEFT OUTER JOIN sel_zones ON sel_zones.{id_col} = raw.{id_col}
 """
-
 
 # TODO: this function will be deprecated ASAP (see above function)
 def build_revgeo_query(dataset, raw_table, id_field):
