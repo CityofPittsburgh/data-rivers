@@ -148,7 +148,7 @@ SELECT
     address_type, neighborhood_name, council_district, ward,
     police_zone, fire_zone, dpw_streets, dpw_enviro, dpw_parks,
     alr.pii_lat AS google_pii_lat, alr.pii_long AS google_pii_long, 
-    alr.anon_lat AS gooogle_anon_lat, alr.anon_long AS google_anon_long,
+    alr.anon_lat AS google_anon_lat, alr.anon_long AS google_anon_long,
     org.input_pii_lat AS input_pii_lat, org.input_pii_long AS input_pii_long,
     org.input_anon_lat AS input_anon_lat, org.input_anon_long AS input_anon_long
 FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
@@ -157,7 +157,7 @@ ON alr.group_id = org.id;
 
 CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status` AS
 SELECT 
-    id, parent_ticket_id, child_ticket, dept, status_name, 
+    atcs.id, atcs.parent_ticket_id, atcs.child_ticket, dept, status_name, 
     status_code, request_type_name, request_type_id, origin,
     pii_comments, pii_private_notes, create_date_est, create_date_utc, 
     create_date_unix, last_action_est, last_action_utc, last_action_unix, 
@@ -167,12 +167,12 @@ SELECT
     address_type, neighborhood_name, council_district, ward,
     police_zone, fire_zone, dpw_streets, dpw_enviro, dpw_parks,
     atcs.pii_lat AS google_pii_lat, atcs.pii_long AS google_pii_long, 
-    atcs.anon_lat AS gooogle_anon_lat, atcs.anon_long AS google_anon_long,
+    atcs.anon_lat AS google_anon_lat, atcs.anon_long AS google_anon_long,
     org.input_pii_lat AS input_pii_lat, org.input_pii_long AS input_pii_long,
     org.input_anon_lat AS input_anon_lat, org.input_anon_long AS input_anon_long
 FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status` atcs
 JOIN `{os.environ['GCLOUD_PROJECT']}.qalert.original_lat_longs` org
-ON alr.group_id = org.id;
+ON atcs.id = org.id;
 """
 join_lat_longs = BigQueryOperator(
     task_id='join_lat_longs',
