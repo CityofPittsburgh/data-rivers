@@ -109,7 +109,6 @@ add_origin_column = BigQueryOperator(
     dag=dag
 )
 
-
 query_join_tables = f"""
 CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` AS
 SELECT 

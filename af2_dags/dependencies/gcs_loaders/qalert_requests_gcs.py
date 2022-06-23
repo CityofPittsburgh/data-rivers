@@ -41,6 +41,7 @@ while data_retrieved is False:
     response = requests.get('https://pittsburghpa.qscend.com/qalert/api/v1/requests/changes', params = payload,
                             headers = headers)
     curr_run = datetime.now(tz = pendulum.timezone('UTC')).strftime("%Y-%m-%d %H:%M:%S")
+    print("Response at " + str(curr_run) + ": " + response.status_code)
 
     # convert the utf-8 encoded string to json
     full_requests = response.json()['request']
