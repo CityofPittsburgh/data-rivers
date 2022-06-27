@@ -438,7 +438,9 @@ def unnest_domi_street_seg(nested_data, name_swaps, old_nested_keys, new_unneste
     """
             De-nests data from the CX API's DOMI Street Closures dataset. Takes in raw input and from the API,
             which contains several nested rows, and extracts them duplicating data that needs to be present for each
-            unnested row
+            unnested row. This type of operation would normally be done in dataflow. However, the parallel processing
+            inherent to Dataflow's functionality, as well as the nature of pipeline fusion was causing
+            concurrency/parallelization issues. This represented the most straightforward solution.
 
             Column names are changed in this function. Normally this would happen in dataflow, but since they have to
              be created de novo either way, it makes more sense to go ahead and format is needed
@@ -461,15 +463,15 @@ def unnest_domi_street_seg(nested_data, name_swaps, old_nested_keys, new_unneste
     for row in nested_data:
         new_row_base = {}
         # extract (and rename) all the unnested fields
-        for n in range(len(name_swaps[0]) - 1):
+        for n in range(len(name_swaps[0])):
             new_row_base.update({name_swaps[1][n]: row[name_swaps[0][n]]})
 
         # if there are closures (if not then there is also no nested data)
         if row["DOMISTREETCLOSURE"]:
             nest = row["DOMISTREETCLOSURE"][0]
 
-            # iterate through all nested fields and extract them (excluding the internally nested field)
-            for n in range(len(nest) - 1):
+            # iterate through all nested fields and extract them (excluding the internally nested fields)
+            for n in range(len(old_nested_keys)):
                 new_row_base.update({new_unnested_keys[n]: nest[old_nested_keys[n]]})
 
             # there can be multiple segments per ticket; each segment needs to be made a separate row,
