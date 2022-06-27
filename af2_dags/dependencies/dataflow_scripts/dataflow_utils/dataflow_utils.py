@@ -242,7 +242,7 @@ class FilterOutliers(beam.DoFn, ABC):
         yield datum
 
 
-class FilterFields(beam.DoFn, ABC):
+class FilterFields(beam.DoFn, ABC):1
     def __init__(self, target_fields, exclude_target_fields = True):
         self.target_fields = target_fields
         self.exclude_target_fields = exclude_target_fields
@@ -386,7 +386,6 @@ class StandardizeTimes(beam.DoFn, ABC):
         self.time_changes = time_changes
 
     def process(self, datum):
-
 
         for time_change in self.time_changes:
 
@@ -759,23 +758,6 @@ def extract_field_from_nested_list(datum, source_field, list_index, nested_field
         datum[new_field_name] = None
 
     return datum
-
-
-
-
-
-
-
-
-
-
-
-
-
-# only if it is there!!!!!!!!!
-
-
-
 
 
 def filter_fields(datum, target_fields, exclude_target_fields = True):
