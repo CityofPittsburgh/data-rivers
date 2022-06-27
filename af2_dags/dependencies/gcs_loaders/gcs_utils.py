@@ -433,9 +433,6 @@ def select_expand_odata(url, tables, limit_results=False):
 
     return records
 
-
-<<<<<<< HEAD
-=======
 def unnest_domi_street_seg(nested_data, name_swaps, old_nested_keys, new_unnested_keys,
                            return_segments_missing = False):
     """
@@ -513,7 +510,6 @@ def unnest_domi_street_seg(nested_data, name_swaps, old_nested_keys, new_unneste
     return data_with_segs, data_without_segs
 
 
->>>>>>> gcs_unnest
 def query_resource(site, query):
     """Use the datastore_search_sql API endpoint to query a public CKAN resource."""
     ckan = ckanapi.RemoteCKAN(site)
