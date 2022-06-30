@@ -35,14 +35,8 @@ payload = {'key': os.environ['QALERT_KEY'], 'since': run_start_win}
 
 # continue running the API until data is retrieved (wait 5 min if there is no new data between last_good_run and now (
 # curr_run))
-import socket
 data_retrieved = False
 while data_retrieved is False:
-    print("Yesterday: " + str(yesterday) + "\nRun Start Window: " + str(run_start_win) + "\nFirst Run?: " + str(first_run) + "\nBucket: " + bucket + "\nHeaders: " + str(headers))
-    hostname = socket.gethostname()
-    ip = socket.gethostbyname(hostname)
-    print("Host Name: " + str(hostname) + "\nIP: " + str(ip))
-
     # API call to get data
     response = requests.get('https://pittsburghpa.qscend.com/qalert/api/v1/requests/changes', params = payload,
                             headers = headers)
