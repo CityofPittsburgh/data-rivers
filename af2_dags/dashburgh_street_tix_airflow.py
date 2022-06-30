@@ -1,10 +1,8 @@
-        from __future__ import absolute_import
-
+from __future__ import absolute_import
 import os
 
 from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
-from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 from dependencies import airflow_utils
 from dependencies.airflow_utils import get_ds_month, get_ds_year, default_args
 
