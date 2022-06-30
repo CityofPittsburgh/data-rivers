@@ -422,36 +422,16 @@ class StandardizeTimes(beam.DoFn, ABC):
         self.time_changes = time_changes
 
     def process(self, datum):
-<<<<<<< HEAD
 
         for time_change in self.time_changes:
             if datum[time_change[0]] is not None:
-
                 parse_dt = parser.parse(datum[time_change[0]])
                 clean_dt = parse_dt.replace(tzinfo = None)
                 try:
                     pytz.all_timezones.index(time_change[1])
                 except ValueError:
                     pass
-=======
-        if self.skip_processed and not self.indicator_of_process_conmpletion:
-            for time_change in self.time_changes:
-                if datum[time_change[0]] is not None:
-                    parse_dt = parser.parse(datum[time_change[0]])
-                    clean_dt = parse_dt.replace(tzinfo = None)
-                    try:
-                        pytz.all_timezones.index(time_change[1])
-                    except ValueError:
-                        pass
-                    else:
-                        loc_time = pytz.timezone(time_change[1]).localize(clean_dt, is_dst = None)
-                        utc_conv = loc_time.astimezone(tz = pytz.utc)
-                        east_conv = loc_time.astimezone(tz = pytz.timezone('America/New_York'))
-                        unix_conv = utc_conv.timestamp()
-                        datum.update({'{}_UTC'.format(time_change[0]) : str(utc_conv),
-                                      '{}_EST'.format(time_change[0]) : str(east_conv),
-                                      '{}_UNIX'.format(time_change[0]): int(unix_conv)})
->>>>>>> f266efd979c77cf5dcc2a20ebb034446a61da72c
+
                 else:
                     loc_time = pytz.timezone(time_change[1]).localize(clean_dt, is_dst = None)
                     utc_conv = loc_time.astimezone(tz = pytz.utc)
