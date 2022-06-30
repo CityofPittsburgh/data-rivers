@@ -70,9 +70,6 @@ gis_export = BigQueryToCloudStorageOperator(
         dag = dag
 )
 
-# destination_cloud_storage_uris = [f"gs://{os.environ['GIS_PREFIX']}_street_closures/{csv_file_name}.csv"],
-# pghpa_gis_domi_street_closures/street_segments
-
 
 beam_cleanup = BashOperator(
     task_id='beam_cleanup',
