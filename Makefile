@@ -31,4 +31,4 @@ deploy_af2_dags_data_rivers_testing:
 	gsutil cp -r ./af2_dags/dependencies/gcs_loaders/*.py gs://us-east4-data-rivers-testin-bd9ba943-bucket/dags/dependencies/gcs_loaders && \
 	gsutil cp -r ./af2_dags/dependencies/dataflow_scripts/*.py gs://us-east4-data-rivers-testin-bd9ba943-bucket/dags/dependencies/dataflow_scripts && \
 	gsutil cp -r ./af2_dags/dependencies/dataflow_scripts/dataflow_utils/*.py gs://us-east4-data-rivers-testin-bd9ba943-bucket/dags/dependencies/dataflow_scripts/dataflow_utils && \
-	gsutil cp -r ./af2_dags/sql_scripts/*.py gs://us-east4-data-rivers-testin-bd9ba943-bucket/dags/dependencies/sql_scripts
+	gsutil cp -r ./af2_dags/dependencies/sql_scripts/*.py gs://us-east4-data-rivers-testin-bd9ba943-bucket/dags/dependencies/sql_scripts
