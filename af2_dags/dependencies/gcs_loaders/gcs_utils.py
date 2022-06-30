@@ -317,12 +317,19 @@ def json_to_gcs(path, json_object_list, bucket_name):
         name=path,
         bucket=storage_client.get_bucket(bucket_name),
     )
-    blob.upload_from_string(
-        # dataflow needs newline-delimited json, so use ndjson
-        data=ndjson.dumps(json_object_list),
-        content_type='application/json',
-        client=storage_client,
-    )
+    try:
+        blob.upload_from_string(
+            # dataflow needs newline-delimited json, so use ndjson
+            data=ndjson.dumps(json_object_list),
+            content_type='application/json',
+            client=storage_client,
+        )
+    except json.decoder.JSONDecodeError:
+        str_requests = ndjson.dumps(json_object_list)
+        linted = "[" + json_linter(str_requests) + "]"
+        linted_requests = ndjson.loads(linted)[0]
+        json_to_gcs(path, linted_requests, bucket_name)
+
     logging.info(
         'Successfully uploaded blob %r to bucket %r.', path, bucket_name)
 
