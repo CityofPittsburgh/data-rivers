@@ -24,7 +24,7 @@ dag = DAG(
 # initialize gcs locations
 bucket = f"gs://{os.environ['GCS_PREFIX']}_computronix"
 dataset = "gis_domi_street_closures"
-path = "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds|get_ds_day }}"
+path = "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds|get_ds_day }}/{{ run_id }}"
 json_loc = f"{path}_street_closures.json"
 avro_loc = f"avro_output/{path}/"
 
@@ -60,14 +60,18 @@ gcs_to_bq = GoogleCloudStorageToBigQueryOperator(
 )
 
 
-csv_file_name = f"{path}_street_closures"
 # Export table as CSV to WPRDC bucket
+# file name is the date + "street_closures". path contains the date info
+csv_file_name = f"{path}_street_closures"
 gis_export = BigQueryToCloudStorageOperator(
         task_id = 'gis_export',
         source_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}:computronix.gis_street_closures",
-        destination_cloud_storage_uris = [f"gs://{os.environ['GIS_PREFIX']}_street_closures/{csv_file_name}.csv"],
+        destination_cloud_storage_uris = [f"gs://pghpa_gis_domi_street_closures/street_segments/{csv_file_name}.csv"],
         dag = dag
 )
+
+# destination_cloud_storage_uris = [f"gs://{os.environ['GIS_PREFIX']}_street_closures/{csv_file_name}.csv"],
+# pghpa_gis_domi_street_closures/street_segments
 
 
 beam_cleanup = BashOperator(
