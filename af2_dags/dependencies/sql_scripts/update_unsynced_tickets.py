@@ -6,7 +6,7 @@ storage_client = storage.Client()
 
 job_config = bigquery.QueryJobConfig(use_legacy_sql=False)
 
-sql = f"""-- update all_linked_requests with the data stored in the temporary mismatch table
+sql = F"""-- update all_linked_requests with the data stored in the temporary mismatch table
              UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
             SET alr.request_type_name = temp.request_type_name, alr.request_type_id = temp.request_type_id,
             alr.pii_street_num = temp.pii_street_num, alr.street = temp.street, 

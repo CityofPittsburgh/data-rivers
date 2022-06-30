@@ -21,13 +21,13 @@ dag = DAG(
 
 create_unsynced_table = BashOperator(
     task_id='create_unsynced_table',
-    bash_command=f"python {os.environ['DAGS_PATH']}/sql_scripts/create_unsynced_table.py",
+    bash_command=f"python {os.environ['SQL_SCRIPT_PATH']}/create_unsynced_table.py",
     dag=dag
 )
 
 update_unsynced_tickets = BashOperator(
     task_id='update_unsynced_tickets',
-    bash_command=f"python {os.environ['DAGS_PATH']}/sql_scripts/update_unsynced_tickets.py",
+    bash_command=f"python {os.environ['SQL_SCRIPT_PATH']}/update_unsynced_tickets.py",
     dag=dag
 )
 
