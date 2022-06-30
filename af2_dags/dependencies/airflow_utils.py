@@ -187,6 +187,7 @@ def build_revgeo_time_bound_query(dataset, raw_table, new_table_name, create_dat
     LEFT OUTER JOIN sel_zones ON sel_zones.{id_col} = raw.{id_col}
 """
 
+
 # TODO: this function will be deprecated ASAP (see above function)
 def build_revgeo_query(dataset, raw_table, id_field):
     """
