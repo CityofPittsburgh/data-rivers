@@ -60,7 +60,11 @@ dag = DAG(
 # initialize gcs locations
 bucket = f"gs://{os.environ['GCS_PREFIX']}_qalert"
 dataset = "requests"
-path = "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds|get_ds_day }}/{{ run_id }}"
+
+#TODO: temp path changes for testing only -- fix asap
+path = "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds|get_ds_day }}/manual__2022-06-30T14:09:29+00:00"
+# path = "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds|get_ds_day }}/{{ run_id }}"
+
 json_loc = f"{path}_requests.json"
 avro_loc = f"avro_output/{path}/"
 
