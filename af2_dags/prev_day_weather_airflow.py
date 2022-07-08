@@ -32,6 +32,13 @@ prev_day_weather_gcs = BashOperator(
     dag=dag
 )
 
+prev_day_weather_dataflow = BashOperator(
+    task_id='prev_day_weather_dataflow',
+    bash_command=f"python {os.environ['DATAFLOW_SCRIPT_PATH']}/prev_day_weather_dataflow.py "
+                 f"--input gs://{bucket}/weather_dataflow_test.json",
+    dag=dag
+)
+
 prev_day_weather_bq_load = GoogleCloudStorageToBigQueryOperator(
         task_id = 'prev_day_weather_bq_load',
         destination_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}.{dataset}.daily_weather",
@@ -50,4 +57,4 @@ beam_cleanup = BashOperator(
         dag = dag
 )
 
-prev_day_weather_gcs >> prev_day_weather_bq_load >> beam_cleanup
+prev_day_weather_gcs >> prev_day_weather_dataflow >> prev_day_weather_bq_load >> beam_cleanup
