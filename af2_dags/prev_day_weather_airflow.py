@@ -35,13 +35,15 @@ prev_day_weather_gcs = BashOperator(
 prev_day_weather_dataflow = BashOperator(
     task_id='prev_day_weather_dataflow',
     bash_command=f"python {os.environ['DATAFLOW_SCRIPT_PATH']}/prev_day_weather_dataflow.py "
-                 f"--input gs://{bucket}/weather_dataflow_test.json",
+                 f"--input gs://{bucket}/{dataset}/weather_dataflow_test.json "
+                 f"--avro_output gs://{bucket}/{dataset}",
     dag=dag
 )
 
 prev_day_weather_bq_load = GoogleCloudStorageToBigQueryOperator(
         task_id = 'prev_day_weather_bq_load',
         destination_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}.{dataset}.daily_weather",
+        bigquery_conn_id='google_cloud_default',
         bucket = bucket,
         source_objects = [f"{dataset}/{path}/"+"{{ prev_ds }}_weather_report.avro"],
         write_disposition='WRITE_APPEND',
