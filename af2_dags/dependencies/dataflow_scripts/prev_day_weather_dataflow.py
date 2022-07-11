@@ -22,7 +22,7 @@ def run(argv = None):
         load = (
             lines
             | beam.ParDo(SwapFieldNames(field_name_swaps))
-            | WriteToText(file_path_prefix=f"{known_args.bucket}/test_output", 
+            | WriteToText(file_path_prefix=f"{known_args.avro_output}/test_output",
                           file_name_suffix=".txt")
         )
 

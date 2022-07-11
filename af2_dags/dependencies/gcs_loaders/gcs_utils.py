@@ -294,7 +294,7 @@ def avro_to_gcs(path, file_name, avro_object_list, bucket_name, schema_def):
     )
 
     schema_text = blob.download_as_string()
-    schema = avro.schema.parse(schema_text)
+    schema = avro.schema.Parse(schema_text)
 
     writer = DataFileWriter(open(file_name, "wb"), DatumWriter(), schema)
     for item in avro_object_list:
