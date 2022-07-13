@@ -394,13 +394,13 @@ def build_city_limits_query(dataset, raw_table, lat_field = 'lat', long_field = 
     return f"""
     UPDATE `{os.environ['GCLOUD_PROJECT']}.{dataset}.{raw_table}`
     SET address_type = IF ( 
-       ((ST_COVERS((ST_GEOGFROMTEXT((SELECT geometry FROM `data-rivers.geography.pittsburgh_and_mt_oliver_borders`
-                                      WHERE city = 'Mt. Oliver'))),
+       ((ST_COVERS((ST_GEOGFROMTEXT((SELECT geometry FROM `{os.environ['GCLOUD_PROJECT']}.timebound_geography.pittsburgh_and_mt_oliver_borders`
+                                      WHERE zone = 'Mt. Oliver'))),
                ST_GEOGPOINT(`{os.environ['GCLOUD_PROJECT']}.{dataset}.{raw_table}`.{long_field},
                     `{os.environ['GCLOUD_PROJECT']}.{dataset}.{raw_table}`.{lat_field})))
         OR NOT 
-        ST_COVERS((ST_GEOGFROMTEXT((SELECT geometry FROM `data-rivers.geography.pittsburgh_and_mt_oliver_borders`
-                                     WHERE city = 'Pittsburgh'))),
+        ST_COVERS((ST_GEOGFROMTEXT((SELECT geometry FROM `{os.environ['GCLOUD_PROJECT']}.timebound_geography.pittsburgh_and_mt_oliver_borders`
+                                     WHERE zone = 'Pittsburgh'))),
                    ST_GEOGPOINT(`{os.environ['GCLOUD_PROJECT']}.{dataset}.{raw_table}`.{long_field}, 
                    `{os.environ['GCLOUD_PROJECT']}.{dataset}.{raw_table}`.{lat_field}))
        ), 'Outside of City', address_type )
