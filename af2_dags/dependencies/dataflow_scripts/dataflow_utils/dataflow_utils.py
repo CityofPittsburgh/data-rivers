@@ -470,7 +470,7 @@ def download_schema(bucket_name, source_blob_name, destination_file_name):
 
 def get_schema(schema_name):
     """Read avsc from cloud storage and return json object stored in memory"""
-    bucket = storage_client.get_bucket('pghpa_avro_schemas')
+    bucket = storage_client.get_bucket(f'{os.environ["GCS_PREFIX"]}_avro_schemas')
     blob = bucket.get_blob('{}.avsc'.format(schema_name))
     schema_string = blob.download_as_string()
     return json.loads(schema_string)

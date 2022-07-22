@@ -111,7 +111,7 @@ while more is True:
 
 # avro_to_gcs(f"{args['out_loc']}/{start_time}_to_{end_time}",
 #             f"{args['lookback_date']}_weather_report.avro",
-#             datum, bucket, "prev_day_weather.avsc")
+#             datum, bucket, "chargepoint_sessions.avsc")
 
 #json_to_gcs(args["out_loc"], all_records, bucket)
 
