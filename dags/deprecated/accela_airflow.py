@@ -8,8 +8,8 @@ from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 from airflow.contrib.operators.bigquery_to_gcs import BigQueryToCloudStorageOperator
 from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOperator
 
-from dependencies import airflow_utils
-from dependencies.airflow_utils import get_ds_year, get_ds_month, default_args, build_revgeo_query, filter_old_values
+from deprecated import airflow_utils
+from deprecated.airflow_utils import get_ds_year, get_ds_month, default_args, build_revgeo_query, filter_old_values
 
 
 dag = DAG(
@@ -85,7 +85,7 @@ accela_bq_drop_temp = BigQueryOperator(
 
 accela_permits_beam_cleanup = BashOperator(
     task_id='accela_permits_beam_cleanup',
-    bash_command=airflow_utils.beam_cleanup_statement('{}_accela'.format(os.environ['GCS_PREFIX'])),
+    bash_command= airflow_utils.beam_cleanup_statement('{}_accela'.format(os.environ['GCS_PREFIX'])),
     dag=dag
 )
 

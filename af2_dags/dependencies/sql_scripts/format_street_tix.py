@@ -1,25 +1,18 @@
-from __future__ import absolute_import
-
+from google.cloud import bigquery, storage
 import os
 
-from airflow import DAG
-from airflow.operators.bash_operator import BashOperator
-from airflow.contrib.operators.bigquery_operator import BigQueryOperator
-from dependencies import airflow_utils
-from dependencies.airflow_utils import get_ds_month, get_ds_year, default_args
+bq_client = bigquery.Client()
+storage_client = storage.Client()
 
-# The goal of this mini-DAG is to perform a weekly pull of all DPW Streets Maintenance tasks
-# and store it in a table, which is then accessed by a Power BI chart to be displayed in the
-# Dashburgh open data project
-
-dag = DAG(
-    'dashburgh_street_tix',
-    default_args=default_args,
-    schedule_interval='@daily',
-    user_defined_filters={'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year}
+table_id = f"{os.environ['GCLOUD_PROJECT']}.qalert.dashburgh_street_tix"
+job_config = bigquery.QueryJobConfig(
+    destination=table_id,
+    use_legacy_sql=False,
+    write_disposition = 'WRITE_TRUNCATE',
+    create_disposition = 'CREATE_IF_NEEDED'
 )
 
-query = f"""-- create a table containing every unique ticket fulfilled by a DPW Streets Division
+sql = F"""-- create a table containing every unique ticket fulfilled by a DPW Streets Division
         SELECT DISTINCT group_id AS id, dept, tix.request_type_name, closed_date_est
         FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` tix
         INNER JOIN
@@ -64,20 +57,6 @@ query = f"""-- create a table containing every unique ticket fulfilled by a DPW 
                     )
         AND create_date_unix >= 1577854800"""
 
-format_street_tix = BigQueryOperator(
-    task_id='dashburgh_format_street_tix',
-    sql=query,
-    use_legacy_sql=False,
-    destination_dataset_table=f"{os.environ['GCLOUD_PROJECT']}:qalert.dashburgh_street_tix",
-    write_disposition='WRITE_TRUNCATE',
-    create_disposition='CREATE_IF_NEEDED',
-    dag=dag
-)
-
-qalert_beam_cleanup = BashOperator(
-    task_id='dashburgh_street_tix_beam_cleanup',
-    bash_command=airflow_utils.beam_cleanup_statement('{}_dashburgh_street_tix'.format(os.environ['GCS_PREFIX'])),
-    dag=dag
-)
-
-format_street_tix >> qalert_beam_cleanup
+query_job = bq_client.query(sql, job_config=job_config)
+query_job.result()
+print("Query results loaded to the table {}".format(table_id))

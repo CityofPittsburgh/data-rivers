@@ -3,7 +3,6 @@ from __future__ import print_function
 import argparse
 import os
 import logging
-import time
 import re
 import json
 import ckanapi
@@ -14,8 +13,8 @@ import pandas as pd
 import jaydebeapi
 
 import avro.schema
-from avro.datafile import DataFileReader, DataFileWriter
-from avro.io import DatumReader, DatumWriter
+from avro.datafile import DataFileWriter
+from avro.io import DatumWriter
 
 from datetime import datetime
 from google.cloud import storage, dlp
@@ -288,14 +287,14 @@ def avro_to_gcs(path, file_name, avro_object_list, bucket_name, schema_def):
     """
     take list of dicts in memory and upload to GCS as AVRO
     """
-    avro_bucket = "pghpa_avro_schemas"
+    avro_bucket = F"{os.environ['GCS_PREFIX']}_avro_schemas"
     blob = storage.Blob(
         name=schema_def,
         bucket=storage_client.get_bucket(avro_bucket),
     )
 
     schema_text = blob.download_as_string()
-    schema = avro.schema.Parse(schema_text)
+    schema = avro.schema.parse(schema_text)
 
     writer = DataFileWriter(open(file_name, "wb"), DatumWriter(), schema)
     for item in avro_object_list:
@@ -318,12 +317,19 @@ def json_to_gcs(path, json_object_list, bucket_name):
         name=path,
         bucket=storage_client.get_bucket(bucket_name),
     )
-    blob.upload_from_string(
-        # dataflow needs newline-delimited json, so use ndjson
-        data=ndjson.dumps(json_object_list),
-        content_type='application/json',
-        client=storage_client,
-    )
+    try:
+        blob.upload_from_string(
+            # dataflow needs newline-delimited json, so use ndjson
+            data=ndjson.dumps(json_object_list),
+            content_type='application/json',
+            client=storage_client,
+        )
+    except json.decoder.JSONDecodeError:
+        str_requests = ndjson.dumps(json_object_list)
+        linted = "[" + json_linter(str_requests) + "]"
+        linted_requests = ndjson.loads(linted)[0]
+        json_to_gcs(path, linted_requests, bucket_name)
+
     logging.info(
         'Successfully uploaded blob %r to bucket %r.', path, bucket_name)
 
@@ -333,9 +339,9 @@ def json_to_gcs(path, json_object_list, bucket_name):
 def get_computronix_odata(endpoint, params=None, expand_fields=None):
     """
     Hit the Computronix odata feed and loop through all result pages, storing results in a list of dicts
-    :param endpoint (str): API endpoint, e.g. 'DOMIPERMIT'
-    :param params (list): params for odata query, e.g. ['$orderby=CREATEDDATE%20desc', '$top=1000']
-    :param expand_fields (list): fields in odata results to expand, e.g. ['ADDRESS']
+    :param: endpoint (str): API endpoint, e.g. 'DOMIPERMIT'
+    :param: params (list): params for odata query, e.g. ['$orderby=CREATEDDATE%20desc', '$top=1000']
+    :param: expand_fields (list): fields in odata results to expand, e.g. ['ADDRESS']
     :return: list of dicts
     """
     records = []
@@ -365,14 +371,16 @@ def get_computronix_odata(endpoint, params=None, expand_fields=None):
     return records
 
 
-def select_expand_odata(url, tables, limit_results=True):
+def select_expand_odata(url, tables, limit_results=False):
     """
         General ODATA API query generator. This function will format the query, request from the API, and loop through
         all result pages, Data are returned as a list of dicts. Note- This function is used for Selects and Joins (
         expansions) ONLY. More complicated queries need to be customized.
 
-        :param url (str): full URL base for the API (not including the base table that will form the beginning of the query
-        :param tables (list): List of tuples. Each tuple contains the following elements in this order-
+        :param: url (str): full URL base for the API (not including the base table that will form the beginning of
+        the query
+        :param: tables (list): List of tuples. Each tuple contains the following elements in this order-
+
             [
                 ( 'Table Name', ['Table(s) to form nested expansion on'], [String(s) of columns to select from the
                 tables] )
@@ -421,16 +429,92 @@ def select_expand_odata(url, tables, limit_results=True):
         try:
             res = requests.get(odata_url)
             records.extend(res.json()['value'])
-            if '@odata.nextLink' in res.json().keys():
-                odata_url = res.json()['@odata.nextLink']
-            elif limit_results:
+            if limit_results:
                 more_links = False
+            elif '@odata.nextLink' in res.json().keys():
+                odata_url = res.json()['@odata.nextLink']
             else:
                 more_links = False
         except requests.exceptions.RequestException:
             more_links = False
 
     return records
+
+def unnest_domi_street_seg(nested_data, name_swaps, old_nested_keys, new_unnested_keys,
+                           return_segments_missing = False):
+    """
+            De-nests data from the CX API's DOMI Street Closures dataset. Takes in raw input and from the API,
+            which contains several nested rows, and extracts them duplicating data that needs to be present for each
+            unnested row. This type of operation would normally be done in dataflow. However, the parallel processing
+            inherent to Dataflow's functionality, as well as the nature of pipeline fusion was causing
+            concurrency/parallelization issues. This represented the most straightforward solution.
+
+            Column names are changed in this function. Normally this would happen in dataflow, but since they have to
+             be created de novo either way, it makes more sense to go ahead and format is needed
+
+            :param nested_data: (list of dicts): the raw data from the CX API
+            :param name_swaps: (list of list of strings): each sub-list contains the string value names for the fields
+            that were not nested. The first list being the old names and the second being the new names
+            :param old_nested_keys: (list of strings): The old names of the nested fields
+            :param new_unnested_keys: (list of strings): The new names of the unnested fields
+            :param return_segments_missing: (boolean): Flag to control if permit applications that are missing street
+            closure segments are dropped or returned
+
+            :return: data_with_segs (list of dicsts): unnested data
+            closure segments
+
+    """
+    data_with_segs = []
+    data_without_segs = []
+    print("unnesting")
+    for row in nested_data:
+        new_row_base = {}
+        # extract (and rename) all the unnested fields
+        for n in range(len(name_swaps[0])):
+            new_row_base.update({name_swaps[1][n]: row[name_swaps[0][n]]})
+
+        # if there are closures (if not then there is also no nested data)
+        if row["DOMISTREETCLOSURE"]:
+            nest = row["DOMISTREETCLOSURE"][0]
+
+            # iterate through all nested fields and extract them (excluding the internally nested fields)
+            for n in range(len(old_nested_keys)):
+                new_row_base.update({new_unnested_keys[n]: nest[old_nested_keys[n]]})
+
+            # there can be multiple segments per ticket; each segment needs to be made a separate row,
+            # and all information needs to be present in each row, with the only difference being the segment. Thus,
+            # two segments from the same record will have redundant information, with only the segment information
+            # being unique.
+
+            # loop through the segments
+            segs = nest["STREETCLOSUREDOMISTREETSEGMENT"]
+            seg_ct = 0
+            segs_in_row = len(segs)
+            for s in segs:
+                seg_ct += 1
+                new_row = new_row_base.copy()
+                new_row.update({"closure_id": str(s["UNIQUEID"])})
+                new_row.update({"carte_id": str(s["CARTEID"])})
+                new_row.update({"segment_num": seg_ct})
+                new_row.update({"total_segments": segs_in_row})
+                data_with_segs.append(new_row)
+
+        # # if there is not a street segment, the relevant columns don't exist. all columns must be present in each
+        # # nested_data so we populate them with None values here
+        if return_segments_missing and not row["DOMISTREETCLOSURE"]:
+            new_row = new_row_base.copy()
+
+            for n in range(len(old_nested_keys)):
+                new_row.update({new_unnested_keys[n]: None})
+
+            new_row.update({"closure_id": None})
+            new_row.update({"carte_id": None})
+            new_row.update({"segment_num": 0})
+            new_row.update({"total_segments": 0})
+
+            data_without_segs.append(new_row)
+
+    return data_with_segs, data_without_segs
 
 
 def query_resource(site, query):
@@ -636,23 +720,29 @@ def find_last_successful_run(bucket_name, good_run_path, look_back_date):
         return str(look_back_date), first_run
 
 
-def fix_nd_json_new_line_sep(nd_json: str):
+def json_linter(ndjson: str):
     """
     :Author - Pranav Banthia
-    :param nd_json - NDJson is a json file where each line is an individual json object. The delimiter is a new line \n
+    :param ndjson - NDJson is a json file where each line is an individual json object. The delimiter is a new line \n
                     This function takes in a param called ndjson which is a string object.
+
     We parse each line of the string assuming that every line is an individual json object. If there are any exceptions
-    such as two json objects on the same line then we handle that situation in the except block. Returns an ndjson
+    such as multiple json objects on the same line then we handle that situation in the except block. Returns an ndjson
     as a string
     """
     result_ndjson = []
-    for i, line in enumerate(nd_json.split('\n')):
+    for i, line in enumerate(ndjson.split('\n')):
         try:
             json.loads(line)
             result_ndjson.append(line)
-        except json.JSONDecodeError:
+        except:
             json_split = line.split('}{')
-            result_ndjson.append(json_split[0] + '}')
-            result_ndjson.append('{' + json_split[1])
+            for idx in range(len(json_split)):
+                if idx == 0:
+                    result_ndjson.append(json_split[idx] + '}')
+                elif idx == (len(json_split)-1):
+                    result_ndjson.append('{' + json_split[idx])
+                else:
+                    result_ndjson.append('{' + json_split[idx] + '}')
 
     return '\n'.join(result_ndjson)

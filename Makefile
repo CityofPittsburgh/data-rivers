@@ -18,11 +18,11 @@ deploy_plugins:
 
 
 deploy_af2_dags_data_rivers:
-	gsutil cp -r ./af2_dags/*.py gs://us-east1-data-rivers-8605f7ab-bucket/dags && \
-	gsutil cp -r ./af2_dags/dependencies/*.py gs://us-east1-data-rivers-8605f7ab-bucket/dags/dependencies && \
-	gsutil cp -r ./af2_dags/dependencies/gcs_loaders/*.py gs://us-east1-data-rivers-8605f7ab-bucket/dags/dependencies/gcs_loaders && \
-	gsutil cp -r ./af2_dags/dependencies/dataflow_scripts/*.py gs://us-east1-data-rivers-8605f7ab-bucket/dags/dependencies/dataflow_scripts && \
-	gsutil cp -r ./af2_dags/dependencies/dataflow_scripts/dataflow_utils/*.py gs://us-east1-data-rivers-8605f7ab-bucket/dags/dependencies/dataflow_scripts/dataflow_utils
+    gsutil cp -r ./af2_dags/*.py gs://us-east1-data-rivers-8605f7ab-bucket/dags && \
+    gsutil cp -r ./af2_dags/dependencies/*.py gs://us-east1-data-rivers-8605f7ab-bucket/dags/dependencies && \
+    gsutil cp -r ./af2_dags/dependencies/gcs_loaders/*.py gs://us-east1-data-rivers-8605f7ab-bucket/dags/dependencies/gcs_loaders && \
+    gsutil cp -r ./af2_dags/dependencies/dataflow_scripts/*.py gs://us-east1-data-rivers-8605f7ab-bucket/dags/dependencies/dataflow_scripts && \
+    gsutil cp -r ./af2_dags/dependencies/dataflow_scripts/dataflow_utils/*.py gs://us-east1-data-rivers-8605f7ab-bucket/dags/dependencies/dataflow_scripts/dataflow_utils
 
 
 deploy_af2_dags_data_rivers_testing:
@@ -30,4 +30,5 @@ deploy_af2_dags_data_rivers_testing:
 	gsutil cp -r ./af2_dags/dependencies/*.py gs://us-east4-data-rivers-testin-bd9ba943-bucket/dags/dependencies && \
 	gsutil cp -r ./af2_dags/dependencies/gcs_loaders/*.py gs://us-east4-data-rivers-testin-bd9ba943-bucket/dags/dependencies/gcs_loaders && \
 	gsutil cp -r ./af2_dags/dependencies/dataflow_scripts/*.py gs://us-east4-data-rivers-testin-bd9ba943-bucket/dags/dependencies/dataflow_scripts && \
-	gsutil cp -r ./af2_dags/dependencies/dataflow_scripts/dataflow_utils/*.py gs://us-east4-data-rivers-testin-bd9ba943-bucket/dags/dependencies/dataflow_scripts/dataflow_utils
+	gsutil cp -r ./af2_dags/dependencies/dataflow_scripts/dataflow_utils/*.py gs://us-east4-data-rivers-testin-bd9ba943-bucket/dags/dependencies/dataflow_scripts/dataflow_utils && \
+	gsutil cp -r ./af2_dags/dependencies/sql_scripts/*.py gs://us-east4-data-rivers-testin-bd9ba943-bucket/dags/dependencies/sql_scripts

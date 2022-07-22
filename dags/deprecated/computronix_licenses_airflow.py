@@ -6,8 +6,8 @@ from airflow import DAG
 from airflow.operators.docker_operator import DockerOperator
 from airflow.operators.bash_operator import BashOperator
 from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOperator
-from dependencies import airflow_utils
-from dependencies.airflow_utils import build_revgeo_query, get_ds_month, get_ds_year, default_args
+from deprecated import airflow_utils
+from deprecated.airflow_utils import get_ds_month, get_ds_year, default_args
 
 
 dag = DAG(
@@ -103,7 +103,7 @@ computronix_businesses_bq = GoogleCloudStorageToBigQueryOperator(
 
 beam_cleanup = BashOperator(
     task_id='computronix_beam_cleanup',
-    bash_command=airflow_utils.beam_cleanup_statement('{}_computronix'.format(os.environ['GCS_PREFIX'])),
+    bash_command= airflow_utils.beam_cleanup_statement('{}_computronix'.format(os.environ['GCS_PREFIX'])),
     dag=dag
 )
 

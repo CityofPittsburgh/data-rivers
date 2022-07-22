@@ -10,7 +10,7 @@ from apache_beam.io.avroio import WriteToAvro
 from dataflow_utils import dataflow_utils
 from dataflow_utils.dataflow_utils import JsonCoder, SwapFieldNames, generate_args, FilterFields, \
     ColumnsCamelToSnakeCase, GetDateStringsFromUnix, ChangeDataTypes, unix_to_date_strings, \
-    GoogleMapsClassifyAndGeocode, AnonymizeAddressBlock, AnonymizeLatLong
+    FormatAndClassifyAddress, GoogleMapsGeocodeAddress, AnonymizeAddressBlock, AnonymizeLatLong
 
 
 class GetStatus(beam.DoFn):
@@ -35,6 +35,7 @@ class GetClosedDate(beam.DoFn):
             datum['closed_date_utc'], datum['closed_date_est'] = unix_to_date_strings(datum['last_action_unix'])
         else:
             datum['closed_date_unix'], datum['closed_date_utc'], datum['closed_date_est'] = None, None, None
+        datum.pop('close_date')
         yield datum
 
 
@@ -55,7 +56,7 @@ def run(argv = None):
             job_name = 'qalert-requests-dataflow',
             bucket = f"{os.environ['GCS_PREFIX']}_qalert",
             argv = argv,
-            schema_name = 'qalert_requests',
+            schema_name = 'qalert_requests_enriched',
             limit_workers = [False, None]
     )
 
@@ -96,8 +97,15 @@ def run(argv = None):
                 "long_field"        : "pii_long"
         }
 
+        loc_field_names = {
+            "address_field": "pii_input_address",
+            "lat_field": "pii_lat",
+            "long_field": "pii_long"
+        }
+
         block_anon_accuracy = [("pii_google_formatted_address", 100)]
-        lat_long_accuracy = [("pii_lat", "pii_long", 200)]
+        lat_long_accuracy = [("input_pii_lat", "input_pii_long", 200),
+                             ("google_pii_lat", "google_pii_long", 200)]
 
         lines = p | ReadFromText(known_args.input, coder = JsonCoder())
 
@@ -111,8 +119,9 @@ def run(argv = None):
                 | beam.ParDo(GetStatus())
                 | beam.ParDo(GetClosedDate())
                 | beam.ParDo(DetectChildTicketStatus())
-                | beam.ParDo(GoogleMapsClassifyAndGeocode(key = gmap_key, loc_field_names = loc_names,
-                                                          partitioned_address = True))
+                | beam.ParDo(FormatAndClassifyAddress(loc_field_names=loc_names, contains_pii=True))
+                | beam.ParDo(GoogleMapsGeocodeAddress(key=gmap_key, loc_field_names=loc_field_names,
+                                                      del_org_input=False))
                 | beam.ParDo(AnonymizeLatLong(lat_long_accuracy))
                 | beam.ParDo(AnonymizeAddressBlock(block_anon_accuracy))
                 | WriteToAvro(known_args.avro_output, schema = avro_schema, file_name_suffix = '.avro',

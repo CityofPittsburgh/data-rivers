@@ -6,8 +6,8 @@ from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
 from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOperator
 
-from dependencies import airflow_utils
-from dependencies.airflow_utils import get_ds_year, get_ds_month, default_args
+from deprecated import airflow_utils
+from deprecated.airflow_utils import get_ds_year, get_ds_month, default_args
 
 
 dag = DAG(
@@ -49,7 +49,7 @@ police_blotter_30_day_bq = GoogleCloudStorageToBigQueryOperator(
 
 police_blotter_30_day_beam_cleanup = BashOperator(
     task_id='police_blotter_30_day_beam_cleanup',
-    bash_command=airflow_utils.beam_cleanup_statement('{}_police'.format(os.environ['GCS_PREFIX'])),
+    bash_command= airflow_utils.beam_cleanup_statement('{}_police'.format(os.environ['GCS_PREFIX'])),
     dag=dag
 )
 

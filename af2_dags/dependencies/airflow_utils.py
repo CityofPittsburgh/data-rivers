@@ -50,10 +50,11 @@ def on_failure(context):
         pass
 
 
+#TODO: email can be added in later, but that functionality is currently not used. expect this to change soon (05/22)
+# 'email'                   : os.environ['EMAIL'],
 default_args = {
         'depends_on_past'         : False,
         'start_date'              : yesterday,
-        'email'                   : os.environ['EMAIL'],
         'email_on_failure'        : True,
         'email_on_retry'          : False,
         'retries'                 : 1,
@@ -79,206 +80,112 @@ def get_ds_day(ds):
 
 
 # TODO: phase out the usage of build_revgeo_query() in favor of build_rev_geo_time_bound_query()
-def  build_revgeo_time_bound_query(dataset, raw_table, new_table_name, create_date, id_col, lat_field, long_field,
-                                  cols_in_order):
+def build_revgeo_time_bound_query(dataset, raw_table, new_table_name, create_date, id_col, lat_field, long_field):
     """
     Take a table with lat/long values and reverse-geocode it into a new a final table.
     This function is a substantial refactor of the build_rev_geo() function. This query allows a lat/long point to be
     localized to a zone within a specifc time range. This is critical as some boundaries have changed over time.
 
-    IN DEPTH EXPLANATION:
-    PURPOSE: Localize locations with lat/long into various geo boundaries in the city. Since boundaries change
-    overtime, this query builds upon
-    a previous version, by selecting the boundaries at a relevant time point.
+    Since boundaries change over time, this query builds upon a previous version, by selecting the boundaries at a
+    relevant time point.
 
-    This sequence of two queries accomplishes several things. At the start of query 1 a table is created which is
-    then overwritten in query 2.
-    This avoided circular references to views prompting a BQ error and avoids excessive WITH aliasing.
-    It may be possible to avoid this approach, but this methodology was the most readable solution
-    that was found (9/30/2021).
-
-    Query 1 can be divided into 2 components ((A and B) notated below). The first (1A) joins all lat/long coords with
-    their surrounding geo boundaries.
-    The columns for these boundaries (e.g. fire_zone, ward, etc.) are already nulled, and thus are overwritten.
-    However, records that cannot be localized are dropped. The second component (1B) remedies this by using a UNION
-    operator to bring back those
-    unlocalized records.
-
-    Query 1B also has an unexpected behavior. Some records are duplicated (with differing neighborhoods assigned
-    despite having identical lat/long).
-    The source of this behavior is unclear. Because these records have different neighborhoods, a SELECT DISTINCT
-    will not dedupe the table, as the records are not techncially identical. It appers that BigQuery does not allow
-    selection of all columns based on a distinct column (e.g. ID).
-
-    Query 2 represents the most straightforward solution (9/30/2021), which was to partition the table by ID into a
-    row number count, serving as
-    a count of each appearance of an ID. A WHERE statement then exludes records that have a count is greater than 1.
-    This approach is not perfect.
-    It drops all appearances of a duplicated ID after the first. This may not be the best record to keep, but again,
-    was the most succint solution available. This error occurs in less than 1% of records, so the potential negative
-    of effects of this solution are probably minimal.
-
-    Additional explanation is provided inline throughout the query.
 
     :param dataset: BigQuery dataset (string)
-    :param raw_table: non-reverse geocoded table (string)
+    :param raw_table: starting table that has not been geocoded yet (string)
     :param id_col: field in table to use for deduplication
     :param create_date: ticket creation date (string)
     :param lat_field: field in table that identifies latitude value
     :param long_field: field in table that identifies longitude value
-    :param cols_in_order: string of all columns, in the order they should appear in the table (used to maintain
-    explicit column ordering and produce helpful column orders;
-    this is usually a variable passed in and not a string literal as the argument
     :return: string to be passed through as arg to BigQueryOperator
     """
 
     return f"""
-        -- QUERY 1A (results are aliased as 'geo')
-        CREATE OR REPLACE TABLE
-          `{os.environ["GCLOUD_PROJECT"]}.{dataset}.{new_table_name}` AS
-        WITH
-          geo AS (
-          /* select all columns except the geo boundaries (which will be joined in subsequently after being cast as 
-          strings (in the future
-          all tables will follow standarized formatting and this will technically be unnecessary)) (table aliases 
-          begin with "t_")*/
-          SELECT
-            DISTINCT raw.* EXCEPT (neighborhood_name,
-              council_district,
-              ward,
-              police_zone,
-              fire_zone,
-              dpw_streets,
-              dpw_enviro,
-              dpw_parks),
-            CAST (t_hoods.hood AS STRING) AS neighborhood_name,
-            CAST (t_cd.council_district AS STRING) AS council_district,
-            CAST (t_w.ward AS STRING) AS ward,
-            CAST (t_fz.firezones AS STRING) AS fire_zone,
-            CAST (t_pz.zone AS STRING) AS police_zone,
-            CAST (t_st.division AS STRING) AS dpw_streets,
-            CAST (t_es.dpwesid AS STRING) AS dpw_enviro,
-            CAST (t_pk.division AS STRING) AS dpw_parks
-        
-          -- Joining operations begin here to modify the values of each geo boundary
-          FROM
-            `{os.environ["GCLOUD_PROJECT"]}.{dataset}.{raw_table}` AS raw
-          JOIN
-            `data-rivers.geography.neighborhoods` AS t_hoods
-          ON
-            ST_CONTAINS(t_hoods.geometry,
-              ST_GEOGPOINT(raw.{long_field},
-               raw.{lat_field}))
-          JOIN
-            `data-rivers.geography.council_districts` AS t_cd
-          ON
-            ST_CONTAINS(t_cd.geometry,
-              ST_GEOGPOINT(raw.{long_field},
-                raw.{lat_field}))
-          JOIN
-            `data-rivers.geography.wards` AS t_w
-          ON
-            ST_CONTAINS(t_w.geometry,
-              ST_GEOGPOINT(raw.{long_field},
-                raw.{lat_field}))
-          JOIN
-            `data-rivers.geography.fire_zones` AS t_fz
-          ON
-            ST_CONTAINS(t_fz.geometry,
-              ST_GEOGPOINT(raw.{long_field},
-                raw.{lat_field}))
-          JOIN
-            `data-rivers.geography.police_zones` AS t_pz
-          ON
-            ST_CONTAINS(t_pz.geometry,
-              ST_GEOGPOINT(raw.{long_field},
-                raw.{lat_field}))
-          JOIN
-            `data-rivers.geography.dpw_streets_divisions` AS t_st
-          ON
-            ST_CONTAINS(t_st.geometry,
-              ST_GEOGPOINT(raw.{long_field},
-                raw.{lat_field}))
-            AND TIMESTAMP(PARSE_DATE('%m/%d/%Y',
-                t_st.start_date)) <= TIMESTAMP(raw.{create_date})
-            AND IFNULL(TIMESTAMP(PARSE_DATE('%m/%d/%Y',
-                  t_st.end_date)),
-              CURRENT_TIMESTAMP()) >= TIMESTAMP(raw.{create_date})
-          JOIN
-            `data-rivers.geography.dpw_es_divisions` AS t_es
-          ON
-            ST_CONTAINS(t_es.geometry,
-              ST_GEOGPOINT(raw.{long_field},
-                raw.{lat_field}))
-          JOIN
-            `data-rivers.geography.dpw_parks_divisions` AS t_pk
-          ON
-            ST_CONTAINS(t_pk.geometry,
-              ST_GEOGPOINT(raw.{long_field},
-                raw.{lat_field}))
-            AND TIMESTAMP(PARSE_DATE('%m/%d/%Y',
-                t_pk.start_date)) <= TIMESTAMP(raw.{create_date})
-            AND IFNULL(TIMESTAMP(PARSE_DATE('%m/%d/%Y',
-                  t_pk.end_date)),
-              CURRENT_TIMESTAMP()) >= TIMESTAMP(raw.{create_date}))
-        
-        -- QUERY 1B
-        SELECT
-          DISTINCT *
-        FROM
-          geo
-        
-        /* the UNION operator selects the rows from the inpput table that could not be joined on a geozone (this done 
-        in conjuction with operation on IDs that do not appear in geo)*/
-        UNION ALL
-        
-        SELECT
-          DISTINCT `{os.environ["GCLOUD_PROJECT"]}.{dataset}.{raw_table}`.* EXCEPT (neighborhood_name,
-            council_district,
-            ward,
-            police_zone,
-            fire_zone,
-            dpw_streets,
-            dpw_enviro,
-            dpw_parks),
-          CAST (neighborhood_name AS STRING),
-          CAST (council_district AS STRING),
-          CAST (ward AS STRING),
-          CAST (fire_zone AS STRING),
-          CAST (police_zone AS STRING),
-          CAST (dpw_streets AS STRING),
-          CAST (dpw_enviro AS STRING),
-          CAST (dpw_parks AS STRING)
-        FROM
-          `{os.environ["GCLOUD_PROJECT"]}.{dataset}.{raw_table}`
-        WHERE
-          `{os.environ["GCLOUD_PROJECT"]}.{dataset}.{raw_table}`.{id_col} NOT IN (
-          SELECT
-            DISTINCT {id_col}
-          FROM
-            geo);
-        
-        
-        
-        /* QUERY 2 (deduping operation aliased 'ids_counted') calculates the number of times an ID appears.
-        This query overwrites the table that was previously produced*/
-        CREATE OR REPLACE TABLE
-          `{os.environ["GCLOUD_PROJECT"]}.{dataset}.{new_table_name}` AS
-        WITH
-          ids_counted AS (
-          SELECT
-            *,
-            ROW_NUMBER() OVER (PARTITION BY {id_col}) AS id_count
-          FROM
-            `{os.environ["GCLOUD_PROJECT"]}.{dataset}.{new_table_name}`)
-        /* All columns are selected, but column names are explicit (as opposed to * operator)
-        to ensure the columns are selected in the desired order*/
-        SELECT
-          {cols_in_order}
-        FROM
-          ids_counted
-        WHERE
-          id_count = 1"""
+    CREATE OR REPLACE TABLE `{os.environ["GCLOUD_PROJECT"]}.{dataset}.{new_table_name}` AS
+
+    -- return zones for all records that it is possible to rev geocode. some records will not be possible to process 
+    -- (bad lat/long etc) and will be pulled in via the next blocked
+    WITH
+      sel_zones AS (
+      SELECT
+        raw.{id_col},
+        CAST (t_hoods.zone AS STRING) AS neighborhood_name,
+        CAST (t_cd.zone AS STRING) AS council_district,
+        CAST (t_w.zone AS STRING) AS ward,
+        CAST (t_fz.zone AS STRING) AS fire_zone,
+        CAST (t_pz.zone AS STRING) AS police_zone,
+        CAST (t_st.zone AS STRING) AS dpw_streets,
+        CAST (t_es.zone AS STRING) AS dpw_enviro,
+        CAST (t_pk.zone AS STRING) AS dpw_parks
+      FROM
+        `{os.environ["GCLOUD_PROJECT"]}.{dataset}.{raw_table}` raw
+
+      -- neighborhoods
+      JOIN `{os.environ["GCLOUD_PROJECT"]}.timebound_geography.neighborhoods` AS t_hoods ON
+        ST_CONTAINS(t_hoods.geometry, ST_GEOGPOINT(raw.{long_field}, raw.{lat_field}))
+        AND TIMESTAMP(PARSE_DATETIME('%m/%d/%Y %H:%M:%S-00:00',t_hoods.start_date)) <= TIMESTAMP(raw.{create_date})
+        AND IFNULL(TIMESTAMP(PARSE_DATETIME('%m/%d/%Y %H:%M:%S-00:00', t_hoods.end_date)),
+            CURRENT_TIMESTAMP()) >= TIMESTAMP(raw.{create_date})
+
+
+      -- council districts
+      JOIN `{os.environ["GCLOUD_PROJECT"]}.timebound_geography.council_districts` AS t_cd ON
+        ST_CONTAINS(t_cd.geometry, ST_GEOGPOINT(raw.{long_field}, raw.{lat_field}))
+        AND TIMESTAMP(PARSE_DATETIME('%m/%d/%Y %H:%M:%S-00:00',t_cd.start_date)) <= TIMESTAMP(raw.{create_date})
+        AND IFNULL(TIMESTAMP(PARSE_DATETIME('%m/%d/%Y %H:%M:%S-00:00', t_cd.end_date)),
+            CURRENT_TIMESTAMP()) >= TIMESTAMP(raw.{create_date})
+
+      -- wards
+      JOIN `{os.environ["GCLOUD_PROJECT"]}.timebound_geography.wards` AS t_w ON
+        ST_CONTAINS(t_w.geometry, ST_GEOGPOINT(raw.{long_field}, raw.{lat_field}))
+        AND TIMESTAMP(PARSE_DATETIME('%m/%d/%Y %H:%M:%S-00:00',t_w.start_date)) <= TIMESTAMP(raw.{create_date})
+        AND IFNULL(TIMESTAMP(PARSE_DATETIME('%m/%d/%Y %H:%M:%S-00:00', t_w.end_date)),
+            CURRENT_TIMESTAMP()) >= TIMESTAMP(raw.{create_date})
+
+      -- fire zones
+      JOIN `{os.environ["GCLOUD_PROJECT"]}.timebound_geography.fire_zones` AS t_fz ON
+         ST_CONTAINS(t_fz.geometry, ST_GEOGPOINT(raw.{long_field}, raw.{lat_field}))
+        AND TIMESTAMP(PARSE_DATETIME('%m/%d/%Y %H:%M:%S-00:00',t_fz.start_date)) <= TIMESTAMP(raw.{create_date})
+        AND IFNULL(TIMESTAMP(PARSE_DATETIME('%m/%d/%Y %H:%M:%S-00:00', t_fz.end_date)),
+            CURRENT_TIMESTAMP()) >= TIMESTAMP(raw.{create_date})
+
+      -- police zones
+      JOIN `{os.environ["GCLOUD_PROJECT"]}.timebound_geography.police_zones` AS t_pz ON
+         ST_CONTAINS(t_pz.geometry, ST_GEOGPOINT(raw.{long_field}, raw.{lat_field}))
+        AND TIMESTAMP(PARSE_DATETIME('%m/%d/%Y %H:%M:%S-00:00',t_pz.start_date)) <= TIMESTAMP(raw.{create_date})
+        AND IFNULL(TIMESTAMP(PARSE_DATETIME('%m/%d/%Y %H:%M:%S-00:00', t_pz.end_date)),
+            CURRENT_TIMESTAMP()) >= TIMESTAMP(raw.{create_date})
+
+      -- DPW streets division
+      JOIN `{os.environ["GCLOUD_PROJECT"]}.timebound_geography.dpw_streets_divisions` AS t_st ON
+       ST_CONTAINS(t_st.geometry, ST_GEOGPOINT(raw.{long_field}, raw.{lat_field}))
+        AND TIMESTAMP(PARSE_DATETIME('%m/%d/%Y %H:%M:%S-00:00',t_st.start_date)) <= TIMESTAMP(raw.{create_date})
+        AND IFNULL(TIMESTAMP(PARSE_DATETIME('%m/%d/%Y %H:%M:%S-00:00', t_st.end_date)),
+            CURRENT_TIMESTAMP()) >= TIMESTAMP(raw.{create_date})
+
+      -- DPW environment services division
+      JOIN `{os.environ["GCLOUD_PROJECT"]}.timebound_geography.dpw_es_divisions` AS t_es ON 
+         ST_CONTAINS(t_es.geometry, ST_GEOGPOINT(raw.{long_field}, raw.{lat_field}))
+        AND TIMESTAMP(PARSE_DATETIME('%m/%d/%Y %H:%M:%S-00:00',t_es.start_date)) <= TIMESTAMP(raw.{create_date})
+        AND IFNULL(TIMESTAMP(PARSE_DATETIME('%m/%d/%Y %H:%M:%S-00:00', t_es.end_date)),
+            CURRENT_TIMESTAMP()) >= TIMESTAMP(raw.{create_date})
+
+      -- DPW parks division
+      JOIN `{os.environ["GCLOUD_PROJECT"]}.timebound_geography.dpw_parks_divisions` AS t_pk ON
+         ST_CONTAINS(t_pk.geometry, ST_GEOGPOINT(raw.{long_field}, raw.{lat_field}))
+        AND TIMESTAMP(PARSE_DATETIME('%m/%d/%Y %H:%M:%S-00:00',t_pk.start_date)) <= TIMESTAMP(raw.{create_date})
+        AND IFNULL(TIMESTAMP(PARSE_DATETIME('%m/%d/%Y %H:%M:%S-00:00', t_pk.end_date)),
+            CURRENT_TIMESTAMP()) >= TIMESTAMP(raw.{create_date})
+    )
+
+    -- join in the zones that were assigned in sel_zones with ALL of the records (including those that could not be 
+    -- rev coded above)
+    SELECT 
+        raw.* EXCEPT(neighborhood_name, council_district, ward, fire_zone, police_zone, dpw_streets, dpw_enviro, 
+        dpw_parks),
+        sel_zones.* EXCEPT (id)
+    FROM `{os.environ["GCLOUD_PROJECT"]}.{dataset}.{raw_table}` raw
+    LEFT OUTER JOIN sel_zones ON sel_zones.{id_col} = raw.{id_col}
+"""
 
 
 # TODO: this function will be deprecated ASAP (see above function)
@@ -487,13 +394,13 @@ def build_city_limits_query(dataset, raw_table, lat_field = 'lat', long_field = 
     return f"""
     UPDATE `{os.environ['GCLOUD_PROJECT']}.{dataset}.{raw_table}`
     SET address_type = IF ( 
-       ((ST_COVERS((ST_GEOGFROMTEXT((SELECT geometry FROM `data-rivers.geography.pittsburgh_and_mt_oliver_borders`
-                                      WHERE city = 'Mt. Oliver'))),
+       ((ST_COVERS((ST_GEOGFROMTEXT((SELECT geometry FROM `{os.environ['GCLOUD_PROJECT']}.timebound_geography.pittsburgh_and_mt_oliver_borders`
+                                      WHERE zone = 'Mt. Oliver'))),
                ST_GEOGPOINT(`{os.environ['GCLOUD_PROJECT']}.{dataset}.{raw_table}`.{long_field},
                     `{os.environ['GCLOUD_PROJECT']}.{dataset}.{raw_table}`.{lat_field})))
         OR NOT 
-        ST_COVERS((ST_GEOGFROMTEXT((SELECT geometry FROM `data-rivers.geography.pittsburgh_and_mt_oliver_borders`
-                                     WHERE city = 'Pittsburgh'))),
+        ST_COVERS((ST_GEOGFROMTEXT((SELECT geometry FROM `{os.environ['GCLOUD_PROJECT']}.timebound_geography.pittsburgh_and_mt_oliver_borders`
+                                     WHERE zone = 'Pittsburgh'))),
                    ST_GEOGPOINT(`{os.environ['GCLOUD_PROJECT']}.{dataset}.{raw_table}`.{long_field}, 
                    `{os.environ['GCLOUD_PROJECT']}.{dataset}.{raw_table}`.{lat_field}))
        ), 'Outside of City', address_type )
