@@ -9,8 +9,7 @@ from apache_beam.io.avroio import WriteToAvro
 
 from dataflow_utils import dataflow_utils
 from dataflow_utils.dataflow_utils import JsonCoder, SwapFieldNames, generate_args, FilterFields, \
-    ColumnsCamelToSnakeCase, GetDateStringsFromUnix, ChangeDataTypes, StandardizeTimes, \
-    GoogleMapsClassifyAndGeocode, AnonymizeAddressBlock, AnonymizeLatLong
+    ColumnsCamelToSnakeCase, ChangeDataTypes, StandardizeTimes
 
 
 def run(argv = None):
@@ -26,10 +25,14 @@ def run(argv = None):
     )
 
     with beam.Pipeline(options = pipeline_options) as p:
+        # include the unit (kWh) in energy column name
         field_name_swaps = [('postalCode', 'zip'), ('Energy', 'energy_kwh')]
         times = [('start_time', 'UTC'), ('end_time', 'UTC')]
         type_changes = [('port_number', 'str'), ('session_id', 'str'),
                         ('zip', 'str'), ('energy_kwh', 'float')]
+        # drop the record number field since it is not a unique identifier
+        # (each set of API request results will have record numbers starting from 1)
+        # and drop the original time columns since StandardizeTimes will produce a complete set
         drop_fields = ['recordNumber', 'start_time', 'end_time']
 
         lines = p | ReadFromText(known_args.input, coder = JsonCoder())
