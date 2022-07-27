@@ -61,13 +61,10 @@ dag = DAG(
 bucket = f"gs://{os.environ['GCS_PREFIX']}_qalert"
 dataset = "requests"
 
-#TODO: temp path changes for testing only -- fix asap
-#path = "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds|get_ds_day }}/manual__2022-06-30T14:09:29+00:00"
-path_1 = "{{ ds|get_ds_year }}/06/30/manual__2022-06-30T14:09:29+00:00"
-path_2 = "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds|get_ds_day }}/{{ run_id }}"
+path = "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds|get_ds_day }}/{{ run_id }}"
 
-json_loc = f"{path_1}_requests.json"
-avro_loc = f"avro_output/{path_2}/"
+json_loc = f"{path}_requests.json"
+avro_loc = f"avro_output/{path}/"
 
 
 # Run gcs_loader
@@ -474,7 +471,7 @@ drop_pii_for_export = BigQueryOperator(
 wprdc_export = BigQueryToCloudStorageOperator(
         task_id = 'wprdc_export',
         source_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}.qalert.data_export_scrubbed",
-        destination_cloud_storage_uris = [f"gs://{os.environ['GCS_PREFIX']}_wprdc/qalert_requests_{path_2}.csv"],
+        destination_cloud_storage_uris = [f"gs://{os.environ['GCS_PREFIX']}_wprdc/qalert_requests_{path}.csv"],
         bigquery_conn_id='google_cloud_default',
         dag = dag
 )
