@@ -26,11 +26,11 @@ bq_client = bigquery.Client()
 storage_client = storage.Client()
 
 DEFAULT_DATAFLOW_ARGS = [
-        '--project=data-rivers',
-        '--subnetwork=https://www.googleapis.com/compute/v1/projects/data-rivers/regions/us-east1/subnetworks/default',
-        '--region=us-east1',
-        '--service_account_email=data-rivers@data-rivers.iam.gserviceaccount.com',
         '--save_main_session',
+        f"--project={os.environ['GCLOUD_PROJECT']}",
+        f"--service_account_email={os.environ['SERVICE_ACCT']}",
+        f"--region={os.environ['REGION']}",
+        f"--subnetwork={os.environ['SUBNET']}"
 ]
 
 
