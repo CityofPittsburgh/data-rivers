@@ -12,6 +12,16 @@ from apache_beam.io.avroio import WriteToAvro
 from dataflow_utils.dataflow_utils import JsonCoder, ConvertBooleans, StandardizeTimes, \
     FilterFields, ConvertStringCase, generate_args
 
+
+DEFAULT_DATAFLOW_ARGS = [
+        '--save_main_session',
+        f"--project={os.environ['GCLOUD_PROJECT']}",
+        f"--service_account_email={os.environ['SERVICE_ACCT']}",
+        f"--region={os.environ['REGION']}",
+        f"--subnetwork={os.environ['SUBNET']}"
+]
+
+
 # run function is called at the bottom of the script and the entire operation is defined within
 # generate_args will initialize all options/args needed to execute the pipeline. known_args contains the runtime
 # params passed in from DAG (input/output). pipeline_options contains all the flags that are initialized by default (
@@ -21,7 +31,8 @@ def run(argv = None):
             job_name = 'computronix-domi-street-closures-gis',
             bucket = '{}_computronix'.format(os.environ['GCS_PREFIX']),
             argv = argv,
-            schema_name = 'computronix_gis_street_closures'
+            schema_name = 'computronix_gis_street_closures',
+            default_arguments = DEFAULT_DATAFLOW_ARGS
     )
 
     with beam.Pipeline(options = pipeline_options) as p:
