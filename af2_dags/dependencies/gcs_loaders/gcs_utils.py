@@ -425,23 +425,27 @@ def select_expand_odata(url, tables, limit_results=False):
 
     more_links = True
     records = []
+
     while more_links:
-        try:
-            res = requests.get(odata_url)
-            records.extend(res.json()['value'])
-            if limit_results:
-                more_links = False
-            elif '@odata.nextLink' in res.json().keys():
-                odata_url = res.json()['@odata.nextLink']
-            else:
-                more_links = False
-        except requests.exceptions.RequestException:
+        res = requests.get(odata_url)
+
+        if res.status_code != 200:
+            print("API call failed")
+            print(f"Status Code:  {res.status_code}")
+
+
+        records.extend(res.json()['value'])
+        if limit_results:
             more_links = False
+        elif '@odata.nextLink' in res.json().keys():
+            odata_url = res.json()['@odata.nextLink']
+        else:
+            more_links = False
+
 
     return records
 
-def unnest_domi_street_seg(nested_data, name_swaps, old_nested_keys, new_unnested_keys,
-                           return_segments_missing = False):
+def unnest_domi_street_seg(nested_data, name_swaps, old_nested_keys, new_unnested_keys):
     """
             De-nests data from the CX API's DOMI Street Closures dataset. Takes in raw input and from the API,
             which contains several nested rows, and extracts them duplicating data that needs to be present for each
@@ -465,7 +469,6 @@ def unnest_domi_street_seg(nested_data, name_swaps, old_nested_keys, new_unneste
 
     """
     data_with_segs = []
-    data_without_segs = []
     print("unnesting")
     for row in nested_data:
         new_row_base = {}
@@ -473,7 +476,8 @@ def unnest_domi_street_seg(nested_data, name_swaps, old_nested_keys, new_unneste
         for n in range(len(name_swaps[0])):
             new_row_base.update({name_swaps[1][n]: row[name_swaps[0][n]]})
 
-        # if there are closures (if not then there is also no nested data)
+        # if there are closures then entere the control flow processing. not all permits involve street closures,
+        # and those tickets get dropped here.
         if row["DOMISTREETCLOSURE"]:
             nest = row["DOMISTREETCLOSURE"][0]
 
@@ -486,7 +490,8 @@ def unnest_domi_street_seg(nested_data, name_swaps, old_nested_keys, new_unneste
             # two segments from the same record will have redundant information, with only the segment information
             # being unique.
 
-            # loop through the segments
+            # loop through the segments (if there are not segments for a closure permit then the entire permit will
+            # not enter the for loop and will NOT be appended to the output data)
             segs = nest["STREETCLOSUREDOMISTREETSEGMENT"]
             seg_ct = 0
             segs_in_row = len(segs)
@@ -499,22 +504,7 @@ def unnest_domi_street_seg(nested_data, name_swaps, old_nested_keys, new_unneste
                 new_row.update({"total_segments": segs_in_row})
                 data_with_segs.append(new_row)
 
-        # # if there is not a street segment, the relevant columns don't exist. all columns must be present in each
-        # # nested_data so we populate them with None values here
-        if return_segments_missing and not row["DOMISTREETCLOSURE"]:
-            new_row = new_row_base.copy()
-
-            for n in range(len(old_nested_keys)):
-                new_row.update({new_unnested_keys[n]: None})
-
-            new_row.update({"closure_id": None})
-            new_row.update({"carte_id": None})
-            new_row.update({"segment_num": 0})
-            new_row.update({"total_segments": 0})
-
-            data_without_segs.append(new_row)
-
-    return data_with_segs, data_without_segs
+    return data_with_segs
 
 
 def query_resource(site, query):
