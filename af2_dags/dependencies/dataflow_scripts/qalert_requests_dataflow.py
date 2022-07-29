@@ -12,6 +12,13 @@ from dataflow_utils.dataflow_utils import JsonCoder, SwapFieldNames, generate_ar
     ColumnsCamelToSnakeCase, GetDateStringsFromUnix, ChangeDataTypes, unix_to_date_strings, \
     FormatAndClassifyAddress, GoogleMapsGeocodeAddress, AnonymizeAddressBlock, AnonymizeLatLong
 
+DEFAULT_DATAFLOW_ARGS = [
+        '--save_main_session',
+        f"--project={os.environ['GCLOUD_PROJECT']}",
+        f"--service_account_email={os.environ['SERVICE_ACCT']}",
+        f"--region={os.environ['REGION']}",
+        f"--subnetwork={os.environ['SUBNET']}"
+]
 
 class GetStatus(beam.DoFn):
     def process(self, datum):
@@ -57,6 +64,7 @@ def run(argv = None):
             bucket = f"{os.environ['GCS_PREFIX']}_qalert",
             argv = argv,
             schema_name = 'qalert_requests_enriched',
+            default_arguments=DEFAULT_DATAFLOW_ARGS,
             limit_workers = [False, None]
     )
 

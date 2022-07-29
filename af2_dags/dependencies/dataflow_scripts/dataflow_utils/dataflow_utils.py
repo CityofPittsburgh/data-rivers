@@ -26,15 +26,6 @@ bq_client = bigquery.Client()
 storage_client = storage.Client()
 
 
-DEFAULT_DATAFLOW_ARGS = [
-        '--save_main_session',
-        f"--project={os.environ['GCLOUD_PROJECT']}",
-        f"--service_account_email={os.environ['SERVICE_ACCT']}",
-        f"--region={os.environ['REGION']}",
-        f"--subnetwork={os.environ['SUBNET']}"
-]
-
-
 class JsonCoder(object):
     """A JSON coder interpreting each line as a JSON string."""
 
@@ -464,7 +455,7 @@ class SwapFieldNames(beam.DoFn, ABC):
         yield datum
 
 
-def generate_args(job_name, bucket, argv, schema_name, limit_workers = [False, None]):
+def generate_args(job_name, bucket, argv, schema_name, default_arguments, limit_workers = [False, None]):
     """
     generate arguments for DataFlow jobs (invoked in DataFlow scripts prior to execution). In brief, this function
     initializes the basic options and setup for each step in a dataflow pipeline(e.g. the GCP project to operate on,
@@ -494,7 +485,7 @@ def generate_args(job_name, bucket, argv, schema_name, limit_workers = [False, N
 
     known_args, pipeline_args = parser.parse_known_args(argv)
 
-    arguments = DEFAULT_DATAFLOW_ARGS
+    arguments = default_arguments
     arguments.append('--job_name={}'.format(job_name))
     arguments.append('--staging_location=gs://{}/beam_output/staging'.format(bucket))
     arguments.append('--temp_location=gs://{}/beam_output/temp'.format(bucket))
@@ -513,7 +504,7 @@ def generate_args(job_name, bucket, argv, schema_name, limit_workers = [False, N
     return known_args, pipeline_options, avro_schema
 
 
-# monkey patch for avro schema hashing bug: https://issues.apache.org/jira/browse/AVRO-1737
+# monkey patch for avro schema has  hing bug: https://issues.apache.org/jira/browse/AVRO-1737
 def hash_func(self):
     return hash(str(self))
 
