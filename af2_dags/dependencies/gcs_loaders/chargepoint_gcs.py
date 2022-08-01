@@ -78,14 +78,14 @@ while more is True:
     # increment interval by constant value (100) until all records are returned
     interval += INCREMENT_RECORDS
 
-    # write the successful run information (used by each successive run to find the backfill start date)
-    successful_run = {
-        "requests_retrieved": len(records),
-        "since": run_start_win,
-        "current_run": today,
-        "note": "Data retrieved between the time points listed above"
-    }
-    json_to_gcs("energy/successful_run_log/log.json", [successful_run],
-                bucket)
+# write the successful run information (used by each successive run to find the backfill start date)
+successful_run = {
+    "requests_retrieved": len(records),
+    "since": run_start_win,
+    "current_run": today,
+    "note": "Data retrieved between the time points listed above"
+}
+json_to_gcs("energy/successful_run_log/log.json", [successful_run],
+            bucket)
 
 json_to_gcs(f"{args['out_loc']}", all_records, bucket)

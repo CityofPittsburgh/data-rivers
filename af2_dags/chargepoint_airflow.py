@@ -58,8 +58,7 @@ chargepoint_bq_load = GoogleCloudStorageToBigQueryOperator(
         dag = dag
 )
 
-# remove duplicate charging sessions and re-order columns so primary key and
-# most relevant information appears first
+# remove duplicate charging sessions and re-create table in correct column order
 query_format_dedupe = f"""
 CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.chargepoint.charging_sessions` AS
 WITH formatted  AS 
