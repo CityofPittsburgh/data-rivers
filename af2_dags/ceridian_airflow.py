@@ -30,12 +30,12 @@ dag = DAG(
 )
 
 # initialize gcs locations
-dataset = "ceridian"
-bucket = f"gs://{os.environ['GCS_PREFIX']}_{dataset}"
+bucket = f"gs://{os.environ['GCS_PREFIX']}_ceridian"
+dataset = "employees"
 exec_date = "{{ ds }}"
 path = "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}"
-json_loc = f"employees/{path}/{exec_date}_employees.json"
-avro_loc = f"employees/avro_output/{path}/" + "{{ run_id }}"
+json_loc = f"{dataset}/{path}/{exec_date}_employees.json"
+avro_loc = f"{dataset}/avro_output/{path}/" + "{{ run_id }}"
 
 ceridian_gcs = BashOperator(
     task_id='ceridian_gcs',
@@ -51,7 +51,7 @@ ceridian_dataflow = BashOperator(
 
 ceridian_bq_load = GoogleCloudStorageToBigQueryOperator(
         task_id = 'ceridian_bq_load',
-        destination_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}.{dataset}.active_employees",
+        destination_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}.ceridian.active_employees",
         bucket = f"{os.environ['GCS_PREFIX']}_ceridian",
         source_objects = [f"{avro_loc}*.avro"],
         write_disposition='WRITE_TRUNCATE',
