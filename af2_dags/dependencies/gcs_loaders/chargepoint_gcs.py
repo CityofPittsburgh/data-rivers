@@ -57,7 +57,6 @@ end = '</ns1:getChargingSessionDataResponse>'
 # run, default to the date of the first charging session (allows for complete backfill).
 # This is used to initialize the payload below
 run_start_win, first_run = find_last_successful_run(bucket, "energy/successful_run_log/log.json", DEFAULT_RUN_START)
-start_time = run_start_win.split('T')[0]
 
 all_records = []
 more = True
