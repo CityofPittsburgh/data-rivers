@@ -19,6 +19,14 @@ DEFAULT_DATAFLOW_ARGS = [
         f"--subnetwork={os.environ['SUBNET']}"
 ]
 
+
+class StripDate(beam.DoFn):
+    def process(self, datum):
+        if datum['Employee_HireDate']:
+            datum['Employee_HireDate'] = datum['Employee_HireDate'].split('T')[0]
+        yield datum
+
+
 def run(argv = None):
     # assign the name for the job and specify the AVRO upload location (GCS bucket), arg parser object,
     # and avro schema to validate data with. Return the arg parser values, PipelineOptions, and avro_schemas (dict)
@@ -48,7 +56,9 @@ def run(argv = None):
 
         load = (
                 lines
+                | beam.ParDo(StripDate())
                 | beam.ParDo(SwapFieldNames(field_name_swaps))
+                | beam.ParDo(ChangeDataTypes(type_changes))
                 | WriteToAvro(known_args.avro_output, schema = avro_schema, file_name_suffix = '.avro',
                               use_fastavro = True)
         )
