@@ -22,7 +22,7 @@ args = vars(parser.parse_args())
 yesterday = datetime.combine(datetime.now(tz = pendulum.timezone("utc")) - timedelta(1),
                              datetime.min.time()).strftime("%Y-%m-%d %H:%M:%S")
 
-BASE_URL = f"https://us62e2-services.dayforcehcm.com/Api/{os.environ['CERIDIAN_ORG_ID']}/V1/Reports/APIINFO?pageSize=5000"
+BASE_URL = f"https://us62e2-services.dayforcehcm.com/Api/{os.environ['CERIDIAN_ORG_ID']}/V1/Reports/APIINFO"
 
 auth = HTTPBasicAuth(os.environ['CERIDIAN_USER'], os.environ['CERIDIAN_PW'])
 payload = {'pageSize': API_LIMIT}
@@ -43,8 +43,8 @@ while more is True:
 
     employees = response.json()['Data']['Rows']
     # continue looping through records until the API has a MoreFlag value of 0
-    if response['Paging']['Next']:
-        url = response['Paging']['Next']
+    if response.json()['Paging']['Next']:
+        url = response.json()['Paging']['Next']
     else:
         more = False
     # append list of API results to growing all_records list (should not need more than initial API call)
@@ -57,7 +57,7 @@ while more is True:
         "current_run": curr_run,
         "note": "Data retrieved between the time points listed above"
     }
-    json_to_gcs("energy/successful_run_log/log.json", [successful_run],
+    json_to_gcs("employees/successful_run_log/log.json", [successful_run],
                 bucket)
 
 json_to_gcs(f"{args['out_loc']}", all_records, bucket)
