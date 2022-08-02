@@ -11,6 +11,13 @@ from dataflow_utils import dataflow_utils
 from dataflow_utils.dataflow_utils import JsonCoder, SwapFieldNames, generate_args, FilterFields, \
     ColumnsCamelToSnakeCase, ChangeDataTypes, StandardizeTimes
 
+DEFAULT_DATAFLOW_ARGS = [
+        '--save_main_session',
+        f"--project={os.environ['GCLOUD_PROJECT']}",
+        f"--service_account_email={os.environ['SERVICE_ACCT']}",
+        f"--region={os.environ['REGION']}",
+        f"--subnetwork={os.environ['SUBNET']}"
+]
 
 def run(argv = None):
     # assign the name for the job and specify the AVRO upload location (GCS bucket), arg parser object,
@@ -21,6 +28,7 @@ def run(argv = None):
             bucket = f"{os.environ['GCS_PREFIX']}_chargepoint",
             argv = argv,
             schema_name = 'chargepoint_sessions',
+            default_arguments = DEFAULT_DATAFLOW_ARGS,
             limit_workers = [False, None]
     )
 
