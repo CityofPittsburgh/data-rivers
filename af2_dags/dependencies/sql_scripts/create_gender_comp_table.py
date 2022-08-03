@@ -15,6 +15,7 @@ job_config = bigquery.QueryJobConfig(
 sql = F"""-- create a table with up-to-date gender demographics for the City of Pittsburgh
           -- workforce compared to the gender demographics of the overall city population
           -- based on the 2020 US Census.
+SELECT gender, 100*(gender_count / total) AS percentage, 'City Employee' AS type
 FROM (
   SELECT gender, COUNT(DISTINCT(employee_num)) AS gender_count, SUM(COUNT(*)) OVER() AS total
   FROM `{os.environ['GCLOUD_PROJECT']}.ceridian.active_employees` 
