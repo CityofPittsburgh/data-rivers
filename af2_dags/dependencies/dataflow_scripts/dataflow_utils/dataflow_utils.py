@@ -25,14 +25,6 @@ dt = datetime.now()
 bq_client = bigquery.Client()
 storage_client = storage.Client()
 
-# DEFAULT_DATAFLOW_ARGS = [
-#         '--save_main_session',
-#         f"--project={os.environ['GCLOUD_PROJECT']}",
-#         f"--service_account_email={os.environ['SERVICE_ACCT']}",
-#         f"--region={os.environ['REGION']}",
-#         f"--subnetwork={os.environ['SUBNET']}"
-# ]
-
 
 class JsonCoder(object):
     """A JSON coder interpreting each line as a JSON string."""
@@ -225,7 +217,6 @@ class ConvertBooleans(beam.DoFn, ABC):
                     datum[val[0]] = val[3]
         except TypeError:
             pass
-
         yield datum
 
 
@@ -240,17 +231,17 @@ class ConvertStringCase(beam.DoFn, ABC):
 
     def process(self, datum):
         for val in self.str_changes:
-
-            if val[1] is "upper":
-                datum[val[0]] = datum[val[0]].upper()
-            elif val[1] is "lower":
-                datum[val[0]] = datum[val[0]].lower()
-            elif val[1] is "sentence":
-                datum[val[0]] = datum[val[0]].sentence()
-            elif val[1] is "title":
-                datum[val[0]] = datum[val[0]].title()
-            elif val[1] is "capitalize":
-                datum[val[0]] = datum[val[0]].capitalize()
+            if datum[val[0]] is not None:
+                if val[1] == "upper":
+                    datum[val[0]] = datum[val[0]].upper()
+                elif val[1] == "lower":
+                    datum[val[0]] = datum[val[0]].lower()
+                elif val[1] == "sentence":
+                    datum[val[0]] = datum[val[0]].sentence()
+                elif val[1] == "title":
+                    datum[val[0]] = datum[val[0]].title()
+                elif val[1] == "capitalize":
+                    datum[val[0]] = datum[val[0]].capitalize()
 
         yield datum
 
@@ -283,6 +274,7 @@ class FilterFields(beam.DoFn, ABC):
     def process(self, datum):
         if datum is not None:
             datum = filter_fields(datum, self.target_fields, self.exclude_target_fields)
+
             yield datum
         else:
             logging.info('got NoneType datum')
@@ -512,7 +504,7 @@ def generate_args(job_name, bucket, argv, schema_name, default_arguments, limit_
     return known_args, pipeline_options, avro_schema
 
 
-# monkey patch for avro schema hashing bug: https://issues.apache.org/jira/browse/AVRO-1737
+# monkey patch for avro schema has  hing bug: https://issues.apache.org/jira/browse/AVRO-1737
 def hash_func(self):
     return hash(str(self))
 

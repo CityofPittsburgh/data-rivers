@@ -13,12 +13,26 @@ from dataflow_utils.dataflow_utils import JsonCoder, ConvertBooleans, Standardiz
     FilterFields, ConvertStringCase, generate_args
 
 
+DEFAULT_DATAFLOW_ARGS = [
+        '--save_main_session',
+        f"--project={os.environ['GCLOUD_PROJECT']}",
+        f"--service_account_email={os.environ['SERVICE_ACCT']}",
+        f"--region={os.environ['REGION']}",
+        f"--subnetwork={os.environ['SUBNET']}"
+]
+
+
+# run function is called at the bottom of the script and the entire operation is defined within
+# generate_args will initialize all options/args needed to execute the pipeline. known_args contains the runtime
+# params passed in from DAG (input/output). pipeline_options contains all the flags that are initialized by default (
+# project/service_acct/etc.). The schema is loaded as a dict
 def run(argv = None):
     known_args, pipeline_options, avro_schema = generate_args(
             job_name = 'computronix-domi-street-closures-gis',
             bucket = '{}_computronix'.format(os.environ['GCS_PREFIX']),
             argv = argv,
-            schema_name = 'computronix_gis_street_closures'
+            schema_name = 'computronix_gis_street_closures',
+            default_arguments = DEFAULT_DATAFLOW_ARGS
     )
 
     with beam.Pipeline(options = pipeline_options) as p:
@@ -28,10 +42,10 @@ def run(argv = None):
                       ("parking_lane", "Y", "N", False), ("metered_parking", "Y", "N", False),
                       ("sidewalk", "Y", "N", False), ("validated", "Y", "N", False)]
 
-        str_convs = [("ext_file_num", "upper"), ("permit_type", "title"), ("work_desc", "sentence"),
-                     ("type_work_desc", "title"), ("contractor_name", "title"), ("special_instructions", "sentence"),
-                     ("weekday_hours", "upper"), ("weekend_hours", "upper"), ("primary_street", "upper"),
-                     ("from_street", "upper"), ("to_street", "upper")]
+        str_convs = [("ext_file_num", "upper"), ("permit_type", "upper"), ("work_desc", "upper"),
+                     ("type_work_desc", "upper"), ("applicant_name", "upper"), ("contractor_name", "upper"),
+                     ("special_instructions", "upper"), ("weekday_hours", "upper"), ("weekend_hours", "upper"),
+                     ("primary_street", "upper"), ("from_street", "upper"), ("to_street", "upper")]
 
         drops = ["create_date", "from_date", "to_date", "street_segment", "street_closure"]
 

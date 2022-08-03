@@ -79,7 +79,7 @@ gcs_loader = BashOperator(
 exec_df = f"python {os.environ['DATAFLOW_SCRIPT_PATH']}/qalert_requests_dataflow.py"
 dataflow = BashOperator(
         task_id = 'dataflow',
-        bash_command = f"{exec_df} --input {bucket}/{dataset}/{json_loc} --avro_output {bucket}/{dataset}/{avro_loc}", #--runner DirectRunner",
+        bash_command = f"{exec_df} --input {bucket}/{dataset}/{json_loc} --avro_output {bucket}/{dataset}/{avro_loc}",
         dag = dag
 )
 
