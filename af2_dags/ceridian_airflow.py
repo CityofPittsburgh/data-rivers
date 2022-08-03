@@ -62,10 +62,23 @@ ceridian_bq_load = GoogleCloudStorageToBigQueryOperator(
         dag = dag
 )
 
+create_gender_comp_table = BashOperator(
+    task_id='create_gender_comp_table',
+    bash_command=f"python {os.environ['SQL_SCRIPT_PATH']}/create_gender_comp_table.py",
+    dag=dag
+)
+
+create_racial_comp_table = BashOperator(
+    task_id='create_racial_comp_table',
+    bash_command=f"python {os.environ['SQL_SCRIPT_PATH']}/create_racial_comp_table.py",
+    dag=dag
+)
+
 beam_cleanup = BashOperator(
         task_id = 'ceridian_beam_cleanup',
         bash_command = airflow_utils.beam_cleanup_statement(f"{os.environ['GCS_PREFIX']}_ceridian"),
         dag = dag
 )
 
-ceridian_gcs >> ceridian_dataflow >> ceridian_bq_load >> beam_cleanup
+ceridian_gcs >> ceridian_dataflow >> ceridian_bq_load >> \
+create_gender_comp_table >> create_racial_comp_table >> beam_cleanup
