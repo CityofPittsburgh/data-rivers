@@ -255,6 +255,25 @@ def build_revgeo_query(dataset, raw_table, id_field):
        )
     """
 
+def build_percentage_table_query(dataset, raw_table, is_deduped, id_field, pct_field, categories, hardcoded_vals):
+    # categories = ['City Employee', 'Overall City']
+    # hardcoded_vals = [{'pct_field': 'M', 'percentage': 49.0}, {'pct_field': 'M', 'percentage': 49.0}]
+    sql = f"""
+    SELECT {'DISTINCT' if is_deduped else ''} {pct_field}, 
+            100*({pct_field}_count / total) AS percentage, 
+            '{categories[0]}' AS type
+    FROM (
+      SELECT {pct_field}, COUNT(DISTINCT({id_field})) AS {pct_field}__count, SUM(COUNT(*)) OVER() AS total
+      FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{raw_table}` 
+      GROUP BY {pct_field}
+    )
+    """
+    for record in hardcoded_vals.items():
+        sql += f"""
+        UNION ALL
+        SELECT '{record[pct_field]}' AS {pct_field}, {record['percentage']} AS percentage, '{categories[1]}' AS type
+        """
+    return sql
 
 def dedup_table(dataset, table):
     return f"""

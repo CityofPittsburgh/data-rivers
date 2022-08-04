@@ -7,7 +7,8 @@ import unittest
 
 from dateutil import parser
 from google.cloud import bigquery, storage
-from deprecated import airflow_utils
+#from deprecated import airflow_utils
+from af2_dags.dependencies.airflow_utils import airflow_utils as af2_airflow_utils
 
 bq_client = bigquery.Client()
 storage_client = storage.Client()
@@ -27,7 +28,7 @@ class TestAirflowUtils(unittest.TestCase):
             expected.append(parser.parse(date))
         index = 0
         for val in datum:
-            output = airflow_utils.find_backfill_date(val['bucket'], val['subfolder'])
+            output = af2_airflow_utils.find_backfill_date(val['bucket'], val['subfolder'])
             self.assertEqual(output, str(expected[index].date()))
             index += 1
 
@@ -41,7 +42,7 @@ class TestAirflowUtils(unittest.TestCase):
                     {'address': '240 Hays Ave, Mount Oliver, PA 15210', 'lat': 40.4141454, 'long': -79.9875431, 'address_type': 'Outside of City'}]
         index = 0
         for val in datum:
-            output = airflow_utils.build_city_limits_query(val, coord_fields)
+            output = af2_airflow_utils.build_city_limits_query(val, coord_fields)
             self.assertEqual(output, expected[index])
             index += 1
 
