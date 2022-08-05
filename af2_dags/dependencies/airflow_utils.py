@@ -275,6 +275,18 @@ def build_percentage_table_query(dataset, raw_table, new_table_name, is_deduped,
     sql += " ORDER BY type, percentage DESC "
     return sql
 
+def build_sync_update_query(dataset, upd_table, source_table, id_field, upd_fields):
+    sql = f"UPDATE `{os.environ['GCLOUD_PROJECT']}.{dataset}.{upd_table}` upd SET "
+    upd_str_list = []
+    for field in upd_fields:
+        upd_str_list.append(f"upd.{field} = temp.{field}")
+    sql += ", ".join(str(upd) for upd in upd_str_list)
+    sql += f"""
+    FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{source_table}` temp
+    WHERE upd.{id_field} = temp.{id_field}
+    """
+    return sql
+
 def dedup_table(dataset, table):
     return f"""
     SELECT DISTINCT * FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{table}`

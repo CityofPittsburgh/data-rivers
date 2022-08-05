@@ -28,7 +28,7 @@ class TestAirflowUtils(unittest.TestCase):
                           {pct_field: 'Rain', 'percentage': 9.0},
                           {pct_field: 'Clear', 'percentage': 0.5}]
         expected = f"""
-        CREATE OR REPLACE TABLE  `data-rivers-testing.{dataset}.{new_table_name}` AS
+        CREATE OR REPLACE TABLE  `data-rivers-testing.weather.pittsburgh_vs_london_weather_comp` AS
         SELECT conditions, 
                100*(conditions_count / total) AS percentage, 
                'Pittsburgh' AS type
@@ -50,6 +50,26 @@ class TestAirflowUtils(unittest.TestCase):
                                                                 categories, hardcoded_vals)
         self.assertEqual(re.sub('\s+',' ', output),  re.sub('\s+',' ', expected))
 
+    def test_build_sync_update_query(self):
+        dataset = 'qalert'
+        upd_table = 'backup_upd'
+        source_table = 'backup_atcs'
+        id_field = 'group_id'
+        upd_fields = ['pii_street_num', 'street', 'cross_street',
+                      'street_id',  'cross_street_id', 'city',
+                      'pii_input_address', 'pii_google_formatted_address']
+        expected = """UPDATE `data-rivers-testing.qalert.backup_upd` upd SET
+        upd.pii_street_num = temp.pii_street_num, upd.street = temp.street, 
+        upd.cross_street = temp.cross_street, upd.street_id = temp.street_id, 
+        upd.cross_street_id = temp.cross_street_id, upd.city = temp.city, 
+        upd.pii_input_address = temp.pii_input_address, 
+        upd.pii_google_formatted_address = temp.pii_google_formatted_address
+        FROM `data-rivers-testing.qalert.backup_atcs` temp
+        WHERE upd.group_id = temp.group_id
+        """
+        output = af2_airflow_utils.build_sync_update_query(dataset, upd_table, source_table,
+                                                          id_field, upd_fields)
+        self.assertEqual(re.sub('\s+',' ', output),  re.sub('\s+',' ', expected))
 
     def test_find_backfill_date(self):
         datum = [{'bucket': 'pghpa_test_police', 'subfolder': '30_day_blotter'},
