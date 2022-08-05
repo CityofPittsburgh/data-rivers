@@ -19,6 +19,7 @@ class TestAirflowUtils(unittest.TestCase):
     def test_build_percentage_table_query(self):
         dataset = 'weather'
         raw_table = 'daily_weather'
+        new_table_name = 'pittsburgh_vs_london_weather_comp'
         is_deduped = False
         id_field = 'unix_date_time'
         pct_field = 'conditions'
@@ -27,6 +28,7 @@ class TestAirflowUtils(unittest.TestCase):
                           {pct_field: 'Rain', 'percentage': 9.0},
                           {pct_field: 'Clear', 'percentage': 0.5}]
         expected = f"""
+        CREATE OR REPLACE TABLE  `data-rivers-testing.{dataset}.{new_table_name}` AS
         SELECT conditions, 
                100*(conditions_count / total) AS percentage, 
                'Pittsburgh' AS type
@@ -41,10 +43,11 @@ class TestAirflowUtils(unittest.TestCase):
         SELECT 'Rain' AS conditions, 9.0 AS percentage, 'London (On Average)' AS type
         UNION ALL
         SELECT 'Clear' AS conditions, 0.5 AS percentage, 'London (On Average)' AS type
+        ORDER BY type, percentage DESC
         """
-        output = af2_airflow_utils.build_percentage_table_query(dataset, raw_table, is_deduped,
-                                                                id_field, pct_field, categories,
-                                                                hardcoded_vals)
+        output = af2_airflow_utils.build_percentage_table_query(dataset, raw_table, new_table_name,
+                                                                is_deduped, id_field, pct_field,
+                                                                categories, hardcoded_vals)
         self.assertEqual(re.sub('\s+',' ', output),  re.sub('\s+',' ', expected))
 
 
