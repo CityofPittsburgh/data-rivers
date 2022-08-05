@@ -263,12 +263,12 @@ def build_percentage_table_query(dataset, raw_table, is_deduped, id_field, pct_f
             100*({pct_field}_count / total) AS percentage, 
             '{categories[0]}' AS type
     FROM (
-      SELECT {pct_field}, COUNT(DISTINCT({id_field})) AS {pct_field}__count, SUM(COUNT(*)) OVER() AS total
+      SELECT {pct_field}, COUNT(DISTINCT({id_field})) AS {pct_field}_count, SUM(COUNT(*)) OVER() AS total
       FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{raw_table}` 
       GROUP BY {pct_field}
     )
     """
-    for record in hardcoded_vals.items():
+    for record in hardcoded_vals:
         sql += f"""
         UNION ALL
         SELECT '{record[pct_field]}' AS {pct_field}, {record['percentage']} AS percentage, '{categories[1]}' AS type
