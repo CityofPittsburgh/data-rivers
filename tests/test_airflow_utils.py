@@ -50,15 +50,80 @@ class TestAirflowUtils(unittest.TestCase):
                                                                 categories, hardcoded_vals)
         self.assertEqual(re.sub('\s+',' ', output),  re.sub('\s+',' ', expected))
 
+    def test_build_sync_staging_table_query(self):
+        dataset = 'qalert'
+        new_table = 'temp_curr_status_merge'
+        upd_table = 'backup_alr'
+        src_table = 'backup_atcs'
+        is_deduped = True
+        upd_id_field = 'group_id'
+        join_id_field = 'id'
+        field_groups = [{'req_types': ['request_type_name', 'request_type_id', 'origin']},
+                        {'geos': ['pii_street_num', 'street', 'cross_street',
+                                  'street_id', 'cross_street_id', 'city',
+                                  'pii_input_address', 'pii_google_formatted_address',
+                                  'anon_google_formatted_address', 'address_type',
+                                  'neighborhood_name', 'council_district', 'ward',
+                                  'police_zone', 'fire_zone', 'dpw_streets',  'dpw_enviro',
+                                  'dpw_parks', 'input_pii_lat', 'input_pii_long',
+                                  'google_pii_lat', 'google_pii_long', 'input_anon_lat',
+                                  'input_anon_long', 'google_anon_lat', 'google_anon_long']
+                         }
+                        ]
+        comp_fields = [{'req_types': ['request_type_name', 'origin']},
+                        {'geos': ['address_type', 'neighborhood_name', 'council_district',
+                                  'ward', 'police_zone', 'fire_zone', 'dpw_streets',
+                                  'dpw_enviro', 'dpw_parks']
+                         }
+                        ]
+        expected = """
+        CREATE OR REPLACE TABLE `data-rivers-testing.qalert.temp_curr_status_merge` AS 
+        SELECT DISTINCT group_id, req_types.request_type_name, req_types.request_type_id, req_types.origin,
+        geos.pii_street_num, geos.street, geos.cross_street, geos.street_id, geos.cross_street_id,
+        geos.city, geos.pii_input_address, geos.pii_google_formatted_address, 
+        geos.anon_google_formatted_address,  geos.address_type, geos.neighborhood_name, geos.council_district, 
+        geos.ward, geos.police_zone, geos.fire_zone, geos.dpw_streets, geos.dpw_enviro, geos.dpw_parks,
+        geos.input_pii_lat, geos.input_pii_long, geos.google_pii_lat, geos.google_pii_long, 
+        geos.input_anon_lat, geos.input_anon_long, geos.google_anon_lat, geos.google_anon_long
+        FROM `data-rivers-testing.qalert.backup_alr` upd
+        INNER JOIN
+        (SELECT DISTINCT id, request_type_name, request_type_id, origin
+        FROM `data-rivers-testing.qalert.backup_atcs`) req_types
+        ON upd.group_id = req_types.id
+        INNER JOIN
+        (SELECT DISTINCT id, pii_street_num, street, cross_street, street_id, cross_street_id,
+                city, pii_input_address, pii_google_formatted_address, anon_google_formatted_address,
+                address_type, neighborhood_name, council_district, ward, police_zone, fire_zone,
+                dpw_streets, dpw_enviro, dpw_parks, input_pii_lat, input_pii_long, google_pii_lat, google_pii_long, 
+                input_anon_lat, input_anon_long, google_anon_lat, google_anon_long
+        FROM `data-rivers-testing.qalert.backup_atcs`) geos
+        ON upd.group_id = geos.id
+        WHERE IFNULL(upd.request_type_name, "") != IFNULL(req_types.request_type_name, "")
+        OR IFNULL(upd.origin, "") != IFNULL(req_types.origin, "")
+        OR IFNULL(upd.address_type, "") != IFNULL(geos.address_type, "")
+        OR IFNULL(upd.neighborhood_name, "") != IFNULL(geos.neighborhood_name, "")
+        OR IFNULL(upd.council_district, "") != IFNULL(geos.council_district, "")
+        OR IFNULL(upd.ward, "") != IFNULL(geos.ward, "")
+        OR IFNULL(upd.police_zone, "") != IFNULL(geos.police_zone, "")
+        OR IFNULL(upd.fire_zone, "") != IFNULL(geos.fire_zone, "")
+        OR IFNULL(upd.dpw_streets, "") != IFNULL(geos.dpw_streets, "")
+        OR IFNULL(upd.dpw_enviro, "") != IFNULL(geos.dpw_enviro, "")
+        OR IFNULL(upd.dpw_parks, "") != IFNULL(geos.dpw_parks, "")
+        """
+        output = af2_airflow_utils.build_sync_staging_table_query(dataset, new_table, upd_table,
+                                                                  src_table, is_deduped, upd_id_field,
+                                                                  join_id_field, field_groups, comp_fields)
+        self.assertEqual(re.sub('\s+', ' ', output), re.sub('\s+', ' ', expected))
+
     def test_build_sync_update_query(self):
         dataset = 'qalert'
-        upd_table = 'backup_upd'
-        source_table = 'backup_atcs'
+        upd_table = 'backup_alr'
+        src_table = 'backup_atcs'
         id_field = 'group_id'
         upd_fields = ['pii_street_num', 'street', 'cross_street',
                       'street_id',  'cross_street_id', 'city',
                       'pii_input_address', 'pii_google_formatted_address']
-        expected = """UPDATE `data-rivers-testing.qalert.backup_upd` upd SET
+        expected = """UPDATE `data-rivers-testing.qalert.backup_alr` upd SET
         upd.pii_street_num = temp.pii_street_num, upd.street = temp.street, 
         upd.cross_street = temp.cross_street, upd.street_id = temp.street_id, 
         upd.cross_street_id = temp.cross_street_id, upd.city = temp.city, 
@@ -67,7 +132,7 @@ class TestAirflowUtils(unittest.TestCase):
         FROM `data-rivers-testing.qalert.backup_atcs` temp
         WHERE upd.group_id = temp.group_id
         """
-        output = af2_airflow_utils.build_sync_update_query(dataset, upd_table, source_table,
+        output = af2_airflow_utils.build_sync_update_query(dataset, upd_table, src_table,
                                                           id_field, upd_fields)
         self.assertEqual(re.sub('\s+',' ', output),  re.sub('\s+',' ', expected))
 
