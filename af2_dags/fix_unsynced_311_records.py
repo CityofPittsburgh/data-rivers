@@ -20,15 +20,6 @@ dag = DAG(
     user_defined_filters={'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year}
 )
 
-# create a temporary table with the most up-to-date request types and
-# geographic data sourced from all_tickets_current_status where the
-# request type, origin, and geo data does not match that found in all_linked_requests
-create_unsynced_table = BashOperator(
-    task_id='create_unsynced_table',
-    bash_command=f"python {os.environ['SQL_SCRIPT_PATH']}/create_unsynced_table.py",
-    dag=dag
-)
-
 dataset = 'qalert'
 new_table = 'temp_curr_status_merge'
 upd_table = 'all_linked_requests'
@@ -53,6 +44,10 @@ comp_fields = [{'req_types': ['request_type_name', 'origin']},
 query_staging_table = build_sync_staging_table_query(dataset, new_table, upd_table,
                                                      src_table, is_deduped, upd_id_field,
                                                      join_id_field, field_groups, comp_fields)
+
+# create a temporary table with the most up-to-date request types and
+# geographic data sourced from all_tickets_current_status where the
+# request type, origin, and geo data does not match that found in all_linked_requests
 create_unsynced_table = BigQueryOperator(
         task_id = 'create_unsynced_table',
         sql = query_staging_table,
