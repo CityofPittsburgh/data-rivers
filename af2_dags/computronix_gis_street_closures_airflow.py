@@ -66,7 +66,7 @@ csv_file_name = f"{path}"
 dest_bucket = f"gs://{os.environ['GCS_PREFIX']}_gis_team/domi_street_closure_segments/"
 gis_export = BigQueryToCloudStorageOperator(
         task_id = 'gis_export',
-        source_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}.computronix.gis_street_closures",
+        source_project_dataset_table = f"data-bridGIS.computronix.gis_street_closures",
         destination_cloud_storage_uris = [f"{dest_bucket}/{csv_file_name}.csv"],
         dag = dag
 )

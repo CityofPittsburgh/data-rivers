@@ -55,7 +55,7 @@ def run(argv = None):
                 lines
                 | beam.ParDo(ConvertBooleans(bool_convs, True))
                 | beam.ParDo(ConvertStringCase(str_convs))
-                | beam.ParDo(StandardizeTimes(times))
+                | beam.ParDo(StandardizeTimes(times, t_format = "%m/%d/%Y %H:%M:%S"))
                 | beam.ParDo(FilterFields(drops))
                 | WriteToAvro(known_args.avro_output, schema = avro_schema, file_name_suffix = '.avro',
                               use_fastavro = True))
