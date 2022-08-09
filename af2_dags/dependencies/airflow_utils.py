@@ -79,8 +79,39 @@ def get_ds_day(ds):
     return ds.split('-')[2]
 
 
+def build_dashburgh_street_tix_query(dataset, raw_table, new_table, is_deduped, id_field, group_field, limit, start_time, field_groups):
+    sql = f"""
+    CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.{dataset}.{new_table}` AS 
+    SELECT {'DISTINCT' if is_deduped else ''} {id_field} AS id, dept, tix.request_type_name, closed_date_est
+    FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{raw_table}` tix
+    INNER JOIN
+        (SELECT {group_field}, COUNT(*) AS `count`
+        FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{raw_table}`
+        WHERE """
+    group_list = []
+    for group, fields in field_groups.items():
+        field_list = []
+        group_str = f"{group} IN ("
+        for field in fields:
+            field_list.append(f"'{field}'")
+        group_str += ", ".join(str(field) for field in field_list) + ")"
+        group_list.append(group_str)
+    sql += " AND ".join(str(group) for group in group_list)
+    sql += f"""
+        GROUP BY {group_field}
+        ORDER BY `count` DESC
+        LIMIT {limit}) top_types
+    ON tix.{group_field} = top_types.{group_field}
+    WHERE tix."""
+    sql += " AND ".join(str(group) for group in group_list)
+    sql += f"""
+    AND status_name = 'closed'
+    AND create_date_unix >= {start_time}
+    """
+    return sql
+
 # TODO: phase out the usage of build_revgeo_query() in favor of build_rev_geo_time_bound_query()
-def build_revgeo_time_bound_query(dataset, raw_table, new_table_name, create_date, id_col, lat_field, long_field):
+def build_revgeo_time_bound_query(dataset, raw_table, new_table, create_date, id_col, lat_field, long_field):
     """
     Take a table with lat/long values and reverse-geocode it into a new a final table.
     This function is a substantial refactor of the build_rev_geo() function. This query allows a lat/long point to be
@@ -100,7 +131,7 @@ def build_revgeo_time_bound_query(dataset, raw_table, new_table_name, create_dat
     """
 
     return f"""
-    CREATE OR REPLACE TABLE `{os.environ["GCLOUD_PROJECT"]}.{dataset}.{new_table_name}` AS
+    CREATE OR REPLACE TABLE `{os.environ["GCLOUD_PROJECT"]}.{dataset}.{new_table}` AS
 
     -- return zones for all records that it is possible to rev geocode. some records will not be possible to process 
     -- (bad lat/long etc) and will be pulled in via the next blocked
@@ -255,6 +286,66 @@ def build_revgeo_query(dataset, raw_table, id_field):
        )
     """
 
+def build_percentage_table_query(dataset, raw_table, new_table, is_deduped, id_field, pct_field, categories, hardcoded_vals):
+    sql = f"""
+    CREATE OR REPLACE TABLE  `{os.environ['GCLOUD_PROJECT']}.{dataset}.{new_table}` AS
+    SELECT {'DISTINCT' if is_deduped else ''} {pct_field}, 
+            100*({pct_field}_count / total) AS percentage, 
+            '{categories[0]}' AS type
+    FROM (
+      SELECT {pct_field}, COUNT(DISTINCT({id_field})) AS {pct_field}_count, SUM(COUNT(*)) OVER() AS total
+      FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{raw_table}` 
+      GROUP BY {pct_field}
+    )
+    """
+    for record in hardcoded_vals:
+        sql += f"""
+        UNION ALL
+        SELECT '{record[pct_field]}' AS {pct_field}, {record['percentage']} AS percentage, '{categories[1]}' AS type
+        """
+    sql += " ORDER BY type, percentage DESC "
+    return sql
+
+def build_sync_staging_table_query(dataset, new_table, upd_table, src_table, is_deduped, upd_id_field, join_id_field, field_groups, comp_fields):
+    sql = F"""
+    CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.{dataset}.{new_table}` AS 
+    SELECT {'DISTINCT' if is_deduped else ''} {upd_id_field}, """
+    field_list = []
+    for group in field_groups:
+        for alias, fields in group.items():
+            for field in fields:
+                field_list.append(f"{alias}.{field}")
+    sql += ", ".join(str(field) for field in field_list)
+    sql += f" FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{upd_table}` upd"
+    for group in field_groups:
+        for alias, fields in group.items():
+            join_list = []
+            sql += f" INNER JOIN (SELECT {'DISTINCT' if is_deduped else ''} {join_id_field}, "
+            for field in fields:
+                join_list.append(f"{field}")
+            sql += ", ".join(str(field) for field in join_list)
+            sql += f""" FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{src_table}`) {alias}
+            ON upd.{upd_id_field} = {alias}.{join_id_field}"""
+    sql += " WHERE "
+    comparison_list = []
+    for group in comp_fields:
+        for alias, fields in group.items():
+            for field in fields:
+                comparison_list.append(f'IFNULL(upd.{field}, "") != IFNULL({alias}.{field}, "") ')
+    sql += "OR ".join(str(field) for field in comparison_list)
+    return sql
+
+def build_sync_update_query(dataset, upd_table, src_table, id_field, upd_fields):
+    sql = f"UPDATE `{os.environ['GCLOUD_PROJECT']}.{dataset}.{upd_table}` upd SET "
+    upd_str_list = []
+    for field in upd_fields:
+        upd_str_list.append(f"upd.{field} = temp.{field}")
+    sql += ", ".join(str(upd) for upd in upd_str_list)
+    sql += f"""
+    FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{src_table}` temp
+    WHERE upd.{id_field} = temp.{id_field}
+    """
+    return sql
 
 def dedup_table(dataset, table):
     return f"""
