@@ -2,12 +2,11 @@ from __future__ import absolute_import
 from __future__ import division
 
 # patches unittest.TestCase to be python3 compatible
-import future.tests.base  # pylint: disable=unused-import
 import logging
 import unittest
 
-from dags.dependencies.dataflow_scripts import accela_dataflow
-from dataflow_utils.dataflow_utils import sort_dict
+from deprecated import accela_dataflow
+from deprecated.dataflow_utils import sort_dict
 
 
 class TestAccelaDataflow(unittest.TestCase):

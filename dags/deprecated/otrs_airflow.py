@@ -6,10 +6,9 @@ from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
 from airflow.operators.docker_operator import DockerOperator
 from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOperator
-from airflow.contrib.operators.gcp_container_operator import GKEPodOperator
 from datetime import timedelta
-from dependencies import airflow_utils
-from dependencies.airflow_utils import yesterday, build_revgeo_query, filter_old_values, get_ds_month, get_ds_year
+from deprecated import airflow_utils
+from deprecated.airflow_utils import yesterday, get_ds_month, get_ds_year
 
 # TODO: When Airflow 2.0 is released, upgrade the package, upgrade the virtualenv to Python3,
 # and add the arg py_interpreter='python3' to DataFlowPythonOperator
@@ -111,7 +110,7 @@ otrs_surveys_bq = GoogleCloudStorageToBigQueryOperator(
 
 otrs_beam_cleanup = BashOperator(
     task_id='otrs_beam_cleanup',
-    bash_command=airflow_utils.beam_cleanup_statement('{}_otrs'.format(os.environ['GCS_PREFIX'])),
+    bash_command= airflow_utils.beam_cleanup_statement('{}_otrs'.format(os.environ['GCS_PREFIX'])),
     dag=dag
 )
 
