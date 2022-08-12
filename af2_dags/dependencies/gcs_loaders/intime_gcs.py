@@ -11,7 +11,7 @@ from google.cloud import storage
 from gcs_utils import json_to_gcs, find_last_successful_run
 
 # the first recorded charging session was on 
-DEFAULT_RUN_START = "1990-10-10T00:00:00Z"
+DEFAULT_RUN_START = "2020-06-11"
 
 storage_client = storage.Client()
 bucket = f"{os.environ['GCS_PREFIX']}_intime"
@@ -21,8 +21,7 @@ parser.add_argument('--output_arg', dest='out_loc', required=True,
                     help='fully specified location to upload the combined ndjson file')
 args = vars(parser.parse_args())
 
-now = datetime.combine(datetime.now(tz = pendulum.timezone("utc")),
-                       datetime.min.time()).strftime("%Y-%m-%d %H:%M:%S")
+today = datetime.now(tz = pendulum.timezone("utc")).strftime("%Y-%m-%d")
 
 BASE_URL = 'https://intime2.intimesoft.com/ise/employee/v3/EmployeeAccess?wsdl'
 auth = HTTPBasicAuth(os.environ['INTIME_USER'], os.environ['INTIME_PW'])
@@ -43,6 +42,8 @@ def generate_xml(branch, from_time, to_time):
         <S:Body>
             <v3:getEmployeeDataList>
                 <branchRef>{branch}</branchRef>
+                <startDate>{from_time}</startDate>
+                <endDate>{to_time}</endDate>
             </v3:getEmployeeDataList>
         </S:Body>
     </S:Envelope>
@@ -54,18 +55,17 @@ start = '<ns2:getEmployeeDataListResponse xmlns:ns2="http://v3.employeeaccess.ri
 end = '</ns2:getEmployeeDataListResponse>'
 
 # find the last successful DAG run (needs to be specified in UTC YYYY-MM-DD HH:MM:SS) if there was no previous good
-# run default to yesterday (this does not handle a full self-healing backfill); this is used to initialize the
-# payload below
-yesterday = datetime.combine(datetime.now(tz = pendulum.timezone("utc")) - timedelta(1),
-                             datetime.min.time()).strftime("%Y-%m-%d %H:%M:%S")
-run_start_win, first_run = find_last_successful_run(bucket, "successful_run_log/log.json", yesterday)
+# run default to the date of the first entry of InTime data (allows for complete backfill).
+# this is used to initialize the payload below
+run_start_win, first_run = find_last_successful_run(bucket, "successful_run_log/log.json", DEFAULT_RUN_START)
+from_time = run_start_win.split(' ')[0]
 
 # continue running the API until data is retrieved (wait 5 min if there is no new data between last_good_run and now (
 # curr_run))
 data_retrieved = False
 while data_retrieved is False:
     # API call to get data
-    response = requests.post(BASE_URL, data=generate_xml('POLICE', run_start_win, now), auth=auth, headers=headers)
+    response = requests.post(BASE_URL, data=generate_xml('POLICE', from_time, today), auth=auth, headers=headers)
     vals = response.text[response.text.find(start) + len(start):response.text.rfind(end)]
     vals = '<root>' + vals + '</root>'
     xml_dict = xmltodict.parse(xml_input=vals, encoding='utf-8')
@@ -76,7 +76,7 @@ while data_retrieved is False:
         # write the successful run information (used by each successive DAG run to find the backfill date)
         successful_run = [{"requests_retrieved": len(records),
                            "since": run_start_win,
-                           "current_run": now,
+                           "current_run": today,
                            "note": "Data retrieved between the time points listed above"}]
         json_to_gcs("successful_run_log/log.json", successful_run,
                     bucket)
