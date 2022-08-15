@@ -247,36 +247,23 @@ class ConvertStringCase(beam.DoFn, ABC):
 
 
 class ExtractField(beam.DoFn):
-    def __init__(self, source_fields, nested_fields, new_field_names, additional_nested_fields=""):
+    def __init__(self, source_fields, nested_fields, new_field_names, additional_nested_fields="", search_fields="", additional_search_vals=""):
         self.source_fields = source_fields
         self.nested_fields = nested_fields
         self.new_field_names = new_field_names
         self.additional_nested_fields = additional_nested_fields
+        self.search_fields = search_fields
+        self.additional_search_vals = additional_search_vals
 
     def process(self, datum):
         if datum is not None:
-            for src, nst, new, add in zip(self.source_fields, self.nested_fields, self.new_field_names, self.additional_nested_fields):
-                datum = extract_field(datum, src, nst, new, add)
+            for src, nst, new, anf, sch, asv in zip(self.source_fields, self.nested_fields, self.new_field_names,
+                                                    self.additional_nested_fields, self.search_fields, self.additional_search_vals):
+                datum = extract_field(datum, src, nst, new, anf, sch, asv)
         else:
             logging.info('got NoneType datum')
 
         yield datum
-
-
-class ExtractFieldFromNestedList(beam.DoFn):
-    def __init__(self, source_field, list_index, nested_field, new_field_name, additional_nested_field=""):
-        self.source_field = source_field
-        self.list_index = list_index
-        self.nested_field = nested_field
-        self.new_field_name = new_field_name
-        self.additional_nested_field = additional_nested_field
-
-    def process(self, datum):
-        if datum is not None:
-            datum = extract_field_from_nested_list(datum, self.source_field, self.list_index, self.nested_field, self.new_field_name, self.additional_nested_field)
-            yield datum
-        else:
-            logging.info('got NoneType datum')
 
 
 class FilterOutliers(beam.DoFn, ABC):
@@ -798,7 +785,7 @@ def regularize_and_geocode_address(datum, self, f_name, del_org_input):
     return datum
 
 
-def extract_field(datum, source_field, nested_field, new_field_name, additional_nested_field=""):
+def extract_field(datum, source_field, nested_field, new_field_name, additional_nested_field="", search_field="", additional_search_val=""):
     """
     In cases where datum contains nested dicts, traverse to nested dict and extract a value for reassignment to a new
     non-nested field
@@ -816,14 +803,36 @@ def extract_field(datum, source_field, nested_field, new_field_name, additional_
         else:
             datum[new_field_name] = datum[source_field][nested_field]
     except TypeError:
-        datum = extract_field_from_nested_list(datum, source_field, 0, nested_field, new_field_name, additional_nested_field)
+        if search_field:
+            search_key = list(search_field)[0]
+            try:
+                if type(search_field) is dict:
+                    correct_index = next((i for (i, d) in enumerate(datum[source_field]) if d[search_key]==search_field[search_key]), None)
+                else:
+                    correct_index = next((i for (i, d) in enumerate(datum[source_field]) if search_field not in d), None)
+            except TypeError:
+                correct_index = next((i for (i, d) in enumerate(datum[source_field][nested_field]) if additional_search_val in d[additional_nested_field]), None)
+            if correct_index is not None:
+                datum = extract_field_from_nested_list(datum, source_field, correct_index, nested_field, new_field_name,
+                                                       additional_nested_field)
+            else:
+                try:
+                    recent_rec = max(datum[source_field], key=lambda x: x[search_field])
+                    correct_index = next((i for (i, d) in enumerate(datum[source_field]) if d[search_field]==recent_rec[search_field]), None)
+                    datum = extract_field_from_nested_list(datum, source_field, correct_index, nested_field, new_field_name,
+                                                           additional_nested_field)
+                except:
+                    datum[new_field_name] = None
+
+        else:
+            datum[new_field_name] = None
     except KeyError:
         datum[new_field_name] = None
 
     return datum
 
 
-def extract_field_from_nested_list(datum, source_field, list_index, nested_field, new_field_name, additional_nested_field=""):
+def extract_field_from_nested_list(datum, source_field, list_index, nested_field, new_field_name, additional_nested_field="", additional_search_val=""):
     """
     In cases where datum contains values consisting of lists of dicts, isolate a nested dict within a list and extract
     a value for reassignment to a new non-nested field
@@ -840,8 +849,25 @@ def extract_field_from_nested_list(datum, source_field, list_index, nested_field
             datum[new_field_name] = datum[source_field][list_index][nested_field][additional_nested_field]
         else:
             datum[new_field_name] = datum[source_field][list_index][nested_field]
-    except (KeyError, IndexError):
-        datum[new_field_name] = None
+    except KeyError:
+        try:
+            if additional_nested_field:
+                datum[new_field_name] = datum[source_field][nested_field][list_index][additional_nested_field]
+            else:
+                datum[new_field_name] = datum[source_field][nested_field][list_index]
+        except TypeError:
+            try:
+                datum[new_field_name] = datum[source_field][list_index][nested_field]
+            except:
+                datum[new_field_name] = None
+    except IndexError:
+        datum = extract_field(datum, source_field, nested_field, new_field_name, additional_nested_field)
+    except TypeError:
+        try:
+            correct_index = next((i for (i, d) in enumerate(datum[source_field][list_index][nested_field]) if additional_search_val in d[additional_nested_field]), None)
+            datum[new_field_name] = datum[source_field][list_index][nested_field][correct_index][additional_nested_field]
+        except:
+            datum[new_field_name] = None
 
     return datum
 

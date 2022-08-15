@@ -9,7 +9,7 @@ from apache_beam.io.avroio import WriteToAvro
 
 from dataflow_utils import dataflow_utils
 from dataflow_utils.dataflow_utils import JsonCoder, SwapFieldNames, generate_args, FilterFields, \
-    ColumnsCamelToSnakeCase, ChangeDataTypes, ExtractField, ExtractFieldFromNestedList
+    ColumnsCamelToSnakeCase, ChangeDataTypes, ExtractField
 
 DEFAULT_DATAFLOW_ARGS = [
         '--save_main_session',
@@ -33,24 +33,22 @@ def run(argv = None):
     )
 
     with beam.Pipeline(options = pipeline_options) as p:
-        source_fields = ['contacts', 'units']
-        nested_fields = ['infos', 'name']
-        new_field_names = ['email', 'unit']
-        additional_nested_fields = ['info', '']
-        source_list_field = 'ranks'
-        list_index = 1
-        nested_list_field = 'rankName'
-        new_list_field_name = 'rank'
+        source_fields = ['contacts', 'units', 'units', 'ranks', 'ranks']
+        nested_fields = ['infos', 'name', 'validFrom', 'rankName', 'validFrom']
+        new_field_names = ['email', 'unit', 'unit_valid_date', 'rank', 'rank_valid_date']
+        additional_nested_fields = ['info', '', '', '', '']
+        search_fields = [{'type': 'EMAIL'}, 'validTo', 'validTo', 'validTo', 'validTo']
+        additional_search_vals = ['pittsburghpa.gov', '', '', '', '']
         type_changes = [('employee_id', 'str')]
-        keep_fields = ['employee_id', 'first_name', 'last_name', 'email', 'rank', 'unit']
+        keep_fields = ['employee_id', 'first_name', 'last_name', 'email',
+                       'rank', 'rank_valid_date', 'unit', 'unit_valid_date']
 
         lines = p | ReadFromText(known_args.input, coder = JsonCoder())
 
         load = (
                 lines
-                | beam.ParDo(ExtractField(source_fields, nested_fields, new_field_names, additional_nested_fields))
-                | beam.ParDo(ExtractFieldFromNestedList(source_list_field, list_index,
-                                                        nested_list_field, new_list_field_name))
+                | beam.ParDo(ExtractField(source_fields, nested_fields, new_field_names,
+                                          additional_nested_fields, search_fields, additional_search_vals))
                 | beam.ParDo(ColumnsCamelToSnakeCase())
                 | beam.ParDo(ChangeDataTypes(type_changes))
                 | beam.ParDo(FilterFields(keep_fields, exclude_target_fields=False))
