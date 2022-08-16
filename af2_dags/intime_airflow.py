@@ -4,12 +4,10 @@ import os
 
 from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
-from airflow.contrib.operators.bigquery_operator import BigQueryOperator
+from airflow.contrib.operators.bigquery_to_gcs import BigQueryToCloudStorageOperator
 from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOperator
 from dependencies import airflow_utils
 from dependencies.airflow_utils import get_ds_month, get_ds_year, get_ds_day, default_args
-
-COLS_IN_ORDER = "employee_id, first_name, last_name, email, rank, unit"
 
 # The goal of this DAG is to perform a daily pull of electric vehicle charging data from
 # the intime API. This charging data will be stored in Data Rivers and displayed on
@@ -56,24 +54,12 @@ intime_bq_load = GoogleCloudStorageToBigQueryOperator(
         dag = dag
 )
 
-# remove duplicate charging sessions and re-create table in correct column order
-query_format_dedupe = f"""
-CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.intime.employee_data` AS
-WITH formatted  AS 
-    (
-    SELECT  DISTINCT * FROM 
-        {os.environ['GCLOUD_PROJECT']}.intime.employee_data
-    )
-SELECT 
-    {COLS_IN_ORDER} 
-FROM 
-    formatted
-"""
-intime_format_dedupe = BigQueryOperator(
-        task_id = 'intime_format_dedupe',
-        sql = query_format_dedupe,
+# Export table as readable CSV to InTime bucket
+intime_export = BigQueryToCloudStorageOperator(
+        task_id = 'intime_export',
+        source_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}.{dataset}.employee_data",
+        destination_cloud_storage_uris = [f"{bucket}/shared/intime_report.csv"],
         bigquery_conn_id='google_cloud_default',
-        use_legacy_sql = False,
         dag = dag
 )
 
@@ -83,4 +69,4 @@ beam_cleanup = BashOperator(
         dag = dag
 )
 
-intime_gcs >> intime_dataflow >> intime_bq_load >> intime_format_dedupe >> beam_cleanup
+intime_gcs >> intime_dataflow >> intime_bq_load >> intime_export >> beam_cleanup
