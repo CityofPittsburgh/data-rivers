@@ -54,7 +54,7 @@ intime_bq_load = GoogleCloudStorageToBigQueryOperator(
         dag = dag
 )
 
-# Export table as readable CSV to InTime bucket
+# Export table to InTime bucket as readable CSV
 intime_export = BigQueryToCloudStorageOperator(
         task_id = 'intime_export',
         source_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}.{dataset}.employee_data",

@@ -26,7 +26,16 @@ today = datetime.now(tz = pendulum.timezone("utc")).strftime("%Y-%m-%d")
 BASE_URL = 'https://intime2.intimesoft.com/ise/employee/v3/EmployeeAccess?wsdl'
 auth = HTTPBasicAuth(os.environ['INTIME_USER'], os.environ['INTIME_PW'])
 
+
 def generate_xml(branch, from_time, to_time):
+    """
+    :param branch: string to identify the department employee information will be pulled from
+    :param from_time: date string in %Y-%m-%d format that identifies the start window for when employee data
+    should start being pulled. This date is either the date of the first-ever entry of data into
+    the InTime system, or the date of the last successful run of this data pipeline
+    :param to_time: date string in %Y-%m-%d format that identifies the end window for when employee data
+    should stop being pulled. Should always be the current date
+    """
     return F"""
     <S:Envelope xmlns:S="http://schemas.xmlsoap.org/soap/envelope/" xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/" xmlns:v3="http://v3.employeeaccess.rise.intimesoft.com/">
         <SOAP-ENV:Header>
@@ -70,7 +79,7 @@ while data_retrieved is False:
     vals = '<root>' + vals + '</root>'
     xml_dict = xmltodict.parse(xml_input=vals, encoding='utf-8')
     records = xml_dict['root']['return']
-    # verify the API called returned data (if no new tickets, then type will be NONE)
+    # verify the API called returned data (if no new records, then type will be NONE)
     if records is not None:
         data_retrieved = True
         # write the successful run information (used by each successive DAG run to find the backfill date)
