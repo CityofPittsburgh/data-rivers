@@ -62,8 +62,8 @@ ceridian_bq_load = GoogleCloudStorageToBigQueryOperator(
 gender_table = 'employee_vs_gen_pop_gender_comp'
 gender_pct_field = 'gender'
 categories = ['City Employee', 'Overall City']
-gender_hardcoded_vals = [{gender_pct_field: 'M', 'percentage': 49.0},
-                         {gender_pct_field: 'F', 'percentage': 51.0}]
+gender_hardcoded_vals = [{gender_pct_field: 'M', 'percentage': 00.49},
+                         {gender_pct_field: 'F', 'percentage': 00.51}]
 query_gender_comp = build_percentage_table_query('ceridian', 'active_employees', gender_table,
                                                  False, 'employee_num', gender_pct_field,
                                                  categories, gender_hardcoded_vals)
@@ -77,13 +77,13 @@ create_gender_comp_table = BigQueryOperator(
 
 race_table = 'employee_vs_gen_pop_racial_comp'
 race_pct_field = 'ethnicity'
-race_hardcoded_vals = [{race_pct_field: 'White', 'percentage': 64.5},
-                       {race_pct_field: 'Black or African American', 'percentage': 23.0},
-                       {race_pct_field: 'Asian', 'percentage': 5.8},
-                       {race_pct_field: 'Hispanic or Latino', 'percentage': 3.4},
-                       {race_pct_field: 'American Indian or Alaska Native', 'percentage': 0.2},
-                       {race_pct_field: 'Native Hawaiian or Other Pacific Islander', 'percentage': 0.1},
-                       {race_pct_field: 'Two or More Races', 'percentage': 3.6}]
+race_hardcoded_vals = [{race_pct_field: 'White', 'percentage': 00.645},
+                       {race_pct_field: 'Black or African American', 'percentage': 00.23},
+                       {race_pct_field: 'Asian', 'percentage': 00.058},
+                       {race_pct_field: 'Hispanic or Latino', 'percentage': 00.034},
+                       {race_pct_field: 'American Indian or Alaska Native', 'percentage': 00.002},
+                       {race_pct_field: 'Native Hawaiian or Other Pacific Islander', 'percentage': 00.001},
+                       {race_pct_field: 'Two or More Races', 'percentage': 00.036}]
 query_racial_comp = build_percentage_table_query('ceridian', 'active_employees', race_table,
                                                  False, 'employee_num', race_pct_field,
                                                  categories, race_hardcoded_vals)

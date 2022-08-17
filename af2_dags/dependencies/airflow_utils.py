@@ -290,7 +290,7 @@ def build_percentage_table_query(dataset, raw_table, new_table, is_deduped, id_f
     sql = f"""
     CREATE OR REPLACE TABLE  `{os.environ['GCLOUD_PROJECT']}.{dataset}.{new_table}` AS
     SELECT {'DISTINCT' if is_deduped else ''} {pct_field}, 
-            100*({pct_field}_count / total) AS percentage, 
+            ({pct_field}_count / total) AS percentage, 
             '{categories[0]}' AS type
     FROM (
       SELECT {pct_field}, COUNT(DISTINCT({id_field})) AS {pct_field}_count, SUM(COUNT(*)) OVER() AS total
