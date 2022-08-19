@@ -445,6 +445,7 @@ def select_expand_odata(url, tables, limit_results=False):
 
     return records
 
+
 def unnest_domi_street_seg(nested_data, name_swaps, old_nested_keys, new_unnested_keys):
     """
             De-nests data from the CX API's DOMI Street Closures dataset. Takes in raw input and from the API,

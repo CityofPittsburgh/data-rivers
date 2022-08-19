@@ -44,9 +44,13 @@ fds_owner = 'OWNERNAME'
 # solution - insert a col called permit_type with generic deescriptors from all tables except for genereal you get
 # the real value from PermitTYpePeermitTYpe
 #
+
+
+
+#
 # tables = [
-#             (spec_base, False, [base]),
-#             ("PARCEL", False, [sel_fields[1]]),
+#              (b, False, [fds_base]),
+#             ("JOBPARCELXREF", ["PARCEL"], ["PARCEL", fds_parcel]),
 #             ("SHADOWJOB", False, [sel_fields[2]]),
 #             ("OWNERNAME", False, [sel_fields[3]])
 #     ]
