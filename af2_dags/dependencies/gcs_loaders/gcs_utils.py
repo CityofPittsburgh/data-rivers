@@ -445,6 +445,7 @@ def select_expand_odata(url, tables, limit_results=False):
 
     return records
 
+
 def unnest_domi_street_seg(nested_data, name_swaps, old_nested_keys, new_unnested_keys):
     """
             De-nests data from the CX API's DOMI Street Closures dataset. Takes in raw input and from the API,
@@ -476,33 +477,39 @@ def unnest_domi_street_seg(nested_data, name_swaps, old_nested_keys, new_unneste
         for n in range(len(name_swaps[0])):
             new_row_base.update({name_swaps[1][n]: row[name_swaps[0][n]]})
 
-        # if there are closures then entere the control flow processing. not all permits involve street closures,
+        # if there are closures then enter the control flow processing. not all permits involve street closures,
         # and those tickets get dropped here.
         if row["DOMISTREETCLOSURE"]:
-            nest = row["DOMISTREETCLOSURE"][0]
 
-            # iterate through all nested fields and extract them (excluding the internally nested fields)
-            for n in range(len(old_nested_keys)):
-                new_row_base.update({new_unnested_keys[n]: nest[old_nested_keys[n]]})
+            # count the number of segments in a file (files can have multiple entries so this is done in a loop prior
+            # to processing data below
+            segs_in_file = 0
+            for nest in row["DOMISTREETCLOSURE"]:
+                segs_in_file += len(nest["STREETCLOSUREDOMISTREETSEGMENT"])
 
-            # there can be multiple segments per ticket; each segment needs to be made a separate row,
-            # and all information needs to be present in each row, with the only difference being the segment. Thus,
-            # two segments from the same record will have redundant information, with only the segment information
-            # being unique.
-
-            # loop through the segments (if there are not segments for a closure permit then the entire permit will
-            # not enter the for loop and will NOT be appended to the output data)
-            segs = nest["STREETCLOSUREDOMISTREETSEGMENT"]
+            # initialize segment counter here so it continues tracking across all entries for a file
             seg_ct = 0
-            segs_in_row = len(segs)
-            for s in segs:
-                seg_ct += 1
-                new_row = new_row_base.copy()
-                new_row.update({"closure_id": str(s["UNIQUEID"])})
-                new_row.update({"carte_id": str(s["CARTEID"])})
-                new_row.update({"segment_num": seg_ct})
-                new_row.update({"total_segments": segs_in_row})
-                data_with_segs.append(new_row)
+            for nest in row["DOMISTREETCLOSURE"]:
+                # iterate through all nested fields and extract them (excluding the internally nested fields)
+                for n in range(len(old_nested_keys)):
+                    new_row_base.update({new_unnested_keys[n]: nest[old_nested_keys[n]]})
+
+                # there can be multiple segments per ticket; each segment needs to be made a separate row,
+                # and all information needs to be present in each row, with the only difference being the segment. Thus,
+                # two segments from the same record will have redundant information, with only the segment information
+                # being unique.
+
+                # loop through the segments (if there are not segments for a closure permit then the entire permit will
+                # not enter the for loop and will NOT be appended to the output data)
+                segs = nest["STREETCLOSUREDOMISTREETSEGMENT"]
+                for s in segs:
+                    seg_ct += 1
+                    new_row = new_row_base.copy()
+                    new_row.update({"closure_id": str(s["UNIQUEID"])})
+                    new_row.update({"carte_id": str(s["CARTEID"])})
+                    new_row.update({"segment_num": seg_ct})
+                    new_row.update({"total_segments": segs_in_file})
+                    data_with_segs.append(new_row)
 
     return data_with_segs
 
