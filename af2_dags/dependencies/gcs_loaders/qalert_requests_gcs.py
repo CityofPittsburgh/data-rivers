@@ -92,7 +92,10 @@ for b in pre_clean_batches:
 
 # overwrite the original fields with scrubbed data
 for i in range(len(full_requests)):
-    full_requests[i]["comments"] = all_comms[i].strip()
+    try:
+        full_requests[i]["comments"] = all_comms[i].strip()
+    except IndexError:
+        print("Comments don't exist at index #" + str(i))
 
 
 # write the successful run information (used by each successive DAG run to find the backfill date)
