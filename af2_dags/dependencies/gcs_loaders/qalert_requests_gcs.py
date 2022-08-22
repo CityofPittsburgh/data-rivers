@@ -49,13 +49,6 @@ while data_retrieved is False:
     # verify the API called returned data (if no new tickets, then type will be NONE)
     if full_requests is not None:
         data_retrieved = True
-        # write the successful run information (used by each successive DAG run to find the backfill date)
-        successful_run = [{"requests_retrieved": len(full_requests),
-                          "since"             : run_start_win,
-                          "current_run"       : curr_run,
-                          "note"              : "Data retrieved between the time points listed above"}]
-        json_to_gcs("requests/successful_run_log/log.json", successful_run,
-                    bucket)
 
     else:
         print("No new requests. Sleeping with retry scheduled.")
@@ -99,8 +92,19 @@ for b in pre_clean_batches:
 
 # overwrite the original fields with scrubbed data
 for i in range(len(full_requests)):
-    full_requests[i]["comments"] = all_comms[i].strip()
+    try:
+        full_requests[i]["comments"] = all_comms[i].strip()
+    except IndexError:
+        print("Comments don't exist at index #" + str(i))
 
+
+# write the successful run information (used by each successive DAG run to find the backfill date)
+successful_run = [{"requests_retrieved": len(full_requests),
+                   "since": run_start_win,
+                   "current_run": curr_run,
+                   "note": "Data retrieved between the time points listed above"}]
+json_to_gcs("requests/successful_run_log/log.json", successful_run,
+            bucket)
 
 # load to gcs
 json_to_gcs(args["out_loc"], full_requests, bucket)
