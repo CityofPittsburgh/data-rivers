@@ -75,6 +75,7 @@ data_retrieved = False
 while data_retrieved is False:
     # API call to get data
     response = requests.post(BASE_URL, data=generate_xml('POLICE', from_time, today), auth=auth, headers=headers)
+    # Print API status code for debugging purposes
     print("API response code: " + str(response.status_code))
     vals = response.text[response.text.find(start) + len(start):response.text.rfind(end)]
     vals = '<root>' + vals + '</root>'
