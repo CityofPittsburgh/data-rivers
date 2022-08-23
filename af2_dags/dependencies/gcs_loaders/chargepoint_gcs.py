@@ -63,13 +63,19 @@ more = True
 while more is True:
     # API call to get data
     response = requests.post(BASE_URL, data=generate_xml(run_start_win, interval), headers=headers)
+    # Print API status code for debugging purposes
+    print("API response code: " + str(response.status_code))
     vals = response.text[response.text.find(start) + len(start):response.text.rfind(end)]
     vals = '<root>' + vals + '</root>'
     xml_dict = xmltodict.parse(xml_input=vals, encoding='utf-8')
     # continue looping through records until the API has a MoreFlag value of 0
-    if xml_dict['root']['MoreFlag']:
-        more = (xml_dict['root']['MoreFlag'] == '1')
-    else:
+    try:
+        if xml_dict['root']['MoreFlag']:
+            more = (xml_dict['root']['MoreFlag'] == '1')
+        else:
+            more = False
+    except:
+        print("Error parsing for additional data")
         more = False
     records = xml_dict['root']['ChargingSessionData']
     # append list of API results to growing all_records list (assuming API pull contains >100 records)
