@@ -30,7 +30,7 @@ run_start_win, first_run = find_last_successful_run(bucket, "requests/successful
 
 # qscend API requires a value (any value) for the user-agent field
 headers = {'User-Agent': 'City of Pittsburgh ETL'}
-payload = {'key': os.environ['QALERT_KEY'], 'since': run_start_win}
+payload = {'key': os.environ['QALERT_KEY'], 'since': "2022-08-22 00:00:00"} #run_start_win}
 
 
 # continue running the API until data is retrieved (wait 5 min if there is no new data between last_good_run and now (
@@ -61,7 +61,10 @@ while data_retrieved is False:
 # place an underscore between the detected words to prevent accidental redaction, redact PII
 pre_clean = {"req_comments": []}
 for row in full_requests:
-    pre_clean["req_comments"].append(row.get("comments", ""))
+    if row.get("comments", "") == "":
+        pre_clean["req_comments"].append("No comment")
+    else:
+        pre_clean["req_comments"].append(row.get("comments", "No comment"))
 
 
 # The Google data loss prevention (dlp) API is used (via helper function) to scrub PII. This API cannot handle
@@ -92,10 +95,7 @@ for b in pre_clean_batches:
 
 # overwrite the original fields with scrubbed data
 for i in range(len(full_requests)):
-    try:
-        full_requests[i]["comments"] = all_comms[i].strip()
-    except IndexError:
-        print("Comments don't exist at index #" + str(i))
+    full_requests[i]["comments"] = all_comms[i].strip()
 
 
 # write the successful run information (used by each successive DAG run to find the backfill date)
