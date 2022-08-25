@@ -30,7 +30,7 @@ run_start_win, first_run = find_last_successful_run(bucket, "requests/successful
 
 # qscend API requires a value (any value) for the user-agent field
 headers = {'User-Agent': 'City of Pittsburgh ETL'}
-payload = {'key': os.environ['QALERT_KEY'], 'since': "2022-08-24 19:00:00"} #run_start_win}
+payload = {'key': os.environ['QALERT_KEY'], 'since': run_start_win}
 
 
 # continue running the API until data is retrieved (wait 5 min if there is no new data between last_good_run and now (
