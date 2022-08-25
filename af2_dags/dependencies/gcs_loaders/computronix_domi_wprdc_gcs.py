@@ -3,7 +3,6 @@ import argparse
 import requests
 
 from gcs_utils import json_to_gcs
-    #, select_expand_odata
 
 
 def hit_cx_odata_api(odata_url):
@@ -24,6 +23,7 @@ def hit_cx_odata_api(odata_url):
 
     return records
 
+
 parser = argparse.ArgumentParser()
 parser.add_argument('--output_arg', dest = 'out_loc', required = True,
                     help = 'fully specified location to upload the ndjson file')
@@ -34,7 +34,6 @@ bucket = f"{os.environ['GCS_PREFIX']}_computronix"
 
 # CX ODATA API URL base
 url = 'https://staff.onestoppgh.pittsburghpa.gov/pghprod/odata/odata/'
-
 
 # PLI permit tables
 bases = ['BUILDINGPERMIT', 'ELECTRICALPERMIT', 'MECHANICALPERMIT']
@@ -57,15 +56,7 @@ fds_nt1 = 'FORMATTEDPARCELNUMBER, ADDRESSABLEOBJEFORMATTEDADDRES'
 fds_nt2 = 'OWNERNAME'
 fds_unt1 = 'SNP_NEIGHBORHOOD, SNP_WARD'
 
-
-# should we do this for eac permit type?
-# hit the API shoujld be easy with the util
-# we will join all 4 hits
-# but the "geneeral peremits" table needs a field thaat the other don't have. it'll be a more descriptive suib type
-# that "general"
-# solution - insert a col called permit_type with generic deescriptors from all tables except for genereal you get
-# the real value from PermitTYpePeermitTYpe
-#
+odata_url_date_filter = F"$filter=ISSUEDATE gt 2019-06-01T00:00:00Z"
 
 odata_url_base_fields = F"$select={fds_base}"
 
@@ -81,22 +72,31 @@ odata_url_tail = F"&$expand={xref_1}" \
             ")" \
     ")"
 
+all_permits = []
 for (b, i) in zip(bases, fds_id):
-    odata_url = F"{url}{b}?{odata_url_base_fields}, {i}, {odata_url_tail}"
+    odata_url = F"{url}{b}?{odata_url_date_filter}&{odata_url_base_fields}, {i}, {odata_url_tail}"
     permits = hit_cx_odata_api(odata_url)
     for p in permits:
         p.update({"permit_type": b.split("PERMIT")[0]})
+    if b == bases[0]:
+        for p in permits:
+            p.update({"EXTERNALFILENUM": p["PERMITNUMBER"]})
+            p.pop("PERMITNUMBER")
 
-odata_url = F"{url}GENERALPERMIT?{odata_url_base_fields}, PERMITTYPEPERMITTYPE, EXTERNALFILENUM, {odata_url_tail}"
+    all_permits.extend(permits)
+
+
+odata_url = F"{url}GENERALPERMIT?{odata_url_date_filter}&{odata_url_base_fields}, PERMITTYPEPERMITTYPE, EXTERNALFILENUM, {odata_url_tail}"
 gen_permits = hit_cx_odata_api(odata_url)
 for g in gen_permits:
     g.update({"permit_type": g["PERMITTYPEPERMITTYPE"]})
     g.pop("PERMITTYPEPERMITTYPE")
 
-permits.extend(gen_permits)
+all_permits.extend(gen_permits)
+
 
 # load data into GCS
-# out loc = <dataset>/<full date>/<run_id>_str_closures.json
-# json_to_gcs(args["out_loc"], permits, bucket)
+out loc = <dataset>/<full date>/<run_id>_str_closures.json
+json_to_gcs(args["out_loc"], permits, bucket)
 
 
