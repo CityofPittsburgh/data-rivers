@@ -30,7 +30,7 @@ run_start_win, first_run = find_last_successful_run(bucket, "requests/successful
 
 # qscend API requires a value (any value) for the user-agent field
 headers = {'User-Agent': 'City of Pittsburgh ETL'}
-payload = {'key': os.environ['QALERT_KEY'], 'since': run_start_win}
+payload = {'key': os.environ['QALERT_KEY'], 'since': "2022-08-24 19:00:00"} #run_start_win}
 
 
 # continue running the API until data is retrieved (wait 5 min if there is no new data between last_good_run and now (
@@ -59,6 +59,9 @@ while data_retrieved is False:
 # Comments do not follow strict formatting so this is an imperfect approximation.
 # Steps: extract fields, detect person names that are followed by hotwords for exclusion (e.g. park or street),
 # place an underscore between the detected words to prevent accidental redaction, redact PII
+for row in full_requests:
+    row["comments"] = row["comments"] if row["comments"] != "" else "No comment"
+
 pre_clean = {"req_comments": []}
 for row in full_requests:
     if row.get("comments", "") == "":
@@ -94,17 +97,26 @@ for b in pre_clean_batches:
 
 
 # overwrite the original fields with scrubbed data
-for i in range(len(full_requests)):
-    full_requests[i]["comments"] = all_comms[i].strip()
+success = False
+if len(full_requests) == len(all_comms):
+    for i in range(len(full_requests)):
+        try:
+            full_requests[i]["comments"] = all_comms[i].strip()
+            success = True
+        except:
+            print("Error at ticket index #" + str(i))
+else:
+    print("Error: mismatch in comment list sizes")
 
 
 # write the successful run information (used by each successive DAG run to find the backfill date)
-successful_run = [{"requests_retrieved": len(full_requests),
-                   "since": run_start_win,
-                   "current_run": curr_run,
-                   "note": "Data retrieved between the time points listed above"}]
-json_to_gcs("requests/successful_run_log/log.json", successful_run,
-            bucket)
+if success:
+    successful_run = [{"requests_retrieved": len(full_requests),
+                       "since": run_start_win,
+                       "current_run": curr_run,
+                       "note": "Data retrieved between the time points listed above"}]
+    json_to_gcs("requests/successful_run_log/log.json", successful_run,
+                bucket)
 
 # load to gcs
 json_to_gcs(args["out_loc"], full_requests, bucket)
