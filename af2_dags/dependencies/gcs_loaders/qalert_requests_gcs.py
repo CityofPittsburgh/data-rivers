@@ -49,13 +49,6 @@ while data_retrieved is False:
     # verify the API called returned data (if no new tickets, then type will be NONE)
     if full_requests is not None:
         data_retrieved = True
-        # write the successful run information (used by each successive DAG run to find the backfill date)
-        successful_run = [{"requests_retrieved": len(full_requests),
-                          "since"             : run_start_win,
-                          "current_run"       : curr_run,
-                          "note"              : "Data retrieved between the time points listed above"}]
-        json_to_gcs("requests/successful_run_log/log.json", successful_run,
-                    bucket)
 
     else:
         print("No new requests. Sleeping with retry scheduled.")
@@ -68,7 +61,10 @@ while data_retrieved is False:
 # place an underscore between the detected words to prevent accidental redaction, redact PII
 pre_clean = {"req_comments": []}
 for row in full_requests:
-    pre_clean["req_comments"].append(row.get("comments", ""))
+    if row.get("comments", "") == "":
+        pre_clean["req_comments"].append("No comment")
+    else:
+        pre_clean["req_comments"].append(row.get("comments", "No comment"))
 
 
 # The Google data loss prevention (dlp) API is used (via helper function) to scrub PII. This API cannot handle
@@ -101,6 +97,14 @@ for b in pre_clean_batches:
 for i in range(len(full_requests)):
     full_requests[i]["comments"] = all_comms[i].strip()
 
+
+# write the successful run information (used by each successive DAG run to find the backfill date)
+successful_run = [{"requests_retrieved": len(full_requests),
+                   "since": run_start_win,
+                   "current_run": curr_run,
+                   "note": "Data retrieved between the time points listed above"}]
+json_to_gcs("requests/successful_run_log/log.json", successful_run,
+            bucket)
 
 # load to gcs
 json_to_gcs(args["out_loc"], full_requests, bucket)

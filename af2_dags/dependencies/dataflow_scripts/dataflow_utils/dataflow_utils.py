@@ -419,7 +419,7 @@ class ReformatPhoneNumbers(beam.DoFn, ABC):
 
 
 class StandardizeTimes(beam.DoFn, ABC):
-    def __init__(self, time_changes):
+    def __init__(self, time_changes, t_format = "%m/%d/%Y %H:%M:%S%z"):
         """
         :param time_changes: list of tuples; each tuple consists of an existing field name containing date strings +
         the name of the timezone the given date string belongs to.
@@ -432,6 +432,7 @@ class StandardizeTimes(beam.DoFn, ABC):
         (JF)
         """
         self.time_changes = time_changes
+        self.t_format = t_format
 
     def process(self, datum):
 
@@ -449,8 +450,8 @@ class StandardizeTimes(beam.DoFn, ABC):
                     utc_conv = loc_time.astimezone(tz = pytz.utc)
                     east_conv = loc_time.astimezone(tz = pytz.timezone('America/New_York'))
                     unix_conv = utc_conv.timestamp()
-                    datum.update({'{}_UTC'.format(time_change[0]) : str(utc_conv),
-                                  '{}_EST'.format(time_change[0]) : str(east_conv),
+                    datum.update({'{}_UTC'.format(time_change[0]) : utc_conv.strftime(self.t_format),
+                                  '{}_EST'.format(time_change[0]) : east_conv.strftime(self.t_format),
                                   '{}_UNIX'.format(time_change[0]): int(unix_conv)})
 
             else:

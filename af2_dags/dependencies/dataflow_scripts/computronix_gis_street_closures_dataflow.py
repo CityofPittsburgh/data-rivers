@@ -10,7 +10,7 @@ from apache_beam.io.avroio import WriteToAvro
 # import util modules.
 # util modules located one level down in directory (./dataflow_util_modules/datflow_utils.py)
 from dataflow_utils.dataflow_utils import JsonCoder, ConvertBooleans, StandardizeTimes, \
-    FilterFields, ConvertStringCase, generate_args
+    FilterOutliers, FilterFields, ConvertStringCase, generate_args
 
 
 DEFAULT_DATAFLOW_ARGS = [
@@ -49,13 +49,19 @@ def run(argv = None):
 
         drops = ["create_date", "from_date", "to_date", "street_segment", "street_closure"]
 
+        # only allow times between 1990 and 2050. This can be reconfigured and is simply here to permit the AVRO
+        # creation. The goal is for end users to identify outlier dates via UTC/EST and handle those correctly
+        outlier_checks = [("create_date_UNIX", 631152000, 2524608000), ("from_date_UNIX", 631152000, 2524608000),
+                          ("to_date_UNIX", 631152000, 2524608000)]
+
         lines = p | ReadFromText(known_args.input, coder = JsonCoder())
 
         load = (
                 lines
                 | beam.ParDo(ConvertBooleans(bool_convs, True))
                 | beam.ParDo(ConvertStringCase(str_convs))
-                | beam.ParDo(StandardizeTimes(times))
+                | beam.ParDo(StandardizeTimes(times, t_format = "%m/%d/%Y %H:%M:%S"))
+                | beam.ParDo(FilterOutliers(outlier_checks))
                 | beam.ParDo(FilterFields(drops))
                 | WriteToAvro(known_args.avro_output, schema = avro_schema, file_name_suffix = '.avro',
                               use_fastavro = True))
