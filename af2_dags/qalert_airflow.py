@@ -21,7 +21,7 @@ COLS_IN_ORDER = """id, parent_ticket_id, child_ticket, dept, status_name, status
 request_type_id, origin, pii_comments, pii_private_notes, create_date_est, create_date_utc, create_date_unix, 
 last_action_est, last_action_utc, last_action_unix, closed_date_est, closed_date_utc, closed_date_unix, 
 pii_street_num, street, cross_street, street_id, cross_street_id, city, pii_input_address, 
-pii_google_formatted_address, address_type, anon_google_formatted_address, neighborhood_name, 
+pii_google_formatted_address, anon_google_formatted_address, address_type, neighborhood_name, 
 council_district, ward, police_zone, fire_zone, dpw_streets, dpw_enviro, dpw_parks, input_pii_lat, input_pii_long, 
 google_pii_lat, google_pii_long, input_anon_lat, input_anon_long, google_anon_lat, google_anon_long"""
 
@@ -29,7 +29,7 @@ LINKED_COLS_IN_ORDER = """status_name, status_code, dept,
 request_type_name, request_type_id, origin, pii_comments, pii_private_notes, create_date_est, create_date_utc, 
 create_date_unix, last_action_est, last_action_utc, last_action_unix, closed_date_est, closed_date_utc, closed_date_unix, 
 pii_street_num, street, cross_street, street_id, cross_street_id, city, pii_input_address, 
-pii_google_formatted_address, address_type, anon_google_formatted_address, neighborhood_name, 
+pii_google_formatted_address, anon_google_formatted_address, address_type, neighborhood_name, 
 council_district, ward, police_zone, fire_zone, dpw_streets, dpw_enviro, dpw_parks, input_pii_lat, input_pii_long, 
 google_pii_lat, google_pii_long, input_anon_lat, input_anon_long, google_anon_lat, google_anon_long"""
 
@@ -40,8 +40,8 @@ EXCLUDE_TYPES = """'Hold - 311', 'Graffiti, Owner Refused DPW Removal', 'Medical
 SAFE_FIELDS = """status_name, status_code, dept, 
 request_type_name, request_type_id, create_date_est, create_date_utc, 
 create_date_unix, last_action_est, last_action_unix, last_action_utc, closed_date_est, closed_date_utc,  
-closed_date_unix, street, cross_street, street_id, cross_street_id, city, address_type,  
-anon_google_formatted_address, neighborhood_name, council_district, ward, police_zone, fire_zone, dpw_streets, 
+closed_date_unix, street, cross_street, street_id, cross_street_id, city, anon_google_formatted_address, 
+address_type, neighborhood_name, council_district, ward, police_zone, fire_zone, dpw_streets, 
 dpw_enviro, dpw_parks, input_anon_lat, input_anon_long, google_anon_lat, google_anon_long"""
 
 
@@ -61,13 +61,10 @@ dag = DAG(
 bucket = f"gs://{os.environ['GCS_PREFIX']}_qalert"
 dataset = "requests"
 
-#TODO: temp path changes for testing only -- fix asap
-#path = "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds|get_ds_day }}/manual__2022-06-30T14:09:29+00:00"
-path_1 = "{{ ds|get_ds_year }}/06/30/manual__2022-06-30T14:09:29+00:00"
-path_2 = "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds|get_ds_day }}/{{ run_id }}"
+path = "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds|get_ds_day }}/{{ run_id }}"
 
-json_loc = f"{path_1}_requests.json"
-avro_loc = f"avro_output/{path_2}/"
+json_loc = f"{path}_requests.json"
+avro_loc = f"avro_output/{path}/"
 
 
 # Run gcs_loader
@@ -82,7 +79,7 @@ gcs_loader = BashOperator(
 exec_df = f"python {os.environ['DATAFLOW_SCRIPT_PATH']}/qalert_requests_dataflow.py"
 dataflow = BashOperator(
         task_id = 'dataflow',
-        bash_command = f"{exec_df} --input {bucket}/{dataset}/{json_loc} --avro_output {bucket}/{dataset}/{avro_loc}  --runner DirectRunner",
+        bash_command = f"{exec_df} --input {bucket}/{dataset}/{json_loc} --avro_output {bucket}/{dataset}/{avro_loc}",
         dag = dag
 )
 
@@ -474,7 +471,7 @@ drop_pii_for_export = BigQueryOperator(
 wprdc_export = BigQueryToCloudStorageOperator(
         task_id = 'wprdc_export',
         source_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}.qalert.data_export_scrubbed",
-        destination_cloud_storage_uris = [f"gs://{os.environ['GCS_PREFIX']}_wprdc/qalert_requests_{path_2}.csv"],
+        destination_cloud_storage_uris = [f"gs://{os.environ['GCS_PREFIX']}_wprdc/qalert_requests_{path}.csv"],
         bigquery_conn_id='google_cloud_default',
         dag = dag
 )

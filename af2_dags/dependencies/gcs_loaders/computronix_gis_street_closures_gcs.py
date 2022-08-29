@@ -53,7 +53,7 @@ tables = [
 # extract the data from ODATA API
 nested_permits = select_expand_odata(url, tables, limit_results = False)
 
-unnested_data = unnest_domi_street_seg(nested_permits, SWAPS, OLD_KEYS, NEW_KEYS)[0]
+unnested_data = unnest_domi_street_seg(nested_permits, SWAPS, OLD_KEYS, NEW_KEYS)
 
 # load data into GCS
 # out loc = <dataset>/<full date>/<run_id>_str_closures.json

@@ -25,14 +25,6 @@ dt = datetime.now()
 bq_client = bigquery.Client()
 storage_client = storage.Client()
 
-DEFAULT_DATAFLOW_ARGS = [
-        '--project=data-rivers',
-        '--subnetwork=https://www.googleapis.com/compute/v1/projects/data-rivers/regions/us-east1/subnetworks/default',
-        '--region=us-east1',
-        '--service_account_email=data-rivers@data-rivers.iam.gserviceaccount.com',
-        '--save_main_session',
-]
-
 
 class JsonCoder(object):
     """A JSON coder interpreting each line as a JSON string."""
@@ -225,7 +217,6 @@ class ConvertBooleans(beam.DoFn, ABC):
                     datum[val[0]] = val[3]
         except TypeError:
             pass
-
         yield datum
 
 
@@ -240,17 +231,37 @@ class ConvertStringCase(beam.DoFn, ABC):
 
     def process(self, datum):
         for val in self.str_changes:
+            if datum[val[0]] is not None:
+                if val[1] == "upper":
+                    datum[val[0]] = datum[val[0]].upper()
+                elif val[1] == "lower":
+                    datum[val[0]] = datum[val[0]].lower()
+                elif val[1] == "sentence":
+                    datum[val[0]] = datum[val[0]].sentence()
+                elif val[1] == "title":
+                    datum[val[0]] = datum[val[0]].title()
+                elif val[1] == "capitalize":
+                    datum[val[0]] = datum[val[0]].capitalize()
 
-            if val[1] is "upper":
-                datum[val[0]] = datum[val[0]].upper()
-            elif val[1] is "lower":
-                datum[val[0]] = datum[val[0]].lower()
-            elif val[1] is "sentence":
-                datum[val[0]] = datum[val[0]].sentence()
-            elif val[1] is "title":
-                datum[val[0]] = datum[val[0]].title()
-            elif val[1] is "capitalize":
-                datum[val[0]] = datum[val[0]].capitalize()
+        yield datum
+
+
+class ExtractField(beam.DoFn):
+    def __init__(self, source_fields, nested_fields, new_field_names, additional_nested_fields="", search_fields="", additional_search_vals=""):
+        self.source_fields = source_fields
+        self.nested_fields = nested_fields
+        self.new_field_names = new_field_names
+        self.additional_nested_fields = additional_nested_fields
+        self.search_fields = search_fields
+        self.additional_search_vals = additional_search_vals
+
+    def process(self, datum):
+        if datum is not None:
+            for src, nst, new, anf, sch, asv in zip(self.source_fields, self.nested_fields, self.new_field_names,
+                                                    self.additional_nested_fields, self.search_fields, self.additional_search_vals):
+                datum = extract_field(datum, src, nst, new, anf, sch, asv)
+        else:
+            logging.info('got NoneType datum')
 
         yield datum
 
@@ -283,6 +294,7 @@ class FilterFields(beam.DoFn, ABC):
     def process(self, datum):
         if datum is not None:
             datum = filter_fields(datum, self.target_fields, self.exclude_target_fields)
+
             yield datum
         else:
             logging.info('got NoneType datum')
@@ -407,7 +419,7 @@ class ReformatPhoneNumbers(beam.DoFn, ABC):
 
 
 class StandardizeTimes(beam.DoFn, ABC):
-    def __init__(self, time_changes):
+    def __init__(self, time_changes, t_format = "%m/%d/%Y %H:%M:%S%z"):
         """
         :param time_changes: list of tuples; each tuple consists of an existing field name containing date strings +
         the name of the timezone the given date string belongs to.
@@ -420,6 +432,7 @@ class StandardizeTimes(beam.DoFn, ABC):
         (JF)
         """
         self.time_changes = time_changes
+        self.t_format = t_format
 
     def process(self, datum):
 
@@ -437,8 +450,8 @@ class StandardizeTimes(beam.DoFn, ABC):
                     utc_conv = loc_time.astimezone(tz = pytz.utc)
                     east_conv = loc_time.astimezone(tz = pytz.timezone('America/New_York'))
                     unix_conv = utc_conv.timestamp()
-                    datum.update({'{}_UTC'.format(time_change[0]) : str(utc_conv),
-                                  '{}_EST'.format(time_change[0]) : str(east_conv),
+                    datum.update({'{}_UTC'.format(time_change[0]) : utc_conv.strftime(self.t_format),
+                                  '{}_EST'.format(time_change[0]) : east_conv.strftime(self.t_format),
                                   '{}_UNIX'.format(time_change[0]): int(unix_conv)})
 
             else:
@@ -463,7 +476,7 @@ class SwapFieldNames(beam.DoFn, ABC):
         yield datum
 
 
-def generate_args(job_name, bucket, argv, schema_name, limit_workers = [False, None]):
+def generate_args(job_name, bucket, argv, schema_name, default_arguments, limit_workers = [False, None]):
     """
     generate arguments for DataFlow jobs (invoked in DataFlow scripts prior to execution). In brief, this function
     initializes the basic options and setup for each step in a dataflow pipeline(e.g. the GCP project to operate on,
@@ -493,7 +506,7 @@ def generate_args(job_name, bucket, argv, schema_name, limit_workers = [False, N
 
     known_args, pipeline_args = parser.parse_known_args(argv)
 
-    arguments = DEFAULT_DATAFLOW_ARGS
+    arguments = default_arguments
     arguments.append('--job_name={}'.format(job_name))
     arguments.append('--staging_location=gs://{}/beam_output/staging'.format(bucket))
     arguments.append('--temp_location=gs://{}/beam_output/temp'.format(bucket))
@@ -512,7 +525,7 @@ def generate_args(job_name, bucket, argv, schema_name, limit_workers = [False, N
     return known_args, pipeline_options, avro_schema
 
 
-# monkey patch for avro schema hashing bug: https://issues.apache.org/jira/browse/AVRO-1737
+# monkey patch for avro schema has  hing bug: https://issues.apache.org/jira/browse/AVRO-1737
 def hash_func(self):
     return hash(str(self))
 
@@ -773,27 +786,74 @@ def regularize_and_geocode_address(datum, self, f_name, del_org_input):
     return datum
 
 
-def extract_field(datum, source_field, nested_field, new_field_name):
+def extract_field(datum, source_field, nested_field, new_field_name, additional_nested_field="", search_field="", additional_search_val=""):
     """
     In cases where datum contains nested dicts, traverse to nested dict and extract a value for reassignment to a new
     non-nested field
 
-    :param datum: datum in PCollection
-    :param source_field: name of field containing desired nested value
+    :param datum: datum in PCollection (dict)
+    :param source_field: name of field containing desired nested value (str)
     :param nested_field: name of field nested within source_field dict the value of which we want to extract
-    and assign its value to new_field_name
-    :param new_field_name: name for new field we're creating with the value of nested_field
+    and assign its value to new_field_name (str)
+    :param new_field_name: name for new field we're creating with the value of nested_field (str)
+    :param additional_nested_field: optional field; name of field nested within nested_field dict the value of which we
+    want to extract and assign its value to new_field_name. Some datums have deeper levels of nested data than others
+    (str)
+    :param search_field: optional field; nested field within source_field whose value indicates which dict within a list
+    of dicts should be extracted and returned within new_field_name. Can either be a string that id's a field name
+    that should *not* be present within list, or a key/value pair with a specific value we should be looking for
+    (str, dict)
+    :param additional_search_val: optional field; nested field within nested_field whose value indicates which dict
+    within a list of dicts should be extracted and returned within new_field_name. Some datums have deeper levels of
+    nested data than others (str)
     :return: datum in PCollection (dict)
     """
     try:
-        datum[new_field_name] = datum[source_field][nested_field]
+        # evaluate how many layers deep nested dict that contains our desired data is
+        if additional_nested_field:
+            datum[new_field_name] = datum[source_field][nested_field][additional_nested_field]
+        else:
+            datum[new_field_name] = datum[source_field][nested_field]
+    except TypeError:
+        # sometimes nested dicts are actually lists of dicts, in which case we need to use search_field to decide
+        # which value to retrieve
+        if search_field:
+            try:
+                # evaluate if search_field is a key/value pair or a field name that indicats an unwanted record
+                if type(search_field) is dict:
+                    search_key = list(search_field)[0]
+                    # loop through list of dicts to find index of dict that has desired value
+                    correct_index = next((i for (i, d) in enumerate(datum[source_field]) if d[search_key]==search_field[search_key]), None)
+                else:
+                    # loop through list of dicts to find index of dict that does not have undesired field
+                    correct_index = next((i for (i, d) in enumerate(datum[source_field]) if search_field not in d), None)
+            # error is thrown if a deeper-level search needs to be performed; this block handles that case
+            except TypeError:
+                correct_index = next((i for (i, d) in enumerate(datum[source_field][nested_field]) if additional_search_val in d[additional_nested_field]), None)
+            # if index number was successfully returned by search, call util function to pull the field from that index
+            if correct_index is not None:
+                datum = extract_field_from_nested_list(datum, source_field, correct_index, nested_field, new_field_name,
+                                                       additional_nested_field)
+            else:
+                try:
+                    # if for some reason the initial analysis of the search field didn't return an index number,
+                    # return the index with the max value for the search field (e.g., the max/most recent date value)
+                    recent_rec = max(datum[source_field], key=lambda x: x[search_field])
+                    correct_index = next((i for (i, d) in enumerate(datum[source_field]) if d[search_field]==recent_rec[search_field]), None)
+                    datum = extract_field_from_nested_list(datum, source_field, correct_index, nested_field, new_field_name,
+                                                           additional_nested_field)
+                except:
+                    datum[new_field_name] = None
+
+        else:
+            datum[new_field_name] = None
     except KeyError:
         datum[new_field_name] = None
 
     return datum
 
 
-def extract_field_from_nested_list(datum, source_field, list_index, nested_field, new_field_name):
+def extract_field_from_nested_list(datum, source_field, list_index, nested_field, new_field_name, additional_nested_field="", additional_search_val=""):
     """
     In cases where datum contains values consisting of lists of dicts, isolate a nested dict within a list and extract
     a value for reassignment to a new non-nested field
@@ -803,11 +863,37 @@ def extract_field_from_nested_list(datum, source_field, list_index, nested_field
     :param list_index: index of relevant nested list contained within source_field (int)
     :param nested_field: name of field nested within the desired list of dicts contained within source_field (str)
     :param new_field_name: name for new field we're creating with the value of nested_field (str)
+    :param additional_nested_field: optional field; name of field nested within nested_field dict the value of which we
+    want to extract and assign its value to new_field_name. Some datums have deeper levels of nested data than others (str)
+    :param additional_search_val: optional field; nested field within nested_field whose value indicates which dict
+    within a list of dicts should be extracted and returned within new_field_name. Some datums have deeper levels of
+    nested data than others (str)
     :return: datum in PCollection (dict)
     """
     try:
-        datum[new_field_name] = datum[source_field][list_index][nested_field]
-    except (KeyError, IndexError):
+        # evaluate how many layers deep nested dict that contains our desired data is
+        if additional_nested_field:
+            datum[new_field_name] = datum[source_field][list_index][nested_field][additional_nested_field]
+        else:
+            datum[new_field_name] = datum[source_field][list_index][nested_field]
+    except KeyError:
+        try:
+            # sometimes index number appears in the reverse order to what is expected (i.e., after the nested field
+            # rather than before it). try extracting field again by reversing the order
+            if additional_nested_field:
+                datum[new_field_name] = datum[source_field][nested_field][list_index][additional_nested_field]
+            else:
+                datum[new_field_name] = datum[source_field][nested_field][list_index]
+        except TypeError:
+            datum[new_field_name] = None
+    except TypeError:
+        try:
+            # attempt search on nested fields in case value still can't be retrieved
+            correct_index = next((i for (i, d) in enumerate(datum[source_field][list_index][nested_field]) if additional_search_val in d[additional_nested_field]), None)
+            datum[new_field_name] = datum[source_field][list_index][nested_field][correct_index][additional_nested_field]
+        except:
+            datum[new_field_name] = None
+    except IndexError:
         datum[new_field_name] = None
 
     return datum
