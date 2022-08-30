@@ -104,6 +104,8 @@ for i in range(len(full_requests)):
         success = True
     except:
         print("Error at ticket index #" + str(i))
+        success = False
+        break
 
 
 # write the successful run information (used by each successive DAG run to find the backfill date)
