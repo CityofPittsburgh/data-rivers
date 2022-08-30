@@ -104,6 +104,9 @@ for i in range(len(full_requests)):
         success = True
     except:
         print("Error at ticket index #" + str(i))
+        print("Full request list length: " + str(len(full_requests)) + "| Scrubbed comment list length: " + str(len(all_comms)))
+        success = False
+        break
 
 
 # write the successful run information (used by each successive DAG run to find the backfill date)
