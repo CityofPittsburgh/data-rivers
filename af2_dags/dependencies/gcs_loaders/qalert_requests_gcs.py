@@ -98,15 +98,12 @@ for b in pre_clean_batches:
 
 # overwrite the original fields with scrubbed data
 success = False
-if len(full_requests) == len(all_comms):
-    for i in range(len(full_requests)):
-        try:
-            full_requests[i]["comments"] = all_comms[i].strip()
-            success = True
-        except:
-            print("Error at ticket index #" + str(i))
-else:
-    print("Error: mismatch in comment list sizes")
+for i in range(len(full_requests)):
+    try:
+        full_requests[i]["comments"] = all_comms[i].strip()
+        success = True
+    except:
+        print("Error at ticket index #" + str(i))
 
 
 # write the successful run information (used by each successive DAG run to find the backfill date)
