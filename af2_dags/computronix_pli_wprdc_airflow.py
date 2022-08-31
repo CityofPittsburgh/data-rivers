@@ -30,7 +30,7 @@ avro_loc = f"avro_output/{path}/"
 
 
 # Run gcs_loader
-exec_gcs = f"python {os.environ['GCS_LOADER_PATH']}/computronix_pli_permits_wprdc.py"
+exec_gcs = f"python {os.environ['GCS_LOADER_PATH']}/computronix_pli_permits_wprdc_gcs.py"
 gcs_loader = BashOperator(
         task_id = 'gcs_loader',
         bash_command = f"{exec_gcs} --output_arg {dataset}/{json_loc}",
