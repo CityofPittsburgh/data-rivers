@@ -9,7 +9,7 @@ from apache_beam.io.avroio import WriteToAvro
 
 from dataflow_utils import dataflow_utils
 from dataflow_utils.dataflow_utils import JsonCoder, SwapFieldNames, generate_args, FilterFields, \
-    ColumnsCamelToSnakeCase, ChangeDataTypes, StandardizeTimes
+    ColumnsCamelToSnakeCase, ChangeDataTypes, ExtractField
 
 DEFAULT_DATAFLOW_ARGS = [
         '--save_main_session',
@@ -19,45 +19,39 @@ DEFAULT_DATAFLOW_ARGS = [
         f"--subnetwork={os.environ['SUBNET']}"
 ]
 
-
-class StripDate(beam.DoFn):
-    def process(self, datum):
-        if datum['Employee_HireDate']:
-            datum['Employee_HireDate'] = datum['Employee_HireDate'].split('T')[0]
-        yield datum
-
-
 def run(argv = None):
     # assign the name for the job and specify the AVRO upload location (GCS bucket), arg parser object,
     # and avro schema to validate data with. Return the arg parser values, PipelineOptions, and avro_schemas (dict)
 
     known_args, pipeline_options, avro_schema = generate_args(
-            job_name = 'ceridian-dataflow',
-            bucket = f"{os.environ['GCS_PREFIX']}_ceridian",
+            job_name = 'intime-dataflow',
+            bucket = f"{os.environ['GCS_PREFIX']}_intime",
             argv = argv,
-            schema_name = 'ceridian_employees',
+            schema_name = 'intime_employees',
             default_arguments = DEFAULT_DATAFLOW_ARGS,
             limit_workers = [False, None]
     )
 
     with beam.Pipeline(options = pipeline_options) as p:
-        field_name_swaps = [('EmployeeEmploymentStatus_EmployeeNumber', 'employee_num'),
-                            ('Department_ShortName', 'dept'),
-                            ('Employee_HireDate', 'hire_date'),
-                            ('DFUnion_ShortName', 'union'),
-                            ('EmploymentStatus_LongName', 'status'),
-                            ('PayClass_LongName', 'pay_class'),
-                            ('DFEthnicity_ShortName', 'ethnicity'),
-                            ('Employee_Gender', 'gender')]
-        type_changes = [('employee_num', 'str')]
+        source_fields = ['contacts', 'units', 'units', 'ranks', 'ranks']
+        nested_fields = ['infos', 'name', 'validFrom', 'rankName', 'validFrom']
+        new_field_names = ['email', 'unit', 'unit_valid_date', 'rank', 'rank_valid_date']
+        additional_nested_fields = ['info', '', '', '', '']
+        search_fields = [{'type': 'EMAIL'}, 'validTo', 'validTo', 'validTo', 'validTo']
+        additional_search_vals = ['pittsburghpa.gov', '', '', '', '']
+        type_changes = [('employee_id', 'str')]
+        keep_fields = ['employee_id', 'first_name', 'last_name', 'email',
+                       'rank', 'rank_valid_date', 'unit', 'unit_valid_date']
 
         lines = p | ReadFromText(known_args.input, coder = JsonCoder())
 
         load = (
                 lines
-                | beam.ParDo(StripDate())
-                | beam.ParDo(SwapFieldNames(field_name_swaps))
+                | beam.ParDo(ExtractField(source_fields, nested_fields, new_field_names,
+                                          additional_nested_fields, search_fields, additional_search_vals))
+                | beam.ParDo(ColumnsCamelToSnakeCase())
                 | beam.ParDo(ChangeDataTypes(type_changes))
+                | beam.ParDo(FilterFields(keep_fields, exclude_target_fields=False))
                 | WriteToAvro(known_args.avro_output, schema = avro_schema, file_name_suffix = '.avro',
                               use_fastavro = True)
         )
