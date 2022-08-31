@@ -157,7 +157,7 @@ class TestDataflowUtils(unittest.TestCase):
         ff = dataflow_utils.FilterFields(relevant_fields, exclude_relevant_fields=False)
         self.assertEqual(next(ff.process(datum)), expected)
 
-    def test_remove_pii(self):
+    def test_replace_pii(self):
         datum = [{'comments': 'remove pothole'},
                  {'comments': 'John Doe is causing a lot of noise'},
                  {'comments': 'plow snow on Smith St and on 1st and Murray, notify me at jdoe@email.com when done'},
@@ -177,7 +177,7 @@ class TestDataflowUtils(unittest.TestCase):
                     {'comments': 'Timmy Smith woke up the whole neighborhood by listening to The Smiths too loud. Call him at 412-111-2222 to make him stop',
                      'anon_comments': '[PERSON_NAME] woke up the whole neighborhood by listening to The Smiths too loud. Call him at [PHONE_NUMBER] to make him stop'}]
 
-        rp = dataflow_utils.RemovePII(input_field, new_field_name, retain_location, info_types)
+        rp = dataflow_utils.ReplacePII(input_field, new_field_name, retain_location, info_types)
         results = []
         for val in datum:
             result = next(rp.process(val))

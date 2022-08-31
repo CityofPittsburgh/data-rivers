@@ -26,8 +26,6 @@ bq_client = bigquery.Client()
 storage_client = storage.Client()
 dlp_client = dlp.DlpServiceClient()
 
-USER_DEFINED_CONST_BUCKET = "user_defined_data"
-
 
 class JsonCoder(object):
     """A JSON coder interpreting each line as a JSON string."""
@@ -421,7 +419,7 @@ class ReformatPhoneNumbers(beam.DoFn, ABC):
             yield "+1" + " (%s) %s-%s" % tuple(re.findall(regex, digits))
 
 
-class RemovePII(beam.DoFn):
+class ReplacePII(beam.DoFn):
     """
     Comments must be scrubbed for PII from 311 requests.
     Comments do not follow strict formatting so this is an imperfect approximation.
@@ -429,16 +427,18 @@ class RemovePII(beam.DoFn):
     place an underscore between the detected words to prevent accidental redaction, redact PII
     The Google data loss prevention (dlp) API is used (via helper function) to scrub PII
     """
-    def __init__(self, input_field, new_field_name, retain_location: bool, info_types):
+    def __init__(self, input_field, new_field_name, retain_location: bool, info_types, gcloud_project, place_id_bucket):
         self.input_field = input_field
         self.new_field_name = new_field_name
         self.retain_location = retain_location
         self.info_types = info_types
+        self.gcloud_project = gcloud_project
+        self.place_id_bucket = place_id_bucket
 
     def process(self, datum):
         if datum is not None:
-            datum[self.new_field_name] = replace_pii(datum, self.input_field, self.retain_location, self.info_types)
-
+            datum[self.new_field_name] = replace_pii(datum, self.input_field, self.retain_location, self.info_types,
+                                                     self.gcloud_project, self.place_id_bucket)
             yield datum
         else:
             logging.info('got NoneType datum')
@@ -955,13 +955,13 @@ def filter_fields(datum, target_fields, exclude_target_fields = True):
     return datum
 
 
-def replace_pii(datum, input_field, retain_location, info_types):
+def replace_pii(datum, input_field, retain_location, info_types, gcloud_project, place_id_bucket):
     try:
         input_str = datum[input_field]
     except TypeError:
         print("what gives")
     if retain_location:
-        input_str = snake_case_place_names(input_str)
+        input_str = snake_case_place_names(input_str, place_id_bucket)
 
     item = {"value": input_str}
     max_findings = 0
@@ -978,23 +978,24 @@ def replace_pii(datum, input_field, retain_location, info_types):
             ]
         }
     }
-    parent = "projects/{}".format(os.environ['GCLOUD_PROJECT'])
+    parent = "projects/{}".format(gcloud_project)
 
     response = dlp_client.deidentify_content(parent, deidentify_config, inspect_config, item)
 
     return response.item.value
 
 
-def snake_case_place_names(input):
+def snake_case_place_names(input, place_id_bucket):
     # Helper function to take a pair of words, containing place name identifiers, and join them together (with an
     # underscore by default). This prevents NLP based Data Loss Prevention/PII scrubbers from targeting places for
     # name based redaction (e.g. avoiding redacting "Schenley" from "Schenley Park"), because the GCP tools will not
     # treat the joined phrase as person's name. This approach should be phased out after a less brittle and more elegant
     # tool is developed.
 
-    bucket = storage_client.get_bucket(USER_DEFINED_CONST_BUCKET)
-    blob = bucket.blob('place_identifiers.txt')
-    place_name_identifiers = blob.download_as_string().decode('utf-8')
+    bucket = storage_client.get_bucket(place_id_bucket)
+
+    place_name_blob = bucket.blob('place_identifiers.txt')
+    place_name_identifiers = place_name_blob.download_as_string().decode('utf-8')
 
     street_num_blob = bucket.blob('street_num_identifiers.txt')
     street_num_identifiers = street_num_blob.download_as_string().decode('utf-8')

@@ -10,7 +10,7 @@ from apache_beam.io.avroio import WriteToAvro
 from dataflow_utils import dataflow_utils
 from dataflow_utils.dataflow_utils import JsonCoder, SwapFieldNames, generate_args, FilterFields, \
     ColumnsCamelToSnakeCase, GetDateStringsFromUnix, ChangeDataTypes, unix_to_date_strings, \
-    FormatAndClassifyAddress, GoogleMapsGeocodeAddress, AnonymizeAddressBlock, AnonymizeLatLong, RemovePII
+    FormatAndClassifyAddress, GoogleMapsGeocodeAddress, AnonymizeAddressBlock, AnonymizeLatLong, ReplacePII
 
 DEFAULT_DATAFLOW_ARGS = [
         '--save_main_session',
@@ -25,6 +25,8 @@ DEFAULT_PII_TYPES = [
     {"name": "EMAIL_ADDRESS"},
     {"name": "PHONE_NUMBER"}
 ]
+
+USER_DEFINED_CONST_BUCKET = "user_defined_data"
 
 class GetStatus(beam.DoFn):
     def process(self, datum):
@@ -125,7 +127,8 @@ def run(argv = None):
 
         load = (
                 lines
-                | beam.ParDo(RemovePII('comments', 'anon_comments', True, DEFAULT_PII_TYPES))
+                | beam.ParDo(ReplacePII('comments', 'anon_comments', True, DEFAULT_PII_TYPES,
+                                        os.environ['GCLOUD_PROJECT'], USER_DEFINED_CONST_BUCKET))
                 | beam.ParDo(SwapFieldNames(field_name_swaps))
                 | beam.ParDo(FilterFields(drop_fields))
                 | beam.ParDo(ColumnsCamelToSnakeCase())
