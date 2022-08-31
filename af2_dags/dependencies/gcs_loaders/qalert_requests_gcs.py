@@ -23,7 +23,7 @@ args = vars(parser.parse_args())
 # payload below
 yesterday = datetime.combine(datetime.now(tz = pendulum.timezone("utc")) - timedelta(1),
                              datetime.min.time()).strftime("%Y-%m-%d %H:%M:%S")
-run_start_win, first_run = find_last_successful_run(bucket, "requests/successful_run_log/log.json", yesterday)
+run_start_win, first_run = find_last_successful_run(bucket, "requests/comment_refactor/successful_run_log/log.json", yesterday)
 
 
 # qscend API requires a value (any value) for the user-agent field
@@ -58,7 +58,7 @@ successful_run = [{"requests_retrieved": len(full_requests),
                    "since": run_start_win,
                    "current_run": curr_run,
                    "note": "Data retrieved between the time points listed above"}]
-json_to_gcs("requests/successful_run_log/log.json", successful_run,
+json_to_gcs("requests/comment_refactor/successful_run_log/log.json", successful_run,
             bucket)
 
 # load to gcs
