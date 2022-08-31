@@ -133,7 +133,7 @@ format_dedupe = BigQueryOperator(
 )
 
 # Query new tickets to determine if they are in the city limits
-query_city_lim = build_city_limits_query('qalert', 'incoming_actions', 'input_pii_lat', 'input_pii_long')
+query_city_lim = build_city_limits_query('qalert', 'comment_refactor_incoming_actions', 'input_pii_lat', 'input_pii_long')
 city_limits = BigQueryOperator(
         task_id = 'city_limits',
         sql = query_city_lim,
@@ -146,7 +146,7 @@ city_limits = BigQueryOperator(
 #  for clearer explanation)
 # FINAL ENRICHMENT OF NEW DATA
 # Join all the geo information (e.g. DPW districts, etc) to the new data
-query_geo_join = build_revgeo_time_bound_query('qalert', 'incoming_actions', "incoming_enriched",
+query_geo_join = build_revgeo_time_bound_query('qalert', 'comment_refactor_incoming_actions', 'comment_refactor_incoming_enriched',
                                                'create_date_utc', 'id', 'input_pii_lat', 'input_pii_long')
 geojoin = BigQueryOperator(
         task_id = 'geojoin',
