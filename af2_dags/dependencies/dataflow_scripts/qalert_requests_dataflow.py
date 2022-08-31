@@ -10,7 +10,7 @@ from apache_beam.io.avroio import WriteToAvro
 from dataflow_utils import dataflow_utils
 from dataflow_utils.dataflow_utils import JsonCoder, SwapFieldNames, generate_args, FilterFields, \
     ColumnsCamelToSnakeCase, GetDateStringsFromUnix, ChangeDataTypes, unix_to_date_strings, \
-    FormatAndClassifyAddress, GoogleMapsGeocodeAddress, AnonymizeAddressBlock, AnonymizeLatLong
+    FormatAndClassifyAddress, GoogleMapsGeocodeAddress, AnonymizeAddressBlock, AnonymizeLatLong, RemovePII
 
 DEFAULT_DATAFLOW_ARGS = [
         '--save_main_session',
@@ -18,6 +18,12 @@ DEFAULT_DATAFLOW_ARGS = [
         f"--service_account_email={os.environ['SERVICE_ACCT']}",
         f"--region={os.environ['REGION']}",
         f"--subnetwork={os.environ['SUBNET']}"
+]
+
+DEFAULT_PII_TYPES = [
+    {"name": "PERSON_NAME"},
+    {"name": "EMAIL_ADDRESS"},
+    {"name": "PHONE_NUMBER"}
 ]
 
 class GetStatus(beam.DoFn):
@@ -63,7 +69,7 @@ def run(argv = None):
             job_name = 'qalert-requests-dataflow',
             bucket = f"{os.environ['GCS_PREFIX']}_qalert",
             argv = argv,
-            schema_name = 'qalert_requests_enriched',
+            schema_name = 'af2_qalert_requests',
             default_arguments=DEFAULT_DATAFLOW_ARGS,
             limit_workers = [False, None]
     )
@@ -72,15 +78,15 @@ def run(argv = None):
         field_name_swaps = [('master', 'parent_ticket_id'),
                             ('addDateUnix', 'create_date_unix'),
                             ('lastActionUnix', 'last_action_unix'),
-                            ("status", "status_code"),
+                            ('status', 'status_code'),
                             ('streetNum', 'pii_street_num'),
                             ('streetName', 'street'),
-                            ("crossStreetName", "cross_street"),
-                            ("comments", "pii_comments"),
-                            ("privateNotes", "pii_private_notes"),
-                            ("latitude", "pii_lat"),
-                            ("longitude", "pii_long"),
-                            ("cityName", "city"),
+                            ('crossStreetName', 'cross_street'),
+                            ('comments', 'pii_comments'),
+                            ('privateNotes', 'pii_private_notes'),
+                            ('latitude', 'pii_lat'),
+                            ('longitude', 'pii_long'),
+                            ('cityName', 'city'),
                             ('typeId', 'request_type_id'),
                             ('typeName', 'request_type_name')]
 
@@ -119,6 +125,7 @@ def run(argv = None):
 
         load = (
                 lines
+                | beam.ParDo(RemovePII('comments', 'anon_comments', True, DEFAULT_PII_TYPES))
                 | beam.ParDo(SwapFieldNames(field_name_swaps))
                 | beam.ParDo(FilterFields(drop_fields))
                 | beam.ParDo(ColumnsCamelToSnakeCase())
