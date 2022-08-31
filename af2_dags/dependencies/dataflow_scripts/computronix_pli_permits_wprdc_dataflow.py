@@ -93,7 +93,7 @@ def run(argv = None):
                 | beam.ParDo(UnNestFields(table_structure))
                 | beam.ParDo(SwapFieldNames(name_swaps))
                 | beam.ParDo(ConvertStringCase(str_convs))
-                | beam.ParDo(StandardizeTimes(times, t_format = "%m/%d/%Y %H:%M:%S"))
+                | beam.ParDo(StandardizeTimes(times, t_format = "%m/%d/%Y"))
                 | WriteToAvro(known_args.avro_output, schema = avro_schema, file_name_suffix = '.avro',
                               use_fastavro = True))
 
