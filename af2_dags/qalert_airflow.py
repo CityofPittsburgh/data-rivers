@@ -26,7 +26,7 @@ council_district, ward, police_zone, fire_zone, dpw_streets, dpw_enviro, dpw_par
 google_pii_lat, google_pii_long, input_anon_lat, input_anon_long, google_anon_lat, google_anon_long"""
 
 LINKED_COLS_IN_ORDER = """status_name, status_code, dept, 
-request_type_name, request_type_id, origin, pii_comments, anon_comments, pii_private_notes, create_date_est, 
+request_type_name, request_type_id, origin, anon_comments, pii_private_notes, create_date_est, 
 create_date_utc, create_date_unix, last_action_est, last_action_utc, last_action_unix, closed_date_est, closed_date_utc, 
 closed_date_unix, pii_street_num, street, cross_street, street_id, cross_street_id, city, pii_input_address, 
 pii_google_formatted_address, anon_google_formatted_address, address_type, neighborhood_name, 
@@ -38,7 +38,7 @@ EXCLUDE_TYPES = """'Hold - 311', 'Graffiti, Owner Refused DPW Removal', 'Medical
 'Question'"""
 
 SAFE_FIELDS = """status_name, status_code, dept, 
-request_type_name, request_type_id, origin, anon_comments, create_date_est, create_date_utc, 
+request_type_name, request_type_id, origin, create_date_est, create_date_utc, 
 create_date_unix, last_action_est, last_action_unix, last_action_utc, closed_date_est, closed_date_utc,  
 closed_date_unix, street, cross_street, street_id, cross_street_id, city, anon_google_formatted_address, 
 address_type, neighborhood_name, council_district, ward, police_zone, fire_zone, dpw_streets, 
@@ -86,7 +86,7 @@ dataflow = BashOperator(
 # Load AVRO data produced by dataflow_script into BQ temp table
 gcs_to_bq = GoogleCloudStorageToBigQueryOperator(
         task_id = 'gcs_to_bq',
-        destination_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}:qalert.comment_refactor_incoming_actions",
+        destination_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}:qalert.incoming_actions",
         bucket = f"{os.environ['GCS_PREFIX']}_qalert",
         source_objects = [f"{dataset}/{avro_loc}*.avro"],
         write_disposition = 'WRITE_TRUNCATE',
@@ -101,7 +101,7 @@ gcs_to_bq = GoogleCloudStorageToBigQueryOperator(
 # source of the error is instrinsic to dataflow and may not be fixable). Also, dedupe the results (someties the same
 # ticket appears in the computer system more than 1 time (a QAlert glitch)
 query_format_dedupe = f"""
-CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.comment_refactor_incoming_actions` AS
+CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_actions` AS
 WITH formatted  AS 
     (
     SELECT 
@@ -116,7 +116,7 @@ WITH formatted  AS
         CAST(google_anon_lat AS FLOAT64) AS google_anon_lat,
         CAST(google_anon_long AS FLOAT64) AS google_anon_long,
     FROM 
-        {os.environ['GCLOUD_PROJECT']}.qalert.comment_refactor_incoming_actions
+        {os.environ['GCLOUD_PROJECT']}.qalert.incoming_actions
     )
 -- drop the final column through slicing the string (-13). final column is added in next query     
 SELECT 
@@ -133,7 +133,7 @@ format_dedupe = BigQueryOperator(
 )
 
 # Query new tickets to determine if they are in the city limits
-query_city_lim = build_city_limits_query('qalert', 'comment_refactor_incoming_actions', 'input_pii_lat', 'input_pii_long')
+query_city_lim = build_city_limits_query('qalert', 'incoming_actions', 'input_pii_lat', 'input_pii_long')
 city_limits = BigQueryOperator(
         task_id = 'city_limits',
         sql = query_city_lim,
@@ -146,7 +146,7 @@ city_limits = BigQueryOperator(
 #  for clearer explanation)
 # FINAL ENRICHMENT OF NEW DATA
 # Join all the geo information (e.g. DPW districts, etc) to the new data
-query_geo_join = build_revgeo_time_bound_query('qalert', 'comment_refactor_incoming_actions', 'comment_refactor_incoming_enriched',
+query_geo_join = build_revgeo_time_bound_query('qalert', 'incoming_actions', 'incoming_enriched',
                                                'create_date_utc', 'id', 'input_pii_lat', 'input_pii_long')
 geojoin = BigQueryOperator(
         task_id = 'geojoin',
@@ -166,7 +166,7 @@ existing parent and it will change into a child ticket. This means the original 
 ticket. Future steps in the DAG will handle that possibility, and for this query the only feasible option is to assume
 the ticket is correctly labeled.*/
 
-INSERT INTO `{os.environ['GCLOUD_PROJECT']}.qalert.comment_refactor_all_linked_requests`
+INSERT INTO `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests`
 (
 SELECT
     id as group_id,
@@ -176,8 +176,8 @@ SELECT
     {LINKED_COLS_IN_ORDER}
 
 FROM
-    `{os.environ['GCLOUD_PROJECT']}.qalert.comment_refactor_incoming_enriched`
-WHERE id NOT IN (SELECT id FROM `{os.environ['GCLOUD_PROJECT']}.qalert.comment_refactor_all_tickets_current_status`)
+    `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_enriched`
+WHERE id NOT IN (SELECT id FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`)
 AND child_ticket = False
 AND request_type_name NOT IN ({EXCLUDE_TYPES})
 );
@@ -204,19 +204,19 @@ along with the other child tickets
 */
 
 -- extract the newly identified child's information for integration in the next query
-CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.comment_refactor_temp_prev_parent_now_child` AS
+CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.temp_prev_parent_now_child` AS
 SELECT 
-    id AS fp_id, parent_ticket_id, pii_comments, pii_private_notes
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.comment_refactor_incoming_enriched`
+    id AS fp_id, parent_ticket_id, pii_comments, anon_comments, pii_private_notes
+FROM `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_enriched`
 WHERE id IN (SELECT 
                 group_id
-             FROM`{os.environ['GCLOUD_PROJECT']}.qalert.comment_refactor_all_linked_requests`)
+             FROM`{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests`)
 AND child_ticket = TRUE ;
 
 -- delete the false parent ticket's information 
-DELETE FROM `{os.environ['GCLOUD_PROJECT']}.qalert.comment_refactor_all_linked_requests`
+DELETE FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests`
 WHERE group_id IN 
-        (SELECT fp_id FROM `{os.environ['GCLOUD_PROJECT']}.qalert.comment_refactor_temp_prev_parent_now_child`);
+        (SELECT fp_id FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_prev_parent_now_child`);
 """
 remove_false_parents = BigQueryOperator(
         task_id = 'remove_false_parents',
@@ -243,7 +243,7 @@ the other newly identified children (those which were never associated with a fa
 Thus, the need to combine ALL OF THE CHILD TICKETS (both those associated with a false parent and those never being
 misrepresented) is handled by this query
 */
-CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.comment_refactor_temp_child_combined` AS
+CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.temp_child_combined` AS
 (
     -- children never seen before and without a false parent
     WITH new_children AS
@@ -251,8 +251,8 @@ CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.comment_refactor_
     SELECT
         id, parent_ticket_id, pii_comments, anon_comments, pii_private_notes
     FROM
-        `{os.environ['GCLOUD_PROJECT']}.qalert.comment_refactor_incoming_enriched` new_c
-    WHERE new_c.id NOT IN (SELECT id FROM `{os.environ['GCLOUD_PROJECT']}.qalert.comment_refactor_all_tickets_current_status`)
+        `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_enriched` new_c
+    WHERE new_c.id NOT IN (SELECT id FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`)
     AND new_c.child_ticket = TRUE
     AND new_c.request_type_name NOT IN ({EXCLUDE_TYPES})
     ),
@@ -266,7 +266,7 @@ CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.comment_refactor_
     UNION ALL
 
     SELECT fp_id AS id, parent_ticket_id, pii_comments, anon_comments, pii_private_notes
-    FROM `{os.environ['GCLOUD_PROJECT']}.qalert.comment_refactor_temp_prev_parent_now_child`
+    FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_prev_parent_now_child`
     ),
 
     -- from ALL children tickets, concatenate the necessary string data
@@ -302,29 +302,29 @@ CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.comment_refactor_
 );
 
 -- update existing entries inside all_linked_requests
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.comment_refactor_all_linked_requests` alr
+UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
 SET alr.num_requests = tcc.cts + alr.num_requests
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.comment_refactor_temp_child_combined` tcc
+FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_child_combined` tcc
 WHERE alr.group_id = tcc.p_id;
 
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.comment_refactor_all_linked_requests` alr
+UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
 SET alr.child_ids =  CONCAT(alr.child_ids,tcc.child_ids)
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.comment_refactor_temp_child_combined` tcc
+FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_child_combined` tcc
 WHERE alr.group_id = tcc.p_id;
 
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.comment_refactor_all_linked_requests` alr
+UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
 SET alr.pii_comments =  CONCAT(alr.pii_comments,tcc.child_pii_comments)
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.comment_refactor_temp_child_combined` tcc
+FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_child_combined` tcc
 WHERE alr.group_id = tcc.p_id;
 
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.comment_refactor_all_linked_requests` alr
+UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
 SET alr.anon_comments =  CONCAT(alr.anon_comments,tcc.child_anon_comments)
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.comment_refactor_temp_child_combined` tcc
+FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_child_combined` tcc
 WHERE alr.group_id = tcc.p_id;
 
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.comment_refactor_all_linked_requests` alr
+UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
 SET alr.pii_private_notes =  CONCAT(alr.pii_private_notes,tcc.child_pii_notes)
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.comment_refactor_temp_child_combined` tcc
+FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_child_combined` tcc
 WHERE alr.group_id = tcc.p_id;
 """
 integrate_children = BigQueryOperator(
@@ -353,7 +353,7 @@ changes to the child ticket. This query selects parent tickets which have been p
 simply extracts and updates the status timestamp data from those tickets. This data is then updated in
 all_linked_requests.
 */
-CREATE OR REPLACE TABLE  `{os.environ['GCLOUD_PROJECT']}.qalert.comment_refactor_temp_update` AS
+CREATE OR REPLACE TABLE  `{os.environ['GCLOUD_PROJECT']}.qalert.temp_update` AS
 (
 SELECT
     id,
@@ -361,56 +361,56 @@ SELECT
     closed_date_est, closed_date_utc,closed_date_unix,
     last_action_est, last_action_utc,last_action_unix,
     status_name, status_code
-FROM  `{os.environ['GCLOUD_PROJECT']}.qalert.comment_refactor_incoming_enriched`
+FROM  `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_enriched`
 
-WHERE id IN (SELECT id FROM `{os.environ['GCLOUD_PROJECT']}.qalert.comment_refactor_all_tickets_current_status`)
+WHERE id IN (SELECT id FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`)
 AND child_ticket = FALSE
 AND request_type_name NOT IN ({EXCLUDE_TYPES})
 );
 
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.comment_refactor_all_linked_requests` alr
+UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
 SET alr.parent_closed = tu.p_closed
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.comment_refactor_temp_update` tu
+FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_update` tu
 WHERE alr.group_id = tu.id;
 
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.comment_refactor_all_linked_requests` alr
+UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
 SET alr.status_name = tu.status_name
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.comment_refactor_temp_update` tu
+FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_update` tu
 WHERE alr.group_id = tu.id;
 
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.comment_refactor_all_linked_requests` alr
+UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
 SET alr.status_code = tu.status_code
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.comment_refactor_temp_update` tu
+FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_update` tu
 WHERE alr.group_id = tu.id;
 
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.comment_refactor_all_linked_requests` alr
+UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
 SET alr.closed_date_est = tu.closed_date_est
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.comment_refactor_temp_update` tu
+FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_update` tu
 WHERE alr.group_id = tu.id;
 
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.comment_refactor_comment_refactor_all_linked_requests` alr
+UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
 SET alr.closed_date_utc = tu.closed_date_utc
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.comment_refactor_temp_update` tu
+FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_update` tu
 WHERE alr.group_id = tu.id;
 
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.comment_refactor_all_linked_requests` alr
+UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
 SET alr.closed_date_unix = tu.closed_date_unix
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.comment_refactor_temp_update` tu
+FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_update` tu
 WHERE alr.group_id = tu.id;
 
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.comment_refactor_all_linked_requests` alr
+UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
 SET alr.last_action_est = tu.last_action_est
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.comment_refactor_temp_update` tu
+FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_update` tu
 WHERE alr.group_id = tu.id;
 
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.comment_refactor_all_linked_requests` alr
+UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
 SET alr.last_action_utc = tu.last_action_utc
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.comment_refactor_temp_update` tu
+FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_update` tu
 WHERE alr.group_id = tu.id;
 
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.comment_refactor_all_linked_requests` alr
+UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
 SET alr.last_action_unix = tu.last_action_unix
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.comment_refactor_temp_update` tu
+FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_update` tu
 WHERE alr.group_id = tu.id;
 """
 replace_last_update = BigQueryOperator(
@@ -436,12 +436,12 @@ all_tickets_current_status is currently (01/22) maintained for historical purpos
 analysis as the linkages between tickets are not taken into account.
 */
 
-DELETE FROM `{os.environ['GCLOUD_PROJECT']}.qalert.comment_refactor_all_tickets_current_status`
-WHERE id IN (SELECT id FROM `{os.environ['GCLOUD_PROJECT']}.qalert.comment_refactor_incoming_enriched`);
-INSERT INTO `{os.environ['GCLOUD_PROJECT']}.qalert.comment_refactor_all_tickets_current_status`
+DELETE FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`
+WHERE id IN (SELECT id FROM `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_enriched`);
+INSERT INTO `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`
 SELECT 
     {COLS_IN_ORDER}
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.comment_refactor_incoming_enriched`;
+FROM `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_enriched`;
 """
 delete_old_insert_new_records = BigQueryOperator(
         task_id = 'delete_old_insert_new_records',
@@ -455,7 +455,7 @@ delete_old_insert_new_records = BigQueryOperator(
 # subsequently exported to WPRDC. BQ will not currently (2021-10-01) allow data to be pushed from a query and it must
 # be stored in a table prior to the push. Thus, this is a 2 step process also involving the operator below.
 query_drop_pii = f"""
-CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.comment_refactor_data_export_scrubbed` AS
+CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.data_export_scrubbed` AS
 SELECT
     group_id,
     child_ids,
@@ -463,7 +463,7 @@ SELECT
     parent_closed,
     {SAFE_FIELDS}
 FROM
-    `{os.environ['GCLOUD_PROJECT']}.qalert.comment_refactor_all_linked_requests`
+    `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests`
 """
 drop_pii_for_export = BigQueryOperator(
         task_id = 'drop_pii_for_export',
@@ -476,7 +476,7 @@ drop_pii_for_export = BigQueryOperator(
 # Export table as CSV to WPRDC bucket
 wprdc_export = BigQueryToCloudStorageOperator(
         task_id = 'wprdc_export',
-        source_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}.qalert.comment_refactor_data_export_scrubbed",
+        source_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}.qalert.data_export_scrubbed",
         destination_cloud_storage_uris = [f"gs://{os.environ['GCS_PREFIX']}_wprdc/qalert_requests/{path}.csv"],
         bigquery_conn_id='google_cloud_default',
         dag = dag
