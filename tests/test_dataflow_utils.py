@@ -161,6 +161,7 @@ class TestDataflowUtils(unittest.TestCase):
         datum = [{'comments': 'remove pothole'},
                  {'comments': 'John Doe is causing a lot of noise'},
                  {'comments': 'plow snow on Smith St and on 1st and Murray, notify me at jdoe@email.com when done'},
+                 {'comments': ''},
                  {'comments': 'I saw Ms. Smith littering'},
                  {'comments': 'Timmy Smith woke up the whole neighborhood by listening to The Smiths too loud. Call him at 412-111-2222 to make him stop'}]
         input_field = 'comments'
@@ -172,12 +173,14 @@ class TestDataflowUtils(unittest.TestCase):
                      'anon_comments': '[PERSON_NAME] is causing a lot of noise'},
                     {'comments': 'plow snow on Smith St and on 1st and Murray, notify me at jdoe@email.com when done',
                      'anon_comments': 'plow snow on Smith_St and on 1st and_Murray, notify me at [EMAIL_ADDRESS] when done'},
+                    {'comments': '',
+                     'anon_comments': 'No comment'},
                     {'comments': 'I saw Ms. Smith littering',
                      'anon_comments': 'I saw [PERSON_NAME] littering'},
                     {'comments': 'Timmy Smith woke up the whole neighborhood by listening to The Smiths too loud. Call him at 412-111-2222 to make him stop',
                      'anon_comments': '[PERSON_NAME] woke up the whole neighborhood by listening to The Smiths too loud. Call him at [PHONE_NUMBER] to make him stop'}]
 
-        rp = dataflow_utils.ReplacePII(input_field, new_field_name, retain_location, info_types)
+        rp = dataflow_utils.ReplacePII(input_field, new_field_name, retain_location, info_types, 'data-rivers-testing', 'user_defined_data')
         results = []
         for val in datum:
             result = next(rp.process(val))
