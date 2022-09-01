@@ -959,7 +959,10 @@ def replace_pii(datum, input_field, retain_location, info_types, gcloud_project,
     try:
         input_str = datum[input_field]
     except TypeError:
-        print("what gives")
+        print("Error extracting value from " + str(input_field) + " field")
+        input_str = ""
+    if not input_str:
+        input_str = "No comment"
     if retain_location:
         input_str = snake_case_place_names(input_str, place_id_bucket)
 
