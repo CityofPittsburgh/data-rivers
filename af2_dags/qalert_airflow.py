@@ -25,6 +25,14 @@ pii_google_formatted_address, anon_google_formatted_address, address_type, neigh
 council_district, ward, police_zone, fire_zone, dpw_streets, dpw_enviro, dpw_parks, input_pii_lat, input_pii_long, 
 google_pii_lat, google_pii_long, input_anon_lat, input_anon_long, google_anon_lat, google_anon_long"""
 
+COLS_IN_ORDER_NO_PII_COMMENTS = """id, parent_ticket_id, child_ticket, dept, status_name, status_code, 
+request_type_name, request_type_id, origin, anon_comments, pii_private_notes, create_date_est, create_date_utc, 
+create_date_unix, last_action_est, last_action_utc, last_action_unix, closed_date_est, closed_date_utc, 
+closed_date_unix, pii_street_num, street, cross_street, street_id, cross_street_id, city, pii_input_address, 
+pii_google_formatted_address, anon_google_formatted_address, address_type, neighborhood_name, 
+council_district, ward, police_zone, fire_zone, dpw_streets, dpw_enviro, dpw_parks, input_pii_lat, input_pii_long, 
+google_pii_lat, google_pii_long, input_anon_lat, input_anon_long, google_anon_lat, google_anon_long"""
+
 LINKED_COLS_IN_ORDER = """status_name, status_code, dept, 
 request_type_name, request_type_id, origin, anon_comments, pii_private_notes, create_date_est, 
 create_date_utc, create_date_unix, last_action_est, last_action_utc, last_action_unix, closed_date_est, closed_date_utc, 
@@ -59,7 +67,7 @@ dag = DAG(
 
 # initialize gcs locations
 bucket = f"gs://{os.environ['GCS_PREFIX']}_qalert"
-dataset = "requests/comment_refactor"
+dataset = "requests"
 
 path = "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds|get_ds_day }}/{{ run_id }}"
 
@@ -206,7 +214,7 @@ along with the other child tickets
 -- extract the newly identified child's information for integration in the next query
 CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.temp_prev_parent_now_child` AS
 SELECT 
-    id AS fp_id, parent_ticket_id, pii_comments, anon_comments, pii_private_notes
+    id AS fp_id, parent_ticket_id, anon_comments, pii_private_notes
 FROM `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_enriched`
 WHERE id IN (SELECT 
                 group_id
@@ -249,7 +257,7 @@ CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.temp_child_combin
     WITH new_children AS
     (
     SELECT
-        id, parent_ticket_id, pii_comments, anon_comments, pii_private_notes
+        id, parent_ticket_id, anon_comments, pii_private_notes
     FROM
         `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_enriched` new_c
     WHERE new_c.id NOT IN (SELECT id FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`)
@@ -265,7 +273,7 @@ CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.temp_child_combin
 
     UNION ALL
 
-    SELECT fp_id AS id, parent_ticket_id, pii_comments, anon_comments, pii_private_notes
+    SELECT fp_id AS id, parent_ticket_id, anon_comments, pii_private_notes
     FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_prev_parent_now_child`
     ),
 
@@ -275,7 +283,6 @@ CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.temp_child_combin
     SELECT
         parent_ticket_id AS concat_p_id,
         STRING_AGG(id, ", ") AS child_ids,
-        STRING_AGG(pii_comments, " <BREAK> ") AS child_pii_comments,
         STRING_AGG(anon_comments, " <BREAK> ") AS child_anon_comments,
         STRING_AGG(pii_private_notes, " <BREAK> ") AS child_pii_notes
     FROM combined_children
@@ -309,11 +316,6 @@ WHERE alr.group_id = tcc.p_id;
 
 UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
 SET alr.child_ids =  CONCAT(alr.child_ids,tcc.child_ids)
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_child_combined` tcc
-WHERE alr.group_id = tcc.p_id;
-
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
-SET alr.pii_comments =  CONCAT(alr.pii_comments,tcc.child_pii_comments)
 FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_child_combined` tcc
 WHERE alr.group_id = tcc.p_id;
 
@@ -440,7 +442,7 @@ DELETE FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`
 WHERE id IN (SELECT id FROM `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_enriched`);
 INSERT INTO `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`
 SELECT 
-    {COLS_IN_ORDER}
+    {COLS_IN_ORDER_NO_PII_COMMENTS}
 FROM `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_enriched`;
 """
 delete_old_insert_new_records = BigQueryOperator(
