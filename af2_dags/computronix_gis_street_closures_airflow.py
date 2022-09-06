@@ -63,7 +63,7 @@ gcs_to_bq = GoogleCloudStorageToBigQueryOperator(
 # Export table as CSV to GIS bucket
 # file name is the date. path contains the date info
 csv_file_name = f"{path}"
-dest_bucket = f"gs://pghpa_{dataset}/street_segments/"
+dest_bucket = f"gs://{os.environ['GIS_PREFIX']}/domi_street_closure_segments"
 gis_export = BigQueryToCloudStorageOperator(
         task_id = 'gis_export',
         source_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}.computronix.gis_street_closures",
@@ -76,7 +76,7 @@ gis_export = BigQueryToCloudStorageOperator(
 # Export table as CSV to WPRDC bucket
 # file name is the date. path contains the date info
 csv_file_name = f"{path}"
-dest_bucket = f"gs://pghpa_wprdc/domi_street_closure/street_segments/"
+dest_bucket = f"gs://{os.environ['GCS_PREFIX']}_wprdc/domi_street_closure/street_segments/"
 wprdc_export = BigQueryToCloudStorageOperator(
         task_id = 'wprdc_export',
         source_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}.computronix.gis_street_closures",
