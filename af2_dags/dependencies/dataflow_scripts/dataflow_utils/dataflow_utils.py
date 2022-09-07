@@ -19,12 +19,11 @@ from dateutil import parser
 import apache_beam as beam
 from apache_beam.options.pipeline_options import PipelineOptions
 
-from google.cloud import bigquery, storage
+from google.cloud import bigquery, storage, dlp_v2
 
 dt = datetime.now()
 bq_client = bigquery.Client()
 storage_client = storage.Client()
-
 
 class JsonCoder(object):
     """A JSON coder interpreting each line as a JSON string."""
@@ -418,6 +417,31 @@ class ReformatPhoneNumbers(beam.DoFn, ABC):
             yield "+1" + " (%s) %s-%s" % tuple(re.findall(regex, digits))
 
 
+class ReplacePII(beam.DoFn):
+    """
+    Comments must be scrubbed for PII from 311 requests.
+    Comments do not follow strict formatting so this is an imperfect approximation.
+    Steps: extract fields, detect person names that are followed by hotwords for exclusion (e.g. park or street),
+    place an underscore between the detected words to prevent accidental redaction, redact PII
+    The Google data loss prevention (dlp) API is used (via helper function) to scrub PII
+    """
+    def __init__(self, input_field, new_field_name, retain_location: bool, info_types, gcloud_project, place_id_bucket):
+        self.input_field = input_field
+        self.new_field_name = new_field_name
+        self.retain_location = retain_location
+        self.info_types = info_types
+        self.gcloud_project = gcloud_project
+        self.place_id_bucket = place_id_bucket
+
+    def process(self, datum):
+        if datum is not None:
+            datum[self.new_field_name] = replace_pii(datum, self.input_field, self.retain_location, self.info_types,
+                                                     self.gcloud_project, self.place_id_bucket)
+            yield datum
+        else:
+            logging.info('got NoneType datum')
+
+
 class StandardizeTimes(beam.DoFn, ABC):
     def __init__(self, time_changes, t_format = "%m/%d/%Y %H:%M:%S%z"):
         """
@@ -470,8 +494,11 @@ class SwapFieldNames(beam.DoFn, ABC):
     def process(self, datum):
 
         for name_change in self.name_changes:
-            datum[name_change[1]] = datum[name_change[0]]
-            del datum[name_change[0]]
+            try:
+                datum[name_change[1]] = datum[name_change[0]]
+                del datum[name_change[0]]
+            except TypeError:
+                print(name_change[0] + " and " + name_change[1] + " were not both found within datum")
 
         yield datum
 
@@ -924,6 +951,72 @@ def filter_fields(datum, target_fields, exclude_target_fields = True):
             datum.pop(field, None)
 
     return datum
+
+
+def replace_pii(datum, input_field, retain_location, info_types, gcloud_project, place_id_bucket):
+    dlp_client = dlp_v2.DlpServiceClient()
+    
+    try:
+        input_str = datum[input_field]
+    except TypeError:
+        print("Error extracting value from " + str(input_field) + " field")
+        input_str = ""
+    if not input_str:
+        input_str = "No comment"
+    if retain_location:
+        input_str = snake_case_place_names(input_str, place_id_bucket)
+
+    item = {"value": input_str}
+    max_findings = 0
+    include_quote = False
+    inspect_config = {
+        "info_types": info_types,
+        "include_quote": include_quote,
+        "limits": {"max_findings_per_request": max_findings},
+    }
+    deidentify_config = {
+        "info_type_transformations": {
+            "transformations": [
+                {"primitive_transformation": {"replace_with_info_type_config": {}}}
+            ]
+        }
+    }
+    parent = "projects/{}".format(gcloud_project)
+
+    response = dlp_client.deidentify_content(
+        request = {"parent": parent,
+                   "deidentify_config": deidentify_config,
+                   "inspect_config": inspect_config,
+                   "item": item
+                   }
+    )
+
+    return response.item.value
+
+
+def snake_case_place_names(input, place_id_bucket):
+    # Helper function to take a pair of words, containing place name identifiers, and join them together (with an
+    # underscore by default). This prevents NLP based Data Loss Prevention/PII scrubbers from targeting places for
+    # name based redaction (e.g. avoiding redacting "Schenley" from "Schenley Park"), because the GCP tools will not
+    # treat the joined phrase as person's name. This approach should be phased out after a less brittle and more elegant
+    # tool is developed.
+
+    bucket = storage_client.get_bucket(place_id_bucket)
+
+    place_name_blob = bucket.blob('place_identifiers.txt')
+    place_name_identifiers = place_name_blob.download_as_string().decode('utf-8')
+
+    street_num_blob = bucket.blob('street_num_identifiers.txt')
+    street_num_identifiers = street_num_blob.download_as_string().decode('utf-8')
+
+    # if an identifier is found (indicative of a place such as a road or park), we want to join the place with the
+    # preceding word with the join character. Thus, "Moore Park" would become "Moore_Park".
+    joined_places = (re.sub(r'(\s)\b({})\b'.format(place_name_identifiers), r'_\2', input,
+                            flags=re.IGNORECASE))
+    joined_places = (re.sub(r'\b({})\b(\s)'.format(street_num_identifiers), r'\1_', joined_places,
+                            flags=re.IGNORECASE))
+
+    return joined_places
 
 
 def sort_dict(d):

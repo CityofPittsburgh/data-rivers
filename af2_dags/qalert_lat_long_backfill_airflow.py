@@ -114,7 +114,7 @@ CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_reques
 SELECT 
     group_id, child_ids, num_requests, parent_closed, status_name, 
     status_code, dept, request_type_name, request_type_id, origin,
-    pii_comments, pii_private_notes, create_date_est, create_date_utc, 
+    anon_comments, pii_private_notes, create_date_est, create_date_utc, 
     create_date_unix, last_action_est, last_action_utc, last_action_unix, 
     closed_date_est, closed_date_utc, closed_date_unix, pii_street_num, 
     street, cross_street, street_id, cross_street_id, city, 
@@ -133,7 +133,7 @@ CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_curre
 SELECT 
     atcs.id, atcs.parent_ticket_id, atcs.child_ticket, dept, status_name, 
     status_code, request_type_name, request_type_id, origin,
-    pii_comments, pii_private_notes, create_date_est, create_date_utc, 
+    anon_comments, pii_private_notes, create_date_est, create_date_utc, 
     create_date_unix, last_action_est, last_action_utc, last_action_unix, 
     closed_date_est, closed_date_utc, closed_date_unix, pii_street_num, 
     street, cross_street, street_id, cross_street_id, city, 

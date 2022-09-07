@@ -23,7 +23,7 @@ args = vars(parser.parse_args())
 
 today = datetime.now(tz = pendulum.timezone("utc")).strftime("%Y-%m-%d")
 
-BASE_URL = 'https://intime2.intimesoft.com/ise/employee/v3/EmployeeAccess?wsdl'
+BASE_URL = 'https://intime2.intimesoft.com/ise/employee/v3/EmployeeAccess'
 auth = HTTPBasicAuth(os.environ['INTIME_USER'], os.environ['INTIME_PW'])
 
 
@@ -38,16 +38,6 @@ def generate_xml(branch, from_time, to_time):
     """
     return F"""
     <S:Envelope xmlns:S="http://schemas.xmlsoap.org/soap/envelope/" xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/" xmlns:v3="http://v3.employeeaccess.rise.intimesoft.com/">
-        <SOAP-ENV:Header>
-            <wsse:Security
-                xmlns:wsse="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd">
-                <wsse:UsernameToken
-                    xmlns:wsu="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd">
-                    <wsse:Username>{os.environ['INTIME_USER']}</wsse:Username>
-                    <wsse:Password Type="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wssusername-token-profile-1.0#PasswordText">{os.environ['INTIME_PW']}</wsse:Password>
-                </wsse:UsernameToken>
-            </wsse:Security>
-        </SOAP-ENV:Header>
         <S:Body>
             <v3:getEmployeeDataList>
                 <branchRef>{branch}</branchRef>
