@@ -1,6 +1,7 @@
 import os
 import argparse
 import requests
+from datetime import date
 
 from gcs_utils import json_to_gcs
 
@@ -31,11 +32,10 @@ args = vars(parser.parse_args())
 
 bucket = f"{os.environ['GCS_PREFIX']}_computronix"
 
+# CX ODATA API URL service root
+root = 'https://staff.onestoppgh.pittsburghpa.gov/pghprod/odata/odata/'
 
-# CX ODATA API URL base
-url = 'https://staff.onestoppgh.pittsburghpa.gov/pghprod/odata/odata/'
-
-# PLI tables
+# PLI Entity
 base = "CASEFILE"
 
 # unnested expansion (only on base table)
@@ -49,21 +49,23 @@ fds_unt1 = "DATECOMPLETED, OUTCOME, FINDINGS"
 fds_unt2 = "CODESECTION, CODESECTIONTITLE, DESCRIPTION, SPECIALINSTRUCTIONS"
 fds_unt3 = "NAME"
 
-# build url components
-odata_url_date_filter = F"$filter=DATECOMPLETED gt 2020-06-01T00:00:00Z"
-odata_url_base_fields = F"$select={fds_base}"
+# build filter which excludes data before implementation of CX system (6/20) and data that have not yet been
+# inspected (which are not meaningul at that point. The data will be included when the subsequent inspection occurs)
+today = date.today()
+date_filter = F"$filter=DATECOMPLETED gt 2020-06-01T00:00:00Z and DATECOMPLETED lt {today}T00:00:00Z"
 
-odata_url_expansions = F"$expand={unnested_table_1}($select={fds_unt1}),{odata_url_date_filter}, " \
-                 F"expand={unnested_table_2}($select={fds_unt2}), " \
-                 F"expand={unnested_table_3}($select={fds_unt3})"
-
-odata_url = F"{url}{base}?{odata_url_base_fields},{odata_url_expansions}"
+# build url
+odata_url = F"{root}{base}?" \
+            F"$select={fds_base}, " \
+            "&" \
+            F"$expand={unnested_table_1}" \
+            F"($select={fds_unt1};{date_filter}), " \
+            F"{unnested_table_2}($select={fds_unt2}), " \
+            F"{unnested_table_3}($select={fds_unt3})"
 
 # get violations from API
 violations = hit_cx_odata_api(odata_url)
 
-
 # load data into GCS
-# out loc = <dataset>/<full date>/<run_id>_str_closures.json
+# out loc = <dataset>/<full date>/<run_id>_violations.json
 json_to_gcs(args["out_loc"], violations, bucket)
-
