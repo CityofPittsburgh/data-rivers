@@ -24,8 +24,6 @@ from google.cloud import bigquery, storage, dlp_v2
 dt = datetime.now()
 bq_client = bigquery.Client()
 storage_client = storage.Client()
-dlp_client = dlp.DlpServiceClient()
-
 
 class JsonCoder(object):
     """A JSON coder interpreting each line as a JSON string."""
