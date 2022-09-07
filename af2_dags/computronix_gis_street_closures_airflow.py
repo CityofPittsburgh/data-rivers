@@ -60,7 +60,7 @@ gcs_to_bq = GoogleCloudStorageToBigQueryOperator(
 )
 
 
-# Export table as CSV to GIS bucket
+# Export table as CSV to data-bridGIS bucket
 # file name is the date. path contains the date info
 csv_file_name = f"{path}"
 dest_bucket = f"gs://{os.environ['GIS_PREFIX']}_domi_street_closures/street_segments/"
