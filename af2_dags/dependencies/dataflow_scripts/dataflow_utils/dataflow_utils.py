@@ -19,12 +19,11 @@ from dateutil import parser
 import apache_beam as beam
 from apache_beam.options.pipeline_options import PipelineOptions
 
-from google.cloud import bigquery, storage, dlp
+from google.cloud import bigquery, storage, dlp_v2
 
 dt = datetime.now()
 bq_client = bigquery.Client()
 storage_client = storage.Client()
-dlp_client = dlp.DlpServiceClient()
 
 
 class JsonCoder(object):
@@ -956,6 +955,8 @@ def filter_fields(datum, target_fields, exclude_target_fields = True):
 
 
 def replace_pii(datum, input_field, retain_location, info_types, gcloud_project, place_id_bucket):
+    dlp_client = dlp_v2.DlpServiceClient()
+
     try:
         input_str = datum[input_field]
     except TypeError:
@@ -983,7 +984,13 @@ def replace_pii(datum, input_field, retain_location, info_types, gcloud_project,
     }
     parent = "projects/{}".format(gcloud_project)
 
-    response = dlp_client.deidentify_content(parent, deidentify_config, inspect_config, item)
+    response = dlp_client.deidentify_content(
+        request = {"parent": parent,
+                   "deidentify_config": deidentify_config,
+                   "inspect_config": inspect_config,
+                   "item": item
+                   }
+    )
 
     return response.item.value
 
