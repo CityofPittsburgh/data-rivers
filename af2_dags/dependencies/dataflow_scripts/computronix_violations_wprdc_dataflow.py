@@ -26,10 +26,10 @@ DEFAULT_DATAFLOW_ARGS = [
 # project/service_acct/etc.). The schema is loaded as a dict
 def run(argv = None):
     known_args, pipeline_options, avro_schema = generate_args(
-            job_name = 'computronix-pli-wprdc',
+            job_name = 'computronix-violations-wprdc',
             bucket = '{}_computronix'.format(os.environ['GCS_PREFIX']),
             argv = argv,
-            schema_name = 'computronix_pli_wprdc',
+            schema_name = 'computronix_violations_wprdc',
             default_arguments = DEFAULT_DATAFLOW_ARGS
     )
 
@@ -37,9 +37,8 @@ def run(argv = None):
 
         str_convs = [("ext_file_num", "upper"), ("investigation_outcome", "upper"), ("investigation_date", "upper"),
                      ("violation_desc", "upper"), ("status", "upper"), ("investigation_findings", "upper"),
-                     ("violation_code_title", "upper"), ("violation_code_section", "upper"),
-                     ("violation_special_instructions", "upper"), ("work_desc", "upper"), ("parcel_num", "upper"),
-                     ("address", "upper")]
+                     ("violation_code_title", "upper"), ("violation_code_sec", "upper"),
+                     ("violation_spec_instructions", "upper"), ("parcel_num", "upper"), ("address", "upper")]
 
         times = [("investigation_date", "EST")]
 
