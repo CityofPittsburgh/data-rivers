@@ -126,7 +126,7 @@ violations = hit_cx_odata_api(odata_url)
 # names to swap for fields that are not nested in raw data
 swaps = [
         fds_base.split(", "),
-        ["ext_file_num", "status", "address", "parcel_num"]
+        ["casefile_number", "status", "address", "parcel_num"]
 ]
 unnested_violations = unnest_violations(violations, swaps)
 

@@ -35,7 +35,7 @@ def run(argv = None):
 
     with beam.Pipeline(options = pipeline_options) as p:
 
-        str_convs = [("ext_file_num", "upper"), ("investigation_outcome", "upper"), ("investigation_date", "upper"),
+        str_convs = [("casefile_number", "upper"), ("investigation_outcome", "upper"), ("investigation_date", "upper"),
                      ("violation_desc", "upper"), ("status", "upper"), ("investigation_findings", "upper"),
                      ("violation_code_title", "upper"), ("violation_code_sec", "upper"),
                      ("violation_spec_instructions", "upper"), ("parcel_num", "upper"), ("address", "upper")]
@@ -47,7 +47,7 @@ def run(argv = None):
         load = (
                 lines
                 | beam.ParDo(ConvertStringCase(str_convs))
-                | beam.ParDo(StandardizeTimes(times, t_format = "%m/%d/%Y"))
+                | beam.ParDo(StandardizeTimes(times, t_format = "%Y/%m/%d"))
                 | WriteToAvro(known_args.avro_output, schema = avro_schema, file_name_suffix = '.avro',
                               use_fastavro = True))
 
