@@ -93,5 +93,5 @@ beam_cleanup = BashOperator(
     dag=dag
 )
 
-gcs_loader >> dataflow >> gcs_to_bq >> wprdc_export >> beam_cleanup
+gcs_loader >> dataflow >> gcs_to_bq >> sort_data >> wprdc_export >> beam_cleanup
 
