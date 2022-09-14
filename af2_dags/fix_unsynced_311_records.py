@@ -8,7 +8,7 @@ from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOperator
 from dependencies import airflow_utils
 from dependencies.airflow_utils import get_ds_month, get_ds_year, \
-    default_args, build_sync_staging_table_query, build_sync_update_query
+    default_args, build_sync_staging_table_query, build_sync_update_query, build_dedup_old_updates
 
 # The goal of this mini-DAG is to fix a recurring issue where 311 ticket data differs
 # between their records in all_tickets_current_status and all_linked_requests in BigQuery
@@ -74,10 +74,21 @@ update_unsynced_tickets = BigQueryOperator(
         dag = dag
 )
 
-beam_cleanup = BashOperator(
-    task_id='beam_cleanup',
-    bash_command=airflow_utils.beam_cleanup_statement('{}_ticket_mismatch_fix'.format(os.environ['GCS_PREFIX'])),
+last_upd_field = 'last_action_unix'
+query_dedup_old = build_dedup_old_updates(dataset, upd_table,
+                                          upd_id_field, last_upd_field)
+dedup_old_updates = BigQueryOperator(
+    task_id='dedup_old_updates',
+    sql=query_dedup_old,
+    bigquery_conn_id='google_cloud_default',
+    use_legacy_sql=False,
     dag=dag
 )
 
-create_unsynced_table >> update_unsynced_tickets >> beam_cleanup
+beam_cleanup = BashOperator(
+    task_id='beam_cleanup',
+    bash_command=airflow_utils.beam_cleanup_statement(f"{os.environ['GCS_PREFIX']}_fix_unsynced_311_records"),
+    dag=dag
+)
+
+create_unsynced_table >> update_unsynced_tickets >> dedup_old_updates >> beam_cleanup
