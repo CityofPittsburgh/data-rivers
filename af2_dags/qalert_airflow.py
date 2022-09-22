@@ -18,18 +18,26 @@ from dependencies.airflow_utils import get_ds_year, get_ds_month, get_ds_day, de
     build_revgeo_time_bound_query
 
 COLS_IN_ORDER = """id, parent_ticket_id, child_ticket, dept, status_name, status_code, request_type_name, 
-request_type_id, origin, pii_comments, pii_private_notes, create_date_est, create_date_utc, create_date_unix, 
-last_action_est, last_action_utc, last_action_unix, closed_date_est, closed_date_utc, closed_date_unix, 
-pii_street_num, street, cross_street, street_id, cross_street_id, city, pii_input_address, 
-pii_google_formatted_address, address_type, anon_google_formatted_address, neighborhood_name, 
+request_type_id, origin, pii_comments, anon_comments, pii_private_notes, create_date_est, create_date_utc, 
+create_date_unix, last_action_est, last_action_utc, last_action_unix, closed_date_est, closed_date_utc, 
+closed_date_unix, pii_street_num, street, cross_street, street_id, cross_street_id, city, pii_input_address, 
+pii_google_formatted_address, anon_google_formatted_address, address_type, neighborhood_name, 
+council_district, ward, police_zone, fire_zone, dpw_streets, dpw_enviro, dpw_parks, input_pii_lat, input_pii_long, 
+google_pii_lat, google_pii_long, input_anon_lat, input_anon_long, google_anon_lat, google_anon_long"""
+
+COLS_IN_ORDER_NO_PII_COMMENTS = """id, parent_ticket_id, child_ticket, dept, status_name, status_code, 
+request_type_name, request_type_id, origin, anon_comments, pii_private_notes, create_date_est, create_date_utc, 
+create_date_unix, last_action_est, last_action_utc, last_action_unix, closed_date_est, closed_date_utc, 
+closed_date_unix, pii_street_num, street, cross_street, street_id, cross_street_id, city, pii_input_address, 
+pii_google_formatted_address, anon_google_formatted_address, address_type, neighborhood_name, 
 council_district, ward, police_zone, fire_zone, dpw_streets, dpw_enviro, dpw_parks, input_pii_lat, input_pii_long, 
 google_pii_lat, google_pii_long, input_anon_lat, input_anon_long, google_anon_lat, google_anon_long"""
 
 LINKED_COLS_IN_ORDER = """status_name, status_code, dept, 
-request_type_name, request_type_id, origin, pii_comments, pii_private_notes, create_date_est, create_date_utc, 
-create_date_unix, last_action_est, last_action_utc, last_action_unix, closed_date_est, closed_date_utc, closed_date_unix, 
-pii_street_num, street, cross_street, street_id, cross_street_id, city, pii_input_address, 
-pii_google_formatted_address, address_type, anon_google_formatted_address, neighborhood_name, 
+request_type_name, request_type_id, origin, anon_comments, pii_private_notes, create_date_est, 
+create_date_utc, create_date_unix, last_action_est, last_action_utc, last_action_unix, closed_date_est, closed_date_utc, 
+closed_date_unix, pii_street_num, street, cross_street, street_id, cross_street_id, city, pii_input_address, 
+pii_google_formatted_address, anon_google_formatted_address, address_type, neighborhood_name, 
 council_district, ward, police_zone, fire_zone, dpw_streets, dpw_enviro, dpw_parks, input_pii_lat, input_pii_long, 
 google_pii_lat, google_pii_long, input_anon_lat, input_anon_long, google_anon_lat, google_anon_long"""
 
@@ -38,10 +46,10 @@ EXCLUDE_TYPES = """'Hold - 311', 'Graffiti, Owner Refused DPW Removal', 'Medical
 'Question'"""
 
 SAFE_FIELDS = """status_name, status_code, dept, 
-request_type_name, request_type_id, create_date_est, create_date_utc, 
+request_type_name, request_type_id, origin, create_date_est, create_date_utc, 
 create_date_unix, last_action_est, last_action_unix, last_action_utc, closed_date_est, closed_date_utc,  
-closed_date_unix, street, cross_street, street_id, cross_street_id, city, address_type,  
-anon_google_formatted_address, neighborhood_name, council_district, ward, police_zone, fire_zone, dpw_streets, 
+closed_date_unix, street, cross_street, street_id, cross_street_id, city, anon_google_formatted_address, 
+address_type, neighborhood_name, council_district, ward, police_zone, fire_zone, dpw_streets, 
 dpw_enviro, dpw_parks, input_anon_lat, input_anon_long, google_anon_lat, google_anon_long"""
 
 
@@ -79,7 +87,7 @@ gcs_loader = BashOperator(
 exec_df = f"python {os.environ['DATAFLOW_SCRIPT_PATH']}/qalert_requests_dataflow.py"
 dataflow = BashOperator(
         task_id = 'dataflow',
-        bash_command = f"{exec_df} --input {bucket}/{dataset}/{json_loc} --avro_output {bucket}/{dataset}/{avro_loc}", #--runner DirectRunner",
+        bash_command = f"{exec_df} --input {bucket}/{dataset}/{json_loc} --avro_output {bucket}/{dataset}/{avro_loc}",
         dag = dag
 )
 
@@ -146,7 +154,7 @@ city_limits = BigQueryOperator(
 #  for clearer explanation)
 # FINAL ENRICHMENT OF NEW DATA
 # Join all the geo information (e.g. DPW districts, etc) to the new data
-query_geo_join = build_revgeo_time_bound_query('qalert', 'incoming_actions', "incoming_enriched",
+query_geo_join = build_revgeo_time_bound_query('qalert', 'incoming_actions', 'incoming_enriched',
                                                'create_date_utc', 'id', 'input_pii_lat', 'input_pii_long')
 geojoin = BigQueryOperator(
         task_id = 'geojoin',
@@ -206,7 +214,7 @@ along with the other child tickets
 -- extract the newly identified child's information for integration in the next query
 CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.temp_prev_parent_now_child` AS
 SELECT 
-    id AS fp_id, parent_ticket_id, pii_comments, pii_private_notes
+    id AS fp_id, parent_ticket_id, anon_comments, pii_private_notes
 FROM `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_enriched`
 WHERE id IN (SELECT 
                 group_id
@@ -249,7 +257,7 @@ CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.temp_child_combin
     WITH new_children AS
     (
     SELECT
-        id, parent_ticket_id, pii_comments, pii_private_notes
+        id, parent_ticket_id, anon_comments, pii_private_notes
     FROM
         `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_enriched` new_c
     WHERE new_c.id NOT IN (SELECT id FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`)
@@ -265,7 +273,7 @@ CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.temp_child_combin
 
     UNION ALL
 
-    SELECT fp_id AS id, parent_ticket_id, pii_comments, pii_private_notes
+    SELECT fp_id AS id, parent_ticket_id, anon_comments, pii_private_notes
     FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_prev_parent_now_child`
     ),
 
@@ -275,7 +283,7 @@ CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.temp_child_combin
     SELECT
         parent_ticket_id AS concat_p_id,
         STRING_AGG(id, ", ") AS child_ids,
-        STRING_AGG(pii_comments, " <BREAK> ") AS child_pii_comments,
+        STRING_AGG(anon_comments, " <BREAK> ") AS child_anon_comments,
         STRING_AGG(pii_private_notes, " <BREAK> ") AS child_pii_notes
     FROM combined_children
     GROUP BY concat_p_id
@@ -312,7 +320,7 @@ FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_child_combined` tcc
 WHERE alr.group_id = tcc.p_id;
 
 UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
-SET alr.pii_comments =  CONCAT(alr.pii_comments,tcc.child_pii_comments)
+SET alr.anon_comments =  CONCAT(alr.anon_comments,tcc.child_anon_comments)
 FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_child_combined` tcc
 WHERE alr.group_id = tcc.p_id;
 
@@ -434,7 +442,7 @@ DELETE FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`
 WHERE id IN (SELECT id FROM `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_enriched`);
 INSERT INTO `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`
 SELECT 
-    {COLS_IN_ORDER}
+    {COLS_IN_ORDER_NO_PII_COMMENTS}
 FROM `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_enriched`;
 """
 delete_old_insert_new_records = BigQueryOperator(
@@ -471,7 +479,7 @@ drop_pii_for_export = BigQueryOperator(
 wprdc_export = BigQueryToCloudStorageOperator(
         task_id = 'wprdc_export',
         source_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}.qalert.data_export_scrubbed",
-        destination_cloud_storage_uris = [f"gs://{os.environ['GCS_PREFIX']}_wprdc/qalert_requests_{path}.csv"],
+        destination_cloud_storage_uris = [f"gs://{os.environ['GCS_PREFIX']}_wprdc/qalert_requests/{path}.csv"],
         bigquery_conn_id='google_cloud_default',
         dag = dag
 )

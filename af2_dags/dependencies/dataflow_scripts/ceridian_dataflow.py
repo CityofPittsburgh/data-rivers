@@ -41,7 +41,6 @@ def run(argv = None):
     )
 
     with beam.Pipeline(options = pipeline_options) as p:
-        # include the unit (kWh) in energy column name
         field_name_swaps = [('EmployeeEmploymentStatus_EmployeeNumber', 'employee_num'),
                             ('Department_ShortName', 'dept'),
                             ('Employee_HireDate', 'hire_date'),

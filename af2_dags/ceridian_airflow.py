@@ -7,11 +7,8 @@ from airflow.operators.bash_operator import BashOperator
 from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOperator
 from dependencies import airflow_utils
-from dependencies.airflow_utils import get_ds_month, get_ds_year, get_ds_day, default_args
-
-COLS_IN_ORDER = """session_id, energy_kwh, start_time_UTC, start_time_EST, start_time_UNIX,
-end_time_UTC, end_time_EST, end_time_UNIX, station_id, station_name, port_number, address, city,
-state, country, zip, credential_id"""
+from dependencies.airflow_utils import get_ds_month, get_ds_year, get_ds_day, \
+    default_args, build_percentage_table_query
 
 # The goal of this DAG is to perform a daily pull of basic demographic information for each
 # City of Pittsburgh employee via the Ceridian Dayforce API. This  data will be stored securely
@@ -62,16 +59,40 @@ ceridian_bq_load = GoogleCloudStorageToBigQueryOperator(
         dag = dag
 )
 
-create_gender_comp_table = BashOperator(
-    task_id='create_gender_comp_table',
-    bash_command=f"python {os.environ['SQL_SCRIPT_PATH']}/create_gender_comp_table.py",
-    dag=dag
+gender_table = 'employee_vs_gen_pop_gender_comp'
+gender_pct_field = 'gender'
+categories = ['City Employee', 'Overall City']
+gender_hardcoded_vals = [{gender_pct_field: 'M', 'percentage': 00.49},
+                         {gender_pct_field: 'F', 'percentage': 00.51}]
+query_gender_comp = build_percentage_table_query('ceridian', 'active_employees', gender_table,
+                                                 False, 'employee_num', gender_pct_field,
+                                                 categories, gender_hardcoded_vals)
+create_gender_comp_table = BigQueryOperator(
+        task_id = 'create_gender_comp_table',
+        sql = query_gender_comp,
+        bigquery_conn_id='google_cloud_default',
+        use_legacy_sql = False,
+        dag = dag
 )
 
-create_racial_comp_table = BashOperator(
-    task_id='create_racial_comp_table',
-    bash_command=f"python {os.environ['SQL_SCRIPT_PATH']}/create_racial_comp_table.py",
-    dag=dag
+race_table = 'employee_vs_gen_pop_racial_comp'
+race_pct_field = 'ethnicity'
+race_hardcoded_vals = [{race_pct_field: 'White', 'percentage': 00.645},
+                       {race_pct_field: 'Black or African American', 'percentage': 00.23},
+                       {race_pct_field: 'Asian', 'percentage': 00.058},
+                       {race_pct_field: 'Hispanic or Latino', 'percentage': 00.034},
+                       {race_pct_field: 'American Indian or Alaska Native', 'percentage': 00.002},
+                       {race_pct_field: 'Native Hawaiian or Other Pacific Islander', 'percentage': 00.001},
+                       {race_pct_field: 'Two or More Races', 'percentage': 00.036}]
+query_racial_comp = build_percentage_table_query('ceridian', 'active_employees', race_table,
+                                                 False, 'employee_num', race_pct_field,
+                                                 categories, race_hardcoded_vals)
+create_racial_comp_table = BigQueryOperator(
+        task_id = 'create_racial_comp_table',
+        sql = query_racial_comp,
+        bigquery_conn_id='google_cloud_default',
+        use_legacy_sql = False,
+        dag = dag
 )
 
 beam_cleanup = BashOperator(

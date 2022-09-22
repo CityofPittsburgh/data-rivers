@@ -7,7 +7,7 @@ from airflow.operators.bash_operator import BashOperator
 from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOperator
 from dependencies import airflow_utils
-from dependencies.airflow_utils import get_ds_month, get_ds_year, default_args
+from dependencies.airflow_utils import get_ds_month, get_ds_year, default_args_today
 
 # The goal of this mini-DAG is to perform a daily pull of the previous day's weather in Pittsburgh
 # using the OpenWeatherMap API. This weather data will be used to provide context to pothole fill
@@ -15,7 +15,7 @@ from dependencies.airflow_utils import get_ds_month, get_ds_year, default_args
 
 dag = DAG(
     'prev_day_weather',
-    default_args=default_args,
+    default_args=default_args_today,
     schedule_interval='@daily',
     user_defined_filters={'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year}
 )
@@ -32,20 +32,12 @@ prev_day_weather_gcs = BashOperator(
     dag=dag
 )
 
-prev_day_weather_dataflow = BashOperator(
-    task_id='prev_day_weather_dataflow',
-    bash_command=f"python {os.environ['DATAFLOW_SCRIPT_PATH']}/prev_day_weather_dataflow.py "
-                 f"--input gs://{bucket}/{dataset}/weather_dataflow_test.json "
-                 f"--avro_output gs://{bucket}/{dataset}",
-    dag=dag
-)
-
 prev_day_weather_bq_load = GoogleCloudStorageToBigQueryOperator(
         task_id = 'prev_day_weather_bq_load',
         destination_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}.{dataset}.daily_weather",
-        bigquery_conn_id='google_cloud_default',
         bucket = bucket,
         source_objects = [f"{dataset}/{path}/"+"{{ prev_ds }}_weather_report.avro"],
+        bigquery_conn_id='google_cloud_default',
         write_disposition='WRITE_APPEND',
         create_disposition='CREATE_IF_NEEDED',
         source_format = 'AVRO',
@@ -59,4 +51,4 @@ beam_cleanup = BashOperator(
         dag = dag
 )
 
-prev_day_weather_gcs >> prev_day_weather_dataflow >> prev_day_weather_bq_load >> beam_cleanup
+prev_day_weather_gcs >> prev_day_weather_bq_load >> beam_cleanup

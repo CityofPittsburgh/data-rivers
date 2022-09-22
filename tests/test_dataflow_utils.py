@@ -9,8 +9,8 @@ import numpy as np
 import requests
 import pytz
 
-import dataflow_utils
-from af2_dags.dependencies.dataflow_scripts.dataflow_utils import dataflow_utils as af2_dataflow_utils
+#import dataflow_utils
+from af2_dags.dependencies.dataflow_scripts.dataflow_utils import dataflow_utils# as af2_dataflow_utils
 from numpy import random
 
 
@@ -52,14 +52,14 @@ class TestDataflowUtils(unittest.TestCase):
         expected = {'bool_1': True, 'bool_2': False,
                     'bool_3': False, 'bool_4': True,
                     'bool_5': 'N/A', 'bool_6': False}
-        cb = af2_dataflow_utils.ConvertBooleans(bool_changes, include_defaults = False)
+        cb = dataflow_utils.ConvertBooleans(bool_changes, include_defaults = False)
         self.assertEqual(next(cb.process(datum)), expected)
 
     def test_filter_outliers(self):
         datum = {"num_bridges": 446, "num_super_bowls": 6}
         outliers_conv = [("num_bridges", 1, 445), ("num_super_bowls", 6, 9999)]
         expected = {"num_bridges": None, "num_super_bowls": 6}
-        fo = af2_dataflow_utils.FilterOutliers(outliers_conv)
+        fo = dataflow_utils.FilterOutliers(outliers_conv)
         self.assertEqual(next(fo.process(datum)), expected)
 
     def test_google_maps_classify_and_geocode(self):
@@ -156,6 +156,36 @@ class TestDataflowUtils(unittest.TestCase):
         expected = {'state': 'pa'}
         ff = dataflow_utils.FilterFields(relevant_fields, exclude_relevant_fields=False)
         self.assertEqual(next(ff.process(datum)), expected)
+
+    def test_replace_pii(self):
+        datum = [{'comments': 'remove pothole'},
+                 {'comments': 'John Doe is causing a lot of noise'},
+                 {'comments': 'plow snow on Smith St and on 1st and Murray, notify me at jdoe@email.com when done'},
+                 {'comments': ''},
+                 {'comments': 'I saw Ms. Smith littering'},
+                 {'comments': 'Timmy Smith woke up the whole neighborhood by listening to The Smiths too loud. Call him at 412-111-2222 to make him stop'}]
+        input_field = 'comments'
+        new_field_name = 'anon_comments'
+        retain_location = True
+        info_types = [{"name": "PERSON_NAME"}, {"name": "EMAIL_ADDRESS"}, {"name": "PHONE_NUMBER"}]
+        expected = [{'comments': 'remove pothole', 'anon_comments': 'remove pothole'},
+                    {'comments': 'John Doe is causing a lot of noise',
+                     'anon_comments': '[PERSON_NAME] is causing a lot of noise'},
+                    {'comments': 'plow snow on Smith St and on 1st and Murray, notify me at jdoe@email.com when done',
+                     'anon_comments': 'plow snow on Smith_St and on 1st and_Murray, notify me at [EMAIL_ADDRESS] when done'},
+                    {'comments': '',
+                     'anon_comments': 'No comment'},
+                    {'comments': 'I saw Ms. Smith littering',
+                     'anon_comments': 'I saw [PERSON_NAME] littering'},
+                    {'comments': 'Timmy Smith woke up the whole neighborhood by listening to The Smiths too loud. Call him at 412-111-2222 to make him stop',
+                     'anon_comments': '[PERSON_NAME] woke up the whole neighborhood by listening to The Smiths too loud. Call him at [PHONE_NUMBER] to make him stop'}]
+
+        rp = dataflow_utils.ReplacePII(input_field, new_field_name, retain_location, info_types, 'data-rivers-testing', 'user_defined_data')
+        results = []
+        for val in datum:
+            result = next(rp.process(val))
+            results.append(result)
+        self.assertEqual(results, expected)
 
     def test_standardize_times(self):
         """
