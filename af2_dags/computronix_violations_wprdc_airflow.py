@@ -62,10 +62,11 @@ gcs_to_bq = GoogleCloudStorageToBigQueryOperator(
 
 
 query_sort_data = F"""
-CREATE OR REPLACE TABLE `{os.environ["GCLOUD_PROJECT"]}.computronix.violations` AS
-SELECT DISTINCT * FROM `{os.environ["GCLOUD_PROJECT"]}.computronix.violations`
-ORDER BY investigation_date_EST DESC, ext_file_num DESC
+CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.computronix.violations` AS
+SELECT DISTINCT * FROM `{os.environ['GCLOUD_PROJECT']}.computronix.violations`
+ORDER BY investigation_date_EST DESC, casefile_number DESC
 """
+
 sort_data = BigQueryOperator(
         task_id = 'sort_date',
         sql = query_sort_data,

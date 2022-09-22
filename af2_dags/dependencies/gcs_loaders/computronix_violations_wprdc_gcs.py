@@ -54,7 +54,6 @@ def unnest_violations(nested_data, name_swaps):
     for row in nested_data:
         new_row_base = {}
         if not row["INVESTIGATION"]:
-            test.append(row)
             continue
 
         # extract (and rename) all the unnested fields
