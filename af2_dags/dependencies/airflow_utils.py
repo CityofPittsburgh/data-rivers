@@ -66,20 +66,6 @@ default_args = {
         }
 }
 
-default_args_today = {
-        'depends_on_past'         : False,
-        'start_date'              : datetime.combine(dt, datetime.min.time()),
-        'email_on_failure'        : True,
-        'email_on_retry'          : False,
-        'retries'                 : 1,
-        'retry_delay'             : timedelta(minutes = 5),
-        'project_id'              : os.environ['GCLOUD_PROJECT'],
-        'on_failure_callback'     : on_failure,
-        'dataflow_default_options': {
-                'project': os.environ['GCLOUD_PROJECT']
-        }
-}
-
 
 def get_ds_year(ds):
     return ds.split('-')[0]
