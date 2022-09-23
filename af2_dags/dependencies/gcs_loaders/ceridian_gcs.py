@@ -33,12 +33,15 @@ run_start_win, first_run = find_last_successful_run(bucket, "employees/successfu
 
 all_records = []
 url = BASE_URL
+# Make use of session to retain authorization header when a URL redirect happens
 s = requests.session()
 more = True
 while more is True:
     # API call to get data
     response_1 = s.get(url, auth=auth, params=payload)
+    # Initial API should fail due to URL change, response gives us new URL
     redir_url = response_1.url
+    # Retry API request with same parameters but new URL
     response_2 = s.get(redir_url, auth=auth, params=payload)
     curr_run = datetime.now(tz = pendulum.timezone('UTC')).strftime("%Y-%m-%d %H:%M:%S")
     print("Response at " + str(curr_run) + ": " + str(response_2.status_code))
