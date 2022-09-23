@@ -442,7 +442,6 @@ def select_expand_odata(url, tables, limit_results=False):
         else:
             more_links = False
 
-
     return records
 
 

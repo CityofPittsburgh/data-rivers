@@ -22,7 +22,7 @@ args = vars(parser.parse_args())
 yesterday = datetime.combine(datetime.now(tz = pendulum.timezone("utc")) - timedelta(1),
                              datetime.min.time()).strftime("%Y-%m-%d %H:%M:%S")
 
-BASE_URL = f"https://us62e2-services.dayforcehcm.com/Api/{os.environ['CERIDIAN_ORG_ID']}/V1/Reports/APIINFO"
+BASE_URL = f"{os.environ['CERIDIAN_URL_PREFIX']}.dayforcehcm.com/Api/{os.environ['CERIDIAN_ORG_ID']}/V1/Reports/APIINFO"
 
 auth = HTTPBasicAuth(os.environ['CERIDIAN_USER'], os.environ['CERIDIAN_PW'])
 payload = {'pageSize': API_LIMIT}
