@@ -442,7 +442,6 @@ def select_expand_odata(url, tables, limit_results=False):
         else:
             more_links = False
 
-
     return records
 
 
@@ -505,7 +504,6 @@ def unnest_domi_street_seg(nested_data, name_swaps, old_nested_keys, new_unneste
                 for s in segs:
                     seg_ct += 1
                     new_row = new_row_base.copy()
-                    new_row.update({"closure_id": str(s["UNIQUEID"])})
                     new_row.update({"carte_id": str(s["CARTEID"])})
                     new_row.update({"segment_num": seg_ct})
                     new_row.update({"total_segments": segs_in_file})

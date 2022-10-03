@@ -6,6 +6,7 @@ from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
 from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOperator
 from airflow.contrib.operators.bigquery_to_gcs import BigQueryToCloudStorageOperator
+from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 
 from dependencies import airflow_utils
 from dependencies.airflow_utils import get_ds_year, get_ds_month, get_ds_day, default_args
@@ -14,7 +15,7 @@ from dependencies.airflow_utils import get_ds_year, get_ds_month, get_ds_day, de
 # and pass the argument 'py_interpreter=python3'
 
 dag = DAG(
-    'computronix_gis_street_closures',
+    'computronix_violations_wprdc',
     default_args=default_args,
     schedule_interval='@daily',
     user_defined_filters={'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year, 'get_ds_day': get_ds_day}
@@ -23,14 +24,14 @@ dag = DAG(
 
 # initialize gcs locations
 bucket = f"gs://{os.environ['GCS_PREFIX']}_computronix"
-dataset = "gis_domi_street_closures"
+dataset = "violations_wprdc"
 path = "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds|get_ds_day }}/{{ run_id }}"
-json_loc = f"{path}_street_closures.json"
+json_loc = f"{path}_violations.json"
 avro_loc = f"avro_output/{path}/"
 
 
 # Run gcs_loader
-exec_gcs = f"python {os.environ['GCS_LOADER_PATH']}/computronix_gis_street_closures_gcs.py"
+exec_gcs = f"python {os.environ['GCS_LOADER_PATH']}/computronix_violations_wprdc_gcs.py"
 gcs_loader = BashOperator(
         task_id = 'gcs_loader',
         bash_command = f"{exec_gcs} --output_arg {dataset}/{json_loc}",
@@ -38,7 +39,7 @@ gcs_loader = BashOperator(
 )
 
 
-exec_df = f"python {os.environ['DATAFLOW_SCRIPT_PATH']}/computronix_gis_street_closures_dataflow.py"
+exec_df = f"python {os.environ['DATAFLOW_SCRIPT_PATH']}/computronix_violations_wprdc_dataflow.py"
 dataflow = BashOperator(
         task_id = 'dataflow',
         bash_command = f"{exec_df} --input {bucket}/{dataset}/{json_loc} --avro_output {bucket}/{dataset}/{avro_loc}",
@@ -49,7 +50,7 @@ dataflow = BashOperator(
 # Load AVRO data produced by dataflow_script into BQ temp table
 gcs_to_bq = GoogleCloudStorageToBigQueryOperator(
         task_id = 'gcs_to_bq',
-        destination_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}:computronix.gis_street_closures",
+        destination_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}:computronix.violations",
         bucket = f"{os.environ['GCS_PREFIX']}_computronix",
         source_objects = [f"{dataset}/{avro_loc}*.avro"],
         write_disposition = 'WRITE_TRUNCATE',
@@ -60,15 +61,17 @@ gcs_to_bq = GoogleCloudStorageToBigQueryOperator(
 )
 
 
-# Export table as CSV to data-bridGIS bucket
-# file name is the date. path contains the date info
-csv_file_name = f"{path}"
-dest_bucket = f"gs://{os.environ['GIS_PREFIX']}_domi_street_closures/street_segments/"
-gis_export = BigQueryToCloudStorageOperator(
-        task_id = 'gis_export',
-        source_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}.computronix.gis_street_closures",
-        destination_cloud_storage_uris = [f"{dest_bucket}{csv_file_name}.csv"],
+query_sort_data = F"""
+CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.computronix.violations` AS
+SELECT DISTINCT * FROM `{os.environ['GCLOUD_PROJECT']}.computronix.violations`
+ORDER BY investigation_date_EST DESC, casefile_number DESC
+"""
+
+sort_data = BigQueryOperator(
+        task_id = 'sort_date',
+        sql = query_sort_data,
         bigquery_conn_id='google_cloud_default',
+        use_legacy_sql = False,
         dag = dag
 )
 
@@ -76,12 +79,23 @@ gis_export = BigQueryToCloudStorageOperator(
 # Export table as CSV to WPRDC bucket
 # file name is the date. path contains the date info
 csv_file_name = f"{path}"
-dest_bucket = f"gs://{os.environ['GCS_PREFIX']}_wprdc/domi_street_closures/street_segments/"
+dest_bucket = f"gs://{os.environ['GCS_PREFIX']}_wprdc/computronix_violations/"
 wprdc_export = BigQueryToCloudStorageOperator(
         task_id = 'wprdc_export',
-        source_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}.computronix.gis_street_closures",
+        source_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}.computronix.violations",
         destination_cloud_storage_uris = [f"{dest_bucket}{csv_file_name}.csv"],
-        bigquery_conn_id='google_cloud_default',
+        dag = dag
+)
+
+
+# Export table as CSV to PLI bucket
+# file name is the date. path contains the date info
+csv_file_name = f"{path}"
+dest_bucket = f"gs://{os.environ['GCS_PREFIX']}_pli/computronix_violations/"
+pli_export = BigQueryToCloudStorageOperator(
+        task_id = 'pli_export',
+        source_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}.computronix.violations",
+        destination_cloud_storage_uris = [f"{dest_bucket}{csv_file_name}.csv"],
         dag = dag
 )
 
@@ -89,24 +103,23 @@ wprdc_export = BigQueryToCloudStorageOperator(
 # Export table as CSV to DOMI bucket
 # file name is the date. path contains the date info
 csv_file_name = f"{path}"
-dest_bucket = f"gs://{os.environ['GCS_PREFIX']}_domi/domi_street_closures/street_segments/"
+dest_bucket = f"gs://{os.environ['GCS_PREFIX']}_domi/computronix_violations/"
 domi_export = BigQueryToCloudStorageOperator(
         task_id = 'domi_export',
-        source_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}.computronix.gis_street_closures",
+        source_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}.computronix.violations",
         destination_cloud_storage_uris = [f"{dest_bucket}{csv_file_name}.csv"],
-        bigquery_conn_id='google_cloud_default',
         dag = dag
 )
 
 
 beam_cleanup = BashOperator(
     task_id='beam_cleanup',
-    bash_command=airflow_utils.beam_cleanup_statement('{}_computronix'.format(os.environ['GCS_PREFIX'])),
+    bash_command=airflow_utils.beam_cleanup_statement(f"{os.environ['GCS_PREFIX']}_computronix"),
     dag=dag
 )
 
 # branching DAG splits after the gcs_to_bq stage and converges back at beam_cleanup
-gcs_loader >> dataflow >> gcs_to_bq
-gcs_to_bq >> gis_export >> beam_cleanup
-gcs_to_bq >> wprdc_export >> beam_cleanup
-gcs_to_bq >> domi_export >> beam_cleanup
+gcs_loader >> dataflow >> gcs_to_bq >> sort_data
+sort_data >> wprdc_export >> beam_cleanup
+sort_data >> domi_export >> beam_cleanup
+sort_data >> pli_export >> beam_cleanup
