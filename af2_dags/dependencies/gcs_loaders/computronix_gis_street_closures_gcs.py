@@ -6,19 +6,18 @@ from gcs_utils import json_to_gcs, select_expand_odata, unnest_domi_street_seg
 # names to swap for fields that are not nested in raw data
 SWAPS = [
         ["EXTERNALFILENUM", "PERMITTYPEPERMITTYPE", "WORKDESCRIPTION", "TYPEOFWORKDESCRIPTION",
-         "APPLICANTCUSTOMFORMATTEDNAME", "ALLCONTRACTORSNAME", "CREATEDDATE"],
+         "APPLICANTCUSTOMFORMATTEDNAME", "ALLCONTRACTORSNAME"],
 
-        ["ext_file_num", "permit_type", "work_desc", "type_work_desc", "applicant_name", "contractor_name",
-         "create_date"]
+        ["ext_file_num", "permit_type", "work_desc", "type_work_desc", "applicant_name", "contractor_name"]
 ]
 
 # names to swap for the fields that are nested
 OLD_KEYS = ["SPECIALINSTRUCTIONS", "FROMDATE", "TODATE", "WEEKDAYWORKHOURS", "WEEKENDWORKHOURS",
             "PRIMARYSTREET", "FROMSTREET", "TOSTREET", "FULLCLOSURE", "TRAVELLANE", "PARKINGLANE",
-            "METEREDPARKING", "SIDEWALK", "VALIDATED"]
+            "METEREDPARKING", "SIDEWALK"]
 NEW_KEYS = ["special_instructions", "from_date", "to_date", "weekday_hours", "weekend_hours",
             "primary_street", "from_street", "to_street", "full_closure", "travel_lane", "parking_lane",
-            "metered_parking", "sidewalk", "validated"]
+            "metered_parking", "sidewalk"]
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--output_arg', dest = 'out_loc', required = True,
@@ -34,12 +33,12 @@ url = 'https://staff.onestoppgh.pittsburghpa.gov/pghprod/odata/odata/'
 # fields to select from a each table (inserted into "tables" list in the order the tables appear)
 sel_fields = [
         "EXTERNALFILENUM,PERMITTYPEPERMITTYPE,WORKDESCRIPTION,TYPEOFWORKDESCRIPTION," \
-        "APPLICANTCUSTOMFORMATTEDNAME,ALLCONTRACTORSNAME,CREATEDDATE",
+        "APPLICANTCUSTOMFORMATTEDNAME,ALLCONTRACTORSNAME",
 
         "SPECIALINSTRUCTIONS,FROMDATE,TODATE,WEEKDAYWORKHOURS,WEEKENDWORKHOURS,PRIMARYSTREET,FROMSTREET," \
-        "TOSTREET,FULLCLOSURE,TRAVELLANE,PARKINGLANE,METEREDPARKING,SIDEWALK,VALIDATED",
+        "TOSTREET,FULLCLOSURE,TRAVELLANE,PARKINGLANE,METEREDPARKING,SIDEWALK",
 
-        "UNIQUEID,CARTEID"
+        "CARTEID"
 ]
 
 # first tuple refers to the base table & subsequent tuples are expansions

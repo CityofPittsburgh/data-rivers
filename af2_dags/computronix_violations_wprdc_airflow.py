@@ -88,11 +88,39 @@ wprdc_export = BigQueryToCloudStorageOperator(
 )
 
 
+# Export table as CSV to PLI bucket
+# file name is the date. path contains the date info
+csv_file_name = f"{path}"
+dest_bucket = f"gs://{os.environ['GCS_PREFIX']}_pli/computronix_violations/"
+pli_export = BigQueryToCloudStorageOperator(
+        task_id = 'pli_export',
+        source_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}.computronix.violations",
+        destination_cloud_storage_uris = [f"{dest_bucket}{csv_file_name}.csv"],
+        dag = dag
+)
+
+
+# Export table as CSV to DOMI bucket
+# file name is the date. path contains the date info
+csv_file_name = f"{path}"
+dest_bucket = f"gs://{os.environ['GCS_PREFIX']}_domi/computronix_violations/"
+domi_export = BigQueryToCloudStorageOperator(
+        task_id = 'domi_export',
+        source_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}.computronix.violations",
+        destination_cloud_storage_uris = [f"{dest_bucket}{csv_file_name}.csv"],
+        dag = dag
+)
+
+
 beam_cleanup = BashOperator(
     task_id='beam_cleanup',
     bash_command=airflow_utils.beam_cleanup_statement(f"{os.environ['GCS_PREFIX']}_computronix"),
     dag=dag
 )
 
-gcs_loader >> dataflow >> gcs_to_bq >> sort_data >> wprdc_export >> beam_cleanup
 
+# branching DAG splits after the gcs_to_bq stage and converges back at beam_cleanup
+gcs_loader >> dataflow >> gcs_to_bq >> sort_data
+sort_data >> wprdc_export >> beam_cleanup
+sort_data >> domi_export >> beam_cleanup
+sort_data >> pli_export >> beam_cleanup
