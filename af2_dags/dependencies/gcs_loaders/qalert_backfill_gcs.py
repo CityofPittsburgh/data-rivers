@@ -26,7 +26,7 @@ bucket = f"{os.environ['GCS_PREFIX']}_qalert"
 run_stop_win = "2015-04-19 00:00:00"
 
 # run the API calls until all data is retrieved (all API call and data pushes to GCS executed in this loop)
-while datetime.strptime(run_stop_win, "%Y-%m-%d %H:%M:%S") <= BACKFILL_STOP:
+while datetime.strptime(run_stop_win, "%Y-%m-%d %H:%M:%S") <= datetime.strptime(BACKFILL_STOP, "%Y-%m-%d %H:%M:%S"):
 
     # find the last successful DAG run (needs to be specified in UTC YYYY-MM-DD HH:MM:SS); this is used to initialize
     # the payload below; if the Backfill DAG hasn't been run yet, then use the DEFAULT_RUN_START; Increment each pull
