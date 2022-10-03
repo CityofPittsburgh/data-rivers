@@ -90,9 +90,9 @@ beam_cleanup = BashOperator(
     dag=dag
 )
 
+
 # branching DAG splits after the gcs_to_bq stage and converges back at beam_cleanup
 gcs_loader >> dataflow >> gcs_to_bq
 gcs_to_bq >> wprdc_export >> beam_cleanup
 gcs_to_bq >> pli_export >> beam_cleanup
-
 
