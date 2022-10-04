@@ -40,7 +40,7 @@ def run(argv = None):
         search_fields = [{'type': 'EMAIL'}, 'validTo', 'validTo', 'validTo', 'validTo']
         additional_search_vals = ['pittsburghpa.gov', '', '', '', '']
         field_name_swaps = [('external_id', 'mpoetc_number')]
-        type_changes = [('employee_id', 'str'), ('mpoetc_number', 'str')]
+        type_changes = [('employee_id', 'str')]
         keep_fields = ['employee_id', 'mpoetc_number', 'first_name', 'last_name',
                        'email', 'rank', 'rank_valid_date', 'unit', 'unit_valid_date']
 
