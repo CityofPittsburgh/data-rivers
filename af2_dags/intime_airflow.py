@@ -10,9 +10,9 @@ from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOper
 from dependencies import airflow_utils
 from dependencies.airflow_utils import get_ds_month, get_ds_year, get_ds_day, default_args
 
-# The goal of this DAG is to perform a daily pull of electric vehicle charging data from
-# the intime API. This charging data will be stored in Data Rivers and displayed on
-# the Sustainability & Resilience page of Dashburgh, where it will update dynamically.
+# The goal of this DAG is to perform a complete pull of police unit assignment data from
+# the InTime API. This employee info will be stored in Data Rivers and extracted via PowerShell
+# to be merged into the Police Active Directory.
 
 dag = DAG(
     'intime',
