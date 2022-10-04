@@ -86,11 +86,27 @@ wprdc_export = BigQueryToCloudStorageOperator(
 )
 
 
+# Export table as CSV to DOMI bucket
+# file name is the date. path contains the date info
+csv_file_name = f"{path}"
+dest_bucket = f"gs://{os.environ['GCS_PREFIX']}_domi/domi_street_closures/street_segments/"
+domi_export = BigQueryToCloudStorageOperator(
+        task_id = 'domi_export',
+        source_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}.computronix.gis_street_closures",
+        destination_cloud_storage_uris = [f"{dest_bucket}{csv_file_name}.csv"],
+        bigquery_conn_id='google_cloud_default',
+        dag = dag
+)
+
+
 beam_cleanup = BashOperator(
     task_id='beam_cleanup',
     bash_command=airflow_utils.beam_cleanup_statement('{}_computronix'.format(os.environ['GCS_PREFIX'])),
     dag=dag
 )
 
-gcs_loader >> dataflow >> gcs_to_bq >> gis_export >> wprdc_export >> beam_cleanup
-
+# branching DAG splits after the gcs_to_bq stage and converges back at beam_cleanup
+gcs_loader >> dataflow >> gcs_to_bq
+gcs_to_bq >> gis_export >> beam_cleanup
+gcs_to_bq >> wprdc_export >> beam_cleanup
+gcs_to_bq >> domi_export >> beam_cleanup
