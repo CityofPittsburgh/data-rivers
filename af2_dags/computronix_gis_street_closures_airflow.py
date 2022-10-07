@@ -15,7 +15,7 @@ from dependencies import airflow_utils
 from dependencies.airflow_utils import get_ds_year, get_ds_month, get_ds_day, default_args
 
 
-now = datetime.today().date()
+now = datetime.date.today()
 unix_date = time.mktime(now.timetuple())
 
 
