@@ -24,16 +24,8 @@ closed_date_unix, pii_street_num, street, cross_street, street_id, cross_street_
 address_type, neighborhood_name, council_district, ward, police_zone, fire_zone, dpw_streets, dpw_enviro, 
 dpw_parks, input_pii_lat, input_pii_long, input_anon_lat, input_anon_long"""
 
-COLS_IN_ORDER_NO_PII_COMMENTS = """id, parent_ticket_id, child_ticket, dept, status_name, status_code, 
-request_type_name, request_type_id, origin, anon_comments, pii_private_notes, create_date_est, create_date_utc, 
-create_date_unix, last_action_est, last_action_utc, last_action_unix, closed_date_est, closed_date_utc, 
-closed_date_unix, pii_street_num, street, cross_street, street_id, cross_street_id, city, pii_input_address, 
-pii_google_formatted_address, anon_google_formatted_address, address_type, neighborhood_name, 
-council_district, ward, police_zone, fire_zone, dpw_streets, dpw_enviro, dpw_parks, input_pii_lat, input_pii_long, 
-input_anon_lat, input_anon_long"""
-
 LINKED_COLS_IN_ORDER = """status_name, status_code, dept, 
-request_type_name, request_type_id, origin, anon_comments, pii_private_notes, create_date_est, 
+request_type_name, request_type_id, origin, pii_comments, anon_comments, pii_private_notes, create_date_est, 
 create_date_utc, create_date_unix, last_action_est, last_action_utc, last_action_unix, closed_date_est, closed_date_utc, 
 closed_date_unix, pii_street_num, street, cross_street, street_id, cross_street_id, city, pii_input_address, 
 NULL AS pii_google_formatted_address, NULL AS anon_google_formatted_address, address_type, neighborhood_name, 
@@ -428,7 +420,7 @@ DELETE FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`
 WHERE id IN (SELECT id FROM `{os.environ['GCLOUD_PROJECT']}.qalert.backfill_enriched`);
 INSERT INTO `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`
 SELECT 
-    {COLS_IN_ORDER_NO_PII_COMMENTS}
+    {COLS_IN_ORDER}
 FROM `{os.environ['GCLOUD_PROJECT']}.qalert.backfill_enriched`;
 """
 delete_old_insert_new_records = BigQueryOperator(
@@ -437,6 +429,53 @@ delete_old_insert_new_records = BigQueryOperator(
         bigquery_conn_id='google_cloud_default',
         use_legacy_sql = False,
         dag = dag
+)
+
+query_add_pii_comments = f"""
+CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` AS
+SELECT 
+    alr.group_id, alr.child_ids, alr.num_requests, alr.parent_closed, alr.status_name, 
+    alr.status_code, alr.dept, alr.request_type_name, alr.request_type_id, alr.origin,
+    bck.pii_comments, alr.anon_comments, alr.pii_private_notes, alr.create_date_est, 
+    alr.create_date_utc, alr.create_date_unix, alr.last_action_est, alr.last_action_utc, 
+    alr.last_action_unix, alr.closed_date_est, alr.closed_date_utc, alr.closed_date_unix, 
+    alr.pii_street_num, alr.street, alr.cross_street, alr.street_id, alr.cross_street_id, 
+    alr.city, alr.pii_input_address, alr.pii_google_formatted_address, 
+    alr.anon_google_formatted_address, alr.address_type, alr.neighborhood_name, 
+    alr.council_district, alr.ward, alr.police_zone, alr.fire_zone, alr.dpw_streets, 
+    alr.dpw_enviro, alr.dpw_parks, alr.pii_lat AS google_pii_lat, alr.pii_long AS google_pii_long, 
+    alr.anon_lat AS google_anon_lat, alr.anon_long AS google_anon_long,
+    alr.input_pii_lat AS input_pii_lat, alr.input_pii_long AS input_pii_long,
+    alr.input_anon_lat AS input_anon_lat, alr.input_anon_long AS input_anon_long
+FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
+JOIN `{os.environ['GCLOUD_PROJECT']}.qalert.backfill_enriched` bck
+ON alr.group_id = bck.id;
+
+CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status` AS
+SELECT 
+    atcs.id, atcs.parent_ticket_id, atcs.child_ticket, atcs.dept, atcs.status_name, 
+    atcs.status_code, atcs.dept, atcs.request_type_name, atcs.request_type_id, atcs.origin,
+    bck.pii_comments, atcs.anon_comments, atcs.pii_private_notes, atcs.create_date_est, 
+    atcs.create_date_utc, atcs.create_date_unix, atcs.last_action_est, atcs.last_action_utc, 
+    atcs.last_action_unix, atcs.closed_date_est, atcs.closed_date_utc, atcs.closed_date_unix, 
+    atcs.pii_street_num, alr.street, atcs.cross_street, atcs.street_id, atcs.cross_street_id, 
+    atcs.city, alr.pii_input_address, atcs.pii_google_formatted_address, 
+    atcs.anon_google_formatted_address, atcs.address_type, atcs.neighborhood_name, 
+    atcs.council_district, alr.ward, atcs.police_zone, atcs.fire_zone, atcs.dpw_streets, 
+    atcs.dpw_enviro, alr.dpw_parks, atcs.pii_lat AS google_pii_lat, atcs.pii_long AS google_pii_long, 
+    atcs.anon_lat AS google_anon_lat, atcs.anon_long AS google_anon_long,
+    atcs.input_pii_lat AS input_pii_lat, atcs.input_pii_long AS input_pii_long,
+    atcs.input_anon_lat AS input_anon_lat, atcs.input_anon_long AS input_anon_long
+FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status` atcs
+JOIN `{os.environ['GCLOUD_PROJECT']}.qalert.backfill_enriched` bck
+ON atcs.id = bck.id;
+"""
+add_pii_comments = BigQueryOperator(
+    task_id='add_pii_comments',
+    sql=query_add_pii_comments,
+    bigquery_conn_id='google_cloud_default',
+    use_legacy_sql=False,
+    dag=dag
 )
 
 # Create a table from all_linked_requests that has all columns EXCEPT those that have potential PII. This table is
@@ -480,4 +519,4 @@ beam_cleanup = BashOperator(
 # DAG execution:
 gcs_loader >> dataflow >> gcs_to_bq >> format_dedupe >> city_limits >> geojoin >> insert_new_parent >> \
 remove_false_parents >> integrate_children >> replace_last_update >> delete_old_insert_new_records >> \
-drop_pii_for_export >> wprdc_export >> beam_cleanup
+add_pii_comments >> drop_pii_for_export >> wprdc_export >> beam_cleanup
