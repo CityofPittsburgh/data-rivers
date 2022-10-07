@@ -111,9 +111,8 @@ def run(argv = None):
                 "long_field"        : "pii_long"
         }
 
-        block_anon_accuracy = [("pii_google_formatted_address", 100)]
-        lat_long_accuracy = [("input_pii_lat", "input_pii_long", 200),
-                             ("google_pii_lat", "google_pii_long", 200)]
+        block_anon_accuracy = [("pii_input_address", 100)]
+        lat_long_accuracy = [("input_pii_lat", "input_pii_long", 200)]
 
         lines = p | ReadFromText(known_args.input, coder = JsonCoder())
 
