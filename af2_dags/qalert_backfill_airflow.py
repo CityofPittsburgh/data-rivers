@@ -53,7 +53,7 @@ dag = DAG(
                                 'get_ds_day': get_ds_day}
 )
 
-path = "{{ ds|get_ds_year }}-{{ ds|get_ds_month }}-{{ ds|get_ds_day }}"
+path = "{{ ds|get_ds_year }}-{{ ds|get_ds_month }}-07"
 
 # Run gcs_loader
 gcs_loader = BashOperator(
