@@ -20,7 +20,7 @@ state, country, zip, credential_id"""
 dag = DAG(
     'chargepoint',
     default_args=default_args,
-    schedule_interval='@daily',
+    schedule_interval= '0 0 * * 1-5',
     user_defined_filters={'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year,
                           'get_ds_day': get_ds_day}
 )
