@@ -37,7 +37,6 @@ path = "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds|get_ds_day }}/{{ run_id
 json_loc = f"{path}_street_closures.json"
 avro_loc = f"avro_output/{path}/"
 
-
 # Run gcs_loader
 exec_gcs = f"python {os.environ['GCS_LOADER_PATH']}/computronix_gis_street_closures_gcs.py"
 gcs_loader = BashOperator(
@@ -77,7 +76,7 @@ SELECT
  sc.*,
  lalo.geometry
 FROM `{os.environ["GCLOUD_PROJECT"]}.computronix.gis_street_closures` sc
-JOIN `data-rivers.timebound_geography.carte_id_street_segment_coords` lalo 
+JOIN `{os.environ["GCLOUD_PROJECT"]}.timebound_geography.carte_id_street_segment_coords` lalo 
 ON sc.carte_id = lalo.carte_id  
 """
 join_coords = BigQueryOperator(
@@ -131,23 +130,22 @@ filter_inactive = BigQueryOperator(
 
 
 # Export table as CSV to data-bridGIS bucket (This csv will be converted to json in the next step)
-csv_file_name = f"{path}"
 dest_bucket = f"gs://{os.environ['GIS_PREFIX']}_domi_street_closures/"
 gis_csv_export = BigQueryToCloudStorageOperator(
         task_id = 'gis_csv_export',
         source_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}.computronix.gis_active_street_closures",
-        destination_cloud_storage_uris = [f"{dest_bucket}{csv_file_name}_active.csv"],
+        destination_cloud_storage_uris = [f"{dest_bucket}active_closures.csv"],
         bigquery_conn_id='google_cloud_default',
         dag = dag
 )
 
 
 # Convert csv to geo enriched json
-input_bucket = F"gs://{os.environ['GIS_PREFIX']}_domi_street_closures/"
-input_path = F"{path}.csv"
-output_bucket = F"gs://{os.environ['GIS_PREFIX']}_street_closures_now/"
+input_bucket = 'pghpa_gis_domi_street_closures'
+input_blob = 'active_closures.csv'
+output_bucket = 'pghpa_gis_domi_street_closures'
 exec_conv = f"python {os.environ['DAG_SUBROUTINE_PATH']}/conv_coords_upload_json.py"
-run_args = F"--input_bucket {input_bucket} --input_path {input_path} --output_bucket {output_bucket}"
+run_args = F"--input_bucket {input_bucket} --input_blob {input_blob} --output_bucket {output_bucket}"
 json_conv = BashOperator(
         task_id = 'json_conv',
         bash_command = f"{exec_conv} {run_args}",
