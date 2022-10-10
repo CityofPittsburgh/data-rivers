@@ -996,7 +996,7 @@ def replace_pii(datum, input_field, retain_location, info_types, gcloud_project,
                      "item": item
                      }
         )
-        if response.item_value:
+        if response.item.value:
             break
         # elif not response and curr_delay < max_delay:
         else:
