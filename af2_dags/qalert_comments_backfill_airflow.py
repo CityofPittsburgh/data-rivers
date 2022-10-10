@@ -46,7 +46,7 @@ dpw_enviro, dpw_parks, input_anon_lat, input_anon_long, google_anon_lat, google_
 
 
 dag = DAG(
-        'qalert_requests_backfill',
+        'qalert_comments_backfill',
         default_args = default_args,
         schedule_interval = None,
         user_defined_filters = {'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year,
@@ -58,12 +58,12 @@ path = "{{ ds|get_ds_year }}-{{ ds|get_ds_month }}-07"
 # Run gcs_loader
 gcs_loader = BashOperator(
     task_id='gcs_loader',
-    bash_command=F"python {os.environ['DAGS_PATH']}/dependencies/gcs_loaders/qalert_backfill_gcs.py",
+    bash_command=F"python {os.environ['DAGS_PATH']}/dependencies/gcs_loaders/qalert_comments_backfill_gcs.py",
     dag=dag
 )
 
 # Run dataflow_script
-py_cmd = f"python {os.environ['DAGS_PATH']}/dependencies/dataflow_scripts/qalert_backfill_dataflow.py"
+py_cmd = f"python {os.environ['DAGS_PATH']}/dependencies/dataflow_scripts/qalert_comments_backfill_dataflow.py"
 in_cmd = \
     f" --input gs://{os.environ['GCS_PREFIX']}_qalert/requests/backfill/{path}/backfilled_requests.json"
 out_cmd = f" --avro_output gs://{os.environ['GCS_PREFIX']}_qalert/requests/backfill/{path}/avro_output/"

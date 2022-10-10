@@ -68,12 +68,12 @@ def run(argv = None):
     # and avro schema to validate data with. Return the arg parser values, PipelineOptions, and avro_schemas (dict)
 
     known_args, pipeline_options, avro_schema = generate_args(
-            job_name = 'qalert-requests-dataflow',
+            job_name = 'qalert-comments-backfill-dataflow',
             bucket = f"{os.environ['GCS_PREFIX']}_qalert",
             argv = argv,
-            schema_name = 'qalert_requests',
+            schema_name = 'qalert_comments_backfill',
             default_arguments=DEFAULT_DATAFLOW_ARGS,
-            limit_workers = [False, None]
+            limit_workers = [True, 1]
     )
 
     with beam.Pipeline(options = pipeline_options) as p:
