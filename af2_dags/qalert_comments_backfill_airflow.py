@@ -18,14 +18,14 @@ from dependencies.airflow_utils import get_ds_year, get_ds_month, get_ds_day, de
     build_revgeo_time_bound_query
 
 COLS_IN_ORDER = """id, parent_ticket_id, child_ticket, dept, status_name, status_code, request_type_name, 
-request_type_id, origin, pii_comments, pii_private_notes, create_date_est, create_date_utc, 
+request_type_id, origin, pii_comments, anon_comments, pii_private_notes, create_date_est, create_date_utc, 
 create_date_unix, last_action_est, last_action_utc, last_action_unix, closed_date_est, closed_date_utc, 
 closed_date_unix, pii_street_num, street, cross_street, street_id, cross_street_id, city, pii_input_address, 
 address_type, neighborhood_name, council_district, ward, police_zone, fire_zone, dpw_streets, dpw_enviro, 
 dpw_parks, pii_lat, pii_long, anon_lat, anon_long"""
 
 LINKED_COLS_IN_ORDER = """status_name, status_code, dept, 
-request_type_name, request_type_id, origin, pii_comments, NULL AS anon_comments, pii_private_notes, create_date_est, 
+request_type_name, request_type_id, origin, pii_comments, anon_comments, pii_private_notes, create_date_est, 
 create_date_utc, create_date_unix, last_action_est, last_action_utc, last_action_unix, closed_date_est, closed_date_utc, 
 closed_date_unix, pii_street_num, street, cross_street, street_id, cross_street_id, city, pii_input_address, 
 NULL AS pii_google_formatted_address, NULL AS anon_google_formatted_address, address_type, neighborhood_name, 
@@ -53,7 +53,7 @@ dag = DAG(
                                 'get_ds_day': get_ds_day}
 )
 
-path = "{{ ds|get_ds_year }}-{{ ds|get_ds_month }}-{{ ds|get_ds_day }}"
+path = "{{ ds|get_ds_year }}-{{ ds|get_ds_month }}-07"
 
 # Run gcs_loader
 gcs_loader = BashOperator(
