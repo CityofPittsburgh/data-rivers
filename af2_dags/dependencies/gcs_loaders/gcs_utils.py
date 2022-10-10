@@ -330,8 +330,7 @@ def json_to_gcs(path, json_object_list, bucket_name):
         linted_requests = ndjson.loads(linted)[0]
         json_to_gcs(path, linted_requests, bucket_name)
 
-    logging.info(
-        'Successfully uploaded blob %r to bucket %r.', path, bucket_name)
+    logging.info('Successfully uploaded blob %r to bucket %r.', path, bucket_name)
 
     print('Successfully uploaded blob {} to bucket {}'.format(path, bucket_name))
 
