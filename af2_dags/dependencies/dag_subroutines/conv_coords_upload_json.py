@@ -14,16 +14,16 @@ from google.cloud import storage
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--input_bucket', dest = 'input_bucket', required = True)
-parser.add_argument('--input_path', dest = 'input_path', required = True)
+parser.add_argument('--input_blob', dest = 'input_blob', required = True)
 parser.add_argument('--output_bucket', dest = 'output_bucket', required = True)
 args = vars(parser.parse_args())
 
 
 # retrieve input csv from GCS. String IO operation tranforms bytes to string
-storage_client = storage.Client(project = "data-bridGIS")
+dl_storage_client = storage.Client(project = "data-bridGIS")
 bucket_name = args["input_bucket"]
-bucket = storage_client.bucket(bucket_name)
-blob = bucket.blob(args["input_path"])
+bucket = dl_storage_client.bucket(bucket_name)
+blob = bucket.blob(args["input_blob"])
 blob = blob.download_as_string()
 blob = blob.decode('utf-8')
 blob = StringIO(blob)
@@ -75,9 +75,10 @@ for i in range(len(data_in_clean)):
 
 
 # Write the json to GCS
-blob = storage.Blob(name="active_street_closures", bucket=storage_client.get_bucket(args["output_bucket"]))
-blob.upload_from_string(
+ul_storage_client = storage.Client(project="data-bridGIS")
+upload_blob = storage.Blob(name="active_street_closures", bucket=ul_storage_client.get_bucket(args["output_bucket"]))
+upload_blob.upload_from_string(
             data=json.dumps(FeatureCollection(features)),
             content_type='application/json',
-            client=storage_client,
+            client = ul_storage_client
         )
