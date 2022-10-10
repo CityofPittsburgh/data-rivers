@@ -20,13 +20,13 @@ DEFAULT_DATAFLOW_ARGS = [
         f"--subnetwork={os.environ['SUBNET']}"
 ]
 
-DEFAULT_PII_TYPES = [
-    {"name": "PERSON_NAME"},
-    {"name": "EMAIL_ADDRESS"},
-    {"name": "PHONE_NUMBER"}
-]
-
-USER_DEFINED_CONST_BUCKET = "user_defined_data"
+# DEFAULT_PII_TYPES = [
+#     {"name": "PERSON_NAME"},
+#     {"name": "EMAIL_ADDRESS"},
+#     {"name": "PHONE_NUMBER"}
+# ]
+#
+# USER_DEFINED_CONST_BUCKET = "user_defined_data"
 
 class GetStatus(beam.DoFn):
     def process(self, datum):
@@ -71,7 +71,7 @@ def run(argv = None):
             job_name = 'qalert-requests-dataflow',
             bucket = f"{os.environ['GCS_PREFIX']}_qalert",
             argv = argv,
-            schema_name = 'af2_qalert_requests',
+            schema_name = 'qalert_requests',
             default_arguments=DEFAULT_DATAFLOW_ARGS,
             limit_workers = [False, None]
     )
@@ -111,15 +111,15 @@ def run(argv = None):
                 "long_field"        : "pii_long"
         }
 
+        lat_long_accuracy = [("pii_lat", "pii_long", 200)]
         block_anon_accuracy = [("pii_input_address", 100)]
-        lat_long_accuracy = [("input_pii_lat", "input_pii_long", 200)]
 
         lines = p | ReadFromText(known_args.input, coder = JsonCoder())
 
         load = (
                 lines
-                | beam.ParDo(ReplacePII('comments', 'anon_comments', True, DEFAULT_PII_TYPES,
-                                        os.environ['GCLOUD_PROJECT'], USER_DEFINED_CONST_BUCKET))
+                # | beam.ParDo(ReplacePII('comments', 'anon_comments', True, DEFAULT_PII_TYPES,
+                #                         os.environ['GCLOUD_PROJECT'], USER_DEFINED_CONST_BUCKET))
                 | beam.ParDo(SwapFieldNames(field_name_swaps))
                 | beam.ParDo(FilterFields(drop_fields))
                 | beam.ParDo(ColumnsCamelToSnakeCase())
