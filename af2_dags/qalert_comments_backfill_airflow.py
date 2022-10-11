@@ -92,8 +92,8 @@ gcs_to_bq = GoogleCloudStorageToBigQueryOperator(
 # Update geo coords with lat/long cast as floats (dataflow/AVRO glitch forces them to be output as strings; the
 # source of the error is instrinsic to dataflow and may not be fixable). Also, dedupe the results (someties the same
 # ticket appears in the computer system more than 1 time (a QAlert glitch)
-query_format_dedupe = f"""
-CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_backfill` AS
+query_format_dedupe_1 = f"""
+CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_backfill_1` AS
 WITH formatted  AS 
     (
     SELECT 
@@ -104,6 +104,7 @@ WITH formatted  AS
         CAST(anon_long AS FLOAT64) AS anon_long
     FROM 
         {os.environ['GCLOUD_PROJECT']}.qalert.incoming_backfill
+        WHERE create_date_unix < 1547812800
     )
 -- drop the final column through slicing the string (-13). final column is added in next query     
 SELECT 
@@ -111,19 +112,70 @@ SELECT
 FROM 
     formatted
 """
-format_dedupe = BigQueryOperator(
-        task_id = 'format_dedupe',
-        sql = query_format_dedupe,
+format_dedupe_1 = BigQueryOperator(
+        task_id = 'format_dedupe_1',
+        sql = query_format_dedupe_1,
+        bigquery_conn_id='google_cloud_default',
+        use_legacy_sql = False,
+        dag = dag
+)
+
+query_format_dedupe_2 = f"""
+CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_backfill_2` AS
+WITH formatted  AS 
+    (
+    SELECT 
+        DISTINCT * EXCEPT (pii_lat, pii_long, anon_lat, anon_long),
+        CAST(pii_lat AS FLOAT64) AS pii_lat,
+        CAST(pii_long AS FLOAT64) AS pii_long,
+        CAST(anon_lat AS FLOAT64) AS anon_lat,
+        CAST(anon_long AS FLOAT64) AS anon_long
+    FROM 
+        {os.environ['GCLOUD_PROJECT']}.qalert.incoming_backfill
+        WHERE create_date_unix >= 1547812800
+    )
+-- drop the final column through slicing the string (-13). final column is added in next query     
+SELECT 
+    {COLS_IN_ORDER} 
+FROM 
+    formatted
+"""
+format_dedupe_2 = BigQueryOperator(
+        task_id = 'format_dedupe_2',
+        sql = query_format_dedupe_2,
         bigquery_conn_id='google_cloud_default',
         use_legacy_sql = False,
         dag = dag
 )
 
 # Query new tickets to determine if they are in the city limits
-query_city_lim = build_city_limits_query('qalert', 'incoming_backfill', 'pii_lat', 'pii_long')
-city_limits = BigQueryOperator(
-        task_id = 'city_limits',
-        sql = query_city_lim,
+query_city_lim_1 = build_city_limits_query('qalert', 'incoming_backfill_1', 'pii_lat', 'pii_long')
+city_limits_1 = BigQueryOperator(
+        task_id = 'city_limits_1',
+        sql = query_city_lim_1,
+        bigquery_conn_id='google_cloud_default',
+        use_legacy_sql = False,
+        dag = dag
+)
+
+query_city_lim_2 = build_city_limits_query('qalert', 'incoming_backfill_2', 'pii_lat', 'pii_long')
+city_limits_2 = BigQueryOperator(
+        task_id = 'city_limits_2',
+        sql = query_city_lim_2,
+        bigquery_conn_id='google_cloud_default',
+        use_legacy_sql = False,
+        dag = dag
+)
+
+query_join_dedupe = f"""
+CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_backfill` AS
+SELECT * FROM `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_backfill_1` 
+UNION DISTINCT 
+SELECT * from `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_backfill_2`
+"""
+join_dedupe = BigQueryOperator(
+        task_id = 'join_dedupe',
+        sql = query_join_dedupe,
         bigquery_conn_id='google_cloud_default',
         use_legacy_sql = False,
         dag = dag
@@ -518,6 +570,6 @@ beam_cleanup = BashOperator(
 )
 
 # DAG execution:
-gcs_loader >> dataflow >> gcs_to_bq >> format_dedupe >> city_limits >> geojoin >> insert_new_parent >> \
-remove_false_parents >> integrate_children >> replace_last_update >> delete_old_insert_new_records >> \
-add_pii_comments >> drop_pii_for_export >> wprdc_export >> beam_cleanup
+gcs_loader >> dataflow >> gcs_to_bq >> format_dedupe_1 >> format_dedupe_2 >> city_limits_1 >> city_limits_2 >> \
+join_dedupe >> geojoin >> insert_new_parent >> remove_false_parents >> integrate_children >> replace_last_update >> \
+delete_old_insert_new_records >> add_pii_comments >> drop_pii_for_export >> wprdc_export >> beam_cleanup
