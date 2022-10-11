@@ -104,7 +104,7 @@ WITH formatted  AS
         CAST(anon_long AS FLOAT64) AS anon_long
     FROM 
         {os.environ['GCLOUD_PROJECT']}.qalert.incoming_backfill
-        WHERE create_date_unix < 1547812800
+        WHERE create_date_unix < 1488974400
     )
 -- drop the final column through slicing the string (-13). final column is added in next query     
 SELECT 
@@ -132,7 +132,8 @@ WITH formatted  AS
         CAST(anon_long AS FLOAT64) AS anon_long
     FROM 
         {os.environ['GCLOUD_PROJECT']}.qalert.incoming_backfill
-        WHERE create_date_unix >= 1547812800
+        WHERE create_date_unix >= 1488974400
+        AND create_date_unix < 1547812800
     )
 -- drop the final column through slicing the string (-13). final column is added in next query     
 SELECT 
@@ -143,6 +144,63 @@ FROM
 format_dedupe_2 = BigQueryOperator(
         task_id = 'format_dedupe_2',
         sql = query_format_dedupe_2,
+        bigquery_conn_id='google_cloud_default',
+        use_legacy_sql = False,
+        dag = dag
+)
+
+query_format_dedupe_3 = f"""
+CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_backfill_3` AS
+WITH formatted  AS 
+    (
+    SELECT 
+        DISTINCT * EXCEPT (pii_lat, pii_long, anon_lat, anon_long),
+        CAST(pii_lat AS FLOAT64) AS pii_lat,
+        CAST(pii_long AS FLOAT64) AS pii_long,
+        CAST(anon_lat AS FLOAT64) AS anon_lat,
+        CAST(anon_long AS FLOAT64) AS anon_long
+    FROM 
+        {os.environ['GCLOUD_PROJECT']}.qalert.incoming_backfill
+        WHERE create_date_unix >= 1547812800
+        AND create_date_unix < 1606392000
+    )
+-- drop the final column through slicing the string (-13). final column is added in next query     
+SELECT 
+    {COLS_IN_ORDER} 
+FROM 
+    formatted
+"""
+format_dedupe_3 = BigQueryOperator(
+        task_id = 'format_dedupe_3',
+        sql = query_format_dedupe_3,
+        bigquery_conn_id='google_cloud_default',
+        use_legacy_sql = False,
+        dag = dag
+)
+
+query_format_dedupe_4 = f"""
+CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_backfill_4` AS
+WITH formatted  AS 
+    (
+    SELECT 
+        DISTINCT * EXCEPT (pii_lat, pii_long, anon_lat, anon_long),
+        CAST(pii_lat AS FLOAT64) AS pii_lat,
+        CAST(pii_long AS FLOAT64) AS pii_long,
+        CAST(anon_lat AS FLOAT64) AS anon_lat,
+        CAST(anon_long AS FLOAT64) AS anon_long
+    FROM 
+        {os.environ['GCLOUD_PROJECT']}.qalert.incoming_backfill
+        WHERE create_date_unix >= 1606392000
+    )
+-- drop the final column through slicing the string (-13). final column is added in next query     
+SELECT 
+    {COLS_IN_ORDER} 
+FROM 
+    formatted
+"""
+format_dedupe_4 = BigQueryOperator(
+        task_id = 'format_dedupe_4',
+        sql = query_format_dedupe_4,
         bigquery_conn_id='google_cloud_default',
         use_legacy_sql = False,
         dag = dag
@@ -167,11 +225,34 @@ city_limits_2 = BigQueryOperator(
         dag = dag
 )
 
+# Query new tickets to determine if they are in the city limits
+query_city_lim_3 = build_city_limits_query('qalert', 'incoming_backfill_3', 'pii_lat', 'pii_long')
+city_limits_3 = BigQueryOperator(
+        task_id = 'city_limits_3',
+        sql = query_city_lim_3,
+        bigquery_conn_id='google_cloud_default',
+        use_legacy_sql = False,
+        dag = dag
+)
+
+query_city_lim_4 = build_city_limits_query('qalert', 'incoming_backfill_4', 'pii_lat', 'pii_long')
+city_limits_4 = BigQueryOperator(
+        task_id = 'city_limits_4',
+        sql = query_city_lim_4,
+        bigquery_conn_id='google_cloud_default',
+        use_legacy_sql = False,
+        dag = dag
+)
+
 query_join_dedupe = f"""
 CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_backfill` AS
 SELECT * FROM `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_backfill_1` 
 UNION DISTINCT 
-SELECT * from `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_backfill_2`
+SELECT * FROM `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_backfill_2` 
+UNION DISTINCT 
+SELECT * FROM `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_backfill_3` 
+UNION DISTINCT 
+SELECT * FROM `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_backfill_4`
 """
 join_dedupe = BigQueryOperator(
         task_id = 'join_dedupe',
@@ -570,6 +651,7 @@ beam_cleanup = BashOperator(
 )
 
 # DAG execution:
-gcs_loader >> dataflow >> gcs_to_bq >> format_dedupe_1 >> format_dedupe_2 >> city_limits_1 >> city_limits_2 >> \
-join_dedupe >> geojoin >> insert_new_parent >> remove_false_parents >> integrate_children >> replace_last_update >> \
-delete_old_insert_new_records >> add_pii_comments >> drop_pii_for_export >> wprdc_export >> beam_cleanup
+gcs_loader >> dataflow >> gcs_to_bq >> format_dedupe_1 >> format_dedupe_2 >> format_dedupe_3 >> format_dedupe_4 >> \
+city_limits_1 >> city_limits_2 >> city_limits_3 >> city_limits_4 >> join_dedupe >> geojoin >> insert_new_parent >> \
+remove_false_parents >> integrate_children >> replace_last_update >> delete_old_insert_new_records >> \
+add_pii_comments >> drop_pii_for_export >> wprdc_export >> beam_cleanup
