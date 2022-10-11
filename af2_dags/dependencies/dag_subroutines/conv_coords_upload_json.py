@@ -21,7 +21,7 @@ args = vars(parser.parse_args())
 
 
 # retrieve input csv from GCS. String IO operation tranforms bytes to string
-dl_storage_client = storage.Client(project = os.environ["GLCOUD_PROJECT"])
+dl_storage_client = storage.Client(project = os.environ['GCLOUD_PROJECT'])
 bucket_name = args["input_bucket"]
 bucket = dl_storage_client.bucket(bucket_name)
 blob = bucket.blob(args["input_blob"])
