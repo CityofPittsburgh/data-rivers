@@ -38,8 +38,8 @@ url = 'https://staff.onestoppgh.pittsburghpa.gov/pghprod/odata/odata/'
 # PLI base and nested expansion tables (expansion from base table)
 base = "CE_PROGRAMINSPECTIONLOCATION"
 nested_table_1 = "PARCEL"
-nested_table_2 = "PARCELPARCELOWNERXREF"
-nested_table_3 = "PARCELOWNER"
+xref_1 = "PARCELPARCELOWNERXREF"
+nested_table_2 = "PARCELOWNER"
 
 
 # fields to select from each table (nt = nested table)
@@ -47,19 +47,14 @@ nested_table_3 = "PARCELOWNER"
 fds_base = "LATESTINSPECTIONRESULT, LATESTINSPECTIONSCORE, CREATEDDATE, PROGINSPTYPEDESCRIPTION, " \
            "PROGRAMINSPECTIONSTATUS"
 fds_nt1 = "PARCELNUMBER, ADDRESSABLEOBJEFORMATTEDADDRES"
-fds_nt2 = "PARCELOWNEROBJECTID, PARCELOBJECTID"
-fds_nt3 = "OWNERNAME"
+fds_nt2 = "OWNERNAME"
 
 
 # build the URL
 odata_url_base_fields = F"$select={fds_base}"
 odata_url_tail = F"&$expand={nested_table_1}" \
-    "(" \
-        F"$select={fds_nt1},; $expand={nested_table_2}" \
-            "(" \
-                F"$expand={nested_table_3}($select={fds_nt3})" \
-            ")" \
-    ")"
+    F"($select={fds_nt1},; $expand={xref_1}" \
+    F"($expand={nested_table_2}($select={fds_nt2})))"
 odata_url = F"{url}{base}?&{odata_url_base_fields}{odata_url_tail}"
 
 
