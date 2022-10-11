@@ -39,9 +39,10 @@ def run(argv = None):
         additional_nested_fields = ['info', '', '', '', '']
         search_fields = [{'type': 'EMAIL'}, 'validTo', 'validTo', 'validTo', 'validTo']
         additional_search_vals = ['pittsburghpa.gov', '', '', '', '']
+        field_name_swaps = [('external_id', 'mpoetc_number')]
         type_changes = [('employee_id', 'str')]
-        keep_fields = ['employee_id', 'first_name', 'last_name', 'email',
-                       'rank', 'rank_valid_date', 'unit', 'unit_valid_date']
+        keep_fields = ['employee_id', 'mpoetc_number', 'first_name', 'last_name',
+                       'email', 'rank', 'rank_valid_date', 'unit', 'unit_valid_date']
 
         lines = p | ReadFromText(known_args.input, coder = JsonCoder())
 
@@ -50,6 +51,7 @@ def run(argv = None):
                 | beam.ParDo(ExtractField(source_fields, nested_fields, new_field_names,
                                           additional_nested_fields, search_fields, additional_search_vals))
                 | beam.ParDo(ColumnsCamelToSnakeCase())
+                | beam.ParDo(SwapFieldNames(field_name_swaps))
                 | beam.ParDo(ChangeDataTypes(type_changes))
                 | beam.ParDo(FilterFields(keep_fields, exclude_target_fields=False))
                 | WriteToAvro(known_args.avro_output, schema = avro_schema, file_name_suffix = '.avro',

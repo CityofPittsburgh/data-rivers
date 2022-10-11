@@ -330,8 +330,7 @@ def json_to_gcs(path, json_object_list, bucket_name):
         linted_requests = ndjson.loads(linted)[0]
         json_to_gcs(path, linted_requests, bucket_name)
 
-    logging.info(
-        'Successfully uploaded blob %r to bucket %r.', path, bucket_name)
+    logging.info('Successfully uploaded blob %r to bucket %r.', path, bucket_name)
 
     print('Successfully uploaded blob {} to bucket {}'.format(path, bucket_name))
 
@@ -504,7 +503,6 @@ def unnest_domi_street_seg(nested_data, name_swaps, old_nested_keys, new_unneste
                 for s in segs:
                     seg_ct += 1
                     new_row = new_row_base.copy()
-                    new_row.update({"closure_id": str(s["UNIQUEID"])})
                     new_row.update({"carte_id": str(s["CARTEID"])})
                     new_row.update({"segment_num": seg_ct})
                     new_row.update({"total_segments": segs_in_file})

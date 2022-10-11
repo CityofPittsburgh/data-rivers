@@ -36,23 +36,22 @@ def run(argv = None):
     )
 
     with beam.Pipeline(options = pipeline_options) as p:
-        times = [("create_date", "EST"), ("from_date", "EST"), ("to_date", "EST")]
+        times = [("from_date", "EST"), ("to_date", "EST")]
 
         bool_convs = [("full_closure", "Y", "N", False), ("travel_lane", "Y", "N", False),
                       ("parking_lane", "Y", "N", False), ("metered_parking", "Y", "N", False),
-                      ("sidewalk", "Y", "N", False), ("validated", "Y", "N", False)]
+                      ("sidewalk", "Y", "N", False)]
 
         str_convs = [("ext_file_num", "upper"), ("permit_type", "upper"), ("work_desc", "upper"),
                      ("type_work_desc", "upper"), ("applicant_name", "upper"), ("contractor_name", "upper"),
                      ("special_instructions", "upper"), ("weekday_hours", "upper"), ("weekend_hours", "upper"),
                      ("primary_street", "upper"), ("from_street", "upper"), ("to_street", "upper")]
 
-        drops = ["create_date", "from_date", "to_date", "street_segment", "street_closure"]
+        drops = ["from_date", "to_date", "street_segment", "street_closure"]
 
         # only allow times between 1990 and 2050. This can be reconfigured and is simply here to permit the AVRO
         # creation. The goal is for end users to identify outlier dates via UTC/EST and handle those correctly
-        outlier_checks = [("create_date_UNIX", 631152000, 2524608000), ("from_date_UNIX", 631152000, 2524608000),
-                          ("to_date_UNIX", 631152000, 2524608000)]
+        outlier_checks = [("from_date_UNIX", 631152000, 2524608000), ("to_date_UNIX", 631152000, 2524608000)]
 
         lines = p | ReadFromText(known_args.input, coder = JsonCoder())
 
