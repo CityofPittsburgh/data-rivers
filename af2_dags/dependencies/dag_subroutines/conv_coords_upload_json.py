@@ -1,4 +1,5 @@
 import json
+import os
 from io import StringIO
 import argparse
 
@@ -20,7 +21,7 @@ args = vars(parser.parse_args())
 
 
 # retrieve input csv from GCS. String IO operation tranforms bytes to string
-dl_storage_client = storage.Client(project = "data-bridGIS")
+dl_storage_client = storage.Client(project = os.environ["GLCOUD_PROJECT"])
 bucket_name = args["input_bucket"]
 bucket = dl_storage_client.bucket(bucket_name)
 blob = bucket.blob(args["input_blob"])
@@ -75,8 +76,8 @@ for i in range(len(data_in_clean)):
 
 
 # Write the json to GCS
-ul_storage_client = storage.Client(project="data-bridGIS")
-upload_blob = storage.Blob(name="active_street_closures", bucket=ul_storage_client.get_bucket(args["output_bucket"]))
+ul_storage_client = storage.Client(project=os.environ["GCLOUD_PRROJECT"])
+upload_blob = storage.Blob(name="closures", bucket=ul_storage_client.get_bucket(args["output_bucket"]))
 upload_blob.upload_from_string(
             data=json.dumps(FeatureCollection(features)),
             content_type='application/json',

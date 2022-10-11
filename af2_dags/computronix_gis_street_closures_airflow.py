@@ -143,7 +143,7 @@ gis_csv_export = BigQueryToCloudStorageOperator(
 # Convert csv to geo enriched json
 input_bucket = 'pghpa_gis_domi_street_closures'
 input_blob = 'active_closures.csv'
-output_bucket = 'pghpa_gis_domi_street_closures'
+output_bucket = F"{os.environ['GCS_PREFIX']}_wprdc/active_domi_street_closures/"
 exec_conv = f"python {os.environ['DAG_SUBROUTINE_PATH']}/conv_coords_upload_json.py"
 run_args = F"--input_bucket {input_bucket} --input_blob {input_blob} --output_bucket {output_bucket}"
 json_conv = BashOperator(
