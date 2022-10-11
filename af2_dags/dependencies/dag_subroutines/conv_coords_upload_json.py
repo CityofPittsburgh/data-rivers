@@ -10,7 +10,6 @@ import geojson
 from geojson import FeatureCollection, LineString
 from geojson import Feature
 from google.cloud import storage
-# must install gcsfs
 
 
 parser = argparse.ArgumentParser()
@@ -21,7 +20,7 @@ args = vars(parser.parse_args())
 
 
 # retrieve input csv from GCS. String IO operation tranforms bytes to string
-dl_storage_client = storage.Client(project = os.environ['GCLOUD_PROJECT'])
+dl_storage_client = storage.Client(project = "data-bridGIS")
 bucket_name = args["input_bucket"]
 bucket = dl_storage_client.bucket(bucket_name)
 blob = bucket.blob(args["input_blob"])
@@ -76,7 +75,7 @@ for i in range(len(data_in_clean)):
 
 
 # Write the json to GCS
-ul_storage_client = storage.Client(project=os.environ["GCLOUD_PRROJECT"])
+ul_storage_client = storage.Client()
 upload_blob = storage.Blob(name="closures", bucket=ul_storage_client.get_bucket(args["output_bucket"]))
 upload_blob.upload_from_string(
             data=json.dumps(FeatureCollection(features)),
