@@ -20,6 +20,12 @@ DEFAULT_DATAFLOW_ARGS = [
 ]
 
 
+class MapValuesFromFile(beam.DoFn):
+    def process(self, datum):
+        datum['dept']
+        yield datum
+
+
 class StripDate(beam.DoFn):
     def process(self, datum):
         if datum['Employee_HireDate']:
