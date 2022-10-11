@@ -73,7 +73,7 @@ def run(argv = None):
             argv = argv,
             schema_name = 'qalert_comments_backfill',
             default_arguments=DEFAULT_DATAFLOW_ARGS,
-            limit_workers = [True, 1]
+            limit_workers = [True, 25]
     )
 
     with beam.Pipeline(options = pipeline_options) as p:

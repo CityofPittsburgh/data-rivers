@@ -53,7 +53,8 @@ dag = DAG(
                                 'get_ds_day': get_ds_day}
 )
 
-path = "{{ ds|get_ds_year }}-{{ ds|get_ds_month }}-07"
+json_path = "{{ ds|get_ds_year }}-{{ ds|get_ds_month }}-07"
+path = "{{ ds|get_ds_year }}-{{ ds|get_ds_month }}-{{ ds|get_ds_day }}"
 
 # Run gcs_loader
 gcs_loader = BashOperator(
@@ -65,7 +66,7 @@ gcs_loader = BashOperator(
 # Run dataflow_script
 py_cmd = f"python {os.environ['DAGS_PATH']}/dependencies/dataflow_scripts/qalert_comments_backfill_dataflow.py"
 in_cmd = \
-    f" --input gs://{os.environ['GCS_PREFIX']}_qalert/requests/backfill/{path}/backfilled_requests.json"
+    f" --input gs://{os.environ['GCS_PREFIX']}_qalert/requests/backfill/{json_path}/backfilled_requests.json"
 out_cmd = f" --avro_output gs://{os.environ['GCS_PREFIX']}_qalert/requests/backfill/{path}/avro_output/"
 df_cmd_str = py_cmd + in_cmd + out_cmd
 dataflow = BashOperator(
