@@ -517,7 +517,6 @@ beam_cleanup = BashOperator(
 )
 
 # DAG execution:
-gcs_loader >> dataflow >> gcs_to_bq >> format_dedupe_1 >> format_dedupe_2 >> format_dedupe_3 >> format_dedupe_4 >> \
-city_limits_1 >> city_limits_2 >> city_limits_3 >> city_limits_4 >> join_dedupe >> geojoin >> insert_new_parent >> \
+gcs_loader >> dataflow >> gcs_to_bq >> split_table >> city_limits >> join_dedupe >> geojoin >> insert_new_parent >> \
 remove_false_parents >> integrate_children >> replace_last_update >> delete_old_insert_new_records >> \
 add_pii_comments >> drop_pii_for_export >> wprdc_export >> beam_cleanup
