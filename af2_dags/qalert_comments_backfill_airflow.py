@@ -53,7 +53,6 @@ dag = DAG(
                                 'get_ds_day': get_ds_day}
 )
 
-json_path = "{{ ds|get_ds_year }}-{{ ds|get_ds_month }}-07"
 path = "{{ ds|get_ds_year }}-{{ ds|get_ds_month }}-{{ ds|get_ds_day }}"
 
 # Run gcs_loader
@@ -66,7 +65,7 @@ gcs_loader = BashOperator(
 # Run dataflow_script
 py_cmd = f"python {os.environ['DAGS_PATH']}/dependencies/dataflow_scripts/qalert_comments_backfill_dataflow.py"
 in_cmd = \
-    f" --input gs://{os.environ['GCS_PREFIX']}_qalert/requests/backfill/{json_path}/backfilled_requests.json"
+    f" --input gs://{os.environ['GCS_PREFIX']}_qalert/requests/backfill/{path}/backfilled_requests.json"
 out_cmd = f" --avro_output gs://{os.environ['GCS_PREFIX']}_qalert/requests/backfill/{path}/avro_output/"
 df_cmd_str = py_cmd + in_cmd + out_cmd
 dataflow = BashOperator(
@@ -90,7 +89,7 @@ gcs_to_bq = GoogleCloudStorageToBigQueryOperator(
 )
 
 query_split_table = build_split_table_query('qalert', 'incoming_backfill', 1429529820, 1665166140,
-                                            20, 'create_date_unix', COLS_IN_ORDER)
+                                            30, 'create_date_unix', COLS_IN_ORDER)
 split_table = BigQueryOperator(
         task_id = 'split_table',
         sql = query_split_table,
@@ -101,7 +100,7 @@ split_table = BigQueryOperator(
 
 # Query new tickets to determine if they are in the city limits
 query_city_lim = ""
-for i in range(20):
+for i in range(30):
     query_city_lim += build_city_limits_query('qalert', f'incoming_backfill_{i+1}', 'pii_lat', 'pii_long') + ";"
 city_limits = BigQueryOperator(
         task_id = 'city_limits',
@@ -115,7 +114,7 @@ query_join_dedupe = f"""
 CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_backfill` AS
 SELECT * FROM `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_backfill_1` 
 """
-for i in range(1, 20):
+for i in range(1, 30):
     query_join_dedupe += F"""
     UNION DISTINCT 
     SELECT * FROM `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_backfill_{i+1}`
@@ -140,6 +139,51 @@ geojoin = BigQueryOperator(
         bigquery_conn_id='google_cloud_default',
         use_legacy_sql = False,
         dag = dag
+)
+
+query_add_pii_comments = f"""
+CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` AS
+SELECT 
+    alr.group_id, alr.child_ids, alr.num_requests, alr.parent_closed, alr.status_name, 
+    alr.status_code, alr.dept, alr.request_type_name, alr.request_type_id, alr.origin,
+    bck.pii_comments, alr.anon_comments, alr.pii_private_notes, alr.create_date_est, 
+    alr.create_date_utc, alr.create_date_unix, alr.last_action_est, alr.last_action_utc, 
+    alr.last_action_unix, alr.closed_date_est, alr.closed_date_utc, alr.closed_date_unix, 
+    alr.pii_street_num, alr.street, alr.cross_street, alr.street_id, alr.cross_street_id, 
+    alr.city, alr.pii_input_address, alr.pii_google_formatted_address, 
+    alr.anon_google_formatted_address, alr.address_type, alr.neighborhood_name, 
+    alr.council_district, alr.ward, alr.police_zone, alr.fire_zone, alr.dpw_streets, 
+    alr.dpw_enviro, alr.dpw_parks, alr.google_pii_lat, alr.google_pii_long, 
+    alr.google_anon_lat, alr.google_anon_long, alr.input_pii_lat, alr.input_pii_long,
+    alr.input_anon_lat, alr.input_anon_long
+FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
+JOIN `{os.environ['GCLOUD_PROJECT']}.qalert.backfill_enriched` bck
+ON alr.group_id = bck.id;
+
+CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status` AS
+SELECT 
+    atcs.id, atcs.parent_ticket_id, atcs.child_ticket, atcs.dept, atcs.status_name, 
+    atcs.status_code, atcs.request_type_name, atcs.request_type_id, atcs.origin,
+    bck.pii_comments, atcs.anon_comments, atcs.pii_private_notes, atcs.create_date_est, 
+    atcs.create_date_utc, atcs.create_date_unix, atcs.last_action_est, atcs.last_action_utc, 
+    atcs.last_action_unix, atcs.closed_date_est, atcs.closed_date_utc, atcs.closed_date_unix, 
+    atcs.pii_street_num, atcs.street, atcs.cross_street, atcs.street_id, atcs.cross_street_id, 
+    atcs.city, atcs.pii_input_address, atcs.pii_google_formatted_address, 
+    atcs.anon_google_formatted_address, atcs.address_type, atcs.neighborhood_name, 
+    atcs.council_district, atcs.ward, atcs.police_zone, atcs.fire_zone, atcs.dpw_streets, 
+    atcs.dpw_enviro, atcs.dpw_parks, atcs.google_pii_lat, atcs.google_pii_long, 
+    atcs.google_anon_lat, atcs.google_anon_long, atcs.input_pii_lat, atcs.input_pii_long,
+    atcs.input_anon_lat, atcs.input_anon_long
+FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status` atcs
+JOIN `{os.environ['GCLOUD_PROJECT']}.qalert.backfill_enriched` bck
+ON atcs.id = bck.id;
+"""
+add_pii_comments = BigQueryOperator(
+    task_id='add_pii_comments',
+    sql=query_add_pii_comments,
+    bigquery_conn_id='google_cloud_default',
+    use_legacy_sql=False,
+    dag=dag
 )
 
 query_insert_new_parent = f"""
@@ -315,169 +359,6 @@ integrate_children = BigQueryOperator(
         dag = dag
 )
 
-query_replace_last_update = f"""
-/*
-Tickets are continually updated throughout their life. In the vast majority of cases a ticket will be created and
-then further processed (creating status changes) over a timeline which causes the ticket's lifespan to encompass
-multiple
-DAG runs. ONLY THE CURRENT STATUS of each ticket, which been updated since the last DAG run, is returned in the
-current DAG run. Thus, a ticket appears multiple times in our DAG.
-
-The only consequential information that consecutive updates contain are changes to the status, the time of the last
-update of the status, and the closure time (if applicable). The fact that child and parent tickets refer to the
-same underlying request creates the possibility that only a child OR parent could theoretically be updated. This
-occurred prior to 08/21 and it is currently (01/22) unclear if this will continue to happen (the API was updated to
-account for this). Most likely all relevant updates will by synchronized with the parent ticket. The most feasible
-solution to extracting update status/times is to take this information ONLY from the parent ticket and disregard
-changes to the child ticket. This query selects parent tickets which have been previously recorded in the system and
-simply extracts and updates the status timestamp data from those tickets. This data is then updated in
-all_linked_requests.
-*/
-CREATE OR REPLACE TABLE  `{os.environ['GCLOUD_PROJECT']}.qalert.temp_update` AS
-(
-SELECT
-    id,
-    IF (status_name = "closed", TRUE, FALSE) AS p_closed,
-    closed_date_est, closed_date_utc,closed_date_unix,
-    last_action_est, last_action_utc,last_action_unix,
-    status_name, status_code
-FROM  `{os.environ['GCLOUD_PROJECT']}.qalert.backfill_enriched`
-
-WHERE id IN (SELECT id FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`)
-AND child_ticket = FALSE
-AND request_type_name NOT IN ({EXCLUDE_TYPES})
-);
-
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
-SET alr.parent_closed = tu.p_closed
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_update` tu
-WHERE alr.group_id = tu.id;
-
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
-SET alr.status_name = tu.status_name
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_update` tu
-WHERE alr.group_id = tu.id;
-
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
-SET alr.status_code = tu.status_code
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_update` tu
-WHERE alr.group_id = tu.id;
-
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
-SET alr.closed_date_est = tu.closed_date_est
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_update` tu
-WHERE alr.group_id = tu.id;
-
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
-SET alr.closed_date_utc = tu.closed_date_utc
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_update` tu
-WHERE alr.group_id = tu.id;
-
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
-SET alr.closed_date_unix = tu.closed_date_unix
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_update` tu
-WHERE alr.group_id = tu.id;
-
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
-SET alr.last_action_est = tu.last_action_est
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_update` tu
-WHERE alr.group_id = tu.id;
-
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
-SET alr.last_action_utc = tu.last_action_utc
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_update` tu
-WHERE alr.group_id = tu.id;
-
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
-SET alr.last_action_unix = tu.last_action_unix
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_update` tu
-WHERE alr.group_id = tu.id;
-"""
-replace_last_update = BigQueryOperator(
-        task_id = 'replace_last_update',
-        sql = query_replace_last_update,
-        bigquery_conn_id='google_cloud_default',
-        use_legacy_sql = False,
-        dag = dag
-)
-
-query_delete_old_insert_new_records = f"""
-/*
-All tickets that ever receive an update (or are simply created) should be stored with their current status
-for historical purposes. This query does just that. The data are simply inserted into all_tickets_current_status. If
-the ticket has been seen before, it is already in all_tickets_current_status. Rather than simply add the newest ticket,
-this query also deletes the prior entry for that ticket. The key to understanding this is: The API does not return the
-FULL HISTORY of each ticket, but rather a snapshot of the ticket's current status. This means that if the status is
-updated
-multiple times between DAG runs, only the final status is recorded. While the FULL HISTORY has obvious value, this is
-not available and it less confusing to simply store a current snapshot of the ticket's history.
-
-all_tickets_current_status is currently (01/22) maintained for historical purposes.  This table has less value for
-analysis as the linkages between tickets are not taken into account.
-*/
-
-DELETE FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`
-WHERE id IN (SELECT id FROM `{os.environ['GCLOUD_PROJECT']}.qalert.backfill_enriched`);
-INSERT INTO `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`
-SELECT 
-    {COLS_IN_ORDER}
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.backfill_enriched`;
-"""
-delete_old_insert_new_records = BigQueryOperator(
-        task_id = 'delete_old_insert_new_records',
-        sql = query_delete_old_insert_new_records,
-        bigquery_conn_id='google_cloud_default',
-        use_legacy_sql = False,
-        dag = dag
-)
-
-query_add_pii_comments = f"""
-CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` AS
-SELECT 
-    alr.group_id, alr.child_ids, alr.num_requests, alr.parent_closed, alr.status_name, 
-    alr.status_code, alr.dept, alr.request_type_name, alr.request_type_id, alr.origin,
-    bck.pii_comments, alr.anon_comments, alr.pii_private_notes, alr.create_date_est, 
-    alr.create_date_utc, alr.create_date_unix, alr.last_action_est, alr.last_action_utc, 
-    alr.last_action_unix, alr.closed_date_est, alr.closed_date_utc, alr.closed_date_unix, 
-    alr.pii_street_num, alr.street, alr.cross_street, alr.street_id, alr.cross_street_id, 
-    alr.city, alr.pii_input_address, alr.pii_google_formatted_address, 
-    alr.anon_google_formatted_address, alr.address_type, alr.neighborhood_name, 
-    alr.council_district, alr.ward, alr.police_zone, alr.fire_zone, alr.dpw_streets, 
-    alr.dpw_enviro, alr.dpw_parks, alr.pii_lat AS google_pii_lat, alr.pii_long AS google_pii_long, 
-    alr.anon_lat AS google_anon_lat, alr.anon_long AS google_anon_long,
-    alr.input_pii_lat AS input_pii_lat, alr.input_pii_long AS input_pii_long,
-    alr.input_anon_lat AS input_anon_lat, alr.input_anon_long AS input_anon_long
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
-JOIN `{os.environ['GCLOUD_PROJECT']}.qalert.backfill_enriched` bck
-ON alr.group_id = bck.id;
-
-CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status` AS
-SELECT 
-    atcs.id, atcs.parent_ticket_id, atcs.child_ticket, atcs.dept, atcs.status_name, 
-    atcs.status_code, atcs.dept, atcs.request_type_name, atcs.request_type_id, atcs.origin,
-    bck.pii_comments, atcs.anon_comments, atcs.pii_private_notes, atcs.create_date_est, 
-    atcs.create_date_utc, atcs.create_date_unix, atcs.last_action_est, atcs.last_action_utc, 
-    atcs.last_action_unix, atcs.closed_date_est, atcs.closed_date_utc, atcs.closed_date_unix, 
-    atcs.pii_street_num, alr.street, atcs.cross_street, atcs.street_id, atcs.cross_street_id, 
-    atcs.city, alr.pii_input_address, atcs.pii_google_formatted_address, 
-    atcs.anon_google_formatted_address, atcs.address_type, atcs.neighborhood_name, 
-    atcs.council_district, alr.ward, atcs.police_zone, atcs.fire_zone, atcs.dpw_streets, 
-    atcs.dpw_enviro, alr.dpw_parks, atcs.pii_lat AS google_pii_lat, atcs.pii_long AS google_pii_long, 
-    atcs.anon_lat AS google_anon_lat, atcs.anon_long AS google_anon_long,
-    atcs.input_pii_lat AS input_pii_lat, atcs.input_pii_long AS input_pii_long,
-    atcs.input_anon_lat AS input_anon_lat, atcs.input_anon_long AS input_anon_long
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status` atcs
-JOIN `{os.environ['GCLOUD_PROJECT']}.qalert.backfill_enriched` bck
-ON atcs.id = bck.id;
-"""
-add_pii_comments = BigQueryOperator(
-    task_id='add_pii_comments',
-    sql=query_add_pii_comments,
-    bigquery_conn_id='google_cloud_default',
-    use_legacy_sql=False,
-    dag=dag
-)
-
 # Create a table from all_linked_requests that has all columns EXCEPT those that have potential PII. This table is
 # subsequently exported to WPRDC. BQ will not currently (2021-10-01) allow data to be pushed from a query and it must
 # be stored in a table prior to the push. Thus, this is a 2 step process also involving the operator below.
@@ -517,6 +398,5 @@ beam_cleanup = BashOperator(
 )
 
 # DAG execution:
-gcs_loader >> dataflow >> gcs_to_bq >> split_table >> city_limits >> join_dedupe >> geojoin >> insert_new_parent >> \
-remove_false_parents >> integrate_children >> replace_last_update >> delete_old_insert_new_records >> \
-add_pii_comments >> drop_pii_for_export >> wprdc_export >> beam_cleanup
+gcs_loader >> dataflow >> gcs_to_bq >> split_table >> city_limits >> join_dedupe >> geojoin >> add_pii_comments >> \
+insert_new_parent >> remove_false_parents >> integrate_children >> drop_pii_for_export >> wprdc_export >> beam_cleanup
