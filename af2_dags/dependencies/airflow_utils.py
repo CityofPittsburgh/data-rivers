@@ -4,6 +4,7 @@ import logging
 import os
 import urllib
 import ndjson
+import math
 
 import pendulum
 from datetime import datetime, timedelta
@@ -319,6 +320,40 @@ def build_percentage_table_query(dataset, raw_table, new_table, is_deduped, id_f
         """
     sql += " ORDER BY type, percentage DESC "
     return sql
+
+
+def build_split_table_query(dataset, raw_table, start, stop, num_shards, date_field, cols_in_order):
+    query = ""
+    step = math.ceil((stop - start) / num_shards)
+    timestamps = range(start, stop, step)
+
+    for i in range(len(timestamps)):
+        query += F"""CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.{dataset}.{raw_table}_{i+1}` AS
+        WITH formatted  AS 
+            (
+            SELECT 
+                DISTINCT * EXCEPT (pii_lat, pii_long, anon_lat, anon_long),
+                CAST(pii_lat AS FLOAT64) AS pii_lat,
+                CAST(pii_long AS FLOAT64) AS pii_long,
+                CAST(anon_lat AS FLOAT64) AS anon_lat,
+                CAST(anon_long AS FLOAT64) AS anon_long
+            FROM 
+                `{os.environ['GCLOUD_PROJECT']}.{dataset}.{raw_table}` """
+        if i == 0:
+            query += f"WHERE {date_field} < {timestamps[i+1]}"
+        elif i == len(timestamps) - 1:
+            query += f"WHERE {date_field} >= {timestamps[i]}"
+        else:
+            query += f"WHERE {date_field} >= {timestamps[i]} AND {date_field} < {timestamps[i+1]}"
+        query += F""")
+        SELECT 
+            {cols_in_order} 
+        FROM 
+            formatted;
+        """
+
+    return query
+
 
 def build_sync_staging_table_query(dataset, new_table, upd_table, src_table, is_deduped, upd_id_field, join_id_field, field_groups, comp_fields):
     sql = F"""
