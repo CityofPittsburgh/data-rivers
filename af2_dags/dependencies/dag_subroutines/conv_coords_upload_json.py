@@ -76,7 +76,8 @@ for i in range(len(data_in_clean)):
 
 # Write the json to GCS
 ul_storage_client = storage.Client(project=os.environ['GCLOUD_PROJECT'])
-upload_blob = storage.Blob(name="closures", bucket=ul_storage_client.get_bucket(args["output_bucket"]))
+upload_blob = storage.Blob(name="active_domi_street_closures/closures",
+                           bucket=ul_storage_client.get_bucket(args["output_bucket"]))
 upload_blob.upload_from_string(
             data=json.dumps(FeatureCollection(features)),
             content_type='application/json',
