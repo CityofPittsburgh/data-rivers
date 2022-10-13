@@ -37,6 +37,7 @@ path = "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds|get_ds_day }}/{{ run_id
 json_loc = f"{path}_street_closures.json"
 avro_loc = f"avro_output/{path}/"
 
+
 # Run gcs_loader
 exec_gcs = f"python {os.environ['GCS_LOADER_PATH']}/computronix_gis_street_closures_gcs.py"
 gcs_loader = BashOperator(
