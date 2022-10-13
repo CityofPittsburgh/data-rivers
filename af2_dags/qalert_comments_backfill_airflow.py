@@ -15,7 +15,7 @@ from airflow.contrib.operators.bigquery_to_gcs import BigQueryToCloudStorageOper
 
 from dependencies import airflow_utils
 from dependencies.airflow_utils import get_ds_year, get_ds_month, get_ds_day, default_args, build_city_limits_query, \
-    build_revgeo_time_bound_query, build_split_table_query
+    build_revgeo_time_bound_query, build_split_table_query, build_dedup_old_updates
 
 COLS_IN_ORDER = """id, parent_ticket_id, child_ticket, dept, status_name, status_code, request_type_name, 
 request_type_id, origin, pii_comments, anon_comments, pii_private_notes, create_date_est, create_date_utc, 
@@ -29,9 +29,9 @@ request_type_name, request_type_id, origin, pii_comments, anon_comments, pii_pri
 create_date_utc, create_date_unix, last_action_est, last_action_utc, last_action_unix, closed_date_est, closed_date_utc, 
 closed_date_unix, pii_street_num, street, cross_street, street_id, cross_street_id, city, pii_input_address, 
 NULL AS pii_google_formatted_address, NULL AS anon_google_formatted_address, address_type, neighborhood_name, 
-council_district, ward, police_zone, fire_zone, dpw_streets, dpw_enviro, dpw_parks, pii_lat AS input_pii_lat, 
-pii_long AS input_pii_long, NULL AS google_pii_lat, NULL AS google_pii_long, anon_lat AS input_anon_lat, 
-anon_long AS input_anon_long, NULL AS google_anon_lat, NULL AS google_anon_long"""
+council_district, ward, police_zone, fire_zone, dpw_streets, dpw_enviro, dpw_parks,  
+NULL AS google_pii_lat, NULL AS google_pii_long, NULL AS google_anon_lat, NULL AS google_anon_long, 
+pii_lat AS input_pii_lat, pii_long AS input_pii_long, anon_lat AS input_anon_lat, anon_long AS input_anon_long"""
 
 EXCLUDE_TYPES = """'Hold - 311', 'Graffiti, Owner Refused DPW Removal', 'Medical Exemption - Tote', 
 'Snow Angel Volunteer', 'Claim form (Law)','Snow Angel Intake', 'Application Request', 'Reject to 311', 'Referral', 
@@ -88,7 +88,7 @@ gcs_to_bq = GoogleCloudStorageToBigQueryOperator(
     dag = dag
 )
 
-query_split_table = build_split_table_query('qalert', 'incoming_backfill', 1429529820, 1665166140,
+query_split_table = build_split_table_query('qalert', 'incoming_backfill', 1429529820, 1665686739,
                                             30, 'create_date_unix', COLS_IN_ORDER)
 split_table = BigQueryOperator(
         task_id = 'split_table',
@@ -140,6 +140,18 @@ geojoin = BigQueryOperator(
         use_legacy_sql = False,
         dag = dag
 )
+
+last_upd_field = 'last_action_unix'
+query_dedup_enriched = build_dedup_old_updates('qalert', 'backfill_enriched',
+                                                'id', 'last_action_unix')
+dedup_enriched = BigQueryOperator(
+    task_id='dedup_enriched',
+    sql=query_dedup_enriched,
+    bigquery_conn_id='google_cloud_default',
+    use_legacy_sql=False,
+    dag=dag
+)
+
 
 query_add_pii_comments = f"""
 CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` AS
@@ -398,5 +410,6 @@ beam_cleanup = BashOperator(
 )
 
 # DAG execution:
-gcs_loader >> dataflow >> gcs_to_bq >> split_table >> city_limits >> join_dedupe >> geojoin >> add_pii_comments >> \
-insert_new_parent >> remove_false_parents >> integrate_children >> drop_pii_for_export >> wprdc_export >> beam_cleanup
+gcs_loader >> dataflow >> gcs_to_bq >> split_table >> city_limits >> join_dedupe >> geojoin >> dedup_enriched >>\
+add_pii_comments >> insert_new_parent >> remove_false_parents >> integrate_children >> drop_pii_for_export >>\
+wprdc_export >> beam_cleanup
