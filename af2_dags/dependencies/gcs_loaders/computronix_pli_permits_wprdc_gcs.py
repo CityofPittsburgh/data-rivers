@@ -96,6 +96,6 @@ all_permits.extend(gen_permits)
 
 
 # load data into GCS
-# out loc = <dataset>/<full date>/<run_id>_str_closures.json
+# out loc = <dataset>/<full date>/<run_id>_all_permits.json
 json_to_gcs(args["out_loc"], all_permits, bucket)
 
