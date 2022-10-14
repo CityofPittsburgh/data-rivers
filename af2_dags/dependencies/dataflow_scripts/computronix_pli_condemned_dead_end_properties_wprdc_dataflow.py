@@ -58,6 +58,7 @@ class UnNestFields(beam.DoFn):
         except IndexError:
             pass
 
+
 # run function is called at the bottom of the script and the entire operation is defined within
 # generate_args will initialize all options/args needed to execute the pipeline. known_args contains the runtime
 # params passed in from DAG (input/output). pipeline_options contains all the flags that are initialized by default (

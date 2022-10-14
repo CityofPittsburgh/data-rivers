@@ -23,7 +23,7 @@ unix_date = time.mktime(now.timetuple())
 # and pass the argument 'py_interpreter=python3'
 
 dag = DAG(
-    'computronix_pli_properties',
+    'computronix_pli_condemned_dead_end_properties',
     default_args=default_args,
     schedule_interval='@daily',
     user_defined_filters={'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year, 'get_ds_day': get_ds_day}
