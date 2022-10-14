@@ -2,14 +2,15 @@ from __future__ import absolute_import
 
 import logging
 import os
+import json
 
 import apache_beam as beam
 from apache_beam.io import ReadFromText
 from apache_beam.io.avroio import WriteToAvro
 
 from dataflow_utils import dataflow_utils
-from dataflow_utils.dataflow_utils import JsonCoder, SwapFieldNames, generate_args, FilterFields, \
-    ColumnsCamelToSnakeCase, ChangeDataTypes, StandardizeTimes
+from dataflow_utils.dataflow_utils import JsonCoder, SwapFieldNames, generate_args, ChangeDataTypes
+from google.cloud import storage
 
 DEFAULT_DATAFLOW_ARGS = [
         '--save_main_session',
@@ -20,9 +21,27 @@ DEFAULT_DATAFLOW_ARGS = [
 ]
 
 
-class MapValuesFromFile(beam.DoFn):
+class CrosswalkDeptNames(beam.DoFn):
     def process(self, datum):
-        datum['dept']
+        storage_client = storage.Client()
+        bucket = storage_client.bucket(f"{os.environ['GCS_PREFIX']}_ceridian")
+        blob = bucket.get_blob("ceridian_department_name_crosswalk.json")
+        cw = blob.download_as_string()
+        crosswalk = json.loads(cw.decode('utf-8'))
+        datum['sub_unit'] = ''
+        for dict in crosswalk:
+            if datum['dept'] == dict['Ceridian Department Name']:
+                datum['dept'] = dict['Department']
+                datum['sub_unit'] = dict['Sub-Unit']
+        yield datum
+
+
+class StandardizeEthnicityNames(beam.DoFn):
+    def process(self, datum):
+        if datum['DFEthnicity_ShortName']:
+            datum['DFEthnicity_ShortName'] = datum['DFEthnicity_ShortName'].split(' (')[0]
+        else:
+            datum['DFEthnicity_ShortName'] = 'Decline to Answer'
         yield datum
 
 
@@ -62,7 +81,9 @@ def run(argv = None):
         load = (
                 lines
                 | beam.ParDo(StripDate())
+                | beam.ParDo(StandardizeEthnicityNames())
                 | beam.ParDo(SwapFieldNames(field_name_swaps))
+                | beam.ParDo(CrosswalkDeptNames())
                 | beam.ParDo(ChangeDataTypes(type_changes))
                 | WriteToAvro(known_args.avro_output, schema = avro_schema, file_name_suffix = '.avro',
                               use_fastavro = True)
