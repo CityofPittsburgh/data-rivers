@@ -486,6 +486,22 @@ class StandardizeTimes(beam.DoFn, ABC):
         yield datum
 
 
+class StripStrings(beam.DoFn, ABC):
+    def __init__(self, fields):
+        """
+        :param input: list of field names; each val describes a field in which the strings will have leading and
+        trailing white space stripped
+        """
+        self.fields = fields
+
+    def process(self, datum):
+        for val in self.fields:
+            if datum[val[0]] is not None:
+                datum[val] = datum[val].strip()
+
+        yield datum
+
+
 class SwapFieldNames(beam.DoFn, ABC):
     def __init__(self, name_changes):
         """:param name_changes: list of tuples consisting of existing field name + name to which it should be changed"""
