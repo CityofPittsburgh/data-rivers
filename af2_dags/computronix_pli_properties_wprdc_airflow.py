@@ -16,7 +16,7 @@ from dependencies.airflow_utils import get_ds_year, get_ds_month, get_ds_day, de
 
 
 now = datetime.date.today()
-# unix_date = time.mktime(now.timetuple())
+unix_date = time.mktime(now.timetuple())
 
 
 # TODO: When Airflow 2.0 is released, upgrade the package, sub in DataFlowPythonOperator for BashOperator,
@@ -36,7 +36,7 @@ dataset = "pli_properties_wprdc"
 path = "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds|get_ds_day }}/{{ run_id }}"
 json_loc = f"{path}_properties.json"
 avro_loc = f"avro_output/{path}/"
-`
+
 
 # Run gcs_loader
 exec_gcs = f"python {os.environ['GCS_LOADER_PATH']}/computronix_pli_properties_wprdc_gcs.py"
