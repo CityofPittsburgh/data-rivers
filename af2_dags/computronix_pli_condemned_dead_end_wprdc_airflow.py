@@ -90,7 +90,7 @@ FROM `{os.environ['GCLOUD_PROJECT']}:computronix.pli_condemned_dead_end_properti
 WHERE insp_type_desc LIKE 'Dead End Property'
 """
 join_coords = BigQueryOperator(
-        task_id = 'seperate_condemned',
+        task_id = 'seperate_dead_end',
         sql = query_condemned,
         bigquery_conn_id='google_cloud_default',
         use_legacy_sql = False,
