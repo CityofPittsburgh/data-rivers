@@ -955,7 +955,7 @@ def filter_fields(datum, target_fields, exclude_target_fields = True):
 
 def replace_pii(datum, input_field, retain_location, info_types, gcloud_project, place_id_bucket):
     dlp_client = dlp_v2.DlpServiceClient()
-    
+
     try:
         input_str = datum[input_field]
     except TypeError:
@@ -983,13 +983,33 @@ def replace_pii(datum, input_field, retain_location, info_types, gcloud_project,
     }
     parent = "projects/{}".format(gcloud_project)
 
-    response = dlp_client.deidentify_content(
-        request = {"parent": parent,
-                   "deidentify_config": deidentify_config,
-                   "inspect_config": inspect_config,
-                   "item": item
-                   }
-    )
+    curr_delay = 0.1
+    max_delay = 10
+    attempt_ct = 1
+
+    # run until results are retrieved from API or exponential backoff reaches limit
+    while curr_delay <= max_delay:
+        response = dlp_client.deidentify_content(
+            request={"parent": parent,
+                     "deidentify_config": deidentify_config,
+                     "inspect_config": inspect_config,
+                     "item": item
+                     }
+        )
+        if response.item.value:
+            break
+        # elif not response and curr_delay < max_delay:
+        else:
+            time.sleep(curr_delay)
+            curr_delay *= 2
+
+            # all other conditions trigger break and are noted in data
+            if curr_delay > max_delay:
+                print(f"Google DLP API not accessible after {attempt_ct} attempts")
+                break
+
+            # increment count for reporting
+            attempt_ct += 1
 
     return response.item.value
 
