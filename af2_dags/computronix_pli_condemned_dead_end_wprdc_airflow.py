@@ -72,7 +72,7 @@ SELECT
 FROM `{os.environ['GCLOUD_PROJECT']}:computronix.pli_condemned_dead_end_properties_wprdc`
 WHERE insp_type_desc LIKE 'Condemned Property'
 """
-join_coords = BigQueryOperator(
+seperate_condemned = BigQueryOperator(
         task_id = 'seperate_condemned',
         sql = query_condemned,
         bigquery_conn_id='google_cloud_default',
@@ -89,7 +89,7 @@ SELECT
 FROM `{os.environ['GCLOUD_PROJECT']}:computronix.pli_condemned_dead_end_properties_wprdc`
 WHERE insp_type_desc LIKE 'Dead End Property'
 """
-join_coords = BigQueryOperator(
+seperate_dead_end = BigQueryOperator(
         task_id = 'seperate_dead_end',
         sql = query_condemned,
         bigquery_conn_id='google_cloud_default',
