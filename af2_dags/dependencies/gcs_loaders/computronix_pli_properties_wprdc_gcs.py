@@ -59,10 +59,10 @@ odata_url = F"{url}{base}?&{odata_url_base_fields}{odata_url_tail}"
 
 
 # hit the api
-permits = hit_cx_odata_api(odata_url)
+properties = hit_cx_odata_api(odata_url)
 
 
 # load data into GCS
-# out loc = <dataset>/<full date>/<run_id>_str_closures.json
-json_to_gcs(args["out_loc"], permits, bucket)
+# out loc = <dataset>/<full date>/<run_id>_properties.json
+json_to_gcs(args["out_loc"], properties, bucket)
 
