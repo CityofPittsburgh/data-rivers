@@ -496,7 +496,7 @@ class StripStrings(beam.DoFn, ABC):
 
     def process(self, datum):
         for val in self.fields:
-            if datum[val[0]] is not None:
+            if datum[val] is not None:
                 datum[val] = datum[val].strip()
 
         yield datum
