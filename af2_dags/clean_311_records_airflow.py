@@ -14,7 +14,7 @@ from dependencies.airflow_utils import get_ds_month, get_ds_year, \
 # between their records in all_tickets_current_status and all_linked_requests in BigQuery
 
 dag = DAG(
-    'fix_unsynced_311_records',
+    'clean_311_records',
     default_args=default_args,
     schedule_interval='@daily',
     user_defined_filters={'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year}
@@ -87,7 +87,7 @@ dedup_old_updates = BigQueryOperator(
 
 beam_cleanup = BashOperator(
     task_id='beam_cleanup',
-    bash_command=airflow_utils.beam_cleanup_statement(f"{os.environ['GCS_PREFIX']}_fix_unsynced_311_records"),
+    bash_command=airflow_utils.beam_cleanup_statement(f"{os.environ['GCS_PREFIX']}_clean_311_records"),
     dag=dag
 )
 
