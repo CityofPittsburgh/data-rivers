@@ -52,8 +52,7 @@ dataflow = BashOperator(
 # Load AVRO data produced by dataflow_script into BQ temp table
 gcs_to_bq = GoogleCloudStorageToBigQueryOperator(
         task_id = 'gcs_to_bq',
-        destination_project_dataset_table =f"{os.environ['GCLOUD_PROJECT']}:computronix." \
-                                           "pli_condemned_dead_end_permits_wprdc",
+        destination_project_dataset_table =f"{os.environ['GCLOUD_PROJECT']}:computronix.pli_condemned_dead_end_properties",
         bucket = f"{os.environ['GCS_PREFIX']}_computronix",
         source_objects = [f"{dataset}/{avro_loc}*.avro"],
         write_disposition = 'WRITE_TRUNCATE',
@@ -65,11 +64,12 @@ gcs_to_bq = GoogleCloudStorageToBigQueryOperator(
 
 
 # seperate the condemned properties into a table
-query_condemned = F"""CREATE OR REPLACE TABLE 
-`{os.environ["GCLOUD_PROJECT"]}.computronix.pli_condemned_properties_wprdc` AS
+query_condemned = F"""
+CREATE OR REPLACE TABLE 
+`{os.environ['GCLOUD_PROJECT']}.computronix.pli_condemned_properties` AS
 SELECT 
     *      
-FROM `{os.environ['GCLOUD_PROJECT']}:computronix.pli_condemned_dead_end_properties_wprdc`
+FROM `{os.environ['GCLOUD_PROJECT']}.computronix.pli_condemned_dead_end_properties`
 WHERE insp_type_desc LIKE 'Condemned Property'
 """
 seperate_condemned = BigQueryOperator(
@@ -82,16 +82,17 @@ seperate_condemned = BigQueryOperator(
 
 
 # seperate the dead end properties into a table
-query_dead_end = F"""CREATE OR REPLACE TABLE 
-`{os.environ["GCLOUD_PROJECT"]}.computronix.pli_dead_end_properties_wprdc` AS
+query_dead_end = F"""
+CREATE OR REPLACE TABLE 
+`{os.environ['GCLOUD_PROJECT']}.computronix.pli_dead_end_properties` AS
 SELECT 
     *      
-FROM `{os.environ['GCLOUD_PROJECT']}:computronix.pli_condemned_dead_end_properties_wprdc`
+FROM `{os.environ['GCLOUD_PROJECT']}.computronix.pli_condemned_dead_end_properties`
 WHERE insp_type_desc LIKE 'Dead End Property'
 """
 seperate_dead_end = BigQueryOperator(
         task_id = 'seperate_dead_end',
-        sql = query_condemned,
+        sql = query_dead_end,
         bigquery_conn_id='google_cloud_default',
         use_legacy_sql = False,
         dag = dag
@@ -103,7 +104,7 @@ csv_file_name = f"{path}"
 dest_bucket = f"gs://{os.environ['GCS_PREFIX']}_wprdc/pli/condemned_properties/"
 wprdc_export_condemned = BigQueryToCloudStorageOperator(
         task_id = 'wprdc_export_condemned',
-        source_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}.computronix.pli_condemned_properties_wprdc",
+        source_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}.computronix.pli_condemned_properties",
         destination_cloud_storage_uris = [f"{dest_bucket}{csv_file_name}.csv"],
         bigquery_conn_id='google_cloud_default',
         dag = dag
@@ -115,7 +116,7 @@ csv_file_name = f"{path}"
 dest_bucket = f"gs://{os.environ['GCS_PREFIX']}_wprdc/pli/dead_end_properties/"
 wprdc_export_dead_end = BigQueryToCloudStorageOperator(
         task_id = 'wprdc_export_dead_end',
-        source_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}.computronix.dead_end_properties_wprdc",
+        source_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}.computronix.pli_dead_end_properties",
         destination_cloud_storage_uris = [f"{dest_bucket}{csv_file_name}.csv"],
         bigquery_conn_id='google_cloud_default',
         dag = dag
@@ -127,7 +128,7 @@ csv_file_name = f"{path}"
 dest_bucket = f"gs://{os.environ['GCS_PREFIX']}_pli/condemned_properties/"
 pli_export_condemned = BigQueryToCloudStorageOperator(
         task_id = 'pli_export_condemned',
-        source_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}.computronix.pli_condemned_properties_wprdc",
+        source_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}.computronix.pli_condemned_properties",
         destination_cloud_storage_uris = [f"{dest_bucket}{csv_file_name}.csv"],
         bigquery_conn_id='google_cloud_default',
         dag = dag
@@ -136,10 +137,10 @@ pli_export_condemned = BigQueryToCloudStorageOperator(
 
 # Export table 2 as CSV to PLI bucket (file name is the date. path contains the date info)
 csv_file_name = f"{path}"
-dest_bucket = f"gs://{os.environ['GCS_PREFIX']}_pli/condemned_properties/"
+dest_bucket = f"gs://{os.environ['GCS_PREFIX']}_pli/dead_end_properties/"
 pli_export_dead_end = BigQueryToCloudStorageOperator(
         task_id = 'pli_export_dead_end',
-        source_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}.computronix.pli_dead_end_properties_wprdc",
+        source_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}.computronix.pli_dead_end_properties",
         destination_cloud_storage_uris = [f"{dest_bucket}{csv_file_name}.csv"],
         bigquery_conn_id='google_cloud_default',
         dag = dag
@@ -154,12 +155,9 @@ beam_cleanup = BashOperator(
 
 # branching DAG splits after the gcs_to_bq stage and converges back at beam_cleanup
 gcs_loader >> dataflow >> gcs_to_bq
-
-gcs_to_bq >> query_condemned
-gcs_to_bq >> query_dead_end
-
-query_condemned >> wprdc_export_condemned >> beam_cleanup
-query_condemned >> pli_export_condemned >> beam_cleanup
-
-query_dead_end >> wprdc_export_dead_end >> beam_cleanup
-query_dead_end >> pli_export_dead_end >> beam_cleanup
+gcs_to_bq >> seperate_condemned
+gcs_to_bq >> seperate_dead_end
+seperate_condemned >> wprdc_export_condemned >> beam_cleanup
+seperate_condemned >> pli_export_condemned >> beam_cleanup
+seperate_dead_end >> wprdc_export_dead_end >> beam_cleanup
+seperate_dead_end >> pli_export_dead_end >> beam_cleanup
