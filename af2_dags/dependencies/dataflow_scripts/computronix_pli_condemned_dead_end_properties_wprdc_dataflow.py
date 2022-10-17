@@ -66,7 +66,7 @@ class UnNestFields(beam.DoFn):
 # project/service_acct/etc.). The schema is loaded as a dict
 def run(argv = None):
     known_args, pipeline_options, avro_schema = generate_args(
-            job_name = 'computronix-pli-properties-wprdc',
+            job_name = 'computronix-pli-condemned-deadend-properties-wprdc',
             bucket = '{}_computronix'.format(os.environ['GCS_PREFIX']),
             argv = argv,
             schema_name = 'computronix_pli_properties_wprdc',
