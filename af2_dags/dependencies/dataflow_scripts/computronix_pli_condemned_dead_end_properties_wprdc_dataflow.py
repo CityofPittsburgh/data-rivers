@@ -9,7 +9,8 @@ from apache_beam.io.avroio import WriteToAvro
 
 # import util modules.
 # util modules located one level down in directory (./dataflow_util_modules/datflow_utils.py)
-from dataflow_utils.dataflow_utils import JsonCoder, SwapFieldNames, StandardizeTimes, FilterFields, generate_args
+from dataflow_utils.dataflow_utils import JsonCoder, SwapFieldNames, StandardizeTimes, StripStrings, FilterFields, \
+    generate_args
 
 DEFAULT_DATAFLOW_ARGS = [
         '--save_main_session',
@@ -58,13 +59,14 @@ class UnNestFields(beam.DoFn):
         except IndexError:
             pass
 
+
 # run function is called at the bottom of the script and the entire operation is defined within
 # generate_args will initialize all options/args needed to execute the pipeline. known_args contains the runtime
 # params passed in from DAG (input/output). pipeline_options contains all the flags that are initialized by default (
 # project/service_acct/etc.). The schema is loaded as a dict
 def run(argv = None):
     known_args, pipeline_options, avro_schema = generate_args(
-            job_name = 'computronix-pli-properties-wprdc',
+            job_name = 'computronix-pli-condemned-deadend-properties-wprdc',
             bucket = '{}_computronix'.format(os.environ['GCS_PREFIX']),
             argv = argv,
             schema_name = 'computronix_pli_properties_wprdc',
@@ -85,12 +87,15 @@ def run(argv = None):
 
         drops = ["create_date"]
 
+        fields_to_strip = ["insp_type_desc"]
+
         lines = p | ReadFromText(known_args.input, coder = JsonCoder())
         load = (
                 lines
                 | beam.ParDo(UnNestFields(table_structure))
                 | beam.ParDo(SwapFieldNames(name_swaps))
                 | beam.ParDo(StandardizeTimes(times, t_format = "%m/%d/%Y"))
+                | beam.ParDo(StripStrings(fields_to_strip))
                 | beam.ParDo(FilterFields(drops))
                 | WriteToAvro(known_args.avro_output, schema = avro_schema, file_name_suffix = '.avro',
                               use_fastavro = True))
