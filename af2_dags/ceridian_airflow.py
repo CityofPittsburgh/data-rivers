@@ -7,6 +7,7 @@ from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
 from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOperator
+from airflow.contrib.operators.bigquery_to_gcs import BigQueryToCloudStorageOperator
 from dependencies import airflow_utils
 from dependencies.airflow_utils import get_ds_month, get_ds_year, get_ds_day, \
     default_args, build_percentage_table_query
@@ -97,6 +98,15 @@ create_racial_comp_table = BigQueryOperator(
         dag = dag
 )
 
+# Export employee table to Ceridian bucket as readable CSV
+ceridian_export = BigQueryToCloudStorageOperator(
+        task_id = 'ceridian_export',
+        source_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}.{dataset}.active_employees",
+        destination_cloud_storage_uris = [f"{bucket}/shared/ceridian_report.csv"],
+        bigquery_conn_id='google_cloud_default',
+        dag = dag
+)
+
 beam_cleanup = BashOperator(
         task_id = 'ceridian_beam_cleanup',
         bash_command = airflow_utils.beam_cleanup_statement(f"{os.environ['GCS_PREFIX']}_ceridian"),
@@ -104,4 +114,4 @@ beam_cleanup = BashOperator(
 )
 
 ceridian_gcs >> ceridian_dataflow >> ceridian_bq_load >> \
-create_gender_comp_table >> create_racial_comp_table >> beam_cleanup
+create_gender_comp_table >> create_racial_comp_table >> ceridian_export >> beam_cleanup
