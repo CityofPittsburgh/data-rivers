@@ -52,7 +52,7 @@ dataflow = BashOperator(
 # Load AVRO data produced by dataflow_script into BQ temp table
 gcs_to_bq = GoogleCloudStorageToBigQueryOperator(
         task_id = 'gcs_to_bq',
-        destination_project_dataset_table =f"{os.environ['GCLOUD_PROJECT']}:computronix.pli_condemned_dead_end_properties",
+        destination_project_dataset_table =f"{os.environ['GCLOUD_PROJECT']}:computronix.pli_program_inspection_properties",
         bucket = f"{os.environ['GCS_PREFIX']}_computronix",
         source_objects = [f"{dataset}/{avro_loc}*.avro"],
         write_disposition = 'WRITE_TRUNCATE',
@@ -69,8 +69,8 @@ CREATE OR REPLACE TABLE
 `{os.environ['GCLOUD_PROJECT']}.computronix.pli_condemned_properties` AS
 SELECT 
     *      
-FROM `{os.environ['GCLOUD_PROJECT']}.computronix.pli_condemned_dead_end_properties`
-WHERE insp_type_desc LIKE 'Condemned Property'
+FROM `{os.environ['GCLOUD_PROJECT']}.computronix.pli_program_inspection_properties`
+WHERE insp_type_desc LIKE 'Condemned Property' AND insp_status NOT LIKE 'Inactive'
 """
 seperate_condemned = BigQueryOperator(
         task_id = 'seperate_condemned',
@@ -86,9 +86,9 @@ query_dead_end = F"""
 CREATE OR REPLACE TABLE 
 `{os.environ['GCLOUD_PROJECT']}.computronix.pli_dead_end_properties` AS
 SELECT 
-    *      
-FROM `{os.environ['GCLOUD_PROJECT']}.computronix.pli_condemned_dead_end_properties`
-WHERE insp_type_desc LIKE 'Dead End Property'
+    * EXCEPT (latest_inspec_result, latest_inspec_score)  
+FROM `{os.environ['GCLOUD_PROJECT']}.computronix.pli_program_inspection_properties`
+WHERE insp_type_desc LIKE 'Dead End Property' AND insp_status NOT LIKE 'Inactive'
 """
 seperate_dead_end = BigQueryOperator(
         task_id = 'seperate_dead_end',
