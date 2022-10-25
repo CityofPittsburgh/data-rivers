@@ -8,15 +8,15 @@ from airflow.operators.bash_operator import BashOperator
 from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOperator
 from dependencies import airflow_utils
-from dependencies.airflow_utils import get_ds_month, get_ds_year, get_ds_day, default_args
+from dependencies.airflow_utils import get_ds_month, get_ds_year, get_ds_day, default_args, build_dedup_old_updates
 
 # This DAG will perform a daily pull of all work tasks entered into the Cartegraph application
 
 dag = DAG(
     'cartegraph_tasks',
     default_args=default_args,
-    schedule_interval='@daily',
-    start_date=datetime(2022, 10, 21),
+    schedule_interval='@weekly',
+    start_date=datetime(2022, 10, 28),
     user_defined_filters={'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year,
                           'get_ds_day': get_ds_day}
 )
@@ -55,10 +55,19 @@ cartegraph_tasks_bq_load = GoogleCloudStorageToBigQueryOperator(
         dag = dag
 )
 
+query_dedup = build_dedup_old_updates('cartegraph', 'tasks', 'id', 'entry_date_UNIX')
+dedup_table = BigQueryOperator(
+    task_id='dedup_table',
+    sql=query_dedup,
+    bigquery_conn_id='google_cloud_default',
+    use_legacy_sql=False,
+    dag=dag
+)
+
 beam_cleanup = BashOperator(
         task_id = 'cartegraph_taks_beam_cleanup',
         bash_command = airflow_utils.beam_cleanup_statement(f"{os.environ['GCS_PREFIX']}_cartegraph_tasks"),
         dag = dag
 )
 
-cartegraph_tasks_gcs >> cartegraph_tasks_dataflow >> cartegraph_tasks_bq_load >> beam_cleanup
+cartegraph_tasks_gcs >> cartegraph_tasks_dataflow >> cartegraph_tasks_bq_load >> dedup_table >> beam_cleanup
