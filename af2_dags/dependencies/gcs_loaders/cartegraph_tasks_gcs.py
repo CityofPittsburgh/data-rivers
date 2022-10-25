@@ -8,7 +8,7 @@ from google.cloud import storage
 
 from gcs_utils import json_to_gcs, find_last_successful_run
 
-API_LIMIT = 1000
+API_LIMIT = 5000
 
 storage_client = storage.Client()
 bucket = f"{os.environ['GCS_PREFIX']}_cartegraph"
@@ -24,26 +24,27 @@ yesterday = datetime.combine(datetime.now(tz = pendulum.timezone("utc")) - timed
 BASE_URL = f"https://cgweb06.cartegraphoms.com/PittsburghPA/api/v1/classes/cgTasksClass"
 
 auth = HTTPBasicAuth(os.environ['CARTEGRAPH_USER'], os.environ['CARTEGRAPH_PW'])
-filter = '(([RequestIssue] is not equal to ""))'
-offset = 0
+sort = 'EntryDateField:asc'
 
 # find the last successful DAG run (needs to be specified in UTC YYYY-MM-DD HH:MM:SS)
 # if there was no previous good run, default to yesterday's date.
 # this is used to initialize the payload below
-run_start_win, first_run = find_last_successful_run(bucket, "tasks/successful_run_log/log.json", yesterday)
+offset, first_run = find_last_successful_run(bucket, "tasks/successful_run_log/log.json", 0)
 
 all_records = []
 more = True
 while more is True:
-    payload = {'filter': filter, 'limit': API_LIMIT, 'offset': offset}
+    payload = {'sort': sort, 'limit': API_LIMIT, 'offset': offset}
     # API call to get data
     response = requests.get(BASE_URL, auth=auth, params=payload)
     curr_run = datetime.now(tz = pendulum.timezone('UTC')).strftime("%Y-%m-%d %H:%M:%S")
     print("Response at " + str(curr_run) + ": " + str(response.status_code))
 
     tasks = response.json()['cgTasksClass']
-    # continue looping through records until the API has a MoreFlag value of 0
-    if int(response.json()['_metadata']['totalCount']) - offset < API_LIMIT:
+    total = int(response.json()['_metadata']['totalCount'])
+    diff = total - offset
+    # continue looping through records until we have captured the total count of records
+    if diff < API_LIMIT:
         more = False
     else:
         offset += API_LIMIT
@@ -53,9 +54,9 @@ while more is True:
     # write the successful run information (used by each successive run to find the backfill start date)
     successful_run = {
         "requests_retrieved": len(tasks),
-        "since": run_start_win,
-        "current_run": curr_run,
-        "note": "Data retrieved between the time points listed above"
+        "since": curr_run,
+        "current_run": offset,
+        "note": "Final chunk of data retrieved using the offset value listed above"
     }
     json_to_gcs("tasks/successful_run_log/log.json", [successful_run],
                 bucket)
