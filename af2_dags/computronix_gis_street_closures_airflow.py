@@ -22,6 +22,13 @@ unix_date = time.mktime(now.timetuple())
 # TODO: When Airflow 2.0 is released, upgrade the package, sub in DataFlowPythonOperator for BashOperator,
 # and pass the argument 'py_interpreter=python3'
 
+"""
+This DAG retrieves a DOMI dataset containing street closures. The API it hits doesn't have a good way (as of 10/22)  to 
+pull only newly updated permits. Thus, all are pulled and this contains expired, future, and current closures. The 
+entire dataset is stored in DOMI's bucket as a CSV, as well as WPRDC's bucket as a CSV, and the data-rivers BQ. 
+Currently active closures are sent to WPRDC's bucket as a CSV and stored in a second data-rivers BQ table. Finally, 
+the active closures are stored in data-bridGIS' BQ for publication on a connection to an ESRI server. 
+"""
 dag = DAG(
     'computronix_gis_street_closures',
     default_args=default_args,
@@ -89,7 +96,8 @@ join_coords = BigQueryOperator(
 )
 
 
-# Export table as CSV to WPRDC bucket (file name is the date. path contains the date info)
+# Export table (with the geometry from above) as CSV to WPRDC bucket (file name is the date. path contains the date
+# info)
 csv_file_name = f"{path}"
 dest_bucket = f"gs://{os.environ['GCS_PREFIX']}_wprdc/domi_street_closures/street_segments/"
 wprdc_export = BigQueryToCloudStorageOperator(
@@ -113,13 +121,16 @@ domi_export = BigQueryToCloudStorageOperator(
 )
 
 
-# remove inactive permits
+# remove inactive permits and place into data-rivers and data-bridGIS BQ
 query_filter = F"""
 CREATE OR REPLACE TABLE `{os.environ["GCLOUD_PROJECT"]}.computronix.gis_active_street_closures` AS
 SELECT 
  *
 FROM `{os.environ["GCLOUD_PROJECT"]}.computronix.gis_street_closures` 
-WHERE from_date_UNIX <= {unix_date} AND to_date_unix >= {unix_date}
+WHERE from_date_UNIX <= {unix_date} AND to_date_unix >= {unix_date};
+
+CREATE OR REPLACE TABLE `data-bridgis.computronix.gis_active_street_closures` AS
+SELECT * FROM  {os.environ["GCLOUD_PROJECT"]}.computronix.gis_active_street_closures
 """
 filter_inactive = BigQueryOperator(
         task_id = 'filter_inactive',
@@ -130,26 +141,13 @@ filter_inactive = BigQueryOperator(
 )
 
 
-# Export table as CSV to data-bridGIS bucket (This csv will be converted to json in the next step)
-dest_bucket = f"gs://{os.environ['GIS_PREFIX']}_domi_street_closures/"
-gis_csv_export = BigQueryToCloudStorageOperator(
-        task_id = 'gis_csv_export',
+# Export table as CSV to wprdc bucket
+dest_bucket = f"gs://{os.environ['GCS_PREFIX']}_wprdc/domi_street_closures/active_street_closures/"
+wprdc_active_csv_export = BigQueryToCloudStorageOperator(
+        task_id = 'wprdc_active_csv_export',
         source_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}.computronix.gis_active_street_closures",
         destination_cloud_storage_uris = [f"{dest_bucket}active_closures.csv"],
         bigquery_conn_id='google_cloud_default',
-        dag = dag
-)
-
-
-# Convert csv to geo enriched json
-input_bucket = 'pghpa_gis_domi_street_closures'
-input_blob = 'active_closures.csv'
-output_bucket = F"{os.environ['GCS_PREFIX']}_wprdc"
-exec_conv = f"python {os.environ['DAG_SUBROUTINE_PATH']}/conv_coords_upload_json.py"
-run_args = F"--input_bucket {input_bucket} --input_blob {input_blob} --output_bucket {output_bucket}"
-json_conv = BashOperator(
-        task_id = 'json_conv',
-        bash_command = f"{exec_conv} {run_args}",
         dag = dag
 )
 
@@ -160,9 +158,9 @@ beam_cleanup = BashOperator(
     dag=dag
 )
 
-# branching DAG splits after the gcs_to_bq stage and converges back at beam_cleanup
 
+# branching DAG splits after the gcs_to_bq stage and converges back at beam_cleanup
 gcs_loader >> dataflow >> gcs_to_bq >> join_coords
 join_coords >> wprdc_export >> beam_cleanup
 join_coords >> domi_export >> beam_cleanup
-join_coords >> filter_inactive >> gis_csv_export >> json_conv >> beam_cleanup
+join_coords >> filter_inactive >> wprdc_active_csv_export >> beam_cleanup
