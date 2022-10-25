@@ -42,12 +42,12 @@ while more is True:
 
     tasks = response.json()['cgTasksClass']
     total = int(response.json()['_metadata']['totalCount'])
-    diff = total - offset
+    diff = total - int(offset)
     # continue looping through records until we have captured the total count of records
     if diff < API_LIMIT:
         more = False
     else:
-        offset += API_LIMIT
+        offset = int(offset) + API_LIMIT
     # append list of API results to growing all_records list
     all_records += tasks
 
