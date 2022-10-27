@@ -155,6 +155,11 @@ class ChangeDataTypes(beam.DoFn, ABC):
                         datum[type_change[0]] = float(datum[type_change[0]])
                     elif type_change[1] == "int":
                         datum[type_change[0]] = int(datum[type_change[0]])
+                    elif type_change[1] == "posint":
+                        if int(datum[type_change[0]]) < 0:
+                            datum[type_change[0]] = None
+                        else:
+                            datum[type_change[0]] = int(abs(datum[type_change[0]]))
                     elif type_change[1] == "str":
                         datum[type_change[0]] = str(datum[type_change[0]])
                     elif type_change[1] == "bool":
