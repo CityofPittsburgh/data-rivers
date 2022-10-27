@@ -45,13 +45,11 @@ def run(argv = None):
                             ('RequestDepartmentField', 'request_department'), ('RequestLocationField', 'request_location'),
                             ('cgAssetIDField', 'asset_id'), ('cgAssetTypeField', 'asset_type'),
                             ('TaskDescriptionField', 'task_description'), ('NotesField', 'task_notes')]
-        keep_fields = ['id', 'department', 'status', 'entry_date', 'actual_start_date', 'actual_stop_date',
-                       'labor_cost', 'equipment_cost', 'material_cost', 'labor_hours', 'request_issue',
-                       'request_department', 'request_location', 'asset_id', 'asset_type',
-                       'task_description', 'task_notes', 'lat', 'long']
+        drop_fields = ['CgShape']
         times = [('entry_date', 'EST'), ('actual_start_date', 'EST'), ('actual_stop_date', 'EST')]
         type_changes = [('id', 'str'), ('labor_cost', 'float'), ('equipment_cost', 'float'), ('material_cost', 'float'),
-                        ('labor_hours', 'float'), ('lat', 'str'), ('long', 'str')]
+                        ('labor_hours', 'float'), ('actual_start_date_UNIX', 'posint'),
+                        ('actual_stop_date_UNIX', 'posint'), ('entry_date_UNIX', 'posint')]
 
         lines = p | ReadFromText(known_args.input, coder = JsonCoder())
 
@@ -59,7 +57,7 @@ def run(argv = None):
                 lines
                 | beam.ParDo(ExtractField(source_fields, nested_fields, new_field_names, additional_nested_fields))
                 | beam.ParDo(SwapFieldNames(field_name_swaps))
-                | beam.ParDo(FilterFields(keep_fields, exclude_target_fields=False))
+                | beam.ParDo(FilterFields(drop_fields, exclude_target_fields=True))
                 | beam.ParDo(StandardizeTimes(times))
                 | beam.ParDo(ChangeDataTypes(type_changes))
                 | WriteToAvro(known_args.avro_output, schema = avro_schema, file_name_suffix = '.avro',
