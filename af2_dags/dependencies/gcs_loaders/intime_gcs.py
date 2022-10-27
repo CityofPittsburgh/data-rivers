@@ -10,7 +10,7 @@ from google.cloud import storage
 
 from gcs_utils import json_to_gcs, find_last_successful_run
 
-# the first recorded charging session was on 
+# the date the first employee record was entered
 DEFAULT_RUN_START = "2020-06-11"
 
 storage_client = storage.Client()
