@@ -21,7 +21,7 @@ dag = DAG(
 
 # create a table in data-bridGIS
 push_table = BigQueryOperator(
-        task_id = 'format_street_tix',
+        task_id = 'push_table',
         sql = F"""
        CREATE OR REPLACE TABLE `data-bridgis.qalert.all_linked_requests` AS
         SELECT 
