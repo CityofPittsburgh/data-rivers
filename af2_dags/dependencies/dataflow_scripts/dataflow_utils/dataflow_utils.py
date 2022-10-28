@@ -251,6 +251,24 @@ class ConvertStringCase(beam.DoFn, ABC):
 
 
 class ExtractField(beam.DoFn):
+    def __init__(self, source_fields, nested_fields, new_field_names, additional_nested_fields):
+        self.source_fields = source_fields
+        self.nested_fields = nested_fields
+        self.new_field_names = new_field_names
+        self.additional_nested_fields = additional_nested_fields
+
+    def process(self, datum):
+        if datum is not None:
+            for src, nst, new, anf in zip(self.source_fields, self.nested_fields,
+                                          self.new_field_names, self.additional_nested_fields):
+                datum = extract_field(datum, src, nst, new, anf)
+        else:
+            logging.info('got NoneType datum')
+
+        yield datum
+
+
+class ExtractFieldWithComplexity(beam.DoFn):
     def __init__(self, source_fields, nested_fields, new_field_names, additional_nested_fields="", search_fields="", additional_search_vals=""):
         self.source_fields = source_fields
         self.nested_fields = nested_fields
