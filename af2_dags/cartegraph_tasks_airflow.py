@@ -8,7 +8,8 @@ from airflow.operators.bash_operator import BashOperator
 from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOperator
 from dependencies import airflow_utils
-from dependencies.airflow_utils import get_ds_month, get_ds_year, get_ds_day, default_args, build_dedup_old_updates
+from dependencies.airflow_utils import get_ds_month, get_ds_year, get_ds_day, default_args, \
+    build_dedup_old_updates, build_revgeo_time_bound_query
 
 # This DAG will perform a daily pull of all work tasks entered into the Cartegraph application
 
@@ -64,10 +65,21 @@ dedup_table = BigQueryOperator(
     dag=dag
 )
 
+# Join all the geo information (e.g. DPW districts, etc) to the new data
+query_geo_join = build_revgeo_time_bound_query('cartegraph', 'tasks', 'tasks_enriched',
+                                               'actual_start_time_utc', 'id', 'lat', 'long')
+geojoin = BigQueryOperator(
+        task_id = 'geojoin',
+        sql = query_geo_join,
+        bigquery_conn_id='google_cloud_default',
+        use_legacy_sql = False,
+        dag = dag
+)
+
 beam_cleanup = BashOperator(
         task_id = 'cartegraph_taks_beam_cleanup',
         bash_command = airflow_utils.beam_cleanup_statement(f"{os.environ['GCS_PREFIX']}_cartegraph_tasks"),
         dag = dag
 )
 
-cartegraph_tasks_gcs >> cartegraph_tasks_dataflow >> cartegraph_tasks_bq_load >> dedup_table >> beam_cleanup
+cartegraph_tasks_gcs >> cartegraph_tasks_dataflow >> cartegraph_tasks_bq_load >> dedup_table >> geojoin >> beam_cleanup
