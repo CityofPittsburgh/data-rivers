@@ -31,7 +31,7 @@ push_table = BigQueryOperator(
                 DATE(last_action_est) AS last_update,
                 DATE(closed_date_est) AS closed_date,
                 ST_GEOGPOINT(google_pii_long, google_pii_lat) AS geo
-        FROM `data-rivers.qalert.all_linked_requests`
+        FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests`
         """,
         bigquery_conn_id='google_cloud_default',
         use_legacy_sql = False,
