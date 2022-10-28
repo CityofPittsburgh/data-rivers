@@ -15,7 +15,7 @@ from dependencies.airflow_utils import get_ds_month, get_ds_year, get_ds_day, de
 dag = DAG(
     'cartegraph_tasks',
     default_args=default_args,
-    schedule_interval='@weekly',
+    schedule_interval='0 15 */3 * *',
     start_date=datetime(2022, 10, 28),
     user_defined_filters={'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year,
                           'get_ds_day': get_ds_day}
