@@ -877,9 +877,15 @@ def extract_field(datum, source_field, nested_field, new_field_name, additional_
     try:
         # evaluate how many layers deep nested dict that contains our desired data is
         if additional_nested_field:
-            datum[new_field_name] = datum[source_field][nested_field][additional_nested_field]
+            if datum[source_field][nested_field][additional_nested_field]:
+                datum[new_field_name] = str(datum[source_field][nested_field][additional_nested_field])
+            else:
+                datum[new_field_name] = None
         else:
-            datum[new_field_name] = datum[source_field][nested_field]
+            if datum[source_field][nested_field]:
+                datum[new_field_name] = str(datum[source_field][nested_field])
+            else:
+                datum[new_field_name] = None
     except TypeError:
         # sometimes nested dicts are actually lists of dicts, in which case we need to use search_field to decide
         # which value to retrieve
