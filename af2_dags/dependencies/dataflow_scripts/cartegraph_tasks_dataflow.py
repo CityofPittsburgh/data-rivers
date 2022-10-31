@@ -35,7 +35,7 @@ def run(argv = None):
     with beam.Pipeline(options = pipeline_options) as p:
         source_fields = ['CgShape', 'CgShape']
         nested_fields = ['Center', 'Center']
-        additional_nested_fields = ['Lat', 'Long']
+        additional_nested_fields = ['Lat', 'Lng']
         new_field_names = ['lat', 'long']
         field_name_swaps = [('Oid', 'id'), ('DepartmentField', 'department'), ('StatusField', 'status'),
                             ('EntryDateField', 'entry_date'), ('StartDateActualField', 'actual_start_date'),
@@ -58,7 +58,7 @@ def run(argv = None):
                 | beam.ParDo(ExtractField(source_fields, nested_fields, new_field_names, additional_nested_fields))
                 | beam.ParDo(SwapFieldNames(field_name_swaps))
                 | beam.ParDo(FilterFields(drop_fields, exclude_target_fields=True))
-                | beam.ParDo(StandardizeTimes(times))
+                | beam.ParDo(StandardizeTimes(times, "%Y-%m-%d %H:%M:%S%z"))
                 | beam.ParDo(ChangeDataTypes(type_changes))
                 | WriteToAvro(known_args.avro_output, schema = avro_schema, file_name_suffix = '.avro',
                               use_fastavro = True)
