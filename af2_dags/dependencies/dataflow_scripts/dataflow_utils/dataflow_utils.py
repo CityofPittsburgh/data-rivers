@@ -166,6 +166,8 @@ class ChangeDataTypes(beam.DoFn, ABC):
                         datum[type_change[0]] = bool(datum[type_change[0]])
                 except ValueError:
                     datum[type_change[0]] = None
+                except TypeError:
+                    datum[type_change[0]] = None
         except TypeError:
             pass
 
