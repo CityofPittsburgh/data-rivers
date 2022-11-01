@@ -156,7 +156,7 @@ class ChangeDataTypes(beam.DoFn, ABC):
                     elif type_change[1] == "int":
                         datum[type_change[0]] = int(datum[type_change[0]])
                     elif type_change[1] == "posint":
-                        if int(datum[type_change[0]]) < 0:
+                        if int(datum[type_change[0]]) < 0 or int(datum[type_change[0]]) > 2147483647:
                             datum[type_change[0]] = None
                         else:
                             datum[type_change[0]] = int(abs(datum[type_change[0]]))
