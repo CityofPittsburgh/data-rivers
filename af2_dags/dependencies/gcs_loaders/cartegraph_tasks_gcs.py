@@ -12,7 +12,7 @@ from gcs_utils import json_to_gcs, find_last_successful_run
 DEFAULT_RUN_START = "2015-08-12 12:00:00 AM"
 
 API_LIMIT = 1000
-OFFSET_CAP = 50000
+OFFSET_CAP = 25000
 
 storage_client = storage.Client()
 bucket = f"{os.environ['GCS_PREFIX']}_cartegraph"
