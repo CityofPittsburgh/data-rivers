@@ -7,6 +7,7 @@ from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
 from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOperator
+from airflow.contrib.operators.bigquery_to_gcs import BigQueryToCloudStorageOperator
 from dependencies import airflow_utils
 from dependencies.airflow_utils import get_ds_month, get_ds_year, get_ds_day, \
     default_args, build_percentage_table_query
@@ -22,8 +23,8 @@ from dependencies.airflow_utils import get_ds_month, get_ds_year, get_ds_day, \
 dag = DAG(
     'ceridian',
     default_args=default_args,
-    schedule_interval='@weekly',
-    start_date=datetime(2022, 10, 21),
+    schedule_interval='0 15 */3 * *',
+    start_date=datetime(2022, 11, 4),
     user_defined_filters={'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year,
                           'get_ds_day': get_ds_day}
 )
@@ -44,7 +45,8 @@ ceridian_gcs = BashOperator(
 
 ceridian_dataflow = BashOperator(
         task_id = 'ceridian_dataflow',
-        bash_command = f"python {os.environ['DATAFLOW_SCRIPT_PATH']}/ceridian_dataflow.py --input {bucket}/{json_loc} --avro_output {bucket}/{avro_loc}",
+        bash_command = f"python {os.environ['DATAFLOW_SCRIPT_PATH']}/ceridian_dataflow.py --input {bucket}/{json_loc} "
+                       f"--avro_output {bucket}/{avro_loc}",
         dag = dag
 )
 
@@ -58,6 +60,19 @@ ceridian_bq_load = GoogleCloudStorageToBigQueryOperator(
         source_format = 'AVRO',
         autodetect = True,
         bigquery_conn_id='google_cloud_default',
+        dag = dag
+)
+
+# People marked as belonging to the department of 'Non-Employee Benefits are individuals who have negotiated to have
+# their benefits administered by the City of Pittsburgh and should not be reflected in any employee data
+query_remove_rows = f"""
+DELETE FROM `{os.environ['GCLOUD_PROJECT']}.ceridian.active_employees` 
+WHERE dept = 'Non-Employee Benefits'"""
+remove_non_employees = BigQueryOperator(
+        task_id = 'remove_non_employees',
+        sql = query_remove_rows,
+        bigquery_conn_id='google_cloud_default',
+        use_legacy_sql = False,
         dag = dag
 )
 
@@ -97,11 +112,20 @@ create_racial_comp_table = BigQueryOperator(
         dag = dag
 )
 
+# Export employee table to Ceridian bucket as readable CSV
+ceridian_export = BigQueryToCloudStorageOperator(
+        task_id = 'ceridian_export',
+        source_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}.ceridian.active_employees",
+        destination_cloud_storage_uris = [f"{bucket}/shared/ceridian_report.csv"],
+        bigquery_conn_id='google_cloud_default',
+        dag = dag
+)
+
 beam_cleanup = BashOperator(
         task_id = 'ceridian_beam_cleanup',
         bash_command = airflow_utils.beam_cleanup_statement(f"{os.environ['GCS_PREFIX']}_ceridian"),
         dag = dag
 )
 
-ceridian_gcs >> ceridian_dataflow >> ceridian_bq_load >> \
-create_gender_comp_table >> create_racial_comp_table >> beam_cleanup
+ceridian_gcs >> ceridian_dataflow >> ceridian_bq_load >> remove_non_employees >> \
+create_gender_comp_table >> create_racial_comp_table >> ceridian_export >> beam_cleanup
