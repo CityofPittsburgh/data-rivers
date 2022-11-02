@@ -22,9 +22,15 @@ DEFAULT_DATAFLOW_ARGS = [
 
 
 class CrosswalkDeptNames(beam.DoFn):
+    def __init__(self, gcs_prefix):
+        """
+        :param gcs_prefix - Environmental variable denoting the GCS project prefix string. DAG will crash if this
+                            isn't included as a parameter, as it can not be obtained from within the class.
+        """
+        self.gcs_prefix = gcs_prefix
     def process(self, datum):
         storage_client = storage.Client()
-        bucket = storage_client.bucket(f"{os.environ['GCS_PREFIX']}_ceridian")
+        bucket = storage_client.bucket(f"{self.gcs_prefix}_ceridian")
         blob = bucket.get_blob("ceridian_department_name_crosswalk.json")
         cw = blob.download_as_string()
         crosswalk = json.loads(cw.decode('utf-8'))
@@ -83,7 +89,7 @@ def run(argv = None):
                 | beam.ParDo(StripDate())
                 | beam.ParDo(StandardizeEthnicityNames())
                 | beam.ParDo(SwapFieldNames(field_name_swaps))
-                | beam.ParDo(CrosswalkDeptNames())
+                | beam.ParDo(CrosswalkDeptNames(os.environ['GCS_PREFIX']))
                 | beam.ParDo(ChangeDataTypes(type_changes))
                 | WriteToAvro(known_args.avro_output, schema = avro_schema, file_name_suffix = '.avro',
                               use_fastavro = True)
