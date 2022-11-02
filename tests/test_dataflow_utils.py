@@ -29,12 +29,12 @@ class TestDataflowUtils(unittest.TestCase):
         self.assertEqual(next(clc.process(datum)), expected)
 
     def test_change_data_types(self):
-        datum = {'count': '1', 'zip': 15213, 'temp': 72, 'day': 31.1,
+        datum = {'count': '1', 'zip': 15213, 'temp': 72, 'day': 31.1, 'pos': -3019057200,
                  'bool1': 'TRUE', 'bool2': 1, 'nan_float': np.nan, 'nan_int': np.nan, 'nan_str': np.nan}
         type_changes = [("count", 'int'), ("zip", 'str'), ("temp", 'float'),
-                        ("day", 'int'), ("bool1", 'bool'), ("bool2", 'bool'),
+                        ("day", 'int'), ("pos", 'posint'), ("bool1", 'bool'), ("bool2", 'bool'),
                         ("nan_float", 'float'), ("nan_int", 'int'), ("nan_str", 'str')]
-        expected = {'count': 1, 'zip': '15213', 'temp': 72.0, 'day': 31,
+        expected = {'count': 1, 'zip': '15213', 'temp': 72.0, 'day': 31, 'pos': None,
                     'bool1': True, 'bool2': True, 'nan_float': None, 'nan_int': None, 'nan_str': None}
         cdt = dataflow_utils.ChangeDataTypes(type_changes)
         self.assertEqual(next(cdt.process(datum)), expected)

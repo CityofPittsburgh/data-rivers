@@ -155,11 +155,18 @@ class ChangeDataTypes(beam.DoFn, ABC):
                         datum[type_change[0]] = float(datum[type_change[0]])
                     elif type_change[1] == "int":
                         datum[type_change[0]] = int(datum[type_change[0]])
+                    elif type_change[1] == "posint":
+                        if int(datum[type_change[0]]) < 0 or int(datum[type_change[0]]) > 2147483647:
+                            datum[type_change[0]] = None
+                        else:
+                            datum[type_change[0]] = int(abs(datum[type_change[0]]))
                     elif type_change[1] == "str":
                         datum[type_change[0]] = str(datum[type_change[0]])
                     elif type_change[1] == "bool":
                         datum[type_change[0]] = bool(datum[type_change[0]])
                 except ValueError:
+                    datum[type_change[0]] = None
+                except TypeError:
                     datum[type_change[0]] = None
         except TypeError:
             pass
@@ -246,6 +253,24 @@ class ConvertStringCase(beam.DoFn, ABC):
 
 
 class ExtractField(beam.DoFn):
+    def __init__(self, source_fields, nested_fields, new_field_names, additional_nested_fields):
+        self.source_fields = source_fields
+        self.nested_fields = nested_fields
+        self.new_field_names = new_field_names
+        self.additional_nested_fields = additional_nested_fields
+
+    def process(self, datum):
+        if datum is not None:
+            for src, nst, new, anf in zip(self.source_fields, self.nested_fields,
+                                          self.new_field_names, self.additional_nested_fields):
+                datum = extract_field(datum, src, nst, new, anf)
+        else:
+            logging.info('got NoneType datum')
+
+        yield datum
+
+
+class ExtractFieldWithComplexity(beam.DoFn):
     def __init__(self, source_fields, nested_fields, new_field_names, additional_nested_fields="", search_fields="", additional_search_vals=""):
         self.source_fields = source_fields
         self.nested_fields = nested_fields
@@ -854,9 +879,15 @@ def extract_field(datum, source_field, nested_field, new_field_name, additional_
     try:
         # evaluate how many layers deep nested dict that contains our desired data is
         if additional_nested_field:
-            datum[new_field_name] = datum[source_field][nested_field][additional_nested_field]
+            if datum[source_field][nested_field][additional_nested_field]:
+                datum[new_field_name] = str(datum[source_field][nested_field][additional_nested_field])
+            else:
+                datum[new_field_name] = None
         else:
-            datum[new_field_name] = datum[source_field][nested_field]
+            if datum[source_field][nested_field]:
+                datum[new_field_name] = str(datum[source_field][nested_field])
+            else:
+                datum[new_field_name] = None
     except TypeError:
         # sometimes nested dicts are actually lists of dicts, in which case we need to use search_field to decide
         # which value to retrieve
