@@ -9,7 +9,7 @@ from apache_beam.io.avroio import WriteToAvro
 
 from dataflow_utils import dataflow_utils
 from dataflow_utils.dataflow_utils import JsonCoder, SwapFieldNames, generate_args, FilterFields, \
-    ColumnsCamelToSnakeCase, ChangeDataTypes, ExtractField
+    ColumnsCamelToSnakeCase, ChangeDataTypes, ExtractFieldWithComplexity
 
 DEFAULT_DATAFLOW_ARGS = [
         '--save_main_session',
@@ -48,8 +48,8 @@ def run(argv = None):
 
         load = (
                 lines
-                | beam.ParDo(ExtractField(source_fields, nested_fields, new_field_names,
-                                          additional_nested_fields, search_fields, additional_search_vals))
+                | beam.ParDo(ExtractFieldWithComplexity(source_fields, nested_fields, new_field_names,
+                                                        additional_nested_fields, search_fields, additional_search_vals))
                 | beam.ParDo(ColumnsCamelToSnakeCase())
                 | beam.ParDo(SwapFieldNames(field_name_swaps))
                 | beam.ParDo(ChangeDataTypes(type_changes))

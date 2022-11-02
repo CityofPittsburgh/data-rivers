@@ -325,6 +325,7 @@ def json_to_gcs(path, json_object_list, bucket_name):
             client=storage_client,
         )
     except json.decoder.JSONDecodeError:
+        print("Error uploading data to GCS bucket, linting and trying again")
         str_requests = ndjson.dumps(json_object_list)
         linted = "[" + json_linter(str_requests) + "]"
         linted_requests = ndjson.loads(linted)[0]
