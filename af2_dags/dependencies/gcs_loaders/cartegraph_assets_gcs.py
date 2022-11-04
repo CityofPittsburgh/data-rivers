@@ -20,9 +20,10 @@ bucket = f"{os.environ['GCS_PREFIX']}_cartegraph"
 parser = argparse.ArgumentParser()
 parser.add_argument('--output_arg', dest='out_loc', required=True,
                     help='fully specified location to upload the combined ndjson file')
+parser.add_argument('--asset', dest='asset', required=True, help='Cartegraph asset type ID')
 args = vars(parser.parse_args())
 
-BASE_URL = "https://cgweb06.cartegraphoms.com/PittsburghPA/api/v1/classes/cgFacilitiesClass"
+BASE_URL = f"https://cgweb06.cartegraphoms.com/PittsburghPA/api/v1/classes/{args['asset']}"
 
 auth = HTTPBasicAuth(os.environ['CARTEGRAPH_USER'], os.environ['CARTEGRAPH_PW'])
 sort = 'EntryDateField:asc'
@@ -36,12 +37,12 @@ while more is True:
     curr_run = datetime.now(tz = pendulum.timezone('US/Eastern')).strftime("%Y-%m-%d %I:%M:%S %p")
     print("Response at " + str(curr_run) + " with offset value " + str(offset) + ": " + str(response.status_code))
 
-    facilities = response.json()['cgFacilitiesClass']
+    assets = response.json()[args['asset']]
     total = int(response.json()['_metadata']['totalCount'])
     diff = total - int(offset)
 
     # append list of API results to growing all_records list
-    all_records += facilities
+    all_records += assets
 
     # continue looping through records until we have captured the total count of records
     if diff <= API_LIMIT:
@@ -60,4 +61,4 @@ successful_run = {
 
 json_to_gcs(f"{args['out_loc']}", all_records, bucket)
 
-json_to_gcs("facilities/successful_run_log/log.json", [successful_run], bucket)
+json_to_gcs(f"{args['out_loc'].split('/')[0]}/successful_run_log/log.json", [successful_run], bucket)
