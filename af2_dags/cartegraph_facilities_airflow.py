@@ -27,7 +27,7 @@ dag = DAG(
     'cartegraph_facilities',
     default_args=default_args,
     schedule_interval="@monthly",
-    start_date=datetime(2022, 11, 4),
+    start_date=datetime(2022, 11, 1),
     user_defined_filters={'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year,
                           'get_ds_day': get_ds_day}
 )
@@ -42,7 +42,8 @@ avro_loc = f"{dataset}/avro_output/{path}/" + "{{ run_id }}"
 
 cartegraph_gcs = BashOperator(
     task_id='cartegraph_gcs',
-    bash_command=f"python {os.environ['GCS_LOADER_PATH']}/cartegraph_facilities_gcs.py --output_arg {json_loc}",
+    bash_command=f"python {os.environ['GCS_LOADER_PATH']}/cartegraph_assets_gcs.py --output_arg {json_loc} "
+                 f"--asset cgFacilitiesClass",
     dag=dag
 )
 
