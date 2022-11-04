@@ -174,9 +174,15 @@ class ChangeDataTypes(beam.DoFn, ABC):
         yield datum
 
 
-class ColumnsCamelToSnakeCase(beam.DoFn, ABC):
+class ColumnsCamelToSnakeCase(beam.DoFn):
+    def __init__(self, strip_field=''):
+        """
+        :param strip_field: optional string that indicates a substring that will be stripped from input
+        in addition to converting string to snake case
+        """
+        self.strip_field = strip_field
     def process(self, datum):
-        cleaned_datum = {camel_to_snake_case(k): v for k, v in datum.items()}
+        cleaned_datum = {camel_to_snake_case(k, self.strip_field): v for k, v in datum.items()}
         yield cleaned_datum
 
 
@@ -223,6 +229,29 @@ class ConvertBooleans(beam.DoFn, ABC):
                     datum[val[0]] = val[3]
         except TypeError:
             pass
+        yield datum
+
+
+class ConvertGeography(beam.DoFn):
+    def __init__(self, geo_field):
+        """
+        :param geo_field - Name of field that will be converted into string formatted for BQ geography conversion
+        """
+        self.geo_field = geo_field
+    def process(self, datum):
+        coord_list = datum[self.geo_field][datum[self.geo_field].find("[{")+2:datum[self.geo_field].find("}]")].split('}, {')
+        formatted_geo = ''
+        i = 1
+        for coord in coord_list:
+            lat_lng = coord.split(', ')
+            rev_str = lat_lng[1].split(': ')[1] + " " + lat_lng[0].split(': ')[1]
+            if i < len(coord_list):
+                formatted_geo += rev_str + ", "
+            else:
+                formatted_geo += rev_str
+            i += 1
+        datum[self.geo_field] = 'POLYGON((' + formatted_geo + '))'
+
         yield datum
 
 
@@ -617,7 +646,9 @@ def get_schema(schema_name):
     return json.loads(schema_string)
 
 
-def camel_to_snake_case(val):
+def camel_to_snake_case(val, strip_field=''):
+    if strip_field:
+        val = val.replace(strip_field, '')
     s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', val)
     return re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1).lower()
 
