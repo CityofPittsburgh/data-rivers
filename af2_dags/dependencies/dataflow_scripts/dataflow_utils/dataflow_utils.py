@@ -233,24 +233,35 @@ class ConvertBooleans(beam.DoFn, ABC):
 
 
 class ConvertGeography(beam.DoFn):
-    def __init__(self, geo_field):
+    def __init__(self, geo_field, geo_type=''):
         """
         :param geo_field - Name of field that will be converted into string formatted for BQ geography conversion
+        :param geo_field - BQ geography datatype that string will be converted to
         """
         self.geo_field = geo_field
+        self.geo_type = geo_type
     def process(self, datum):
-        coord_list = datum[self.geo_field][datum[self.geo_field].find("[{")+2:datum[self.geo_field].find("}]")].split('}, {')
-        formatted_geo = ''
-        i = 1
-        for coord in coord_list:
-            lat_lng = coord.split(', ')
-            rev_str = lat_lng[1].split(': ')[1] + " " + lat_lng[0].split(': ')[1]
-            if i < len(coord_list):
-                formatted_geo += rev_str + ", "
+        if datum[self.geo_field]:
+            coord_list = datum[self.geo_field][datum[self.geo_field].find("[{")+2:datum[self.geo_field].find("}]")].split('}, {')
+            formatted_geo = ''
+            i = 1
+            for coord in coord_list:
+                lat_lng = coord.split(', ')
+                rev_str = lat_lng[1].split(': ')[1] + " " + lat_lng[0].split(': ')[1]
+                if i < len(coord_list):
+                    formatted_geo += rev_str + ", "
+                else:
+                    formatted_geo += rev_str
+                i += 1
+            if self.geo_type:
+                if 'POLYGON' in self.geo_type:
+                    datum[self.geo_field] = f'{self.geo_type}(({formatted_geo}))'
+                else:
+                    datum[self.geo_field] = f'{self.geo_type}({formatted_geo})'
             else:
-                formatted_geo += rev_str
-            i += 1
-        datum[self.geo_field] = 'POLYGON((' + formatted_geo + '))'
+                datum[self.geo_field] = formatted_geo
+        else:
+            datum[self.geo_field] = None
 
         yield datum
 
