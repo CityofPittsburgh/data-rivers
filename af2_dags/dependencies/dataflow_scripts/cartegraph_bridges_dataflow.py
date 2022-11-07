@@ -73,7 +73,7 @@ def run(argv = None):
                 | beam.ParDo(SwapFieldNames(field_name_swaps))
                 | beam.ParDo(FilterFields(keep_fields, exclude_target_fields=False))
                 | beam.ParDo(ChangeDataTypes(type_changes))
-                | beam.ParDo(ConvertGeography('geometry'))
+                | beam.ParDo(ConvertGeography('geometry', 'LINESTRING'))
                 | WriteToAvro(known_args.avro_output, schema = avro_schema, file_name_suffix = '.avro',
                               use_fastavro = True)
         )
