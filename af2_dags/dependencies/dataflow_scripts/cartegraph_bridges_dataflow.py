@@ -41,11 +41,12 @@ def run(argv = None):
         additional_nested_fields = ['', 'Lat', 'Lng', '', '', '', '', '', '', '']
         new_field_names = ['geometry', 'lat', 'long', 'length_ft', 'width_ft', 'height_ft', 'weight_limit_tons',
                            'left_sidewalk_width_ft', 'right_sidewalk_width_ft', 'estimated_treatment_time_min']
-        field_name_swaps = [('oid', 'id'), ('id', 'name'), ('replaced', 'replaced_date'),
+        field_name_swaps = [('id', 'name'), ('oid', 'id'), ('replaced', 'replaced_date'),
                             ('cg_last_modified', 'last_modified_date'), ('retired', 'retired_date'),
                             ('culvert_condition_ratings', 'culvert_condition_rating'),
                             ('numberof_spans', 'number_of_spans'), ('drainage', 'has_drainage'),
-                            ('neighborhood', 'neighborhood_name'), ('neighborhood_2', 'neighborhood_name_2') ]
+                            ('neighborhood', 'neighborhood_name'), ('neighborhood2', 'neighborhood_name_2'),
+                            ('council_district2', 'council_district_2')]
         keep_fields = ['id', 'name', 'average_daily_traffic', 'notes', 'owner', 'maintenance_responsibility',
                        'entry_date', 'replaced_date', 'last_modified_date', 'retired_date', 'length_ft', 'width_ft',
                        'height_ft', 'weight_limit_tons', 'left_sidewalk_width_ft', 'right_sidewalk_width_ft',
