@@ -239,18 +239,21 @@ class ConvertGeography(beam.DoFn):
         """
         self.geo_field = geo_field
     def process(self, datum):
-        coord_list = datum[self.geo_field][datum[self.geo_field].find("[{")+2:datum[self.geo_field].find("}]")].split('}, {')
-        formatted_geo = ''
-        i = 1
-        for coord in coord_list:
-            lat_lng = coord.split(', ')
-            rev_str = lat_lng[1].split(': ')[1] + " " + lat_lng[0].split(': ')[1]
-            if i < len(coord_list):
-                formatted_geo += rev_str + ", "
-            else:
-                formatted_geo += rev_str
-            i += 1
-        datum[self.geo_field] = 'POLYGON((' + formatted_geo + '))'
+        if datum[self.geo_field]:
+            coord_list = datum[self.geo_field][datum[self.geo_field].find("[{")+2:datum[self.geo_field].find("}]")].split('}, {')
+            formatted_geo = ''
+            i = 1
+            for coord in coord_list:
+                lat_lng = coord.split(', ')
+                rev_str = lat_lng[1].split(': ')[1] + " " + lat_lng[0].split(': ')[1]
+                if i < len(coord_list):
+                    formatted_geo += rev_str + ", "
+                else:
+                    formatted_geo += rev_str
+                i += 1
+            datum[self.geo_field] = 'POLYGON((' + formatted_geo + '))'
+        else:
+            datum[self.geo_field] = None
 
         yield datum
 
