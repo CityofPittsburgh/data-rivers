@@ -41,7 +41,7 @@ avro_loc = f"{dataset}/avro_output/{path}/" + "{{ run_id }}"
 
 cartegraph_gcs = BashOperator(
     task_id='cartegraph_gcs',
-    bash_command=f"python {os.environ['GCS_LOADER_PATH']}/cartegraph_bridges_gcs.py --output_arg {json_loc} "
+    bash_command=f"python {os.environ['GCS_LOADER_PATH']}/cartegraph_assets_gcs.py --output_arg {json_loc} "
                  f"--asset cgBridgesClass",
     dag=dag
 )
