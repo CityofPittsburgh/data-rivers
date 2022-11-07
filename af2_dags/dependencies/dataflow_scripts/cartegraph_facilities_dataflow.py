@@ -8,8 +8,8 @@ from apache_beam.io import ReadFromText
 from apache_beam.io.avroio import WriteToAvro
 
 from dataflow_utils import dataflow_utils
-from dataflow_utils.dataflow_utils import JsonCoder, SwapFieldNames, generate_args, FilterFields,\
-    ChangeDataTypes, ExtractField
+from dataflow_utils.dataflow_utils import JsonCoder, SwapFieldNames, ColumnsCamelToSnakeCase, generate_args, \
+    FilterFields, ChangeDataTypes, ExtractField, ConvertGeography
 
 DEFAULT_DATAFLOW_ARGS = [
         '--save_main_session',
@@ -19,27 +19,6 @@ DEFAULT_DATAFLOW_ARGS = [
         f"--subnetwork={os.environ['SUBNET']}"
 ]
 
-class ConvertGeography(beam.DoFn):
-    def __init__(self, geo_field):
-        """
-        :param geo_field - Name of field that will be converted into string formatted for BQ geography conversion
-        """
-        self.geo_field = geo_field
-    def process(self, datum):
-        coord_list = datum[self.geo_field][datum[self.geo_field].find("[{")+2:datum[self.geo_field].find("}]")].split('}, {')
-        formatted_geo = ''
-        i = 1
-        for coord in coord_list:
-            lat_lng = coord.split(', ')
-            rev_str = lat_lng[1].split(': ')[1] + " " + lat_lng[0].split(': ')[1]
-            if i < len(coord_list):
-                formatted_geo += rev_str + ", "
-            else:
-                formatted_geo += rev_str
-            i += 1
-        datum[self.geo_field] = 'POLYGON((' + formatted_geo + '))'
-
-        yield datum
 
 def run(argv = None):
     # assign the name for the job and specify the AVRO upload location (GCS bucket), arg parser object,
@@ -59,30 +38,16 @@ def run(argv = None):
         nested_fields = ['Points', 'Center', 'Center', 'Amount']
         additional_nested_fields = ['', 'Lat', 'Lng', '']
         new_field_names = ['geometry', 'lat', 'long', 'size_sq_foot']
-        field_name_swaps = [('Oid', 'id'), ('IDField', 'name'), ('FacilityTypeField', 'type'),
-                            ('DescriptionField', 'description'), ('NotesField', 'notes'),
-                            ('PrimaryUserField', 'primary_user'), ('InstalledField', 'installed_date'),
-                            ('EntryDateField', 'entry_date'), ('cgLastModifiedField', 'last_modified_date'),
-                            ('cgProbabilityOfFailureScoreField', 'probability_of_failure_score'),
-                            ('PlannedRenovationsField', 'planned_renovations'),
-                            ('PlannedLevelofInterventionField', 'planned_intervention_level'),
-                            ('PlannedYearofInterventionField', 'planned_intervention_year'),
-                            ('AddressNumberField', 'street_num'), ('StreetField', 'street_name'),
-                            ('ZipCodeField', 'zip'), ('ParcelIDField', 'parcel'), ('ParkField', 'park'),
-                            ('NeighborhoodField', 'neighborhood_name'), ('CouncilDistrictField', 'council_district'),
-                            ('PublicViewField', 'public_view'), ('PublicRestroomsField', 'public_restrooms'),
-                            ('RentableField', 'is_rentable'), ('VacantField', 'is_vacant'),
-                            ('FloorCountField', 'floor_count'), ('FloorsBelowGradeField', 'floors_below_grade'),
-                            ('FoundationTypeField', 'foundation_type'),  ('BuildingEnvelopeField', 'building_envelope'),
-                            ('ParkingField', 'parking_type'), ('ADANotesField', 'ada_notes'),
-                            ('ADAAccessibleApproachEntranceField', 'ada_accessible_approach_entrance'),
-                            ('ADAAccessibletoGoodsandServicesField', 'ada_accessible_to_goods_and_services'),
-                            ('ADAAdditionalAccessField', 'ada_additional_access'),
-                            ('ADAUsabilityofRestroomsField', 'ada_usability_of_restrooms'),
-                            ('ADAAssessmentDateField', 'ada_assessment_date'), ('TotalCostField', 'total_cost'),
-                            ('SavingOpportunityField', 'saving_opportunity'),
-                            ('EnergyRenovationCostEstimateField', 'energy_renovation_cost_estimate'),
-                            ('ReplacedField', 'replaced_date'), ('ReplacementCostTypeField', 'replacement_cost_type')]
+        field_name_swaps = [('id', 'name'), ('oid', 'id'), ('facility_type', 'type'),
+                            ('installed', 'installed_date'), ('cg_last_modified', 'last_modified_date'),
+                            ('cg_probability_of_failure_score', 'probability_of_failure_score'),
+                            ('planned_levelof_intervention', 'planned_intervention_level'),
+                            ('planned_yearof_intervention', 'planned_intervention_year'),
+                            ('ada_accessibleto_goodsand_services', 'ada_accessible_to_goods_and_services'),
+                            ('ada_usabilityof_restrooms', 'ada_usability_of_restrooms'),
+                            ('address_number', 'street_num'), ('street', 'street_name'), ('zip_code', 'zip'),
+                            ('parcel_id', 'parcel'), ('neighborhood', 'neighborhood_name'), ('rentable', 'is_rentable'),
+                            ('vacant', 'is_vacant'), ('parking', 'parking_type'), ('replaced', 'replaced_date')]
         keep_fields = ['id', 'name', 'type', 'description', 'notes', 'primary_user', 'installed_date',
                        'entry_date', 'last_modified_date', 'probability_of_failure_score', 'planned_renovations',
                        'planned_intervention_level', 'planned_intervention_year', 'street_num', 'street_name',
@@ -104,10 +69,11 @@ def run(argv = None):
         load = (
                 lines
                 | beam.ParDo(ExtractField(source_fields, nested_fields, new_field_names, additional_nested_fields))
+                | beam.ParDo(ColumnsCamelToSnakeCase('Field'))
                 | beam.ParDo(SwapFieldNames(field_name_swaps))
                 | beam.ParDo(FilterFields(keep_fields, exclude_target_fields=False))
                 | beam.ParDo(ChangeDataTypes(type_changes))
-                | beam.ParDo(ConvertGeography('geometry'))
+                | beam.ParDo(ConvertGeography('geometry', 'POLYGON'))
                 | WriteToAvro(known_args.avro_output, schema = avro_schema, file_name_suffix = '.avro',
                               use_fastavro = True)
         )
