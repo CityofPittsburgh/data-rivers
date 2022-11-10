@@ -80,7 +80,7 @@ def run(argv = None):
                             ('Employee_LastName', 'last_name'),
                             ('Employee_DisplayName', 'display_name'),
                             ('Employee_PreferredLastName', 'preferred_name'),
-                            ('Department_ShortName', 'dept'),
+                            ('Department_ShortName', 'department'),
                             ('Job_ShortName', 'job_title'),
                             ('Employee_HireDate', 'hire_date'),
                             ('DFUnion_ShortName', 'union'),
