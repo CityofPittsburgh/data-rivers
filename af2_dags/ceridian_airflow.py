@@ -67,7 +67,8 @@ ceridian_bq_load = GoogleCloudStorageToBigQueryOperator(
 # their benefits administered by the City of Pittsburgh and should not be reflected in any employee data
 query_remove_rows = f"""
 DELETE FROM `{os.environ['GCLOUD_PROJECT']}.ceridian.active_employees` 
-WHERE dept = '' OR dept IS NULL OR dept = 'Historical' OR dept = 'Terminated' OR dept = 'Non-Employee Benefits'"""
+WHERE department = '' OR department IS NULL OR dept = 'Historical' OR dept = 'Terminated' 
+OR department = 'Non-Employee Benefits'"""
 remove_non_employees = BigQueryOperator(
         task_id = 'remove_non_employees',
         sql = query_remove_rows,
