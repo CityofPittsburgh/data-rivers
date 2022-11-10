@@ -130,7 +130,7 @@ FROM `{os.environ["GCLOUD_PROJECT"]}.computronix.gis_street_closures`
 WHERE from_date_UNIX <= {unix_date} AND to_date_unix >= {unix_date};
 
 CREATE OR REPLACE TABLE `data-bridgis.computronix.gis_active_street_closures` AS
-SELECT * FROM  {os.environ["GCLOUD_PROJECT"]}.computronix.gis_active_street_closures
+SELECT * FROM  `{os.environ["GCLOUD_PROJECT"]}.computronix.gis_active_street_closures`
 """
 filter_inactive = BigQueryOperator(
         task_id = 'filter_inactive',
