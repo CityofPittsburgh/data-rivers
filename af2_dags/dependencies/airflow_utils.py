@@ -310,6 +310,7 @@ def build_percentage_table_query(dataset, raw_table, new_table, is_deduped, id_f
     FROM (
       SELECT {pct_field}, COUNT(DISTINCT({id_field})) AS {pct_field}_count, SUM(COUNT(*)) OVER() AS total
       FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{raw_table}` 
+      WHERE status = 'Active'
       GROUP BY {pct_field}
     )
     """

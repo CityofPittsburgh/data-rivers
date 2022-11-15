@@ -22,25 +22,30 @@ DEFAULT_DATAFLOW_ARGS = [
 
 
 class CrosswalkDeptNames(beam.DoFn):
-    def __init__(self, gcs_prefix):
+    def __init__(self, gcs_prefix, crosswalk_file):
         """
         :param gcs_prefix - Environmental variable denoting the GCS project prefix string. DAG will crash if this
-                            isn't included as a parameter, as it can not be obtained from within the class.
+        isn't included as a parameter, as it can not be obtained from within the class.
+        :param crosswalk_file - Environmental variable containing the name of a JSON file that maps department names
+        returned by the Ceridian API to department names sourced from the City's Department of Human Resources
         """
         self.gcs_prefix = gcs_prefix
+        self.crosswalk_file = crosswalk_file
     def process(self, datum):
         storage_client = storage.Client()
         bucket = storage_client.bucket(f"{self.gcs_prefix}_ceridian")
-        blob = bucket.get_blob("organizational_structure.json")
+        blob = bucket.get_blob(self.crosswalk_file)
         cw = blob.download_as_string()
         crosswalk = json.loads(cw.decode('utf-8'))
-        datum['bureau'] = ''
-        datum['region'] = ''
+        datum['dept'] = ''
+        datum['dept_desc'] = ''
+        datum['office'] = ''
         datum['corporation'] = ''
         for dict in crosswalk:
-            if datum['department'] == dict['Department']:
-                datum['bureau'] = dict['Bureau']
-                datum['region'] = dict['Region']
+            if datum['Department_ShortName'] == dict['Ceridian Department Name']:
+                datum['dept'] = dict['Department']
+                datum['dept_desc'] = dict['Department Description']
+                datum['office'] = dict['Office']
                 datum['corporation'] = dict['Corporation']
         yield datum
 
@@ -80,7 +85,6 @@ def run(argv = None):
                             ('Employee_LastName', 'last_name'),
                             ('Employee_DisplayName', 'display_name'),
                             ('Employee_PreferredLastName', 'preferred_name'),
-                            ('Department_ShortName', 'department'),
                             ('Job_ShortName', 'job_title'),
                             ('Employee_HireDate', 'hire_date'),
                             ('DFUnion_ShortName', 'union'),
@@ -102,7 +106,7 @@ def run(argv = None):
                 | beam.ParDo(StripDate())
                 | beam.ParDo(StandardizeEthnicityNames())
                 | beam.ParDo(SwapFieldNames(field_name_swaps))
-                | beam.ParDo(CrosswalkDeptNames(os.environ['GCS_PREFIX']))
+                | beam.ParDo(CrosswalkDeptNames(os.environ['GCS_PREFIX'], os.environ['CERIDIAN_DEPT_FILE']))
                 | beam.ParDo(ChangeDataTypes(type_changes))
                 | beam.ParDo(FilterFields(drop_fields, exclude_target_fields=True))
                 | WriteToAvro(known_args.avro_output, schema = avro_schema, file_name_suffix = '.avro',
