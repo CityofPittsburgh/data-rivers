@@ -32,7 +32,7 @@ the active closures are stored in data-bridGIS' BQ for publication on a connecti
 dag = DAG(
     'computronix_gis_street_closures',
     default_args=default_args,
-    schedule_interval='@daily',
+    schedule_interval='@hourly',
     user_defined_filters={'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year, 'get_ds_day': get_ds_day}
 )
 
