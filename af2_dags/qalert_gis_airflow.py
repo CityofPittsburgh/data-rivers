@@ -30,6 +30,7 @@ push_table = BigQueryOperator(
                 DATE(create_date_est) AS create_date,
                 DATE(last_action_est) AS last_update_est,
                 DATE(closed_date_est) AS closed_date_est,
+
                 ST_GEOGPOINT(google_pii_long, google_pii_lat) AS geo
         FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests`
         """,

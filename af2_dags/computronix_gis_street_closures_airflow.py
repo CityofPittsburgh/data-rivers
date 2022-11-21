@@ -136,6 +136,7 @@ SELECT
   DATE (PARSE_DATETIME ("%m/%d/%Y %H:%M:%S",from_date_EST)) as from_est,
   DATE (PARSE_DATETIME ("%m/%d/%Y %H:%M:%S",to_date_EST)) as to_est
 FROM `{os.environ["GCLOUD_PROJECT"]}.computronix.gis_active_street_closures` 	
+
 """
 filter_inactive = BigQueryOperator(
         task_id = 'filter_inactive',

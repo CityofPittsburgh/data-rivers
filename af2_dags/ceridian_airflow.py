@@ -63,6 +63,19 @@ ceridian_bq_load = GoogleCloudStorageToBigQueryOperator(
         dag = dag
 )
 
+# People marked as belonging to the department of 'Non-Employee Benefits are individuals who have negotiated to have
+# their benefits administered by the City of Pittsburgh and should not be reflected in any employee data
+query_remove_rows = f"""
+DELETE FROM `{os.environ['GCLOUD_PROJECT']}.ceridian.active_employees` 
+WHERE dept = '' OR dept IS NULL"""
+remove_non_employees = BigQueryOperator(
+        task_id = 'remove_non_employees',
+        sql = query_remove_rows,
+        bigquery_conn_id='google_cloud_default',
+        use_legacy_sql = False,
+        dag = dag
+)
+
 gender_table = 'employee_vs_gen_pop_gender_comp'
 gender_pct_field = 'gender'
 categories = ['City Employee', 'Overall City']
@@ -113,6 +126,7 @@ beam_cleanup = BashOperator(
         bash_command = airflow_utils.beam_cleanup_statement(f"{os.environ['GCS_PREFIX']}_ceridian"),
         dag = dag
 )
+
 
 ceridian_gcs >> ceridian_dataflow >> ceridian_bq_load >> create_gender_comp_table >> create_racial_comp_table >> \
 ceridian_export >> beam_cleanup
