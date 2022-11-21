@@ -22,8 +22,8 @@ fire_zone, dpw_streets, dpw_enviro, dpw_parks, lat, long"""
 dag = DAG(
     'cartegraph_tasks',
     default_args=default_args,
-    schedule_interval='0 15 */3 * *',
-    start_date=datetime(2022, 11, 4),
+    schedule_interval= '0 0 */3 * *',
+    start_date=datetime(2022, 11, 22),
     user_defined_filters={'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year,
                           'get_ds_day': get_ds_day}
 )
