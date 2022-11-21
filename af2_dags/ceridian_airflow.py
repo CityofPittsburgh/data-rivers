@@ -9,7 +9,7 @@ from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOperator
 from airflow.contrib.operators.bigquery_to_gcs import BigQueryToCloudStorageOperator
 from dependencies import airflow_utils
-from dependencies.airflow_utils import get_ds_month, get_ds_year, get_ds_day, \
+from dependencies.airflow_utils import get_ds_month, get_ds_year,  get_ds_day, \
     default_args, build_percentage_table_query
 
 # The goal of this DAG is to perform a daily pull of basic demographic information for each
@@ -23,8 +23,8 @@ from dependencies.airflow_utils import get_ds_month, get_ds_year, get_ds_day, \
 dag = DAG(
     'ceridian',
     default_args=default_args,
-    schedule_interval='0 15 */3 * *',
-    start_date=datetime(2022, 11, 4),
+    schedule_interval= '0 0 */3 * *',
+    start_date=datetime(2022, 11, 22),
     user_defined_filters={'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year,
                           'get_ds_day': get_ds_day}
 )
