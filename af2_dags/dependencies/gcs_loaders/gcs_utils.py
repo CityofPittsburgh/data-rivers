@@ -26,8 +26,38 @@ PROJECT = os.environ['GCLOUD_PROJECT']
 USER_DEFINED_CONST_BUCKET = "user_defined_data"
 DEFAULT_PII_TYPES = [{"name": "PERSON_NAME"}, {"name": "EMAIL_ADDRESS"}, {"name": "PHONE_NUMBER"}]
 
-COMPUTRONIX_BASE_URL = 'https://staff.onestoppgh.pittsburghpa.gov/pghprod/odata/odata/'
 WPRDC_API_HARD_LIMIT = 500001  # A limit set by the CKAN instance.
+
+
+def call_odata_api(targ_url, full_results = True):
+    """
+    :param targ_url: string value of fully formed odata_query (needs to be constructed before passing in)
+    :param full_results: boolean (set to false to return only first page of results (useful for testing, especially
+    with less performant APIs))
+    :return: list of dicts containing API results
+    """
+    records = []
+    more_links = True
+
+    if full_results:
+        while more_links:
+            res = requests.get(targ_url)
+            records.extend(res.json()['value'])
+
+            if res.status_code != 200:
+                print("API call failed")
+                print(f"Status Code:  {res.status_code}")
+
+            if '@odata.nextLink' in res.json().keys():
+                targ_url = res.json()['@odata.nextLink']
+            else:
+                more_links = False
+
+    else:
+        res = requests.get(targ_url)
+        records.extend(res.json()['value'])
+
+    return records
 
 
 def snake_case_place_names(input):
@@ -336,41 +366,6 @@ def json_to_gcs(path, json_object_list, bucket_name):
     print('Successfully uploaded blob {} to bucket {}'.format(path, bucket_name))
 
 
-def get_computronix_odata(endpoint, params=None, expand_fields=None):
-    """
-    Hit the Computronix odata feed and loop through all result pages, storing results in a list of dicts
-    :param: endpoint (str): API endpoint, e.g. 'DOMIPERMIT'
-    :param: params (list): params for odata query, e.g. ['$orderby=CREATEDDATE%20desc', '$top=1000']
-    :param: expand_fields (list): fields in odata results to expand, e.g. ['ADDRESS']
-    :return: list of dicts
-    """
-    records = []
-    more_links = True
-    odata_url = COMPUTRONIX_BASE_URL + endpoint
-
-    if params or expand_fields:
-        odata_url += '?'
-    if params:
-        for param in params:
-            odata_url += F'{param}&'
-    if expand_fields:
-        odata_url += F'$expand='
-        for field in expand_fields:
-            odata_url += F'{field},'
-    while more_links:
-        try:
-            res = requests.get(odata_url)
-            records.extend(res.json()['value'])
-            if '@odata.nextLink' in res.json().keys():
-                odata_url = res.json()['@odata.nextLink']
-            else:
-                more_links = False
-        except requests.exceptions.RequestException:
-            more_links = False
-
-    return records
-
-
 def select_expand_odata(url, tables, limit_results=False):
     """
         General ODATA API query generator. This function will format the query, request from the API, and loop through
@@ -641,8 +636,7 @@ Here are the resulting top five names for the POODLE STANDARD breed, sorted by d
 
 
 def get_wprdc_data(resource_id, select_fields=['*'], where_clauses=None, group_by=None, order_by=None,
-                   limit=None,
-                   fields_to_remove=None):
+                   limit=None, fields_to_remove=None):
     """
     helper to construct query for CKAN API and return results as list of dictionaries
     :param resource_id: str

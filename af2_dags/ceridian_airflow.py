@@ -9,7 +9,7 @@ from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOperator
 from airflow.contrib.operators.bigquery_to_gcs import BigQueryToCloudStorageOperator
 from dependencies import airflow_utils
-from dependencies.airflow_utils import get_ds_month, get_ds_year, get_ds_day, \
+from dependencies.airflow_utils import get_ds_month, get_ds_year,  get_ds_day, \
     default_args, build_percentage_table_query
 
 # The goal of this DAG is to perform a daily pull of basic demographic information for each
@@ -23,8 +23,8 @@ from dependencies.airflow_utils import get_ds_month, get_ds_year, get_ds_day, \
 dag = DAG(
     'ceridian',
     default_args=default_args,
-    schedule_interval='0 15 */3 * *',
-    start_date=datetime(2022, 11, 4),
+    schedule_interval= '0 0 */3 * *',
+    start_date=datetime(2022, 11, 22),
     user_defined_filters={'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year,
                           'get_ds_day': get_ds_day}
 )
@@ -52,7 +52,7 @@ ceridian_dataflow = BashOperator(
 
 ceridian_bq_load = GoogleCloudStorageToBigQueryOperator(
         task_id = 'ceridian_bq_load',
-        destination_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}.ceridian.active_employees",
+        destination_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}.ceridian.all_employees",
         bucket = f"{os.environ['GCS_PREFIX']}_ceridian",
         source_objects = [f"{avro_loc}*.avro"],
         write_disposition='WRITE_TRUNCATE',
@@ -63,25 +63,12 @@ ceridian_bq_load = GoogleCloudStorageToBigQueryOperator(
         dag = dag
 )
 
-# People marked as belonging to the department of 'Non-Employee Benefits are individuals who have negotiated to have
-# their benefits administered by the City of Pittsburgh and should not be reflected in any employee data
-query_remove_rows = f"""
-DELETE FROM `{os.environ['GCLOUD_PROJECT']}.ceridian.active_employees` 
-WHERE dept = '' OR dept IS NULL"""
-remove_non_employees = BigQueryOperator(
-        task_id = 'remove_non_employees',
-        sql = query_remove_rows,
-        bigquery_conn_id='google_cloud_default',
-        use_legacy_sql = False,
-        dag = dag
-)
-
 gender_table = 'employee_vs_gen_pop_gender_comp'
 gender_pct_field = 'gender'
 categories = ['City Employee', 'Overall City']
 gender_hardcoded_vals = [{gender_pct_field: 'M', 'percentage': 00.49},
                          {gender_pct_field: 'F', 'percentage': 00.51}]
-query_gender_comp = build_percentage_table_query('ceridian', 'active_employees', gender_table,
+query_gender_comp = build_percentage_table_query('ceridian', 'all_employees', gender_table,
                                                  False, 'employee_num', gender_pct_field,
                                                  categories, gender_hardcoded_vals)
 create_gender_comp_table = BigQueryOperator(
@@ -101,7 +88,7 @@ race_hardcoded_vals = [{race_pct_field: 'White', 'percentage': 00.645},
                        {race_pct_field: 'American Indian or Alaska Native', 'percentage': 00.002},
                        {race_pct_field: 'Native Hawaiian or Other Pacific Islander', 'percentage': 00.001},
                        {race_pct_field: 'Two or More Races', 'percentage': 00.036}]
-query_racial_comp = build_percentage_table_query('ceridian', 'active_employees', race_table,
+query_racial_comp = build_percentage_table_query('ceridian', 'all_employees', race_table,
                                                  False, 'employee_num', race_pct_field,
                                                  categories, race_hardcoded_vals)
 create_racial_comp_table = BigQueryOperator(
@@ -115,7 +102,7 @@ create_racial_comp_table = BigQueryOperator(
 # Export employee table to Ceridian bucket as readable CSV
 ceridian_export = BigQueryToCloudStorageOperator(
         task_id = 'ceridian_export',
-        source_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}.ceridian.active_employees",
+        source_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}.ceridian.all_employees",
         destination_cloud_storage_uris = [f"{bucket}/shared/ceridian_report.csv"],
         bigquery_conn_id='google_cloud_default',
         dag = dag
@@ -127,5 +114,6 @@ beam_cleanup = BashOperator(
         dag = dag
 )
 
-ceridian_gcs >> ceridian_dataflow >> ceridian_bq_load >> remove_non_employees >> \
-create_gender_comp_table >> create_racial_comp_table >> ceridian_export >> beam_cleanup
+
+ceridian_gcs >> ceridian_dataflow >> ceridian_bq_load >> create_gender_comp_table >> create_racial_comp_table >> \
+ceridian_export >> beam_cleanup
