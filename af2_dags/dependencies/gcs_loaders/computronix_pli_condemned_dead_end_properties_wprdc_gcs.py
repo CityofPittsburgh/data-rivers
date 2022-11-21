@@ -2,26 +2,7 @@ import os
 import argparse
 import requests
 
-from gcs_utils import json_to_gcs
-
-
-def hit_cx_odata_api(odata_url):
-    records = []
-    more_links = True
-    while more_links:
-        res = requests.get(odata_url)
-        records.extend(res.json()['value'])
-
-        if res.status_code != 200:
-            print("API call failed")
-            print(f"Status Code:  {res.status_code}")
-
-        if '@odata.nextLink' in res.json().keys():
-            odata_url = res.json()['@odata.nextLink']
-        else:
-            more_links = False
-
-    return records
+from gcs_utils import json_to_gcs, call_odata_api
 
 
 parser = argparse.ArgumentParser()
@@ -59,7 +40,7 @@ odata_url = F"{url}{base}?&{odata_url_base_fields}{odata_url_tail}"
 
 
 # hit the api
-properties = hit_cx_odata_api(odata_url)
+properties = call_odata_api(odata_url)
 
 
 # load data into GCS

@@ -3,26 +3,7 @@ import argparse
 import requests
 from datetime import date
 
-from gcs_utils import json_to_gcs
-
-
-def hit_cx_odata_api(targ_url):
-    records = []
-    more_links = True
-    while more_links:
-        res = requests.get(targ_url)
-        records.extend(res.json()['value'])
-
-        if res.status_code != 200:
-            print("API call failed")
-            print(f"Status Code:  {res.status_code}")
-
-        if '@odata.nextLink' in res.json().keys():
-            targ_url = res.json()['@odata.nextLink']
-        else:
-            more_links = False
-
-    return records
+from gcs_utils import json_to_gcs, call_odata_api
 
 
 def unnest_violations(nested_data, name_swaps):
@@ -120,7 +101,7 @@ odata_url = F"{root}{base}?" \
             F"{unnested_table_3}($select={fds_unt3})"
 
 # get violations from API
-violations = hit_cx_odata_api(odata_url)
+violations = call_odata_api(odata_url)
 
 # names to swap for fields that are not nested in raw data
 swaps = [

@@ -2,26 +2,7 @@ import os
 import argparse
 import requests
 
-from gcs_utils import json_to_gcs
-
-
-def hit_cx_odata_api(odata_url):
-    records = []
-    more_links = True
-    while more_links:
-        res = requests.get(odata_url)
-        records.extend(res.json()['value'])
-
-        if res.status_code != 200:
-            print("API call failed")
-            print(f"Status Code:  {res.status_code}")
-
-        if '@odata.nextLink' in res.json().keys():
-            odata_url = res.json()['@odata.nextLink']
-        else:
-            more_links = False
-
-    return records
+from gcs_utils import json_to_gcs, call_odata_api
 
 
 parser = argparse.ArgumentParser()
@@ -75,7 +56,7 @@ odata_url_tail = F"&$expand={xref_1}" \
 all_permits = []
 for (b, i) in zip(bases, fds_id):
     odata_url = F"{url}{b}?{odata_url_date_filter}&{odata_url_base_fields}, {i}, {odata_url_tail}"
-    permits = hit_cx_odata_api(odata_url)
+    permits = call_odata_api(odata_url)
     for p in permits:
         p.update({"permit_type": b.split("PERMIT")[0]})
     if b == bases[0]:
@@ -87,7 +68,7 @@ for (b, i) in zip(bases, fds_id):
 
 
 odata_url = F"{url}GENERALPERMIT?{odata_url_date_filter}&{odata_url_base_fields}, PERMITTYPEPERMITTYPE, EXTERNALFILENUM, {odata_url_tail}"
-gen_permits = hit_cx_odata_api(odata_url)
+gen_permits = call_odata_api(odata_url)
 for g in gen_permits:
     g.update({"permit_type": g["PERMITTYPEPERMITTYPE"]})
     g.pop("PERMITTYPEPERMITTYPE")
