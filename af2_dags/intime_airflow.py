@@ -60,7 +60,7 @@ intime_bq_load = GoogleCloudStorageToBigQueryOperator(
 intime_export = BigQueryToCloudStorageOperator(
         task_id = 'intime_export',
         source_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}.{dataset}.employee_data",
-        destination_cloud_storage_uris = [f"{bucket}/shared/intime_report.csv"],
+        destination_cloud_storage_uris = [f"gs://{os.environ['GCS_PREFIX']}_shared/intime_report.csv"],
         bigquery_conn_id='google_cloud_default',
         dag = dag
 )

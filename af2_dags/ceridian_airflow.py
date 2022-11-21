@@ -103,7 +103,7 @@ create_racial_comp_table = BigQueryOperator(
 ceridian_export = BigQueryToCloudStorageOperator(
         task_id = 'ceridian_export',
         source_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}.ceridian.all_employees",
-        destination_cloud_storage_uris = [f"{bucket}/shared/ceridian_report.csv"],
+        destination_cloud_storage_uris = [f"gs://{os.environ['GCS_PREFIX']}_shared/ceridian_report.csv"],
         bigquery_conn_id='google_cloud_default',
         dag = dag
 )
