@@ -1,6 +1,6 @@
 import os
 import argparse
-import requests
+
 
 from gcs_utils import json_to_gcs, call_odata_api
 
@@ -25,8 +25,6 @@ nested_table_1 = "PARCEL"
 xref_2 = "PARCELPARCELOWNERXREF"
 nested_table_2 = "PARCELOWNER"
 
-# unnested expansion (only on base table)
-unnested_table_1 = "SHADOWJOB"
 
 # fields to select from each table (nt = nested table; unt = unnested table) (there are differently named ID fields
 # for each permit type [ID fields must appear in the same order as the base table])
@@ -35,7 +33,7 @@ fds_base = 'ISSUEDATE, ALLCONTRACTORSNAME, TYPEOFWORKDESCRIPTION, COMMERCIALORRE
 fds_id = ["PERMITNUMBER", "EXTERNALFILENUM", "EXTERNALFILENUM"]
 fds_nt1 = 'FORMATTEDPARCELNUMBER, ADDRESSABLEOBJEFORMATTEDADDRES'
 fds_nt2 = 'OWNERNAME'
-fds_unt1 = 'SNP_NEIGHBORHOOD, SNP_WARD'
+
 
 odata_url_date_filter = F"$filter=ISSUEDATE gt 2019-06-01T00:00:00Z"
 
@@ -54,6 +52,7 @@ odata_url_tail = F"&$expand={xref_1}" \
     ")"
 
 all_permits = []
+all_shadow_job_expansions = []
 for (b, i) in zip(bases, fds_id):
     odata_url = F"{url}{b}?{odata_url_date_filter}&{odata_url_base_fields}, {i}, {odata_url_tail}"
     permits = call_odata_api(odata_url)
@@ -65,6 +64,11 @@ for (b, i) in zip(bases, fds_id):
             p.pop("PERMITNUMBER")
 
     all_permits.extend(permits)
+
+
+    shadow_url = F"{url}{b}?$expand=SHADOWJOB"
+    shadow_jobs = call_odata_api(shadow_url, full_results = False)
+    all_shadow_job_expansions.extend(shadow_jobs)
 
 
 odata_url = F"{url}GENERALPERMIT?{odata_url_date_filter}&{odata_url_base_fields}, PERMITTYPEPERMITTYPE, EXTERNALFILENUM, {odata_url_tail}"
@@ -80,3 +84,10 @@ all_permits.extend(gen_permits)
 # out loc = <dataset>/<full date>/<run_id>_all_permits.json
 json_to_gcs(args["out_loc"], all_permits, bucket)
 
+
+
+
+
+# unnested expansion (only on base table)
+unnested_table_1 = "SHADOWJOB"
+fds_unt1 = 'SNP_NEIGHBORHOOD, SNP_WARD'
