@@ -39,9 +39,9 @@ def run(argv = None):
         additional_nested_fields = ['info', '', '', '', '']
         search_fields = [{'type': 'EMAIL'}, 'validTo', 'validTo', 'validTo', 'validTo']
         additional_search_vals = ['pittsburghpa.gov', '', '', '', '']
-        field_name_swaps = [('external_id', 'mpoetc_number')]
+        field_name_swaps = [('external_id', 'mpoetc_number'), ('other_id', 'badge_number')]
         type_changes = [('employee_id', 'str')]
-        keep_fields = ['employee_id', 'mpoetc_number', 'first_name', 'last_name',
+        keep_fields = ['employee_id', 'mpoetc_number', 'badge_number', 'first_name', 'last_name',
                        'email', 'rank', 'rank_valid_date', 'unit', 'unit_valid_date']
 
         lines = p | ReadFromText(known_args.input, coder = JsonCoder())
