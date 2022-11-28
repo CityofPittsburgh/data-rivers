@@ -14,8 +14,8 @@ COLS_IN_ORDER = """id, type, manufacturer, description, notes, playground, prima
                    address_num, street_name, city, safety_surface_type, entry_date, installed_date, last_modified_date, 
                    replaced_date, retired_date, inactive, total_cost, lat, long"""
 
-# This DAG will perform a pull of all playground_equipment entered into the Cartegraph application every month
-# and enrich the data with additional location details
+# This DAG will perform a pull of all playground equipment entered into the Cartegraph application every month,
+# as this data is currently not being tracked by WPRDC or the GIS team.
 
 dag = DAG(
     'cartegraph_playground_equipment',
