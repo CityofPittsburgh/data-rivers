@@ -29,7 +29,7 @@ DEFAULT_PII_TYPES = [{"name": "PERSON_NAME"}, {"name": "EMAIL_ADDRESS"}, {"name"
 WPRDC_API_HARD_LIMIT = 500001  # A limit set by the CKAN instance.
 
 
-def call_odata_api(targ_url, full_results = True):
+def call_odata_api(targ_url):
     """
     :param targ_url: string value of fully formed odata_query (needs to be constructed before passing in)
     :param full_results: boolean (set to false to return only first page of results (useful for testing, especially
@@ -39,23 +39,45 @@ def call_odata_api(targ_url, full_results = True):
     records = []
     more_links = True
 
-    if full_results:
-        while more_links:
-            res = requests.get(targ_url)
-            records.extend(res.json()['value'])
-
-            if res.status_code != 200:
-                print("API call failed")
-                print(f"Status Code:  {res.status_code}")
-
-            if '@odata.nextLink' in res.json().keys():
-                targ_url = res.json()['@odata.nextLink']
-            else:
-                more_links = False
-
-    else:
+    while more_links:
         res = requests.get(targ_url)
         records.extend(res.json()['value'])
+
+        if res.status_code != 200:
+            print("API call failed")
+            print(f"Status Code:  {res.status_code}")
+
+        if '@odata.nextLink' in res.json().keys():
+            targ_url = res.json()['@odata.nextLink']
+        else:
+            more_links = False
+
+    return records
+
+
+def call_odata_api_with_limit(targ_url, results_upper_limit = 1000):
+    """
+    :param targ_url: string value of fully formed odata_query (needs to be constructed before passing in)
+    :param results_upper_limit: int (the limit of results to return (useful for testing, especially
+    with less performant APIs))
+    :return: list of dicts containing API results
+    """
+    records = []
+    more_links = True
+
+    while more_links and len(records) < results_upper_limit:
+        res = requests.get(targ_url)
+        records.extend(res.json()['value'])
+
+        if res.status_code != 200:
+            print("API call failed")
+            print(f"Status Code:  {res.status_code}")
+
+        if '@odata.nextLink' in res.json().keys():
+            targ_url = res.json()['@odata.nextLink']
+        else:
+            more_links = False
+
 
     return records
 
