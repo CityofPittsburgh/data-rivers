@@ -10,9 +10,7 @@ from gcs_utils import json_to_gcs, find_last_successful_run
 
 # the first recorded entry date
 DEFAULT_RUN_START = "2015-08-12 12:00:00 AM"
-
-API_LIMIT = 1000
-OFFSET_CAP = 25000
+API_LIMIT = 100000
 
 storage_client = storage.Client()
 bucket = f"{os.environ['GCS_PREFIX']}_cartegraph"
@@ -25,16 +23,13 @@ args = vars(parser.parse_args())
 # find the last successful DAG run (needs to be specified in UTC YYYY-MM-DD HH:MM:SS)
 # if there was no previous good run, default to yesterday's date.
 # this is used to initialize the payload below
-offset, first_run = find_last_successful_run(bucket, "tasks/successful_run_log/log.json", 0)
+offset, first_run = find_last_successful_run(bucket, "tasks/backfill/successful_run_log/log.json", 0)
 
 BASE_URL = f"https://cgweb06.cartegraphoms.com/PittsburghPA/api/v1/classes/cgTasksClass"
 
 auth = HTTPBasicAuth(os.environ['CARTEGRAPH_USER'], os.environ['CARTEGRAPH_PW'])
 sort = 'EntryDateField:asc'
-fields = 'Oid,ActivityField,DepartmentField,StatusField,EntryDateField,StartDateActualField,StopDateActualField,' \
-         'LaborCostActualField,EquipmentCostActualField,MaterialCostActualField,LaborHoursActualField,' \
-         'RequestIssueField,RequestDepartmentField,RequestLocationField,cgAssetIDField,cgAssetTypeField,' \
-         'TaskDescriptionField,NotesField,CgShape'
+fields = 'Oid,ActivityField'
 
 all_records = []
 more = True
@@ -53,7 +48,7 @@ while more is True:
     all_records += tasks
 
     # continue looping through records until we have captured the total count of records
-    if (diff <= API_LIMIT) or (len(all_records) >= OFFSET_CAP):
+    if (diff <= API_LIMIT):
         more = False
     else:
         offset = int(offset) + API_LIMIT
@@ -69,4 +64,4 @@ successful_run = {
 
 json_to_gcs(f"{args['out_loc']}", all_records, bucket)
 
-json_to_gcs("tasks/successful_run_log/log.json", [successful_run], bucket)
+json_to_gcs("tasks/backfill/successful_run_log/log.json", [successful_run], bucket)

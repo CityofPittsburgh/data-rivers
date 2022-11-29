@@ -9,7 +9,7 @@ from apache_beam.io.avroio import WriteToAvro
 
 from dataflow_utils import dataflow_utils
 from dataflow_utils.dataflow_utils import JsonCoder, SwapFieldNames, generate_args, FilterFields, \
-    StandardizeTimes, ChangeDataTypes, ExtractField
+    StandardizeTimes, ChangeDataTypes, ExtractField, ColumnsCamelToSnakeCase
 
 DEFAULT_DATAFLOW_ARGS = [
         '--save_main_session',
@@ -37,14 +37,11 @@ def run(argv = None):
         nested_fields = ['Center', 'Center']
         additional_nested_fields = ['Lat', 'Lng']
         new_field_names = ['lat', 'long']
-        field_name_swaps = [('Oid', 'id'), ('DepartmentField', 'department'), ('StatusField', 'status'),
-                            ('EntryDateField', 'entry_date'), ('StartDateActualField', 'actual_start_date'),
-                            ('StopDateActualField', 'actual_stop_date'), ('LaborCostActualField', 'labor_cost'),
-                            ('EquipmentCostActualField', 'equipment_cost'), ('MaterialCostActualField', 'material_cost'),
-                            ('LaborHoursActualField', 'labor_hours'), ('RequestIssueField', 'request_issue'),
-                            ('RequestDepartmentField', 'request_department'), ('RequestLocationField', 'request_location'),
-                            ('cgAssetIDField', 'asset_id'), ('cgAssetTypeField', 'asset_type'),
-                            ('TaskDescriptionField', 'task_description'), ('NotesField', 'task_notes')]
+        field_name_swaps = [('oid', 'id'), ('start_date_actual', 'actual_start_date'),
+                            ('stop_date_actual', 'actual_stop_date'), ('labor_cost_actual', 'labor_cost'),
+                            ('equipment_cost_actual', 'equipment_cost'), ('material_cost_actual', 'material_cost'),
+                            ('labor_hours_actual', 'labor_hours'), ('cg_asset_id', 'asset_id'),
+                            ('cg_asset_type', 'asset_type'), ('notes', 'task_notes')]
         drop_fields = ['CgShape']
         times = [('entry_date', 'EST'), ('actual_start_date', 'EST'), ('actual_stop_date', 'EST')]
         type_changes = [('id', 'str'), ('labor_cost', 'float'), ('equipment_cost', 'float'), ('material_cost', 'float'),
@@ -56,6 +53,7 @@ def run(argv = None):
         load = (
                 lines
                 | beam.ParDo(ExtractField(source_fields, nested_fields, new_field_names, additional_nested_fields))
+                | beam.ParDo(ColumnsCamelToSnakeCase('Field'))
                 | beam.ParDo(SwapFieldNames(field_name_swaps))
                 | beam.ParDo(FilterFields(drop_fields, exclude_target_fields=True))
                 | beam.ParDo(StandardizeTimes(times, "%Y-%m-%d %H:%M:%S%z"))
