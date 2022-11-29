@@ -27,7 +27,7 @@ DEFAULT_DATAFLOW_ARGS = [
 def run(argv = None):
     known_args, pipeline_options, avro_schema = generate_args(
             job_name = 'computronix-shadow-jobs',
-            bucket = F'{}_computronix'.format(os.environ['GCS_PREFIX']),
+            bucket = '{}_computronix'.format(os.environ['GCS_PREFIX']),
             argv = argv,
             schema_name = 'computronix_shadow_jobs',
             default_arguments = DEFAULT_DATAFLOW_ARGS
@@ -45,7 +45,7 @@ def run(argv = None):
                       ("SNP_STEEPSLOPE", "steep_slope"), ("SNP_UNDERMINED", "undermined"),
                       ("SNP_ZONINGDISTRICT", "zoning_dist"), ("SNP_ZONINGOVERLAY", "zoning_overlay")]
 
-        type_changes = [('obj_id', 'int'), ('ref_obj_id', 'int')]
+        type_changes = [('obj_id', 'str'), ('ref_obj_id', 'str')]
 
         lines = p | ReadFromText(known_args.input, coder = JsonCoder())
 
