@@ -8,10 +8,7 @@ parser.add_argument('--output_arg', dest = 'out_loc', required = True,
                     help = 'fully specified location to upload the json file')
 args = vars(parser.parse_args())
 
-# TODO: remove scratch bucket
-# bucket = f"{os.environ['GCS_PREFIX']}_computronix"
-# bucket = "pghpa_test_scratch"
-
+bucket = f"{os.environ['GCS_PREFIX']}_computronix"
 
 
 # There is currently (11/22) an error in the CX system where the SHADOWJOB entity has no navigation property
