@@ -31,9 +31,10 @@ BASE_URL = f"https://cgweb06.cartegraphoms.com/PittsburghPA/api/v1/classes/cgTas
 
 auth = HTTPBasicAuth(os.environ['CARTEGRAPH_USER'], os.environ['CARTEGRAPH_PW'])
 sort = 'EntryDateField:asc'
-fields = 'Oid,DepartmentField,StatusField,EntryDateField,StartDateActualField,StopDateActualField,LaborCostActualField,' \
-         'EquipmentCostActualField,MaterialCostActualField,LaborHoursActualField,RequestIssueField,RequestDepartmentField,' \
-         'RequestLocationField,cgAssetIDField,cgAssetTypeField,TaskDescriptionField,NotesField,CgShape'
+fields = 'Oid,ActivityField,DepartmentField,StatusField,EntryDateField,StartDateActualField,StopDateActualField,' \
+         'LaborCostActualField,EquipmentCostActualField,MaterialCostActualField,LaborHoursActualField,' \
+         'RequestIssueField,RequestDepartmentField,RequestLocationField,cgAssetIDField,cgAssetTypeField,' \
+         'TaskDescriptionField,NotesField,CgShape'
 
 all_records = []
 more = True
