@@ -136,11 +136,28 @@ SELECT
   DATE (PARSE_DATETIME ("%m/%d/%Y %H:%M:%S",from_date_EST)) as from_est,
   DATE (PARSE_DATETIME ("%m/%d/%Y %H:%M:%S",to_date_EST)) as to_est
 FROM `{os.environ["GCLOUD_PROJECT"]}.computronix.gis_active_street_closures` 	
-
 """
-filter_inactive = BigQueryOperator(
-        task_id = 'filter_inactive',
+filter_inactive_push_to_data_bridGIS = BigQueryOperator(
+        task_id = 'filter_inactive_push_to_data_bridGIS',
         sql = query_filter,
+        bigquery_conn_id='google_cloud_default',
+        use_legacy_sql = False,
+        dag = dag
+)
+
+
+# push table of ALL permits (not just active) data-bridGIS BQ
+query_push_all = F"""
+CREATE OR REPLACE TABLE `data-bridgis.computronix.gis_all_street_closures` AS 
+SELECT 
+  * EXCEPT(from_date_UTC, from_date_EST, from_date_UNIX, to_date_UTC, to_date_EST, to_date_UNIX),
+  DATE (PARSE_DATETIME ("%m/%d/%Y %H:%M:%S",from_date_EST)) as from_est,
+  DATE (PARSE_DATETIME ("%m/%d/%Y %H:%M:%S",to_date_EST)) as to_est
+FROM `{os.environ["GCLOUD_PROJECT"]}.computronix.gis_street_closures` 	
+"""
+push_all_data_bridgis = BigQueryOperator(
+        task_id = 'push_all_data_bridgis',
+        sql = query_push_all,
         bigquery_conn_id='google_cloud_default',
         use_legacy_sql = False,
         dag = dag
@@ -169,4 +186,5 @@ beam_cleanup = BashOperator(
 gcs_loader >> dataflow >> gcs_to_bq >> join_coords
 join_coords >> wprdc_export >> beam_cleanup
 join_coords >> domi_export >> beam_cleanup
-join_coords >> filter_inactive >> wprdc_active_csv_export >> beam_cleanup
+join_coords >> filter_inactive_push_to_data_bridGIS >> wprdc_active_csv_export >> beam_cleanup
+join_coords >> push_all_data_bridgis >> beam_cleanup
