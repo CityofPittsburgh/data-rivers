@@ -32,8 +32,6 @@ WPRDC_API_HARD_LIMIT = 500001  # A limit set by the CKAN instance.
 def call_odata_api(targ_url):
     """
     :param targ_url: string value of fully formed odata_query (needs to be constructed before passing in)
-    :param full_results: boolean (set to false to return only first page of results (useful for testing, especially
-    with less performant APIs))
     :return: list of dicts containing API results
     """
     records = []
