@@ -69,7 +69,7 @@ def run(argv = None):
             job_name = 'computronix-pli-condemned-deadend-properties-wprdc',
             bucket = '{}_computronix'.format(os.environ['GCS_PREFIX']),
             argv = argv,
-            schema_name = 'computronix_pli_properties_wprdc',
+            schema_name = 'computronix_pli_condemned_dead_end_properties_wprdc',
             default_arguments = DEFAULT_DATAFLOW_ARGS
     )
 
