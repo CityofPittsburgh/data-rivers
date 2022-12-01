@@ -629,7 +629,7 @@ def generate_args(job_name, bucket, argv, schema_name, default_arguments, limit_
         arguments.append(f"--max_num_workers={limit_workers[1]}")
 
     if backfill_dag:
-        backfill_dir_path = "/backfills/"
+        backfill_dir_path = "backfills/"
     else:
         backfill_dir_path = ""
 
