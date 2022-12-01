@@ -71,7 +71,7 @@ def run(argv = None):
             job_name = 'qalert-requests-dataflow',
             bucket = f"{os.environ['GCS_PREFIX']}_qalert",
             argv = argv,
-            schema_name = 'af2_qalert_requests',
+            schema_name = 'qalert_requests',
             default_arguments=DEFAULT_DATAFLOW_ARGS,
             limit_workers = [False, None]
     )
