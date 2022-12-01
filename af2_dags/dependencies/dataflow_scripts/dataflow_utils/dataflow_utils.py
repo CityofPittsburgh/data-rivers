@@ -630,6 +630,8 @@ def generate_args(job_name, bucket, argv, schema_name, default_arguments, limit_
 
     if backfill_dag:
         backfill_dir_path = "/backfills/"
+    else:
+        backfill_dir_path = ""
 
     pipeline_args.extend(arguments)
     pipeline_options = PipelineOptions(pipeline_args)
