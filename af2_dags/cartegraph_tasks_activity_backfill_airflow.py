@@ -9,7 +9,7 @@ from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 from airflow.contrib.operators.bigquery_to_gcs import BigQueryToCloudStorageOperator
 
 from dependencies import airflow_utils
-from dependencies.airflow_utils import get_ds_year, get_ds_month, get_ds_day, default_args
+from dependencies.airflow_utils import get_ds_year, get_ds_month, get_ds_day, default_args, build_dedup_old_updates
 
 
 # STEPS TO TAKE BEFORE EXECUTING DAG:
@@ -81,6 +81,16 @@ join_activities = BigQueryOperator(
     dag=dag
 )
 
+query_dedup = build_dedup_old_updates('cartegraph', 'all_tasks',
+                                      'id', 'entry_date_UNIX')
+dedup_table = BigQueryOperator(
+    task_id='dedup_table',
+    sql=query_dedup,
+    bigquery_conn_id='google_cloud_default',
+    use_legacy_sql=False,
+    dag=dag
+)
+
 # Clean up
 beam_cleanup = BashOperator(
     task_id='cartegraph_beam_cleanup',
@@ -89,4 +99,4 @@ beam_cleanup = BashOperator(
 )
 
 # DAG execution:
-gcs_loader >> dataflow >> gcs_to_bq >> join_activities >> beam_cleanup
+gcs_loader >> dataflow >> gcs_to_bq >> join_activities >> dedup_table >> beam_cleanup
