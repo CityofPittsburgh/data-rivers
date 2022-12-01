@@ -54,7 +54,7 @@ gcs_to_bq = GoogleCloudStorageToBigQueryOperator(
     destination_project_dataset_table=f"{os.environ['GCLOUD_PROJECT']}:backfill.all_activities",
     bucket=f"{os.environ['GCS_PREFIX']}_cartegraph",
     source_objects=[f"tasks/backfill/{path}/avro_output/*.avro"],
-    write_disposition='WRITE_APPEND',
+    write_disposition='WRITE_TRUNCATE',
     create_disposition='CREATE_IF_NEEDED',
     source_format='AVRO',
     autodetect=True,
@@ -63,7 +63,7 @@ gcs_to_bq = GoogleCloudStorageToBigQueryOperator(
 
 query_join_tables = f"""
 CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.cartegraph.all_tasks` AS
-SELECT 
+SELECT DISTINCT
     tsk.id, act.activity, department, status, entry_date_UTC, entry_date_EST, entry_date_UNIX, 
     actual_start_date_UTC, actual_start_date_EST, actual_start_date_UNIX, actual_stop_date_UTC, actual_stop_date_EST, 
     actual_stop_date_UNIX, labor_cost, equipment_cost, material_cost, labor_hours, request_issue, request_department, 
