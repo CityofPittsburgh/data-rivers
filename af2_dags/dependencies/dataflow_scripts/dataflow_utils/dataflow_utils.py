@@ -584,7 +584,8 @@ class SwapFieldNames(beam.DoFn, ABC):
         yield datum
 
 
-def generate_args(job_name, bucket, argv, schema_name, default_arguments, limit_workers = [False, None]):
+def generate_args(job_name, bucket, argv, schema_name, default_arguments, limit_workers = [False, None], backfill_dag
+= False):
     """
     generate arguments for DataFlow jobs (invoked in DataFlow scripts prior to execution). In brief, this function
     initializes the basic options and setup for each step in a dataflow pipeline(e.g. the GCP project to operate on,
@@ -599,6 +600,8 @@ def generate_args(job_name, bucket, argv, schema_name, default_arguments, limit_
     :param schema_name: Name of avro schema file in Google Cloud Storage against which datums will be validated
     :param limit_workers: list with boolean variable in first position determining if the max number of dataflow
     workers should be limited (to comply with quotas) and the corresponding max number of workers in the second position
+    :param backfill_dag boolean indicating if the dataflow job is part of a backfill DAG. Backfill schemas are stored in
+    a sub directory and this will instruct the util function to append this to the file path for schema retrieval
     :return: known_args (arg parser values), Beam PipelineOptions instance, avro_schemas stored as dict in memory
 
     Add --runner='DirectRunner' to execute a script locally for rapid development, e.g.
@@ -625,10 +628,15 @@ def generate_args(job_name, bucket, argv, schema_name, default_arguments, limit_
     if limit_workers[0]:
         arguments.append(f"--max_num_workers={limit_workers[1]}")
 
+    if backfill_dag:
+        backfill_dir_path = "backfills/"
+    else:
+        backfill_dir_path = ""
+
     pipeline_args.extend(arguments)
     pipeline_options = PipelineOptions(pipeline_args)
 
-    avro_schema = get_schema(schema_name)
+    avro_schema = get_schema(schema_name, backfill_dir_path)
 
     return known_args, pipeline_options, avro_schema
 
@@ -641,18 +649,18 @@ def hash_func(self):
 schema.RecordSchema.__hash__ = hash_func
 
 
-def download_schema(bucket_name, source_blob_name, destination_file_name):
-    """Downloads avro schema from Cloud Storage"""
-    bucket = storage_client.get_bucket(bucket_name)
-    blob = bucket.blob(source_blob_name)
+# def download_schema(bucket_name, source_blob_name, destination_file_name):
+#     """Downloads avro schema from Cloud Storage"""
+#     bucket = storage_client.get_bucket(bucket_name)
+#     blob = bucket.blob(source_blob_name)
+#
+#     blob.download_to_filename(destination_file_name)
 
-    blob.download_to_filename(destination_file_name)
 
-
-def get_schema(schema_name):
+def get_schema(schema_name, backfill_dir):
     """Read avsc from cloud storage and return json object stored in memory"""
     bucket = storage_client.get_bucket(F"{os.environ['GCS_PREFIX']}_avro_schemas")
-    blob = bucket.get_blob('{}.avsc'.format(schema_name))
+    blob = bucket.get_blob('{}{}.avsc'.format(backfill_dir, schema_name))
     schema_string = blob.download_as_string()
     return json.loads(schema_string)
 

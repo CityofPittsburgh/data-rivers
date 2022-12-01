@@ -29,7 +29,8 @@ def run(argv = None):
             argv = argv,
             schema_name = 'cartegraph_activity_backfill',
             default_arguments = DEFAULT_DATAFLOW_ARGS,
-            limit_workers = [False, None]
+            limit_workers = [False, None],
+            backfill_dag = True
     )
 
     with beam.Pipeline(options = pipeline_options) as p:
