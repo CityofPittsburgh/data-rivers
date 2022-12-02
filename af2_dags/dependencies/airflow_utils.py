@@ -76,7 +76,19 @@ def get_ds_month(ds):
     return ds.split('-')[1]
 
 
-def get_ds_day(ds):
+def get_ds_day(prev_ds):
+    return prev_ds.split('-')[2]
+
+
+def get_prev_ds_year(prev_ds):
+    return prev_ds.split('-')[0]
+
+
+def get_prev_ds_month(prev_ds):
+    return prev_ds.split('-')[1]
+
+
+def get_prev_ds_day(ds):
     return ds.split('-')[2]
 
 
