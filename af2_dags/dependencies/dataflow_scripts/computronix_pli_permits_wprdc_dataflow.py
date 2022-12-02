@@ -57,7 +57,7 @@ def run(argv = None):
             job_name = 'computronix-pli-wprdc',
             bucket = '{}_computronix'.format(os.environ['GCS_PREFIX']),
             argv = argv,
-            schema_name = 'computronix_pli_wprdc',
+            schema_name = 'computronix_pli_permits_wprdc',
             default_arguments = DEFAULT_DATAFLOW_ARGS
     )
 
