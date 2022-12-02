@@ -9,7 +9,7 @@ from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 from airflow.contrib.operators.bigquery_to_gcs import BigQueryToCloudStorageOperator
 
 from dependencies import airflow_utils
-from dependencies.airflow_utils import get_ds_year, get_ds_month, get_ds_day, default_args
+from dependencies.airflow_utils import get_ds_year, get_ds_month, get_ds_day, default_args, build_dedup_old_updates
 
 
 # STEPS TO TAKE BEFORE EXECUTING DAG:
@@ -54,7 +54,7 @@ gcs_to_bq = GoogleCloudStorageToBigQueryOperator(
     destination_project_dataset_table=f"{os.environ['GCLOUD_PROJECT']}:backfill.all_activities",
     bucket=f"{os.environ['GCS_PREFIX']}_cartegraph",
     source_objects=[f"tasks/backfill/{path}/avro_output/*.avro"],
-    write_disposition='WRITE_APPEND',
+    write_disposition='WRITE_TRUNCATE',
     create_disposition='CREATE_IF_NEEDED',
     source_format='AVRO',
     autodetect=True,
@@ -63,7 +63,7 @@ gcs_to_bq = GoogleCloudStorageToBigQueryOperator(
 
 query_join_tables = f"""
 CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.cartegraph.all_tasks` AS
-SELECT 
+SELECT DISTINCT
     tsk.id, act.activity, department, status, entry_date_UTC, entry_date_EST, entry_date_UNIX, 
     actual_start_date_UTC, actual_start_date_EST, actual_start_date_UNIX, actual_stop_date_UTC, actual_stop_date_EST, 
     actual_stop_date_UNIX, labor_cost, equipment_cost, material_cost, labor_hours, request_issue, request_department, 
@@ -81,6 +81,16 @@ join_activities = BigQueryOperator(
     dag=dag
 )
 
+query_dedup = build_dedup_old_updates('cartegraph', 'all_tasks',
+                                      'id', 'entry_date_UNIX')
+dedup_table = BigQueryOperator(
+    task_id='dedup_table',
+    sql=query_dedup,
+    bigquery_conn_id='google_cloud_default',
+    use_legacy_sql=False,
+    dag=dag
+)
+
 # Clean up
 beam_cleanup = BashOperator(
     task_id='cartegraph_beam_cleanup',
@@ -89,4 +99,4 @@ beam_cleanup = BashOperator(
 )
 
 # DAG execution:
-gcs_loader >> dataflow >> gcs_to_bq >> join_activities >> beam_cleanup
+gcs_loader >> dataflow >> gcs_to_bq >> join_activities >> dedup_table >> beam_cleanup
