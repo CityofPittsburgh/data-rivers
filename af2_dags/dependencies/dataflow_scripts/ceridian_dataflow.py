@@ -20,20 +20,21 @@ DEFAULT_DATAFLOW_ARGS = [
         f"--subnetwork={os.environ['SUBNET']}"
 ]
 
+USER_DEFINED_CONST_BUCKET = "user_defined_data"
+
 
 class CrosswalkDeptNames(beam.DoFn):
-    def __init__(self, gcs_prefix, crosswalk_file):
+    def __init__(self, place_id_bucket, crosswalk_file):
         """
-        :param gcs_prefix - Environmental variable denoting the GCS project prefix string. DAG will crash if this
-        isn't included as a parameter, as it can not be obtained from within the class.
+        :param place_id_bucket - Name of GCS bucket the crosswalk file will be extracted from
         :param crosswalk_file - Environmental variable containing the name of a JSON file that maps department names
         returned by the Ceridian API to department names sourced from the City's Department of Human Resources
         """
-        self.gcs_prefix = gcs_prefix
+        self.place_id_bucket = place_id_bucket
         self.crosswalk_file = crosswalk_file
     def process(self, datum):
         storage_client = storage.Client()
-        bucket = storage_client.bucket(f"{self.gcs_prefix}_ceridian")
+        bucket = storage_client.get_bucket(self.place_id_bucket)
         blob = bucket.get_blob(self.crosswalk_file)
         cw = blob.download_as_string()
         crosswalk = json.loads(cw.decode('utf-8'))
@@ -106,7 +107,7 @@ def run(argv = None):
                 | beam.ParDo(StripDate())
                 | beam.ParDo(StandardizeEthnicityNames())
                 | beam.ParDo(SwapFieldNames(field_name_swaps))
-                | beam.ParDo(CrosswalkDeptNames(os.environ['GCS_PREFIX'], os.environ['CERIDIAN_DEPT_FILE']))
+                | beam.ParDo(CrosswalkDeptNames(USER_DEFINED_CONST_BUCKET, os.environ['CERIDIAN_DEPT_FILE']))
                 | beam.ParDo(ChangeDataTypes(type_changes))
                 | beam.ParDo(FilterFields(drop_fields, exclude_target_fields=True))
                 | WriteToAvro(known_args.avro_output, schema = avro_schema, file_name_suffix = '.avro',
