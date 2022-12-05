@@ -8,8 +8,8 @@ from apache_beam.io import ReadFromText
 from apache_beam.io.avroio import WriteToAvro
 
 from dataflow_utils import dataflow_utils
-from dataflow_utils.dataflow_utils import JsonCoder, SwapFieldNames, generate_args, FilterFields, \
-    StandardizeTimes, ChangeDataTypes, ExtractField, ColumnsCamelToSnakeCase
+from dataflow_utils.dataflow_utils import JsonCoder, SwapFieldNames, ColumnsCamelToSnakeCase, generate_args, FilterFields,\
+    ChangeDataTypes, ExtractField, ConvertGeography
 
 DEFAULT_DATAFLOW_ARGS = [
         '--save_main_session',
@@ -24,10 +24,10 @@ def run(argv = None):
     # and avro schema to validate data with. Return the arg parser values, PipelineOptions, and avro_schemas (dict)
 
     known_args, pipeline_options, avro_schema = generate_args(
-            job_name = 'cartegraph-tasks-dataflow',
+            job_name = 'cartegraph-playground-equipment-dataflow',
             bucket = f"{os.environ['GCS_PREFIX']}_cartegraph",
             argv = argv,
-            schema_name = 'cartegraph_tasks',
+            schema_name = 'cartegraph_playground_equipment',
             default_arguments = DEFAULT_DATAFLOW_ARGS,
             limit_workers = [False, None]
     )
@@ -37,16 +37,17 @@ def run(argv = None):
         nested_fields = ['Center', 'Center']
         additional_nested_fields = ['Lat', 'Lng']
         new_field_names = ['lat', 'long']
-        field_name_swaps = [('oid', 'id'), ('start_date_actual', 'actual_start_date'),
-                            ('stop_date_actual', 'actual_stop_date'), ('labor_cost_actual', 'labor_cost'),
-                            ('equipment_cost_actual', 'equipment_cost'), ('material_cost_actual', 'material_cost'),
-                            ('labor_hours_actual', 'labor_hours'), ('cg_asset_id', 'asset_id'),
-                            ('cg_asset_type', 'asset_type'), ('notes', 'task_notes')]
-        drop_fields = ['CgShape']
-        times = [('entry_date', 'EST'), ('actual_start_date', 'EST'), ('actual_stop_date', 'EST')]
-        type_changes = [('id', 'str'), ('labor_cost', 'float'), ('equipment_cost', 'float'), ('material_cost', 'float'),
-                        ('labor_hours', 'float'), ('actual_start_date_UNIX', 'posint'),
-                        ('actual_stop_date_UNIX', 'posint'), ('entry_date_UNIX', 'posint')]
+        field_name_swaps = [('id', 'id_num'), ('oid', 'id'), ('equipment_type', 'type'),
+                            ('equipment_description', 'description'), ('locator_address_number', 'address_num'),
+                            ('locator_street', 'street_name'), ('installed', 'installed_date'),
+                            ('cg_last_modified', 'last_modified_date'), ('replaced', 'replaced_date'),
+                            ('retired', 'retired_date')]
+        keep_fields = ['id', 'type', 'manufacturer', 'description', 'notes', 'playground', 'primary_attachment',
+                       'ada_accessible', 'address_num', 'street_name', 'city', 'safety_surface_type', 'entry_date',
+                       'installed_date', 'last_modified_date', 'replaced_date', 'retired_date', 'inactive',
+                       'total_cost', 'lat', 'long']
+        type_changes = [('id', 'str'), ('primary_attachment', 'str'), ('ada_accessible', 'bool'),
+                        ('inactive', 'bool'), ('address_num', 'str'), ('total_cost', 'float')]
 
         lines = p | ReadFromText(known_args.input, coder = JsonCoder())
 
@@ -55,8 +56,7 @@ def run(argv = None):
                 | beam.ParDo(ExtractField(source_fields, nested_fields, new_field_names, additional_nested_fields))
                 | beam.ParDo(ColumnsCamelToSnakeCase('Field'))
                 | beam.ParDo(SwapFieldNames(field_name_swaps))
-                | beam.ParDo(FilterFields(drop_fields, exclude_target_fields=True))
-                | beam.ParDo(StandardizeTimes(times, "%Y-%m-%d %H:%M:%S%z"))
+                | beam.ParDo(FilterFields(keep_fields, exclude_target_fields=False))
                 | beam.ParDo(ChangeDataTypes(type_changes))
                 | WriteToAvro(known_args.avro_output, schema = avro_schema, file_name_suffix = '.avro',
                               use_fastavro = True)

@@ -8,7 +8,7 @@ from airflow.operators.bash_operator import BashOperator
 from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOperator
 from dependencies import airflow_utils
-from dependencies.airflow_utils import get_ds_month, get_ds_year, default_args
+from dependencies.airflow_utils import get_prev_ds_month, get_prev_ds_year, default_args
 
 import pendulum
 import pytz
@@ -22,13 +22,13 @@ dag = DAG(
     default_args=default_args,
     start_date=pendulum.datetime(2022, 9, 23, 0, 1, tz=pytz.timezone('US/Eastern')),
     schedule_interval='0 0 * * *',
-    user_defined_filters={'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year}
+    user_defined_filters={'get_prev_ds_month': get_prev_ds_month, 'get_prev_ds_year': get_prev_ds_year}
 )
 
 # initialize gcs locations
 dataset = "weather"
 bucket = f"{os.environ['GCS_PREFIX']}_{dataset}"
-path = "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}"
+path = "{{ prev_ds|get_prev_ds_year }}/{{ prev_ds|get_prev_ds_month }}"
 
 prev_day_weather_gcs = BashOperator(
     task_id='prev_day_weather_gcs',

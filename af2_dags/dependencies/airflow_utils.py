@@ -52,7 +52,7 @@ def on_failure(context):
 
 
 #TODO: email can be added in later, but that functionality is currently not used. expect this to change soon (05/22)
-# 'email'                   : os.environ['EMAIL'],
+# 'email': os.environ['EMAIL'],
 default_args = {
         'depends_on_past'         : False,
         'start_date'              : yesterday,
@@ -76,7 +76,19 @@ def get_ds_month(ds):
     return ds.split('-')[1]
 
 
-def get_ds_day(ds):
+def get_ds_day(prev_ds):
+    return prev_ds.split('-')[2]
+
+
+def get_prev_ds_year(prev_ds):
+    return prev_ds.split('-')[0]
+
+
+def get_prev_ds_month(prev_ds):
+    return prev_ds.split('-')[1]
+
+
+def get_prev_ds_day(ds):
     return ds.split('-')[2]
 
 

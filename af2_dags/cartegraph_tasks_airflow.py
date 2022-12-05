@@ -10,11 +10,11 @@ from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOper
 from dependencies import airflow_utils
 from dependencies.airflow_utils import get_ds_month, get_ds_year, get_ds_day, default_args, build_revgeo_time_bound_query
 
-COLS_IN_ORDER = """id, department, status, entry_date_UTC, entry_date_EST, entry_date_UNIX, actual_start_date_UTC, 
-actual_start_date_EST, actual_start_date_UNIX, actual_stop_date_UTC, actual_stop_date_EST, actual_stop_date_UNIX, 
-labor_cost, equipment_cost, material_cost, labor_hours, request_issue, request_department, request_location, 
-asset_id, asset_type, task_description, task_notes, neighborhood_name, council_district, ward, police_zone, 
-fire_zone, dpw_streets, dpw_enviro, dpw_parks, lat, long"""
+COLS_IN_ORDER = """id, activity, department, status, entry_date_UTC, entry_date_EST, entry_date_UNIX, 
+actual_start_date_UTC, actual_start_date_EST, actual_start_date_UNIX, actual_stop_date_UTC, actual_stop_date_EST, 
+actual_stop_date_UNIX, labor_cost, equipment_cost, material_cost, labor_hours, request_issue, request_department, 
+request_location, asset_id, asset_type, task_description, task_notes, neighborhood_name, council_district, ward, 
+police_zone, fire_zone, dpw_streets, dpw_enviro, dpw_parks, lat, long"""
 
 # This DAG will perform a pull of all work tasks entered into the Cartegraph application every 3 days
 # and enrich the data with additional location details
@@ -22,8 +22,8 @@ fire_zone, dpw_streets, dpw_enviro, dpw_parks, lat, long"""
 dag = DAG(
     'cartegraph_tasks',
     default_args=default_args,
-    schedule_interval='0 15 */3 * *',
-    start_date=datetime(2022, 11, 4),
+    schedule_interval= '0 0 */3 * *',
+    start_date=datetime(2022, 11, 29),
     user_defined_filters={'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year,
                           'get_ds_day': get_ds_day}
 )

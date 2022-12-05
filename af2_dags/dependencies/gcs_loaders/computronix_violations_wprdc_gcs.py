@@ -1,6 +1,5 @@
 import os
 import argparse
-import requests
 from datetime import date
 
 from gcs_utils import json_to_gcs, call_odata_api
