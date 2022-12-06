@@ -28,7 +28,7 @@ dag = DAG(
 # initialize gcs locations
 dataset = "weather"
 bucket = f"{os.environ['GCS_PREFIX']}_{dataset}"
-path = "{{ prev_ds|get_prev_ds_year }}/{{ prev_ds|get_prev_ds_month }}"
+path = "prev_day_weather/{{ prev_ds|get_prev_ds_year }}/{{ prev_ds|get_prev_ds_month }}"
 
 prev_day_weather_gcs = BashOperator(
     task_id='prev_day_weather_gcs',
