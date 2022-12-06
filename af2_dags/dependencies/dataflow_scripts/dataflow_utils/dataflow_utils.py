@@ -579,7 +579,11 @@ class SwapFieldNames(beam.DoFn, ABC):
                 datum[name_change[1]] = datum[name_change[0]]
                 del datum[name_change[0]]
             except TypeError:
-                print(name_change[0] + " and " + name_change[1] + " were not both found within datum")
+                print(f"{name_change[0]} and {name_change[1]} were not both found within datum")
+                datum[name_change[1]] = None
+            except KeyError:
+                print(f"{name_change[0]} not found as a field within datum")
+                datum[name_change[1]] = None
 
         yield datum
 

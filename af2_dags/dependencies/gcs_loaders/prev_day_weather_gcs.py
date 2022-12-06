@@ -34,10 +34,10 @@ payload = {'lat': PGH_LAT,
 response = requests.get(BASE_URL, params=payload)
 
 # convert the API response text to json
-tempWeatherDict = json.loads(response.text)
+temp_weather_dict = json.loads(response.text)
 
 # retrieve hourly data and load to gcs
-hourly_conditions = tempWeatherDict['hourly']
+hourly_conditions = temp_weather_dict['hourly']
 
 datum = []
 
@@ -65,6 +65,6 @@ for hour in hourly_conditions:
     datum.append(hour_dict)
 
 
-avro_to_gcs(f"weather/{args['lookback_date'].split('-')[0]}/{args['lookback_date'].split('-')[1]}",
+avro_to_gcs(f"prev_day_weather/{args['lookback_date'].split('-')[0]}/{args['lookback_date'].split('-')[1]}",
             f"{args['lookback_date']}_weather_report.avro",
             datum, bucket, "prev_day_weather.avsc")
