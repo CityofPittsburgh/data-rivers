@@ -1,5 +1,6 @@
 from __future__ import absolute_import
 
+from datetime import datetime
 
 from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
@@ -11,6 +12,7 @@ from dependencies.airflow_utils import default_args
 dag = DAG(
     'clear_junk_files',
     default_args=default_args,
+    start_date = datetime(2021, 1, 21),
     schedule_interval='@monthly',
 )
 
@@ -24,8 +26,8 @@ clear_gcs_junk = BashOperator(
 clear_bq_junk = BashOperator(
     task_id='clear_gbq_junk',
     bash_command="bq rm -f -r `data-rivers-testing`:scratch &&" \
-                 "bq --location = US mk -d" \
-                 "data-rivers-testing:scratch"
+                 " bq --location='US' mk -d" \
+                 " data-rivers-testing:scratch"
 )
 
 clear_gcs_junk >> clear_bq_junk
