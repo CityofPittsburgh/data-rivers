@@ -10,7 +10,8 @@ from dependencies.airflow_utils import default_args
 # matter of routine development tests and procedures. This will run monthly and delete all files in the
 # bucket/dataset. The BQ dataset is destroy and created again because there is currently (12/22) not a CLI method to
 # delete all tables. The other option currently available would be to loop thru the tables and delete them one at a
-# time.  
+# time.  Similarly, the DAG does not work well if the scratch GCS bucket is empty. Thus, this is destroyed and
+# created again. 
 
 
 dag = DAG(
@@ -22,16 +23,18 @@ dag = DAG(
 
 clear_gcs_junk = BashOperator(
     task_id='clear_gcs_junk',
-    bash_command="gsutil rm -a gs://pghpa_test_scratch/**",
+    bash_command= "gcloud config set project data-rivers-testing && " \
+                "gsutil rm -r gs://pghpa_test_scratch/ && " \
+                "gsutil mkdir gs://pghpa_test_scratch",
     dag=dag
 )
 
 
 clear_bq_junk = BashOperator(
     task_id='clear_bq_junk',
-    bash_command="bq rm -f -r `data-rivers-testing`:scratch &&" \
-                 " bq --location='US' mk -d" \
-                 " data-rivers-testing:scratch"
+    bash_command="gcloud config set project data-rivers-testing && " \
+                "bq rm -f -r `data-rivers-testing`:scratch &&" \
+                 " bq --location='US' mk -d data-rivers-testing:scratch"
 )
 
 clear_gcs_junk >> clear_bq_junk
