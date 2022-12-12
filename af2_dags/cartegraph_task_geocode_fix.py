@@ -10,6 +10,12 @@ from dependencies import airflow_utils
 from dependencies.airflow_utils import get_ds_month, get_ds_year, default_args, \
     build_piecemeal_revgeo_query, build_dedup_old_updates
 
+COLS_IN_ORDER = """id, activity, department, status, entry_date_UTC, entry_date_EST, entry_date_UNIX, 
+actual_start_date_UTC, actual_start_date_EST, actual_start_date_UNIX, actual_stop_date_UTC, actual_stop_date_EST, 
+actual_stop_date_UNIX, labor_cost, equipment_cost, material_cost, labor_hours, request_issue, request_department, 
+request_location, asset_id, asset_type, task_description, task_notes, neighborhood_name, council_district, ward, 
+police_zone, fire_zone, dpw_streets, dpw_enviro, dpw_parks, lat, long"""
+
 # The goal of this mini-DAG is to assign geographic zone to Cartegraph task records that were not geocoded in the main
 # Cartegraph Tasks DAG because they had null values for their actual_start_date field. While actual_start_date gives a
 # better idea about the time an actual task occurred (for example, an administrator could enter a task that was
@@ -41,9 +47,25 @@ geo_config = [{'geo_table': 'neighborhoods', 'geo_field': 'neighborhood_name'},
               {'geo_table': 'dpw_es_divisions', 'geo_field': 'dpw_enviro'},
               {'geo_table': 'dpw_parks_divisions', 'geo_field': 'dpw_parks'}]
 
+init_table_query = F"""
+CREATE OR REPLACE TABLE `{os.environ["GCLOUD_PROJECT"]}.{dataset}.{new_table}` AS 
+SELECT * FROM `{os.environ["GCLOUD_PROJECT"]}.{dataset}.{raw_table}`
+WHERE lat IS NOT NULL AND long IS NOT NULL 
+"""
+for dict in geo_config:
+    init_table_query += f"AND {dict['geo_field']} IS NULL "
+
+init_temp_geo_table = BigQueryOperator(
+    task_id='init_temp_geo_table',
+    sql=init_table_query,
+    bigquery_conn_id='google_cloud_default',
+    use_legacy_sql=False,
+    dag=dag
+)
+
 build_temp_geo_table_neighborhoods = BigQueryOperator(
     task_id='build_temp_geo_table_neighborhoods',
-    sql=build_piecemeal_revgeo_query(dataset, raw_table, new_table, create_date, id_col, lat_field,
+    sql=build_piecemeal_revgeo_query(dataset, new_table, new_table, create_date, id_col, lat_field,
                                      long_field, geo_config[0]['geo_table'], geo_config[0]['geo_field']),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
@@ -113,14 +135,43 @@ build_temp_geo_table_parks = BigQueryOperator(
     dag=dag
 )
 
-# replace_src_table = BigQueryOperator(
-#     task_id='replace_src_table',
-#     sql=f'CREATE OR REPLACE TABLE `{os.environ["GCLOUD_PROJECT"]}.{dataset}.{raw_table}` '
-#         f'AS SELECT * FROM `{os.environ["GCLOUD_PROJECT"]}.{dataset}.{new_table}`',
-#     bigquery_conn_id='google_cloud_default',
-#     use_legacy_sql=False,
-#     dag=dag
-# )
+query_format_dedupe = f"""
+CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.{dataset}.{new_table}` AS
+WITH formatted  AS 
+    (
+    SELECT 
+        DISTINCT * EXCEPT (lat, long),
+        CAST(lat AS FLOAT64) AS lat,
+        CAST(long AS FLOAT64) AS long,
+    FROM 
+        {os.environ['GCLOUD_PROJECT']}.cartegraph.{new_table}
+    )
+SELECT 
+    {COLS_IN_ORDER} 
+FROM 
+    formatted
+"""
+format_dedupe = BigQueryOperator(
+    task_id='format_dedupe',
+    sql=query_format_dedupe,
+    bigquery_conn_id='google_cloud_default',
+    use_legacy_sql=False,
+    dag=dag
+)
+
+join_tables_query = init_table_query.replace(new_table, raw_table)
+join_tables_query += F"""
+UNION ALL
+SELECT * FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{new_table}`
+"""
+
+replace_src_table = BigQueryOperator(
+    task_id='replace_src_table',
+    sql=join_tables_query,
+    bigquery_conn_id='google_cloud_default',
+    use_legacy_sql=False,
+    dag=dag
+)
 
 beam_cleanup = BashOperator(
     task_id='beam_cleanup',
@@ -128,16 +179,12 @@ beam_cleanup = BashOperator(
     dag=dag
 )
 
-build_temp_geo_table_neighborhoods >> build_temp_geo_table_council >> build_temp_geo_table_ward >> \
-build_temp_geo_table_fire >> build_temp_geo_table_police >> build_temp_geo_table_streets >> \
-build_temp_geo_table_env >> build_temp_geo_table_parks >> beam_cleanup
-# build_temp_geo_table >> replace_src_table >> beam_cleanup
-
-# build_temp_geo_table_neighborhoods >> build_temp_geo_table_council >> beam_cleanup
-# build_temp_geo_table_neighborhoods >> build_temp_geo_table_ward >> beam_cleanup
-# build_temp_geo_table_neighborhoods >> build_temp_geo_table_fire >> beam_cleanup
-# build_temp_geo_table_neighborhoods >> build_temp_geo_table_police >> beam_cleanup
-# build_temp_geo_table_neighborhoods >> build_temp_geo_table_streets >> beam_cleanup
-# build_temp_geo_table_neighborhoods >> build_temp_geo_table_env >> beam_cleanup
-# build_temp_geo_table_neighborhoods >> build_temp_geo_table_parks >> beam_cleanup\
+init_temp_geo_table >> build_temp_geo_table_neighborhoods >> replace_src_table >> beam_cleanup
+init_temp_geo_table >> build_temp_geo_table_council >> replace_src_table >> beam_cleanup
+init_temp_geo_table >> build_temp_geo_table_ward >> replace_src_table >> beam_cleanup
+init_temp_geo_table >> build_temp_geo_table_fire >> replace_src_table >> beam_cleanup
+init_temp_geo_table >> build_temp_geo_table_police >> replace_src_table >> beam_cleanup
+init_temp_geo_table >> build_temp_geo_table_streets >> replace_src_table >> beam_cleanup
+init_temp_geo_table >> build_temp_geo_table_env >> replace_src_table >> beam_cleanup
+init_temp_geo_table >> build_temp_geo_table_parks >> replace_src_table >> beam_cleanup
 
