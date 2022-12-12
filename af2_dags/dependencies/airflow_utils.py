@@ -313,6 +313,7 @@ def build_revgeo_query(dataset, raw_table, id_field):
        )
     """
 
+
 def build_piecemeal_revgeo_query(dataset, raw_table, new_table, create_date, id_col, lat_field, long_field,
                                  geo_table, geo_field):
     return f"""
