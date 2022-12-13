@@ -135,7 +135,7 @@ build_temp_geo_table_parks = BigQueryOperator(
     dag=dag
 )
 
-query_format_dedupe = f"""
+query_format_table = f"""
 CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.{dataset}.{new_table}` AS
 WITH formatted  AS 
     (
@@ -151,23 +151,34 @@ SELECT
 FROM 
     formatted
 """
-format_dedupe = BigQueryOperator(
-    task_id='format_dedupe',
-    sql=query_format_dedupe,
+format_table = BigQueryOperator(
+    task_id='format_table',
+    sql=query_format_table,
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
 )
 
-join_tables_query = init_table_query.replace(new_table, raw_table)
-join_tables_query += F"""
+join_tables_query = f"""
+CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.{dataset}.{raw_table}` AS
+SELECT * FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{raw_table}`
+WHERE id NOT IN
+  (SELECT id FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{new_table}`)
 UNION ALL
 SELECT * FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{new_table}`
 """
-
-replace_src_table = BigQueryOperator(
-    task_id='replace_src_table',
+replace_table = BigQueryOperator(
+    task_id='replace_table',
     sql=join_tables_query,
+    bigquery_conn_id='google_cloud_default',
+    use_legacy_sql=False,
+    dag=dag
+)
+
+query_dedup = build_dedup_old_updates(dataset, raw_table, id_col, create_date)
+dedup_table = BigQueryOperator(
+    task_id='dedup_table',
+    sql=query_dedup,
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
@@ -179,12 +190,12 @@ beam_cleanup = BashOperator(
     dag=dag
 )
 
-init_temp_geo_table >> build_temp_geo_table_neighborhoods >> format_dedupe >> replace_src_table >> beam_cleanup
-init_temp_geo_table >> build_temp_geo_table_council >> format_dedupe >> replace_src_table >> beam_cleanup
-init_temp_geo_table >> build_temp_geo_table_ward >> format_dedupe >> replace_src_table >> beam_cleanup
-init_temp_geo_table >> build_temp_geo_table_fire >> format_dedupe >> replace_src_table >> beam_cleanup
-init_temp_geo_table >> build_temp_geo_table_police >> format_dedupe >> replace_src_table >> beam_cleanup
-init_temp_geo_table >> build_temp_geo_table_streets >> format_dedupe >> replace_src_table >> beam_cleanup
-init_temp_geo_table >> build_temp_geo_table_env >> format_dedupe >> replace_src_table >> beam_cleanup
-init_temp_geo_table >> build_temp_geo_table_parks >> format_dedupe >> replace_src_table >> beam_cleanup
+init_temp_geo_table >> build_temp_geo_table_neighborhoods >> format_table >> replace_table >> dedup_table >> beam_cleanup
+init_temp_geo_table >> build_temp_geo_table_council >> format_table >> replace_table >> dedup_table >> beam_cleanup
+init_temp_geo_table >> build_temp_geo_table_ward >> format_table >> replace_table >> dedup_table >> beam_cleanup
+init_temp_geo_table >> build_temp_geo_table_fire >> format_table >> replace_table >> dedup_table >> beam_cleanup
+init_temp_geo_table >> build_temp_geo_table_police >> format_table >> replace_table >> dedup_table >> beam_cleanup
+init_temp_geo_table >> build_temp_geo_table_streets >> format_table >> replace_table >> dedup_table >> beam_cleanup
+init_temp_geo_table >> build_temp_geo_table_env >> format_table >> replace_table >> dedup_table >> beam_cleanup
+init_temp_geo_table >> build_temp_geo_table_parks >> format_table >> replace_table >> dedup_table >> beam_cleanup
 
