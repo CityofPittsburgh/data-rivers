@@ -179,12 +179,12 @@ beam_cleanup = BashOperator(
     dag=dag
 )
 
-init_temp_geo_table >> build_temp_geo_table_neighborhoods >> replace_src_table >> beam_cleanup
-init_temp_geo_table >> build_temp_geo_table_council >> replace_src_table >> beam_cleanup
-init_temp_geo_table >> build_temp_geo_table_ward >> replace_src_table >> beam_cleanup
-init_temp_geo_table >> build_temp_geo_table_fire >> replace_src_table >> beam_cleanup
-init_temp_geo_table >> build_temp_geo_table_police >> replace_src_table >> beam_cleanup
-init_temp_geo_table >> build_temp_geo_table_streets >> replace_src_table >> beam_cleanup
-init_temp_geo_table >> build_temp_geo_table_env >> replace_src_table >> beam_cleanup
-init_temp_geo_table >> build_temp_geo_table_parks >> replace_src_table >> beam_cleanup
+init_temp_geo_table >> build_temp_geo_table_neighborhoods >> format_dedupe >> replace_src_table >> beam_cleanup
+init_temp_geo_table >> build_temp_geo_table_council >> format_dedupe >> replace_src_table >> beam_cleanup
+init_temp_geo_table >> build_temp_geo_table_ward >> format_dedupe >> replace_src_table >> beam_cleanup
+init_temp_geo_table >> build_temp_geo_table_fire >> format_dedupe >> replace_src_table >> beam_cleanup
+init_temp_geo_table >> build_temp_geo_table_police >> format_dedupe >> replace_src_table >> beam_cleanup
+init_temp_geo_table >> build_temp_geo_table_streets >> format_dedupe >> replace_src_table >> beam_cleanup
+init_temp_geo_table >> build_temp_geo_table_env >> format_dedupe >> replace_src_table >> beam_cleanup
+init_temp_geo_table >> build_temp_geo_table_parks >> format_dedupe >> replace_src_table >> beam_cleanup
 
