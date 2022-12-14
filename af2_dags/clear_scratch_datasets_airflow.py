@@ -39,21 +39,19 @@ def init_cmds_xcomm(**kwargs):
 
         # build all unique BQ clean up bash commands
         bq_cmd_str = F"gcloud config set project {p[0]} && bq rm -f -r `{p[0]}`:scratch &&  bq --location='US' mk -d" \
-                     F" {p[0]}:scratch"
+                     F" `{p[0]}`:scratch"
         kwargs['ti'].xcom_push(key = F"bq_cmd_str_{p[0]}", value = bq_cmd_str)
 
 
 push_xcom = PythonOperator(
         task_id = 'push_xcom',
         python_callable = init_cmds_xcomm,
-        provide_context = True,
         dag = dag
 )
-
+# provide_context = True,
 
 clear_dr_gcs_junk = BashOperator(
     task_id='clear_dr_gcs_junk',
-    provide_context = True,
     bash_command = str("{{ ti.xcom_pull(task_ids = 'push_xcom', key='gcs_cmd_str_data-rivers') }}"),
     dag=dag
 )
@@ -61,7 +59,6 @@ clear_dr_gcs_junk = BashOperator(
 
 clear_drt_gcs_junk = BashOperator(
     task_id='clear_drt_gcs_junk',
-    provide_context = True,
     bash_command = str("{{ ti.xcom_pull(task_ids = 'push_xcom', key='gcs_cmd_str_data-rivers-testing') }}"),
     dag=dag
 )
@@ -69,7 +66,6 @@ clear_drt_gcs_junk = BashOperator(
 
 clear_dc_gcs_junk = BashOperator(
     task_id='clear_dc_gcs_junk',
-    provide_context = True,
     bash_command = str("{{ ti.xcom_pull(task_ids = 'push_xcom', key='gcs_cmd_str_data-confluence-314416') }}"),
     dag=dag
 )
@@ -77,7 +73,6 @@ clear_dc_gcs_junk = BashOperator(
 
 clear_gis_gcs_junk = BashOperator(
     task_id='clear_gis_gcs_junk',
-    provide_context = True,
     bash_command = str("{{ ti.xcom_pull(task_ids = 'push_xcom', key='gcs_cmd_str_data-bridgis') }}"),
     dag=dag
 )
@@ -85,7 +80,6 @@ clear_gis_gcs_junk = BashOperator(
 
 clear_dr_bq_junk = BashOperator(
     task_id='clear_dr_bq_junk',
-    provide_context = True,
     bash_command = str("{{ ti.xcom_pull(task_ids = 'push_xcom', key='bq_cmd_str_data-rivers') }}"),
     dag = dag
 )
@@ -93,7 +87,6 @@ clear_dr_bq_junk = BashOperator(
 
 clear_drt_bq_junk = BashOperator(
     task_id='clear_drt_bq_junk',
-    provide_context = True,
     bash_command = str("{{ ti.xcom_pull(task_ids = 'push_xcom', key='bq_cmd_str_data-rivers-testing') }}"),
     dag = dag
 )
@@ -101,7 +94,6 @@ clear_drt_bq_junk = BashOperator(
 
 clear_dc_bq_junk = BashOperator(
     task_id='clear_dc_bq_junk',
-    provide_context = True,
     bash_command = str("{{ ti.xcom_pull(task_ids = 'push_xcom', key='bq_cmd_str_data-confluence-314416') }}"),
     dag=dag
 )
@@ -109,7 +101,6 @@ clear_dc_bq_junk = BashOperator(
 
 clear_gis_bq_junk = BashOperator(
     task_id='clear_gis_bq_junk',
-    provide_context = True,
     bash_command = str("{{ ti.xcom_pull(task_ids = 'push_xcom', key='bq_cmd_str_data-bridgis') }}"),
     dag=dag
 )
