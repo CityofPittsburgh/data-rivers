@@ -24,7 +24,7 @@ dag = DAG(
 
 
 def init_cmds_xcomm(**kwargs):
-    """Pushes an XCom used by several targgets. Used to create a dict with all runtime cmds. This cleans up the
+    """Pushes an XCom used by several targets. Used to create a dict with all runtime cmds. This cleans up the
     readability of the bash commands etc"""
 
     proj_info = [["data-rivers", "pghpa_scratch", "scratch"], ["data-rivers-testing", "pghpa_test_scratch", "scratch"],
