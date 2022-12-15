@@ -20,6 +20,7 @@ dag = DAG(
     default_args=default_args,
     schedule_interval='@weekly',
     start_date=datetime(2022, 10, 22),
+    catchup = False,
     user_defined_filters={'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year, 'get_ds_day': get_ds_day}
 )
 
