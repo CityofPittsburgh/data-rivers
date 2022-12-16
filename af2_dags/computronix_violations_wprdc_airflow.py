@@ -19,7 +19,8 @@ dag = DAG(
     'computronix_violations_wprdc',
     default_args=default_args,
     schedule_interval='@weekly',
-    start_date=datetime(2022, 10, 22),
+    start_date=datetime(2022, 12, 16),
+    catchup = False,
     user_defined_filters={'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year, 'get_ds_day': get_ds_day}
 )
 
