@@ -1,6 +1,7 @@
 from __future__ import absolute_import
 
 import os
+from datetime import datetime
 
 from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
@@ -19,7 +20,9 @@ dag = DAG(
     'computronix_pli_condemned_dead_end_properties',
     default_args=default_args,
     schedule_interval='@daily',
-    user_defined_filters={'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year, 'get_ds_day': get_ds_day}
+    user_defined_filters={'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year, 'get_ds_day': get_ds_day},
+    start_date=datetime(2022, 12, 16),
+    catchup = False
 )
 
 
