@@ -34,7 +34,7 @@ dag = DAG(
     default_args=default_args,
     schedule_interval='@hourly',
     user_defined_filters={'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year, 'get_ds_day': get_ds_day},
-    start_date=datetime.datetime(2022, 10, 22),
+    start_date=datetime.datetime(2022, 12, 16),
     catchup = False
 )
 
