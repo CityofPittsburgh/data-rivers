@@ -313,6 +313,36 @@ def build_revgeo_query(dataset, raw_table, id_field):
        )
     """
 
+
+def build_piecemeal_revgeo_query(dataset, raw_table, new_table, create_date, id_col, lat_field, long_field,
+                                 geo_table, geo_field):
+    return f"""
+    CREATE OR REPLACE TABLE `{os.environ["GCLOUD_PROJECT"]}.{dataset}.{new_table}` AS
+    
+    WITH
+      sel_zones AS (
+      SELECT DISTINCT
+        raw.{id_col},
+        CAST (geo.zone AS STRING) AS {geo_field}
+      FROM
+        `{os.environ["GCLOUD_PROJECT"]}.{dataset}.{raw_table}` raw
+
+      JOIN `{os.environ["GCLOUD_PROJECT"]}.timebound_geography.{geo_table}` AS geo ON
+        ST_CONTAINS(geo.geometry, ST_GEOGPOINT(raw.{long_field}, raw.{lat_field}))
+        AND TIMESTAMP(PARSE_DATETIME('%m/%d/%Y %H:%M:%S-00:00',geo.start_date)) <= TIMESTAMP(raw.{create_date})
+        AND IFNULL(TIMESTAMP(PARSE_DATETIME('%m/%d/%Y %H:%M:%S-00:00', geo.end_date)),
+            CURRENT_TIMESTAMP()) >= TIMESTAMP(raw.{create_date})
+    )
+
+    -- join in the zones that were assigned in sel_zones with ALL of the records (including those that could not be 
+    -- rev coded above)
+    SELECT DISTINCT
+        raw.* EXCEPT({geo_field}),
+        sel_zones.* EXCEPT (id)
+    FROM `{os.environ["GCLOUD_PROJECT"]}.{dataset}.{raw_table}` raw
+    LEFT OUTER JOIN sel_zones ON sel_zones.{id_col} = raw.{id_col};
+    """
+
 def build_percentage_table_query(dataset, raw_table, new_table, is_deduped, id_field, pct_field, categories, hardcoded_vals):
     sql = f"""
     CREATE OR REPLACE TABLE  `{os.environ['GCLOUD_PROJECT']}.{dataset}.{new_table}` AS
