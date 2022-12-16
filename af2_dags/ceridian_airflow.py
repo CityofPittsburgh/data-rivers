@@ -24,9 +24,10 @@ dag = DAG(
     'ceridian',
     default_args=default_args,
     schedule_interval= '0 0 */3 * *',
-    start_date=datetime(2022, 11, 22),
     user_defined_filters={'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year,
-                          'get_ds_day': get_ds_day}
+                          'get_ds_day': get_ds_day},
+    start_date=datetime.datetime(2022, 12, 16),
+    catchup=False
 )
 
 # initialize gcs locations
