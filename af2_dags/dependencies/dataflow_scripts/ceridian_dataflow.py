@@ -105,7 +105,6 @@ def run(argv = None):
         load = (
                 lines
                 | beam.ParDo(StripDate())
-                | beam.ParDo(StandardizeEthnicityNames())
                 | beam.ParDo(SwapFieldNames(field_name_swaps))
                 | beam.ParDo(CrosswalkDeptNames(USER_DEFINED_CONST_BUCKET, os.environ['CERIDIAN_DEPT_FILE']))
                 | beam.ParDo(ChangeDataTypes(type_changes))
