@@ -190,12 +190,7 @@ beam_cleanup = BashOperator(
     dag=dag
 )
 
-init_temp_geo_table >> build_temp_geo_table_neighborhoods >> format_table >> replace_table >> dedup_table >> beam_cleanup
-init_temp_geo_table >> build_temp_geo_table_council >> format_table >> replace_table >> dedup_table >> beam_cleanup
-init_temp_geo_table >> build_temp_geo_table_ward >> format_table >> replace_table >> dedup_table >> beam_cleanup
-init_temp_geo_table >> build_temp_geo_table_fire >> format_table >> replace_table >> dedup_table >> beam_cleanup
-init_temp_geo_table >> build_temp_geo_table_police >> format_table >> replace_table >> dedup_table >> beam_cleanup
-init_temp_geo_table >> build_temp_geo_table_streets >> format_table >> replace_table >> dedup_table >> beam_cleanup
-init_temp_geo_table >> build_temp_geo_table_env >> format_table >> replace_table >> dedup_table >> beam_cleanup
-init_temp_geo_table >> build_temp_geo_table_parks >> format_table >> replace_table >> dedup_table >> beam_cleanup
-
+init_temp_geo_table >> build_temp_geo_table_neighborhoods >> build_temp_geo_table_council >> \
+    build_temp_geo_table_ward >> build_temp_geo_table_fire >> build_temp_geo_table_police >> \
+    build_temp_geo_table_streets >> build_temp_geo_table_env >> build_temp_geo_table_parks >> format_table >> \
+    replace_table >> dedup_table >> beam_cleanup
