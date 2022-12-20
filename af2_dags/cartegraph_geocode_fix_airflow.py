@@ -14,8 +14,7 @@ from dependencies.airflow_utils import get_ds_month, get_ds_year, default_args, 
 COLS_IN_ORDER = """id, activity, department, status, entry_date_UTC, entry_date_EST, entry_date_UNIX, 
 actual_start_date_UTC, actual_start_date_EST, actual_start_date_UNIX, actual_stop_date_UTC, actual_stop_date_EST, 
 actual_stop_date_UNIX, labor_cost, equipment_cost, material_cost, labor_hours, request_issue, request_department, 
-request_location, asset_id, asset_type, task_description, task_notes, neighborhood_name, council_district, ward, 
-police_zone, fire_zone, dpw_streets, dpw_enviro, dpw_parks, lat, long"""
+request_location, asset_id, asset_type, task_description, task_notes, lat, long"""
 
 # The goal of this mini-DAG is to assign geographic zone to Cartegraph task records that were not geocoded in the main
 # Cartegraph Tasks DAG because they had null values for their actual_start_date field. While actual_start_date gives a
@@ -54,12 +53,13 @@ def init_cmds_xcomm(**kwargs):
     SELECT * FROM `{os.environ["GCLOUD_PROJECT"]}.{dataset}.{raw_table}`
     WHERE lat IS NOT NULL AND long IS NOT NULL 
     """
+    kwargs['ti'].xcom_push(key="init_table_query", value=init_table_query)
     for dict in geo_config:
         init_table_query += f"AND {dict['geo_field']} IS NULL "
-        kwargs['ti'].xcom_push(key = f"build_geo_view_{dict['geo_table']}", value = build_revgeo_view_query(
-            dataset, new_table, f"merge_{dict['geo_table']}", create_date, id_col, lat_field, long_field,
-            dict['geo_table'], dict['geo_field']))
-    kwargs['ti'].xcom_push(key = "init_table_query", value = init_table_query)
+        revgeo_view_query = build_revgeo_view_query(dataset, new_table, f"merge_{dict['geo_table']}", create_date,
+                                                    id_col, lat_field, long_field, dict['geo_table'], dict['geo_field'],
+                                                    COLS_IN_ORDER)
+        kwargs['ti'].xcom_push(key=f"build_geo_view_{dict['geo_table']}", value=revgeo_view_query)
 
 
 push_xcom = PythonOperator(
