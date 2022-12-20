@@ -33,16 +33,21 @@ def run(argv = None):
     )
 
     with beam.Pipeline(options = pipeline_options) as p:
-        source_fields = ['contacts', 'units', 'units', 'ranks', 'ranks']
-        nested_fields = ['infos', 'name', 'validFrom', 'rankName', 'validFrom']
-        new_field_names = ['email', 'unit', 'unit_valid_date', 'rank', 'rank_valid_date']
-        additional_nested_fields = ['info', '', '', '', '']
-        search_fields = [{'type': 'EMAIL'}, 'validTo', 'validTo', 'validTo', 'validTo']
-        additional_search_vals = ['pittsburghpa.gov', '', '', '', '']
-        field_name_swaps = [('external_id', 'mpoetc_number'), ('other_id', 'badge_number')]
+        source_fields = ['contacts', 'units', 'units', 'ranks', 'ranks', 'attributes', 'attributes', 'workGroupData']
+        nested_fields = ['infos', 'name', 'validFrom', 'rankName', 'validFrom', 'attributeValue', 'attributeValue',
+                         'workGroupName']
+        new_field_names = ['email', 'unit', 'unit_valid_date', 'rank', 'rank_valid_date', 'race', 'gender',
+                           'employee_type']
+        additional_nested_fields = ['info', '', '', '', '', '', '', '']
+        search_fields = [{'type': 'EMAIL'}, 'validTo', 'validTo', 'validTo', 'validTo', {'attributeName': 'Race'},
+                         {'attributeName': 'Gender'}, '']
+        additional_search_vals = ['pittsburghpa.gov', '', '', '', '', '', '', '']
+        field_name_swaps = [('middle_name', 'middle_initial'), ('external_id', 'mpoetc_number'),
+                            ('other_id', 'badge_number'), ('anniversary_date', 'hire_date')]
         type_changes = [('employee_id', 'str')]
-        keep_fields = ['employee_id', 'mpoetc_number', 'badge_number', 'first_name', 'last_name',
-                       'email', 'rank', 'rank_valid_date', 'unit', 'unit_valid_date']
+        keep_fields = ['employee_id', 'mpoetc_number', 'badge_number', 'first_name', 'middle_initial', 'last_name',
+                       'email', 'birth_date', 'hire_date', 'rank', 'rank_valid_date', 'unit', 'unit_valid_date',
+                       'race', 'gender', 'employee_type']
 
         lines = p | ReadFromText(known_args.input, coder = JsonCoder())
 
