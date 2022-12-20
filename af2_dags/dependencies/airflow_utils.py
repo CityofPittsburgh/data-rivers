@@ -366,7 +366,7 @@ def build_percentage_table_query(dataset, raw_table, new_table, is_deduped, id_f
 
 
 def build_revgeo_view_query(dataset, raw_table, view_name, create_date, id_col, lat_field, long_field,
-                            geo_table, geo_field):
+                            geo_table, geo_field, default_fields):
     return f"""
     CREATE OR REPLACE VIEW `{os.environ["GCLOUD_PROJECT"]}.{dataset}.{view_name}` AS
 
@@ -388,7 +388,7 @@ def build_revgeo_view_query(dataset, raw_table, view_name, create_date, id_col, 
     -- join in the zones that were assigned in sel_zones with ALL of the records (including those that could not be 
     -- rev coded above)
     SELECT DISTINCT
-        raw.* EXCEPT({geo_field}),
+        {default_fields},
         sel_zones.* EXCEPT (id)
     FROM `{os.environ["GCLOUD_PROJECT"]}.{dataset}.{raw_table}` raw
     LEFT OUTER JOIN sel_zones ON sel_zones.{id_col} = raw.{id_col};
