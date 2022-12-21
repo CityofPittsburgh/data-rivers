@@ -81,13 +81,13 @@ create_gender_comp_table = BigQueryOperator(
 
 race_table = 'employee_vs_gen_pop_racial_comp'
 race_pct_field = 'ethnicity'
-race_hardcoded_vals = [{race_pct_field: 'White', 'percentage': 00.645},
-                       {race_pct_field: 'Black or African American', 'percentage': 00.23},
-                       {race_pct_field: 'Asian', 'percentage': 00.058},
+race_hardcoded_vals = [{race_pct_field: 'White (not Hispanic or Latino)', 'percentage': 00.645},
+                       {race_pct_field: 'Black or African American (not Hispanic or Latino)', 'percentage': 00.23},
+                       {race_pct_field: 'Asian (not Hispanic or Latino)', 'percentage': 00.058},
                        {race_pct_field: 'Hispanic or Latino', 'percentage': 00.034},
-                       {race_pct_field: 'American Indian or Alaska Native', 'percentage': 00.002},
-                       {race_pct_field: 'Native Hawaiian or Other Pacific Islander', 'percentage': 00.001},
-                       {race_pct_field: 'Two or More Races', 'percentage': 00.036}]
+                       {race_pct_field: 'American Indian or Alaska Native (not Hispanic or Latino)', 'percentage': 00.002},
+                       {race_pct_field: 'Native Hawaiian or Other Pacific Islander (not Hispanic or Latino)', 'percentage': 00.001},
+                       {race_pct_field: 'Two or More Races  (not Hispanic or Latino)', 'percentage': 00.036}]
 query_racial_comp = build_percentage_table_query('ceridian', 'all_employees', race_table,
                                                  False, 'employee_num', race_pct_field,
                                                  categories, race_hardcoded_vals)
