@@ -476,6 +476,15 @@ def dedup_table(dataset, table):
     """
 
 
+def del_table_group(dataset, prefix):
+    return f"""
+    SELECT CONCAT("DROP TABLE ", table_schema, ".", table_name, ";")
+    FROM {dataset}.INFORMATION_SCHEMA.TABLES
+    WHERE table_name LIKE "{prefix}%"
+    ORDER BY table_name DESC
+    """
+
+
 def filter_old_values(dataset, temp_table, final_table, join_field):
     return f"""
     DELETE FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{final_table}` final
@@ -622,6 +631,18 @@ def build_city_limits_query(dataset, raw_table, lat_field = 'lat', long_field = 
     `{os.environ['GCLOUD_PROJECT']}.{dataset}.{raw_table}`.{lat_field} IS NOT NULL
     """
 
+
+def upd_table_from_view(dataset, base_table, view_name, id_col, upd_field):
+    return f"""
+    UPDATE `{os.environ['GCLOUD_PROJECT']}.{dataset}.{base_table}` t
+    SET t.{upd_field} = v.{upd_field}
+    FROM (
+        SELECT * FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{view_name}`
+        WHERE {upd_field} IS NOT NULL
+    ) v
+    WHERE
+    t.{id_col} = v.{id_col}
+    """
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.INFO)
