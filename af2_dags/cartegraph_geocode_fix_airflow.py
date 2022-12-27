@@ -11,7 +11,7 @@ from dependencies import airflow_utils
 from dependencies.airflow_utils import get_ds_month, get_ds_year, default_args, \
     build_revgeo_view_query, build_dedup_old_updates
 
-COLS_IN_ORDER = """id, activity, department, status, entry_date_UTC, entry_date_EST, entry_date_UNIX, 
+COLS_IN_ORDER = """activity, department, status, entry_date_UTC, entry_date_EST, entry_date_UNIX, 
 actual_start_date_UTC, actual_start_date_EST, actual_start_date_UNIX, actual_stop_date_UTC, actual_stop_date_EST, 
 actual_stop_date_UNIX, labor_cost, equipment_cost, material_cost, labor_hours, request_issue, request_department, 
 request_location, asset_id, asset_type, task_description, task_notes, lat, long"""

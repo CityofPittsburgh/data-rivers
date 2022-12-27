@@ -388,7 +388,7 @@ def build_revgeo_view_query(dataset, raw_table, view_name, create_date, id_col, 
     -- join in the zones that were assigned in sel_zones with ALL of the records (including those that could not be 
     -- rev coded above)
     SELECT DISTINCT
-        {default_fields},
+        raw.{id_col}, {default_fields},
         sel_zones.* EXCEPT (id)
     FROM `{os.environ["GCLOUD_PROJECT"]}.{dataset}.{raw_table}` raw
     LEFT OUTER JOIN sel_zones ON sel_zones.{id_col} = raw.{id_col};
