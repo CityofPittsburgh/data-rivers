@@ -11,11 +11,6 @@ from dependencies import airflow_utils
 from dependencies.airflow_utils import get_ds_month, get_ds_year, default_args, \
     build_revgeo_view_query, build_dedup_old_updates
 
-COLS_IN_ORDER = """activity, department, status, entry_date_UTC, entry_date_EST, entry_date_UNIX, 
-actual_start_date_UTC, actual_start_date_EST, actual_start_date_UNIX, actual_stop_date_UTC, actual_stop_date_EST, 
-actual_stop_date_UNIX, labor_cost, equipment_cost, material_cost, labor_hours, request_issue, request_department, 
-request_location, asset_id, asset_type, task_description, task_notes, lat, long"""
-
 # The goal of this mini-DAG is to assign geographic zone to Cartegraph task records that were not geocoded in the main
 # Cartegraph Tasks DAG because they had null values for their actual_start_date field. While actual_start_date gives a
 # better idea about the time an actual task occurred (for example, an administrator could enter a task that was
@@ -57,8 +52,7 @@ def init_cmds_xcomm(**kwargs):
     for dict in geo_config:
         init_table_query += f"AND {dict['geo_field']} IS NULL "
         revgeo_view_query = build_revgeo_view_query(dataset, new_table, f"merge_{dict['geo_table']}", create_date,
-                                                    id_col, lat_field, long_field, dict['geo_table'], dict['geo_field'],
-                                                    COLS_IN_ORDER)
+                                                    id_col, lat_field, long_field, dict['geo_table'], dict['geo_field'])
         kwargs['ti'].xcom_push(key=f"build_geo_view_{dict['geo_table']}", value=revgeo_view_query)
 
 

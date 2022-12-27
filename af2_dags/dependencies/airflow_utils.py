@@ -366,7 +366,7 @@ def build_percentage_table_query(dataset, raw_table, new_table, is_deduped, id_f
 
 
 def build_revgeo_view_query(dataset, raw_table, view_name, create_date, id_col, lat_field, long_field,
-                            geo_table, geo_field, default_fields):
+                            geo_table, geo_field):
     return f"""
     CREATE OR REPLACE VIEW `{os.environ["GCLOUD_PROJECT"]}.{dataset}.{view_name}` AS
 
@@ -388,8 +388,7 @@ def build_revgeo_view_query(dataset, raw_table, view_name, create_date, id_col, 
     -- join in the zones that were assigned in sel_zones with ALL of the records (including those that could not be 
     -- rev coded above)
     SELECT DISTINCT
-        raw.{id_col}, {default_fields},
-        sel_zones.* EXCEPT (id)
+        raw.{id_col},  sel_zones.{geo_field}
     FROM `{os.environ["GCLOUD_PROJECT"]}.{dataset}.{raw_table}` raw
     LEFT OUTER JOIN sel_zones ON sel_zones.{id_col} = raw.{id_col};
     """
@@ -457,6 +456,7 @@ def build_sync_staging_table_query(dataset, new_table, upd_table, src_table, is_
     sql += "OR ".join(str(field) for field in comparison_list)
     return sql
 
+
 def build_sync_update_query(dataset, upd_table, src_table, id_field, upd_fields):
     sql = f"UPDATE `{os.environ['GCLOUD_PROJECT']}.{dataset}.{upd_table}` upd SET "
     upd_str_list = []
@@ -468,6 +468,7 @@ def build_sync_update_query(dataset, upd_table, src_table, id_field, upd_fields)
     WHERE upd.{id_field} = temp.{id_field}
     """
     return sql
+
 
 def dedup_table(dataset, table):
     return f"""
