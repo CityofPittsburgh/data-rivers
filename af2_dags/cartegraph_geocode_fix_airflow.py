@@ -204,49 +204,49 @@ upd_geo_field_parks = BigQueryOperator(
 
 del_geo_view_ngh = BashOperator(
     task_id='del_geo_view_ngh',
-    sql=str("{{ ti.xcom_pull(task_ids='push_xcom', key='del_geo_view_neighborhoods') }}"),
+    bash_command=str("{{ ti.xcom_pull(task_ids='push_xcom', key='del_geo_view_neighborhoods') }}"),
     dag=dag
 )
 
 del_geo_view_council = BashOperator(
     task_id='del_geo_view_council',
-    sql=str("{{ ti.xcom_pull(task_ids='push_xcom', key='del_geo_view_council_districts') }}"),
+    bash_command=str("{{ ti.xcom_pull(task_ids='push_xcom', key='del_geo_view_council_districts') }}"),
     dag=dag
 )
 
 del_geo_view_ward = BashOperator(
     task_id='del_geo_view_ward',
-    sql=str("{{ ti.xcom_pull(task_ids='push_xcom', key='del_geo_view_wards') }}"),
+    bash_command=str("{{ ti.xcom_pull(task_ids='push_xcom', key='del_geo_view_wards') }}"),
     dag=dag
 )
 
 del_geo_view_fire = BashOperator(
     task_id='del_geo_view_fire',
-    sql=str("{{ ti.xcom_pull(task_ids='push_xcom', key='del_geo_view_fire_zones') }}"),
+    bash_command=str("{{ ti.xcom_pull(task_ids='push_xcom', key='del_geo_view_fire_zones') }}"),
     dag=dag
 )
 
 del_geo_view_police = BashOperator(
     task_id='del_geo_view_police',
-    sql=str("{{ ti.xcom_pull(task_ids='push_xcom', key='del_geo_view_police_zones') }}"),
+    bash_command=str("{{ ti.xcom_pull(task_ids='push_xcom', key='del_geo_view_police_zones') }}"),
     dag=dag
 )
 
 del_geo_view_streets = BashOperator(
     task_id='del_geo_view_streets',
-    sql=str("{{ ti.xcom_pull(task_ids='push_xcom', key='del_geo_view_dpw_streets_divisions') }}"),
+    bash_command=str("{{ ti.xcom_pull(task_ids='push_xcom', key='del_geo_view_dpw_streets_divisions') }}"),
     dag=dag
 )
 
 del_geo_view_env = BashOperator(
     task_id='del_geo_view_env',
-    sql=str("{{ ti.xcom_pull(task_ids='push_xcom', key='del_geo_view_dpw_es_divisions') }}"),
+    bash_command=str("{{ ti.xcom_pull(task_ids='push_xcom', key='del_geo_view_dpw_es_divisions') }}"),
     dag=dag
 )
 
 del_geo_view_parks = BashOperator(
     task_id='del_geo_view_parks',
-    sql=str("{{ ti.xcom_pull(task_ids='push_xcom', key='del_geo_view_dpw_parks_divisions') }}"),
+    bash_command=str("{{ ti.xcom_pull(task_ids='push_xcom', key='del_geo_view_dpw_parks_divisions') }}"),
     dag=dag
 )
 
