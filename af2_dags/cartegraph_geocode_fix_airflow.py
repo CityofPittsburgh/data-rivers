@@ -17,6 +17,7 @@ from dependencies.airflow_utils import get_ds_month, get_ds_year, default_args, 
 # completed in a decade ago in 2022 - just because the entry_date field is in 2022 doesn't mean that's when the task
 # actually happened). A limitation to the approach of using actual_start_date as the date field for assigning geographic
 # zones is that sometimes administrators leave this field blank, while entry_date is never blank. This DAG geocodes
+# unassigned tasks using a temporary view, which is deleted after the update on the main all_tasks table is complete
 
 dag = DAG(
     'cartegraph_task_geocode_fix',
@@ -56,8 +57,7 @@ def init_cmds_xcomm(**kwargs):
         kwargs['ti'].xcom_push(key=f"build_geo_view_{dict['geo_table']}", value=revgeo_view_query)
         geo_upd_query = upd_table_from_view(dataset, raw_table, f"merge_{dict['geo_table']}", id_col, dict['geo_field'])
         kwargs['ti'].xcom_push(key=f"upd_geo_field_{dict['geo_field']}", value=geo_upd_query)
-        kwargs['ti'].xcom_push(key=f"del_geo_view_{dict['geo_table']}", value=f"""
-                               bq rm -f -t `{os.environ['GCLOUD_PROJECT']}.{dataset}.merge_{dict['geo_table']}""")
+        kwargs['ti'].xcom_push(key=f"del_geo_view_{dict['geo_table']}", value=f"bq rm -f -t {os.environ['GCLOUD_PROJECT']}.{dataset}.merge_{dict['geo_table']}")
 
 
 push_xcom = PythonOperator(
