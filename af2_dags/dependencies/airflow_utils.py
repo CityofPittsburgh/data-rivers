@@ -628,11 +628,14 @@ def upd_table_from_view(dataset, base_table, view_name, id_col, upd_field):
     UPDATE `{os.environ['GCLOUD_PROJECT']}.{dataset}.{base_table}` t
     SET t.{upd_field} = v.{upd_field}
     FROM (
-        SELECT * FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{view_name}`
+        SELECT *,
+        ROW_NUMBER() OVER(PARTITION BY {id_col} ORDER BY {upd_field} DESC) AS rn 
+        FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{view_name}`
         WHERE {upd_field} IS NOT NULL
     ) v
     WHERE
     t.{id_col} = v.{id_col}
+    AND v.rn = 1
     """
 
 if __name__ == '__main__':
