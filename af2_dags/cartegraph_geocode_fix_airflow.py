@@ -9,7 +9,7 @@ from airflow.operators.python_operator import PythonOperator
 from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 from dependencies import airflow_utils
 from dependencies.airflow_utils import get_ds_month, get_ds_year, default_args, \
-    build_revgeo_view_query, upd_table_from_view, del_table_group
+    build_revgeo_view_query, upd_table_from_view
 
 # The goal of this mini-DAG is to assign geographic zone to Cartegraph task records that were not geocoded in the main
 # Cartegraph Tasks DAG because they had null values for their actual_start_date field. While actual_start_date gives a
@@ -56,7 +56,8 @@ def init_cmds_xcomm(**kwargs):
         kwargs['ti'].xcom_push(key=f"build_geo_view_{dict['geo_table']}", value=revgeo_view_query)
         geo_upd_query = upd_table_from_view(dataset, raw_table, f"merge_{dict['geo_table']}", id_col, dict['geo_field'])
         kwargs['ti'].xcom_push(key=f"upd_geo_field_{dict['geo_field']}", value=geo_upd_query)
-    kwargs['ti'].xcom_push(key="del_geo_views", value=del_table_group(key=dataset, value='merge_*'))
+        kwargs['ti'].xcom_push(key=f"del_geo_view_{dict['geo_table']}", value=f"""
+                               bq rm -f -t `{os.environ['GCLOUD_PROJECT']}.{dataset}.merge_{dict['geo_table']}""")
 
 
 push_xcom = PythonOperator(
@@ -73,8 +74,8 @@ init_temp_geo_table = BigQueryOperator(
     dag=dag
 )
 
-build_geo_view_neighborhoods = BigQueryOperator(
-    task_id='build_geo_view_neighborhoods',
+build_geo_view_ngh = BigQueryOperator(
+    task_id='build_geo_view_ngh',
     sql=str("{{ ti.xcom_pull(task_ids='push_xcom', key='build_geo_view_neighborhoods') }}"),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
@@ -137,8 +138,8 @@ build_geo_view_parks = BigQueryOperator(
     dag=dag
 )
 
-upd_geo_field_neighborhoods = BigQueryOperator(
-    task_id='upd_geo_field_neighborhoods',
+upd_geo_field_ngh = BigQueryOperator(
+    task_id='upd_geo_field_ngh',
     sql=str("{{ ti.xcom_pull(task_ids='push_xcom', key='upd_geo_field_neighborhood_name') }}"),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
@@ -201,17 +202,59 @@ upd_geo_field_parks = BigQueryOperator(
     dag=dag
 )
 
-del_geo_views = BashOperator(
-    task_id='del_geo_views',
-    bash_command=str("{{ ti.xcom_pull(task_ids='push_xcom', key='del_geo_views') }}"),
+del_geo_view_ngh = BashOperator(
+    task_id='del_geo_view_ngh',
+    sql=str("{{ ti.xcom_pull(task_ids='push_xcom', key='del_geo_view_neighborhoods') }}"),
     dag=dag
 )
 
-push_xcom >> init_temp_geo_table >> build_geo_view_neighborhoods >> upd_geo_field_neighborhoods
-push_xcom >> init_temp_geo_table >> build_geo_view_council >> upd_geo_field_council
-push_xcom >> init_temp_geo_table >> build_geo_view_ward >> upd_geo_field_ward
-push_xcom >> init_temp_geo_table >> build_geo_view_fire >> upd_geo_field_fire
-push_xcom >> init_temp_geo_table >> build_geo_view_police >> upd_geo_field_police
-push_xcom >> init_temp_geo_table >> build_geo_view_streets >> upd_geo_field_streets
-push_xcom >> init_temp_geo_table >> build_geo_view_env >> upd_geo_field_env
-push_xcom >> init_temp_geo_table >> build_geo_view_parks >> upd_geo_field_parks
+del_geo_view_council = BashOperator(
+    task_id='del_geo_view_council',
+    sql=str("{{ ti.xcom_pull(task_ids='push_xcom', key='del_geo_view_council_districts') }}"),
+    dag=dag
+)
+
+del_geo_view_ward = BashOperator(
+    task_id='del_geo_view_ward',
+    sql=str("{{ ti.xcom_pull(task_ids='push_xcom', key='del_geo_view_wards') }}"),
+    dag=dag
+)
+
+del_geo_view_fire = BashOperator(
+    task_id='del_geo_view_fire',
+    sql=str("{{ ti.xcom_pull(task_ids='push_xcom', key='del_geo_view_fire_zones') }}"),
+    dag=dag
+)
+
+del_geo_view_police = BashOperator(
+    task_id='del_geo_view_police',
+    sql=str("{{ ti.xcom_pull(task_ids='push_xcom', key='del_geo_view_police_zones') }}"),
+    dag=dag
+)
+
+del_geo_view_streets = BashOperator(
+    task_id='del_geo_view_streets',
+    sql=str("{{ ti.xcom_pull(task_ids='push_xcom', key='del_geo_view_dpw_streets_divisions') }}"),
+    dag=dag
+)
+
+del_geo_view_env = BashOperator(
+    task_id='del_geo_view_env',
+    sql=str("{{ ti.xcom_pull(task_ids='push_xcom', key='del_geo_view_dpw_es_divisions') }}"),
+    dag=dag
+)
+
+del_geo_view_parks = BashOperator(
+    task_id='del_geo_view_parks',
+    sql=str("{{ ti.xcom_pull(task_ids='push_xcom', key='del_geo_view_dpw_parks_divisions') }}"),
+    dag=dag
+)
+
+push_xcom >> init_temp_geo_table >> build_geo_view_ngh >> upd_geo_field_ngh >> del_geo_view_ngh
+push_xcom >> init_temp_geo_table >> build_geo_view_council >> upd_geo_field_council >> del_geo_view_council
+push_xcom >> init_temp_geo_table >> build_geo_view_ward >> upd_geo_field_ward >> del_geo_view_ward
+push_xcom >> init_temp_geo_table >> build_geo_view_fire >> upd_geo_field_fire >> del_geo_view_fire
+push_xcom >> init_temp_geo_table >> build_geo_view_police >> upd_geo_field_police >> del_geo_view_police
+push_xcom >> init_temp_geo_table >> build_geo_view_streets >> upd_geo_field_streets >> del_geo_view_streets
+push_xcom >> init_temp_geo_table >> build_geo_view_env >> upd_geo_field_env >> del_geo_view_env
+push_xcom >> init_temp_geo_table >> build_geo_view_parks >> upd_geo_field_parks >> del_geo_view_parks

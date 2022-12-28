@@ -476,15 +476,6 @@ def dedup_table(dataset, table):
     """
 
 
-def del_table_group(dataset, prefix):
-    return f"""
-    SELECT CONCAT("DROP TABLE ", table_schema, ".", table_name, ";")
-    FROM {dataset}.INFORMATION_SCHEMA.TABLES
-    WHERE table_name LIKE "{prefix}%"
-    ORDER BY table_name DESC
-    """
-
-
 def filter_old_values(dataset, temp_table, final_table, join_field):
     return f"""
     DELETE FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{final_table}` final
