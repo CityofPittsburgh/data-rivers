@@ -94,4 +94,4 @@ dedup_old_updates = BigQueryOperator(
 )
 
 
-create_unsynced_table >> update_unsynced_tickets >> dedup_old_updates
+push_xcom >> create_unsynced_table >> update_unsynced_tickets >> dedup_old_updates
