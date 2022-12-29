@@ -91,6 +91,7 @@ dedup_old_updates = BigQueryOperator(
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
+)
 
 
 create_unsynced_table >> update_unsynced_tickets >> dedup_old_updates
