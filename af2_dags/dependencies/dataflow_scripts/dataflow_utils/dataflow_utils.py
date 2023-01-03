@@ -947,7 +947,7 @@ def extract_field(datum, source_field, nested_field, new_field_name, additional_
         # which value to retrieve
         if search_field:
             try:
-                # evaluate if search_field is a key/value pair or a field name that indicats an unwanted record
+                # evaluate if search_field is a key/value pair or a field name that indicates an unwanted record
                 if type(search_field) is dict:
                     search_key = list(search_field)[0]
                     # loop through list of dicts to find index of dict that has desired value
