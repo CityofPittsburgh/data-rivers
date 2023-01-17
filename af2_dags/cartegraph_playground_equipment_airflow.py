@@ -109,4 +109,4 @@ beam_cleanup = BashOperator(
         dag = dag
 )
 
-cartegraph_gcs >> cartegraph_dataflow >> cartegraph_bq_load >> format_table >> beam_cleanup
+cartegraph_gcs >> cartegraph_dataflow >> cartegraph_bq_load >> format_table >> wprdc_export >> beam_cleanup
