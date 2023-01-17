@@ -18,8 +18,8 @@ from dependencies.airflow_utils import get_ds_year, get_ds_month, get_ds_day, de
 dag = DAG(
     'computronix_violations_wprdc',
     default_args=default_args,
-    schedule_interval='0 0 */7 * *',
-    start_date=datetime(2023, 1, 2),
+    schedule_interval='@weekly',
+    start_date=datetime(2022, 12, 16),
     catchup = False,
     user_defined_filters={'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year, 'get_ds_day': get_ds_day}
 )
