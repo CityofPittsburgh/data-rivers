@@ -93,7 +93,7 @@ format_table = BigQueryOperator(
 
 
 # Export table as CSV to WPRDC bucket
-# file name is the date. path contains the date info
+# file name is the month and year. Template variable contains the month, path contains the year
 csv_file_name = "{{ ds|get_ds_month }}-"+path
 dest_bucket = f"gs://{os.environ['GCS_PREFIX']}_wprdc/cartegraph_playground_equipment/"
 wprdc_export = BigQueryToCloudStorageOperator(
