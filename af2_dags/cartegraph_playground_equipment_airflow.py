@@ -7,6 +7,7 @@ from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
 from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOperator
+from airflow.contrib.operators.bigquery_to_gcs import BigQueryToCloudStorageOperator
 from dependencies import airflow_utils
 from dependencies.airflow_utils import get_ds_month, get_ds_year, get_ds_day, default_args
 
@@ -26,6 +27,7 @@ dag = DAG(
                           'get_ds_day': get_ds_day}
 )
 
+
 # initialize gcs locations
 bucket = f"gs://{os.environ['GCS_PREFIX']}_cartegraph"
 dataset = "playground_equipment"
@@ -41,12 +43,14 @@ cartegraph_gcs = BashOperator(
     dag=dag
 )
 
+
 cartegraph_dataflow = BashOperator(
         task_id = 'cartegraph_dataflow',
         bash_command = f"python {os.environ['DATAFLOW_SCRIPT_PATH']}/cartegraph_playground_equipment_dataflow.py "
                        f"--input {bucket}/{json_loc} --avro_output {bucket}/{avro_loc}",
         dag = dag
 )
+
 
 cartegraph_bq_load = GoogleCloudStorageToBigQueryOperator(
         task_id = 'cartegraph_bq_load',
@@ -60,6 +64,7 @@ cartegraph_bq_load = GoogleCloudStorageToBigQueryOperator(
         bigquery_conn_id='google_cloud_default',
         dag = dag
 )
+
 
 query_format_table = f"""
 CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.cartegraph.playground_equipment` AS
@@ -86,9 +91,21 @@ format_table = BigQueryOperator(
     dag=dag
 )
 
+
+# Export table as CSV to WPRDC bucket
+# file name is the date. path contains the date info
+csv_file_name = "{{ ds|get_ds_month }}-"+path
+dest_bucket = f"gs://{os.environ['GCS_PREFIX']}_wprdc/cartegraph_playground_equipment/"
+wprdc_export = BigQueryToCloudStorageOperator(
+        task_id = 'wprdc_export',
+        source_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}.cartegraph.playground_equipment",
+        destination_cloud_storage_uris = [f"{dest_bucket}{csv_file_name}.csv"],
+        dag = dag
+)
+
 beam_cleanup = BashOperator(
         task_id = 'cartegraph_beam_cleanup',
-        bash_command = airflow_utils.beam_cleanup_statement(f"{os.environ['GCS_PREFIX']}_cartegraph_playground_equipment"),
+        bash_command = airflow_utils.beam_cleanup_statement(f"{os.environ['GCS_PREFIX']}_cartegraph"),
         dag = dag
 )
 
