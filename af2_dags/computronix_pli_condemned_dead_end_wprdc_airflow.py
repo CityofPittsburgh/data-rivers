@@ -89,7 +89,7 @@ query_dead_end = F"""
 CREATE OR REPLACE TABLE 
 `{os.environ['GCLOUD_PROJECT']}.computronix.pli_dead_end_properties` AS
 SELECT 
-    * EXCEPT (latest_inspec_result, latest_inspec_score)  
+    * 
 FROM `{os.environ['GCLOUD_PROJECT']}.computronix.pli_program_inspection_properties`
 WHERE insp_type_desc LIKE 'Dead End Property' AND insp_status NOT LIKE 'Inactive'
 """
@@ -107,7 +107,7 @@ query_wprdc_exp = F"""
 CREATE OR REPLACE TABLE 
 `{os.environ['GCLOUD_PROJECT']}.computronix.pli_cde_properties_wprdc_exp` AS
 SELECT 
-    * EXCEPT (latest_inspec_result, latest_inspec_score)  
+    *
 FROM `{os.environ['GCLOUD_PROJECT']}.computronix.pli_program_inspection_properties`
 WHERE insp_type_desc LIKE 'Dead End Property' OR insp_type_desc LIKE 'Condemned Property'
 """
