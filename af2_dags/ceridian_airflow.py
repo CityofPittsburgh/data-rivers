@@ -23,8 +23,8 @@ from dependencies.airflow_utils import get_ds_month, get_ds_year,  get_ds_day, \
 dag = DAG(
     'ceridian',
     default_args=default_args,
-    schedule_interval= '0 0 */3 * *',
-    start_date=datetime(2022, 11, 22),
+    schedule_interval= 'daily',
+    start_date=datetime(2023, 2, 8),
     user_defined_filters={'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year,
                           'get_ds_day': get_ds_day}
 )
