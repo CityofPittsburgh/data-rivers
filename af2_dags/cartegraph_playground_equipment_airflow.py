@@ -21,7 +21,7 @@ COLS_IN_ORDER = """id, type, manufacturer, description, notes, playground, prima
 dag = DAG(
     'cartegraph_playground_equipment',
     default_args=default_args,
-    schedule_interval="@monthly",
+    schedule_interval="@daily",
     start_date=datetime(2023, 1, 1),
     user_defined_filters={'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year,
                           'get_ds_day': get_ds_day}

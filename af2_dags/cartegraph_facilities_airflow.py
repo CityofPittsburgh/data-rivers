@@ -26,7 +26,7 @@ COLS_IN_ORDER = """id, name, type, description, notes, primary_user, installed_d
 dag = DAG(
     'cartegraph_facilities',
     default_args=default_args,
-    schedule_interval="@monthly",
+    schedule_interval="@daily",
     start_date=datetime(2022, 11, 1),
     user_defined_filters={'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year,
                           'get_ds_day': get_ds_day}
