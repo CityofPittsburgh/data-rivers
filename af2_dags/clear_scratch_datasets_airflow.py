@@ -19,7 +19,7 @@ dag = DAG(
     'clear_scratch_datasets',
     default_args=default_args,
     start_date = datetime(2022, 1, 1),
-    schedule_interval='@daily'
+    schedule_interval='@monthly'
 )
 
 
