@@ -29,11 +29,12 @@ source = "cherwell"
 bucket = f"gs://{os.environ['GCS_PREFIX']}_{source}"
 dataset = "incidents"
 exec_date = "{{ ds }}"
-path = "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}"
-json_loc = f"{dataset}/{path}/{exec_date}_{dataset}.json"
-avro_loc = f"{dataset}/avro_output/{path}/" + "{{ run_id }}"
+path = "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds|get_ds_day }}/{{ run_id }}"
+json_loc = f"{dataset}/{path}_{dataset}.json"
+avro_loc = f"{dataset}/avro_output/{path}"
 new_table = f"incoming_{dataset}"
 master_table = f"all_{dataset}"
+id_col = "id"
 upd_fields = ['status', 'last_modified_date', 'closed_date', 'assigned_team', 'assigned_to', 'responded_date']
 
 cherwell_incidents_gcs = BashOperator(
@@ -51,7 +52,7 @@ cherwell_incidents_dataflow = BashOperator(
 
 cherwell_incidents_bq_load = GoogleCloudStorageToBigQueryOperator(
         task_id='cherwell_incidents_bq_load',
-        destination_project_dataset_table=f"{os.environ['GCLOUD_PROJECT']}.{new_table}",
+        destination_project_dataset_table=f"{os.environ['GCLOUD_PROJECT']}.{source}.{new_table}",
         bucket=f"{os.environ['GCS_PREFIX']}_{source}",
         source_objects=[f"{avro_loc}*.avro"],
         write_disposition='WRITE_TRUNCATE',
@@ -64,7 +65,7 @@ cherwell_incidents_bq_load = GoogleCloudStorageToBigQueryOperator(
 
 insert_new_incidents = BigQueryOperator(
         task_id='insert_new_incidents',
-        sql=build_insert_new_records_query(source, new_table, master_table, 'id'),
+        sql=build_insert_new_records_query(source, new_table, master_table, id_col),
         bigquery_conn_id='google_cloud_default',
         use_legacy_sql=False,
         dag=dag
@@ -72,7 +73,7 @@ insert_new_incidents = BigQueryOperator(
 
 update_changed_incidents = BigQueryOperator(
         task_id='update_changed_incidents',
-        sql=build_sync_update_query(source, master_table, new_table, upd_fields),
+        sql=build_sync_update_query(source, master_table, new_table, id_col, upd_fields),
         bigquery_conn_id='google_cloud_default',
         use_legacy_sql=False,
         dag=dag
@@ -80,7 +81,7 @@ update_changed_incidents = BigQueryOperator(
 
 dedup_table = BigQueryOperator(
     task_id='dedup_table',
-    sql=build_dedup_old_updates(source, master_table, 'id', 'last_modified_date'),
+    sql=build_dedup_old_updates(source, master_table, id_col, 'last_modified_date'),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
@@ -92,5 +93,5 @@ beam_cleanup = BashOperator(
         dag=dag
 )
 
-cherwell_incidents_gcs >> cherwell_incidents_dataflow >> cherwell_incidents_bq_load >> update_changed_incidents >> \
-    dedup_table >> beam_cleanup
+cherwell_incidents_gcs >> cherwell_incidents_dataflow >> cherwell_incidents_bq_load >> insert_new_incidents >> \
+    update_changed_incidents >> dedup_table >> beam_cleanup
