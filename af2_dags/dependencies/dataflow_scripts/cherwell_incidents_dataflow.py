@@ -39,19 +39,20 @@ def run(argv = None):
         new_field_names = ['id', 'created_date', 'status', 'service', 'category', 'subcategory', 'description',
                            'priority', 'last_modified_date', 'closed_date', 'assigned_team', 'assigned_to',
                            'incident_type', 'call_source', 'responded_date', 'requester_department']
+        add_nested_fields = [''] * 16
         search_fields = [{'name': 'IncidentID'}, {'name': 'CreatedDateTime'}, {'name': 'Status'}, {'name': 'Service'},
                          {'name': 'Category'}, {'name': 'Subcategory'}, {'name': 'Description'}, {'name': 'Priority'},
                          {'name': 'LastModifiedDateTime'}, {'name': 'ClosedDateTime'}, {'name': 'AssignedTeam'},
                          {'name': 'AssignedTo'}, {'name': 'IncidentType'}, {'name': 'CallSource'},
                          {'name': 'Stat_DateTimeResponded'}, {'name': 'RequesterDepartment'}]
-        type_changes = [('id', 'str'), ('priority', 'str')]
+        add_search_vals = [''] * 16
 
         lines = p | ReadFromText(known_args.input, coder = JsonCoder())
 
         load = (
                 lines
-                | beam.ParDo(ExtractFieldWithComplexity(source_fields, nested_fields, new_field_names, search_fields))
-                | beam.ParDo(ChangeDataTypes(type_changes))
+                | beam.ParDo(ExtractFieldWithComplexity(source_fields, nested_fields, new_field_names,
+                                                        add_nested_fields, search_fields, add_search_vals))
                 | WriteToAvro(known_args.avro_output, schema = avro_schema, file_name_suffix = '.avro',
                               use_fastavro = True)
         )
