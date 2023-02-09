@@ -20,7 +20,7 @@ state, country, zip, credential_id"""
 dag = DAG(
     'chargepoint',
     default_args=default_args,
-    schedule_interval= '@daily',
+    schedule_interval='0 0 * * 1-5',
     user_defined_filters={'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year,
                           'get_ds_day': get_ds_day}
 )
@@ -40,22 +40,22 @@ chargepoint_gcs = BashOperator(
 )
 
 chargepoint_dataflow = BashOperator(
-        task_id = 'chargepoint_dataflow',
-        bash_command = f"python {os.environ['DATAFLOW_SCRIPT_PATH']}/chargepoint_dataflow.py --input {bucket}/{json_loc} --avro_output {bucket}/{avro_loc}",
-        dag = dag
+    task_id='chargepoint_dataflow',
+    bash_command=f"python {os.environ['DATAFLOW_SCRIPT_PATH']}/chargepoint_dataflow.py --input {bucket}/{json_loc} --avro_output {bucket}/{avro_loc}",
+    dag=dag
 )
 
 chargepoint_bq_load = GoogleCloudStorageToBigQueryOperator(
-        task_id = 'chargepoint_bq_load',
-        destination_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}.{dataset}.charging_sessions",
-        bucket = f"{os.environ['GCS_PREFIX']}_chargepoint",
-        source_objects = [f"{avro_loc}*.avro"],
-        write_disposition='WRITE_APPEND',
-        create_disposition='CREATE_IF_NEEDED',
-        source_format = 'AVRO',
-        autodetect = True,
-        bigquery_conn_id='google_cloud_default',
-        dag = dag
+    task_id='chargepoint_bq_load',
+    destination_project_dataset_table=f"{os.environ['GCLOUD_PROJECT']}.{dataset}.charging_sessions",
+    bucket=f"{os.environ['GCS_PREFIX']}_chargepoint",
+    source_objects=[f"{avro_loc}*.avro"],
+    write_disposition='WRITE_APPEND',
+    create_disposition='CREATE_IF_NEEDED',
+    source_format='AVRO',
+    autodetect=True,
+    bigquery_conn_id='google_cloud_default',
+    dag=dag
 )
 
 # remove duplicate charging sessions and re-create table in correct column order
@@ -72,17 +72,17 @@ FROM
     formatted
 """
 chargepoint_format_dedupe = BigQueryOperator(
-        task_id = 'chargepoint_format_dedupe',
-        sql = query_format_dedupe,
-        bigquery_conn_id='google_cloud_default',
-        use_legacy_sql = False,
-        dag = dag
+    task_id='chargepoint_format_dedupe',
+    sql=query_format_dedupe,
+    bigquery_conn_id='google_cloud_default',
+    use_legacy_sql=False,
+    dag=dag
 )
 
 beam_cleanup = BashOperator(
-        task_id = 'chargepoint_beam_cleanup',
-        bash_command = airflow_utils.beam_cleanup_statement(f"{os.environ['GCS_PREFIX']}_chargepoint"),
-        dag = dag
+    task_id='chargepoint_beam_cleanup',
+    bash_command=airflow_utils.beam_cleanup_statement(f"{os.environ['GCS_PREFIX']}_chargepoint"),
+    dag=dag
 )
 
 chargepoint_gcs >> chargepoint_dataflow >> chargepoint_bq_load >> chargepoint_format_dedupe >> beam_cleanup

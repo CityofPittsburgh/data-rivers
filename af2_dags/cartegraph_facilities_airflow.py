@@ -20,14 +20,14 @@ COLS_IN_ORDER = """id, name, type, description, notes, primary_user, installed_d
                    ada_assessment_date, total_cost, saving_opportunity, energy_renovation_cost_estimate,
                    replaced_date, replacement_cost_type, size_sq_foot, lat, long, geometry"""
 
-# This DAG will perform a pull of all facilities entered into the Cartegraph application every month
+# This DAG will perform a daily pull of all facilities entered into the Cartegraph application
 # and enrich the data with additional location details
 
 dag = DAG(
     'cartegraph_facilities',
     default_args=default_args,
     schedule_interval="@daily",
-    start_date=datetime(2022, 11, 1),
+    start_date=datetime(2022, 2, 10),
     user_defined_filters={'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year,
                           'get_ds_day': get_ds_day}
 )
@@ -35,10 +35,9 @@ dag = DAG(
 # initialize gcs locations
 bucket = f"gs://{os.environ['GCS_PREFIX']}_cartegraph"
 dataset = "facilities"
-exec_date = "{{ ds }}"
-path = "{{ ds|get_ds_year }}"
-json_loc = f"{dataset}/{path}/{exec_date}_facilities.json"
-avro_loc = f"{dataset}/avro_output/{path}/" + "{{ run_id }}"
+path = "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ run_id }}"
+json_loc = f"{dataset}/{path}_{dataset}.json"
+avro_loc = f"{dataset}/avro_output/{path}/"
 
 cartegraph_gcs = BashOperator(
     task_id='cartegraph_gcs',
@@ -48,10 +47,10 @@ cartegraph_gcs = BashOperator(
 )
 
 cartegraph_dataflow = BashOperator(
-        task_id = 'cartegraph_dataflow',
-        bash_command = f"python {os.environ['DATAFLOW_SCRIPT_PATH']}/cartegraph_facilities_dataflow.py "
-                       f"--input {bucket}/{json_loc} --avro_output {bucket}/{avro_loc}",
-        dag = dag
+        task_id='cartegraph_dataflow',
+        bash_command=f"python {os.environ['DATAFLOW_SCRIPT_PATH']}/cartegraph_facilities_dataflow.py "
+                     f"--input {bucket}/{json_loc} --avro_output {bucket}/{avro_loc}",
+        dag=dag
 )
 
 cartegraph_bq_load = GoogleCloudStorageToBigQueryOperator(
@@ -94,9 +93,9 @@ format_table = BigQueryOperator(
 )
 
 beam_cleanup = BashOperator(
-        task_id = 'cartegraph_beam_cleanup',
-        bash_command = airflow_utils.beam_cleanup_statement(f"{os.environ['GCS_PREFIX']}_cartegraph_facilities"),
-        dag = dag
+        task_id='cartegraph_beam_cleanup',
+        bash_command=airflow_utils.beam_cleanup_statement(f"{os.environ['GCS_PREFIX']}_cartegraph_facilities"),
+        dag=dag
 )
 
 cartegraph_gcs >> cartegraph_dataflow >> cartegraph_bq_load >> format_table >> beam_cleanup

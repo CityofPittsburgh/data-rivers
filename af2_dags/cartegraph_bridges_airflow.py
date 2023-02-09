@@ -19,14 +19,14 @@ COLS_IN_ORDER = """id, name, average_daily_traffic, notes, owner, maintenance_re
                    total_cost, estimated_treatment_time_min, feature_crossed, crosses, street_name, park, 
                    neighborhood_name, neighborhood_name_2, council_district, council_district_2, lat, long, geometry"""
 
-# This DAG will perform a pull of all bridges entered into the Cartegraph application every month
+# This DAG will perform a daily pull of all bridges entered into the Cartegraph application
 # and enrich the data with additional location details
 
 dag = DAG(
     'cartegraph_bridges',
     default_args=default_args,
     schedule_interval="@daily",
-    start_date=datetime(2022, 11, 1),
+    start_date=datetime(2023, 2, 10),
     user_defined_filters={'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year,
                           'get_ds_day': get_ds_day}
 )
@@ -34,10 +34,9 @@ dag = DAG(
 # initialize gcs locations
 bucket = f"gs://{os.environ['GCS_PREFIX']}_cartegraph"
 dataset = "bridges"
-exec_date = "{{ ds }}"
-path = "{{ ds|get_ds_year }}"
-json_loc = f"{dataset}/{path}/{exec_date}_bridges.json"
-avro_loc = f"{dataset}/avro_output/{path}/" + "{{ run_id }}"
+path = "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ run_id }}"
+json_loc = f"{dataset}/{path}_{dataset}.json"
+avro_loc = f"{dataset}/avro_output/{path}/"
 
 cartegraph_gcs = BashOperator(
     task_id='cartegraph_gcs',
@@ -94,7 +93,7 @@ format_table = BigQueryOperator(
 
 beam_cleanup = BashOperator(
         task_id = 'cartegraph_beam_cleanup',
-        bash_command = airflow_utils.beam_cleanup_statement(f"{os.environ['GCS_PREFIX']}_cartegraph_bridges"),
+        bash_command = airflow_utils.beam_cleanup_statement(f"{os.environ['GCS_PREFIX']}_cartegraph"),
         dag = dag
 )
 
