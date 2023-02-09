@@ -26,7 +26,7 @@ police_zone, fire_zone, dpw_streets, dpw_enviro, dpw_parks, lat, long"""
 dag = DAG(
     'cartegraph_task_geocode_fix',
     default_args=default_args,
-    schedule_interval='@monthly',
+    schedule_interval='@daily',
     start_date=datetime(2022, 12, 1),
     user_defined_filters={'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year}
 )

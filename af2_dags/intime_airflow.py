@@ -20,13 +20,12 @@ dag = DAG(
     schedule_interval=timedelta(minutes=15),
     user_defined_filters={'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year,
                           'get_ds_day': get_ds_day},
-    max_active_runs = 1
+    max_active_runs=1
 )
 
 # initialize gcs locations
 dataset = "intime"
 bucket = f"gs://{os.environ['GCS_PREFIX']}_{dataset}"
-exec_date = "{{ ds }}"
 path = "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds|get_ds_day }}/{{ run_id }}"
 json_loc = f"{path}_records.json"
 avro_loc = f"avro_output/{path}/"
@@ -38,37 +37,37 @@ intime_gcs = BashOperator(
 )
 
 intime_dataflow = BashOperator(
-        task_id = 'intime_dataflow',
-        bash_command = f"python {os.environ['DATAFLOW_SCRIPT_PATH']}/intime_dataflow.py --input {bucket}/{json_loc} --avro_output {bucket}/{avro_loc}",
-        dag = dag
+    task_id='intime_dataflow',
+    bash_command=f"python {os.environ['DATAFLOW_SCRIPT_PATH']}/intime_dataflow.py --input {bucket}/{json_loc} --avro_output {bucket}/{avro_loc}",
+    dag=dag
 )
 
 intime_bq_load = GoogleCloudStorageToBigQueryOperator(
-        task_id = 'intime_bq_load',
-        destination_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}.{dataset}.employee_data",
-        bucket = f"{os.environ['GCS_PREFIX']}_intime",
-        source_objects = [f"{avro_loc}*.avro"],
-        write_disposition='WRITE_TRUNCATE',
-        create_disposition='CREATE_IF_NEEDED',
-        source_format = 'AVRO',
-        autodetect = True,
-        bigquery_conn_id='google_cloud_default',
-        dag = dag
+    task_id='intime_bq_load',
+    destination_project_dataset_table=f"{os.environ['GCLOUD_PROJECT']}.{dataset}.employee_data",
+    bucket=f"{os.environ['GCS_PREFIX']}_intime",
+    source_objects=[f"{avro_loc}*.avro"],
+    write_disposition='WRITE_TRUNCATE',
+    create_disposition='CREATE_IF_NEEDED',
+    source_format='AVRO',
+    autodetect=True,
+    bigquery_conn_id='google_cloud_default',
+    dag=dag
 )
 
 # Export table to InTime bucket as readable CSV
 intime_export = BigQueryToCloudStorageOperator(
-        task_id = 'intime_export',
-        source_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}.{dataset}.employee_data",
-        destination_cloud_storage_uris = [f"gs://{os.environ['GCS_PREFIX']}_shared/intime_report.csv"],
-        bigquery_conn_id='google_cloud_default',
-        dag = dag
+    task_id='intime_export',
+    source_project_dataset_table=f"{os.environ['GCLOUD_PROJECT']}.{dataset}.employee_data",
+    destination_cloud_storage_uris=[f"gs://{os.environ['GCS_PREFIX']}_shared/intime_report.csv"],
+    bigquery_conn_id='google_cloud_default',
+    dag=dag
 )
 
 beam_cleanup = BashOperator(
-        task_id = 'intime_beam_cleanup',
-        bash_command = airflow_utils.beam_cleanup_statement(f"{os.environ['GCS_PREFIX']}_intime"),
-        dag = dag
+    task_id='intime_beam_cleanup',
+    bash_command=airflow_utils.beam_cleanup_statement(f"{os.environ['GCS_PREFIX']}_intime"),
+    dag=dag
 )
 
 intime_gcs >> intime_dataflow >> intime_bq_load >> intime_export >> beam_cleanup
