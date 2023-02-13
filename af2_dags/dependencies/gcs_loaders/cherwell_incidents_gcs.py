@@ -47,10 +47,15 @@ payload = {
         "11b6961ee55048b9a7240f7e2d3a2f8d",  # "ClosedDateTime"
         "9339fc404e8d5299b7a7c64de79ab81a1c1ff4306c",  # "AssignedTeam"
         "9339fc404e4c93350bf5be446fb13d693b0bb7f219",  # "AssignedTo"
+        "9378a8a981b9164941421e4bc6a17872b700662362",  # "AssignedToManager"
         "9365a6098398ff2551e1c14dd398c466d5a201a9c7",  # "IncidentType"
         "93670bdf8abe2cd1f92b1f490a90c7b7d684222e13",  # "CallSource"
+        "93843c51c65c4feef225de469c9389729162bc750e",  # "Stat_IncidentReopened"
         "93843c5730fc45cfb91e404bafaae5ad5978ebdb22",  # "Stat_DateTimeResponded"
-        "940484fd4dad30b6c511da4f8bb0c6d3b614e28806"  # "RequesterDepartment"
+        "9450a00ccdb69786a573374a7ba1b43d74e18a80bb",  # "Requester
+        "940484fd4dad30b6c511da4f8bb0c6d3b614e28806",  # "RequesterDepartment"
+        "9450a01dde5721fb08fef04257b82d73d320191342",  # "OnBehalfOf
+        "94518efdef63fec0cc82874c0ebb786a01f3c51a6f"  # "InitialAssignedTeam
     ],
     "sorting": [
         {
