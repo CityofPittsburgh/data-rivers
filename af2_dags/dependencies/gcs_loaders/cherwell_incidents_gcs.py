@@ -49,13 +49,17 @@ payload = {
         "9339fc404e4c93350bf5be446fb13d693b0bb7f219",  # "AssignedTo"
         "9378a8a981b9164941421e4bc6a17872b700662362",  # "AssignedToManager"
         "9365a6098398ff2551e1c14dd398c466d5a201a9c7",  # "IncidentType"
+        "9365b1db4ecb560c538b474ad58f51bf1fb6b101a5",  # "SLARespondByDeadline"
+        "9365b4209be3fff3623a4a4d6ab76991c2f01ea109",  # "SLAResolveByDeadline"
         "93670bdf8abe2cd1f92b1f490a90c7b7d684222e13",  # "CallSource"
         "93843c51c65c4feef225de469c9389729162bc750e",  # "Stat_IncidentReopened"
         "93843c5730fc45cfb91e404bafaae5ad5978ebdb22",  # "Stat_DateTimeResponded"
-        "9450a00ccdb69786a573374a7ba1b43d74e18a80bb",  # "Requester
+        "93843c2301c27644faed9e48328310bffaf04250bc",  # "Stat_NumberOfTouches"
+        "93843c454f073f3f574df84a7c8c8d7767e08039af",  # "Stat_NumberOfEscalations"
         "940484fd4dad30b6c511da4f8bb0c6d3b614e28806",  # "RequesterDepartment"
-        "9450a01dde5721fb08fef04257b82d73d320191342",  # "OnBehalfOf
-        "94518efdef63fec0cc82874c0ebb786a01f3c51a6f"  # "InitialAssignedTeam
+        "9450a00ccdb69786a573374a7ba1b43d74e18a80bb",  # "Requester"
+        "9450a01dde5721fb08fef04257b82d73d320191342",  # "OnBehalfOf"
+        "94518efdef63fec0cc82874c0ebb786a01f3c51a6f"  # "InitialAssignedTeam"
     ],
     "sorting": [
         {
