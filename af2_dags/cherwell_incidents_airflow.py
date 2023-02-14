@@ -15,11 +15,19 @@ from dependencies.airflow_utils import get_ds_month, get_ds_year, get_ds_day, de
 # Ticket information will be displayed on a Google Looker Studio dashboard for use by team managers
 # that do not have access to Cherwell's admin portal.
 
+INSERT_COLS = """id, created_date, status, service, category, subcategory, description,
+priority, last_modified_date, closed_date, assigned_team, assigned_to,
+assigned_to_manager, incident_type, respond_by_deadline, resolve_by_deadline,
+call_source, incident_reopened, responded_date, number_of_touches,
+number_of_escalations, requester_department, requester, on_behalf_of,
+initial_assigned_team, assigned_to AS initial_assigned_to"""
+
+
 dag = DAG(
     'cherwell_incidents',
     default_args=default_args,
     schedule_interval='@daily',
-    start_date=datetime(2023, 2, 6),
+    start_date=datetime(2023, 2, 14),
     user_defined_filters={'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year,
                           'get_ds_day': get_ds_day}
 )
@@ -35,7 +43,9 @@ avro_loc = f"{dataset}/avro_output/{path}"
 new_table = f"incoming_{dataset}"
 master_table = f"all_{dataset}"
 id_col = "id"
-upd_fields = ['status', 'last_modified_date', 'closed_date', 'assigned_team', 'assigned_to', 'responded_date']
+upd_fields = ['status', 'priority', 'last_modified_date', 'closed_date', 'assigned_team', 'assigned_to',
+              'assigned_to_manager', 'responded_date', 'respond_by_deadline', 'resolve_by_deadline',
+              'number_of_touches', 'number_of_escalations', 'incident_reopened']
 
 cherwell_incidents_gcs = BashOperator(
     task_id='cherwell_incidents_gcs',
@@ -65,7 +75,7 @@ cherwell_incidents_bq_load = GoogleCloudStorageToBigQueryOperator(
 
 insert_new_incidents = BigQueryOperator(
         task_id='insert_new_incidents',
-        sql=build_insert_new_records_query(source, new_table, master_table, id_col),
+        sql=build_insert_new_records_query(source, new_table, master_table, id_col, INSERT_COLS),
         bigquery_conn_id='google_cloud_default',
         use_legacy_sql=False,
         dag=dag
