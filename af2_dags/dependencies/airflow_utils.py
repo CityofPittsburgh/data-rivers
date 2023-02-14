@@ -139,11 +139,11 @@ def build_dedup_old_updates(dataset, table, id_field, last_upd_field):
     return sql
 
 
-def build_insert_new_records_query(dataset, incoming_table, master_table, id_field):
+def build_insert_new_records_query(dataset, incoming_table, master_table, id_field, cols):
     sql = F"""
     INSERT INTO `{os.environ['GCLOUD_PROJECT']}.{dataset}.{master_table}`
     (
-        SELECT * FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{incoming_table}`
+        SELECT {cols} FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{incoming_table}`
         WHERE {id_field} NOT IN (SELECT {id_field} FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{master_table}`)
     )
     """
