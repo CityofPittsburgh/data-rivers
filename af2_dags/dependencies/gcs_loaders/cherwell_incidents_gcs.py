@@ -1,7 +1,7 @@
 import os
 import argparse
 import pendulum
-from datetime import datetime, timedelta
+from datetime import datetime
 import requests
 from google.cloud import storage
 
@@ -90,7 +90,8 @@ while more is True:
     response = s.post(url, headers={'Content-Type': 'application/json', 'Authorization': f'Bearer {token}'},
                       json=payload)
     # search filter accepts date comparison in YYYY-mm-dd HH:MM format (military time, local time zone)
-    curr_run = datetime.now(tz = pendulum.timezone('EST')).strftime("%Y-%m-%d %H:%M")
+    # tickets come through in EST time, not UTC
+    curr_run = datetime.now(tz=pendulum.timezone('EST')).strftime("%Y-%m-%d %H:%M")
     print(f"Response at {str(curr_run)}: {str(response.status_code)}")
 
     incidents = response.json()['businessObjects']
@@ -104,7 +105,7 @@ while more is True:
 
     # write the successful run information (used by each successive run to find the backfill start date)
     successful_run = {
-        "requests_retrieved": len(incidents),
+        "requests_retrieved": len(all_records),
         "since": run_start_win,
         "current_run": curr_run,
         "note": "Data retrieved between the time points listed above"

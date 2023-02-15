@@ -8,7 +8,7 @@ from apache_beam.io import ReadFromText
 from apache_beam.io.avroio import WriteToAvro
 
 from dataflow_utils import dataflow_utils
-from dataflow_utils.dataflow_utils import JsonCoder, generate_args, ChangeDataTypes, ExtractFieldWithComplexity
+from dataflow_utils.dataflow_utils import JsonCoder, generate_args, ExtractFieldWithComplexity
 
 DEFAULT_DATAFLOW_ARGS = [
         '--save_main_session',
