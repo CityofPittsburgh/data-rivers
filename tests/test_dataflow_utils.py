@@ -55,6 +55,93 @@ class TestDataflowUtils(unittest.TestCase):
         cb = dataflow_utils.ConvertBooleans(bool_changes, include_defaults = False)
         self.assertEqual(next(cb.process(datum)), expected)
 
+    def test_format_and_classify_address(self):
+        datum = [{'pii_street_num': '', 'street': None, 'cross_street': '', 'city': 'Pittsburgh',
+                  'pii_lat': 40.4366963, 'pii_long': -79.944755399999991},
+                 {'pii_street_num': '', 'street': None, 'cross_street': '', 'city': 'Pittsburgh',
+                  'pii_lat': 40.4283632, 'pii_long': -79.973572699999991},
+                 {'pii_street_num': '', 'street': None, 'cross_street': '', 'city': 'Pittsburgh',
+                  'pii_lat': 40.4366963, 'pii_long': -79.944755399999991},
+                 {'pii_street_num': '', 'street': None, 'cross_street': '', 'city': 'Pittsburgh',
+                  'pii_lat': 40.4418296, 'pii_long': -80.0003875},
+                 {'pii_street_num': '', 'street': None, 'cross_street': '', 'city': 'Pittsburgh',
+                  'pii_lat': 40.4331995, 'pii_long': -80.0171609}]
+
+        loc_names = {
+                "street_num_field"  : "pii_street_num",
+                "street_name_field" : "street",
+                "cross_street_field": "cross_street",
+                "city_field"        : "city",
+                "lat_field"         : "pii_lat",
+                "long_field"        : "pii_long"
+        }
+        contains_pii = True
+
+        expected = [{'pii_street_num': '', 'street': None, 'cross_street': '', 'city': 'Pittsburgh',
+                     'pii_lat': '40.4366963', 'pii_long': '-79.94475539999999', 'pii_input_address': None,
+                     'address_type': 'Coordinates Only'},
+                    {'pii_street_num': '', 'street': None, 'cross_street': '', 'city': 'Pittsburgh',
+                     'pii_lat': '40.4283632', 'pii_long': '-79.97357269999999', 'pii_input_address': None,
+                     'address_type': 'Coordinates Only'},
+                    {'pii_street_num': '', 'street': None, 'cross_street': '', 'city': 'Pittsburgh',
+                     'pii_lat': '40.4366963', 'pii_long': '-79.94475539999999', 'pii_input_address': None,
+                     'address_type': 'Coordinates Only'},
+                    {'pii_street_num': '', 'street': None, 'cross_street': '', 'city': 'Pittsburgh',
+                     'pii_lat': '40.4418296', 'pii_long': '-80.0003875', 'pii_input_address': None,
+                     'address_type': 'Coordinates Only'},
+                    {'pii_street_num': '', 'street': None, 'cross_street': '', 'city': 'Pittsburgh',
+                     'pii_lat': '40.4331995', 'pii_long': '-80.0171609', 'pii_input_address': None,
+                     'address_type': 'Coordinates Only'}]
+
+        fca = dataflow_utils.FormatAndClassifyAddress(loc_field_names=loc_names, contains_pii=contains_pii)
+        results = []
+        for val in datum:
+            result = next(fca.process(val))
+            results.append(result)
+        self.assertEqual(results, expected)
+
+        loc_field_names = {
+            "address_field": "pii_input_address",
+            "lat_field": "pii_lat",
+            "long_field": "pii_long"
+        }
+        del_org_input = False
+        gmap_key = os.environ["GMAP_API_KEY"]
+
+        expected_2 = [{'pii_street_num': '', 'street': None, 'cross_street': '', 'city': 'Pittsburgh',
+                       'pii_input_address': None, 'address_type': 'Coordinates Only',
+                       'pii_google_formatted_address': None,
+                       'input_pii_lat': '40.4366963', 'input_pii_long': '-79.94475539999999',
+                       'google_pii_lat': None, 'google_pii_long': None},
+                      {'pii_street_num': '', 'street': None, 'cross_street': '', 'city': 'Pittsburgh',
+                       'pii_input_address': None, 'address_type': 'Coordinates Only',
+                       'pii_google_formatted_address': None,
+                       'input_pii_lat': '40.4283632', 'input_pii_long': '-79.97357269999999',
+                       'google_pii_lat': None, 'google_pii_long': None},
+                      {'pii_street_num': '', 'street': None, 'cross_street': '', 'city': 'Pittsburgh',
+                       'pii_input_address': None, 'address_type': 'Coordinates Only',
+                       'pii_google_formatted_address': None,
+                       'input_pii_lat': '40.4366963', 'input_pii_long': '-79.94475539999999',
+                       'google_pii_lat': None, 'google_pii_long': None},
+                      {'pii_street_num': '', 'street': None, 'cross_street': '', 'city': 'Pittsburgh',
+                       'pii_input_address': None, 'address_type': 'Coordinates Only',
+                       'pii_google_formatted_address': None,
+                       'input_pii_lat': '40.4418296', 'input_pii_long': '-80.0003875',
+                       'google_pii_lat': None, 'google_pii_long': None},
+                      {'pii_street_num': '', 'street': None, 'cross_street': '', 'city': 'Pittsburgh',
+                       'pii_input_address': None, 'address_type': 'Coordinates Only',
+                       'pii_google_formatted_address': None,
+                       'input_pii_lat': '40.4331995', 'input_pii_long': '-80.0171609',
+                       'google_pii_lat': None, 'google_pii_long': None}]
+
+        gmg = dataflow_utils.GoogleMapsGeocodeAddress(key=gmap_key, loc_field_names=loc_field_names,
+                                                      del_org_input=del_org_input)
+        results_2 = []
+        for val in expected:
+            result = next(gmg.process(val))
+            results_2.append(result)
+        self.assertEqual(results_2, expected_2)
+
     def test_filter_outliers(self):
         datum = {"num_bridges": 446, "num_super_bowls": 6}
         outliers_conv = [("num_bridges", 1, 445), ("num_super_bowls", 6, 9999)]

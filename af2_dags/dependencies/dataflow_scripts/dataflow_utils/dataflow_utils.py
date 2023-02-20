@@ -442,7 +442,7 @@ class GoogleMapsGeocodeAddress(beam.DoFn, ABC):
 
         datum[formatted_name] = None
 
-        if datum['address_type'] not in ['Missing', 'Coordinates Only']:
+        if datum['address_type'] != 'Missing':
             datum = regularize_and_geocode_address(datum, self, formatted_name, self.del_org_input)
         if self.del_org_input:
             datum.pop(self.address_field)
@@ -836,7 +836,9 @@ def regularize_and_geocode_address(datum, self, f_name, del_org_input):
     """
     base_url = "https://maps.googleapis.com/maps/api/geocode/json"
 
-    if 'none' in datum[self.address_field].lower() or not datum[self.address_field]:
+    if not datum[self.address_field]:
+        address = 'Pittsburgh, PA, USA'
+    elif 'none' in datum[self.address_field].lower():
         address = 'Pittsburgh, PA, USA'
     else:
         address = datum[self.address_field]
@@ -848,43 +850,44 @@ def regularize_and_geocode_address(datum, self, f_name, del_org_input):
     max_delay = 10
     attempt_ct = 1
 
-    # run until results are retrieved from API or exponential backoff reaches limit
-    while curr_delay <= max_delay:
-        res = requests.get(f"{base_url}?address={address}&key={self.api_key}")
+    if datum['address_type'] != 'Coordinates Only':
+        # run until results are retrieved from API or exponential backoff reaches limit
+        while curr_delay <= max_delay:
+            res = requests.get(f"{base_url}?address={address}&key={self.api_key}")
 
-        # if API returned results
-        if res.json()['results']:
-            results = res.json()['results'][0]
+            # if API returned results
+            if res.json()['results']:
+                results = res.json()['results'][0]
 
-            # if results are not empty
-            if len(results):
-                fmt_address = results['formatted_address']
-                api_coords = results['geometry']['location']
+                # if results are not empty
+                if len(results):
+                    fmt_address = results['formatted_address']
+                    api_coords = results['geometry']['location']
 
-                # if data could be mapped to PGH (if the formatted address is simply the city/state/country then API
-                # could not find a good result
-                if re.search(r'\bPA\b', fmt_address) and fmt_address != 'Pittsburgh, PA, USA':
-                    datum[f_name] = fmt_address
-                    coords['lat'] = str(api_coords.get('lat'))
-                    coords['long'] = str(api_coords.get('lng'))
-                else:
-                    datum['address_type'] = 'Unmappable'
+                    # if data could be mapped to PGH (if the formatted address is simply the city/state/country then API
+                    # could not find a good result
+                    if re.search(r'\bPA\b', fmt_address) and fmt_address != 'Pittsburgh, PA, USA':
+                        datum[f_name] = fmt_address
+                        coords['lat'] = str(api_coords.get('lat'))
+                        coords['long'] = str(api_coords.get('lng'))
+                    else:
+                        datum['address_type'] = 'Unmappable'
 
-                # break here (irrespective of output) because the API returned a result
-                break
+                    # break here (irrespective of output) because the API returned a result
+                    break
 
-        # elif not res.json()['results'] and curr_delay < max_delay:
-        else:
-            time.sleep(curr_delay)
-            curr_delay *= 2
+            # elif not res.json()['results'] and curr_delay < max_delay:
+            else:
+                time.sleep(curr_delay)
+                curr_delay *= 2
 
-            # all other conditions trigger break and are noted in data
-            if curr_delay > max_delay:
-                datum[f_name] = f"API not accessible after {attempt_ct} attempts"
-                break
+                # all other conditions trigger break and are noted in data
+                if curr_delay > max_delay:
+                    datum[f_name] = f"API not accessible after {attempt_ct} attempts"
+                    break
 
-            # increment count for reporting
-            attempt_ct += 1
+                # increment count for reporting
+                attempt_ct += 1
 
     # update the lat/long (potentially overwriting the input, depending on what was passed in)
     google_lat_field = self.lat_field
