@@ -377,12 +377,14 @@ WHERE alr.group_id = tu.id;
 UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
 SET alr.request_type_name = tu.request_type_name
 FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_update` tu
-WHERE alr.group_id = tu.id;
+WHERE alr.group_id = tu.id
+AND alr.request_type_name != tu.request_type_name;
 
 UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
 SET alr.request_type_id = tu.request_type_id
 FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_update` tu
-WHERE alr.group_id = tu.id;
+WHERE alr.group_id = tu.id
+AND alr.request_type_id != tu.request_type_id;
 
 UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
 SET alr.closed_date_est = tu.closed_date_est
