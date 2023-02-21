@@ -38,9 +38,9 @@ payload = {'key': os.environ['QALERT_KEY'], 'since': run_start_win}
 data_retrieved = False
 while data_retrieved is False:
     # API call to get data
+    curr_run = datetime.now(tz = pendulum.timezone('UTC')).strftime("%Y-%m-%d %H:%M:%S")
     response = requests.get('https://pittsburghpa.qscend.com/qalert/api/v1/requests/changes', params = payload,
                             headers = headers)
-    curr_run = datetime.now(tz = pendulum.timezone('UTC')).strftime("%Y-%m-%d %H:%M:%S")
 
     # convert the utf-8 encoded string to json
     full_requests = response.json()['request']
