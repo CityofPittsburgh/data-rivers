@@ -25,7 +25,7 @@ COLS_IN_ORDER = """id, name, average_daily_traffic, notes, owner, maintenance_re
 dag = DAG(
     'cartegraph_bridges',
     default_args=default_args,
-    schedule_interval="@monthly",
+    schedule_interval="@daily",
     start_date=datetime(2022, 11, 1),
     user_defined_filters={'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year,
                           'get_ds_day': get_ds_day}
