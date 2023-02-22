@@ -33,7 +33,7 @@ pii_google_formatted_address, anon_google_formatted_address, address_type, neigh
 council_district, ward, police_zone, fire_zone, dpw_streets, dpw_enviro, dpw_parks, google_pii_lat, google_pii_long, 
 google_anon_lat, google_anon_long, input_pii_lat, input_pii_long, input_anon_lat, input_anon_long"""
 
-EXCLUDE_TYPES = """'Hold - 311', 'Graffiti, Owner Refused DPW Removal', 'Medical Exemption - Tote', 
+PRIVATE_TYPES = """'Hold - 311', 'Graffiti, Owner Refused DPW Removal', 'Medical Exemption - Tote', 
 'Snow Angel Volunteer', 'Claim form (Law)','Snow Angel Intake', 'Application Request', 'Reject to 311', 'Referral', 
 'Question'"""
 
@@ -179,7 +179,6 @@ FROM
     `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_enriched`
 WHERE id NOT IN (SELECT id FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`)
 AND child_ticket = False
-AND request_type_name NOT IN ({EXCLUDE_TYPES})
 );
 """
 insert_new_parent = BigQueryOperator(
@@ -254,7 +253,6 @@ CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.temp_child_combin
         `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_enriched` new_c
     WHERE new_c.id NOT IN (SELECT id FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`)
     AND new_c.child_ticket = TRUE
-    AND new_c.request_type_name NOT IN ({EXCLUDE_TYPES})
     ),
 
     -- children above plus the children of false parent tickets
@@ -354,12 +352,11 @@ SELECT
     IF (status_name = "closed", TRUE, FALSE) AS p_closed,
     closed_date_est, closed_date_utc,closed_date_unix,
     last_action_est, last_action_utc,last_action_unix,
-    status_name, status_code
+    status_name, status_code, request_type_name, request_type_id
 FROM  `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_enriched`
 
 WHERE id IN (SELECT id FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`)
 AND child_ticket = FALSE
-AND request_type_name NOT IN ({EXCLUDE_TYPES})
 );
 
 UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
@@ -374,6 +371,16 @@ WHERE alr.group_id = tu.id;
 
 UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
 SET alr.status_code = tu.status_code
+FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_update` tu
+WHERE alr.group_id = tu.id;
+
+UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
+SET alr.request_type_name = tu.request_type_name
+FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_update` tu
+WHERE alr.group_id = tu.id;
+
+UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
+SET alr.request_type_id = tu.request_type_id
 FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_update` tu
 WHERE alr.group_id = tu.id;
 
@@ -458,6 +465,8 @@ SELECT
     {SAFE_FIELDS}
 FROM
     `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests`
+WHERE 
+    request_type_name NOT IN ({PRIVATE_TYPES})
 """
 drop_pii_for_export = BigQueryOperator(
         task_id = 'drop_pii_for_export',

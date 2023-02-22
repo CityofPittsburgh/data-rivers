@@ -123,6 +123,7 @@ def build_dashburgh_street_tix_query(dataset, raw_table, new_table, is_deduped, 
     """
     return sql
 
+
 def build_dedup_old_updates(dataset, table, id_field, last_upd_field):
     sql = F"""
     CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.{dataset}.{table}` AS
@@ -136,6 +137,18 @@ def build_dedup_old_updates(dataset, table, id_field, last_upd_field):
     WHERE rn = 1;
     """
     return sql
+
+
+def build_insert_new_records_query(dataset, incoming_table, master_table, id_field, cols):
+    sql = F"""
+    INSERT INTO `{os.environ['GCLOUD_PROJECT']}.{dataset}.{master_table}`
+    (
+        SELECT {cols} FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{incoming_table}`
+        WHERE {id_field} NOT IN (SELECT {id_field} FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{master_table}`)
+    )
+    """
+    return sql
+
 
 # TODO: phase out the usage of build_revgeo_query() in favor of build_rev_geo_time_bound_query()
 def build_revgeo_time_bound_query(dataset, raw_table, new_table, create_date, id_col, lat_field, long_field):
