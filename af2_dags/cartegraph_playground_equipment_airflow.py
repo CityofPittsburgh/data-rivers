@@ -27,6 +27,7 @@ dag = DAG(
                           'get_ds_day': get_ds_day}
 )
 
+
 # initialize gcs locations
 bucket = f"gs://{os.environ['GCS_PREFIX']}_cartegraph"
 dataset = "playground_equipment"
@@ -41,12 +42,14 @@ cartegraph_gcs = BashOperator(
     dag=dag
 )
 
+
 cartegraph_dataflow = BashOperator(
     task_id='cartegraph_dataflow',
     bash_command=f"python {os.environ['DATAFLOW_SCRIPT_PATH']}/cartegraph_playground_equipment_dataflow.py "
                  f"--input {bucket}/{json_loc} --avro_output {bucket}/{avro_loc}",
     dag=dag
 )
+
 
 cartegraph_bq_load = GoogleCloudStorageToBigQueryOperator(
     task_id='cartegraph_bq_load',
@@ -60,6 +63,7 @@ cartegraph_bq_load = GoogleCloudStorageToBigQueryOperator(
     bigquery_conn_id='google_cloud_default',
     dag=dag
 )
+
 
 query_format_table = f"""
 CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.cartegraph.playground_equipment` AS

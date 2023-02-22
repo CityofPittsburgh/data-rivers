@@ -20,7 +20,7 @@ dag = DAG(
     'prev_day_weather',
     default_args=default_args,
     start_date=pendulum.datetime(2022, 9, 23, 0, 1, tz=pytz.timezone('US/Eastern')),
-    schedule_interval='0 0 * * *',
+    schedule_interval='@daily',
     user_defined_filters={'get_prev_ds_month': get_prev_ds_month, 'get_prev_ds_year': get_prev_ds_year}
 )
 
