@@ -35,6 +35,7 @@ PRIVATE_TYPES = """'Hold - 311', 'Graffiti, Owner Refused DPW Removal', 'Medical
 # STEPS TO TAKE BEFORE EXECUTING DAG:
 # 1.) Make backups of all_linked_requests and all_tickets_current_status in case something goes wrong
 # 2.) Make note of total ticket count present in Qscend application and compare it to the results of this backfill
+# 3.) Create request_type_backfill/successful_run_log subdirectories within backfill directory in qalert GCS bucket
 
 # This DAG schedule interval set to None because it will only ever be triggered manually
 dag = DAG(
@@ -55,7 +56,7 @@ gcs_loader = BashOperator(
 )
 
 # Run dataflow_script
-py_cmd = f"python {os.environ['DAGS_PATH']}/dependencies/dataflow_scripts/qalert_request_type_backfill_dataflow.py"
+py_cmd = f"python {os.environ['DAGS_PATH']}/dependencies/dataflow_scripts/qalert_requests_dataflow.py"
 in_cmd = \
     f" --input gs://{os.environ['GCS_PREFIX']}_qalert/requests/backfill/request_type_backfill/{path}/backfilled_req_type_requests.json"
 out_cmd = f" --avro_output gs://{os.environ['GCS_PREFIX']}_qalert/requests/backfill/request_type_backfill/{path}/avro_output/"
@@ -70,7 +71,7 @@ dataflow = BashOperator(
 gcs_to_bq = GoogleCloudStorageToBigQueryOperator(
     task_id='gcs_to_bq',
     bigquery_conn_id='google_cloud_default',
-    destination_project_dataset_table=f"{os.environ['GCLOUD_PROJECT']}:qalert.temp_backfill",
+    destination_project_dataset_table=f"{os.environ['GCLOUD_PROJECT']}:scratch.temp_backfill",
     bucket=f"{os.environ['GCS_PREFIX']}_qalert",
     source_objects=[f"requests/backfill/request_type_backfill/{path}/avro_output/*.avro"],
     write_disposition='WRITE_TRUNCATE',
@@ -81,7 +82,7 @@ gcs_to_bq = GoogleCloudStorageToBigQueryOperator(
 )
 
 query_format_dedupe = f"""
-CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.temp_backfill` AS
+CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.scratch.temp_backfill` AS
 WITH formatted  AS 
     (
     SELECT 
@@ -96,7 +97,7 @@ WITH formatted  AS
         CAST(google_anon_lat AS FLOAT64) AS google_anon_lat,
         CAST(google_anon_long AS FLOAT64) AS google_anon_long,
     FROM 
-        {os.environ['GCLOUD_PROJECT']}.qalert.temp_backfill
+        {os.environ['GCLOUD_PROJECT']}.scratch.temp_backfill
     )
 -- drop the final column through slicing the string. final column is added in next query     
 SELECT 
@@ -117,8 +118,8 @@ format_dedupe = BigQueryOperator(
 # The idea is that these records are most likely to be joined into the production table, so they are the
 # ones that would be most beneficial to have accurate address info.
 query_create_subset = f"""
-CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.temp_backfill_subset` AS
-SELECT * FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_backfill`
+CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.scratch.temp_backfill_subset` AS
+SELECT * FROM `{os.environ['GCLOUD_PROJECT']}.scratch.temp_backfill`
 WHERE address_type = 'Coordinates Only'
 OR request_type_name IN ({PRIVATE_TYPES})
 """
@@ -160,7 +161,7 @@ existing parent and it will change into a child ticket. This means the original 
 ticket. Future steps in the DAG will handle that possibility, and for this query the only feasible option is to assume
 the ticket is correctly labeled.*/
 
-INSERT INTO `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests`
+INSERT INTO `{os.environ['GCLOUD_PROJECT']}.scratch.all_linked_requests`
 (
 SELECT
     id as group_id,
@@ -170,8 +171,8 @@ SELECT
     {LINKED_COLS_IN_ORDER}
 
 FROM
-    `{os.environ['GCLOUD_PROJECT']}.qalert.temp_backfill`
-WHERE id NOT IN (SELECT id FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`)
+    `{os.environ['GCLOUD_PROJECT']}.scratch.temp_backfill`
+WHERE id NOT IN (SELECT id FROM `{os.environ['GCLOUD_PROJECT']}.scratch.all_tickets_current_status`)
 AND child_ticket = False
 );
 """
@@ -197,19 +198,19 @@ along with the other child tickets
 */
 
 -- extract the newly identified child's information for integration in the next query
-CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.backfill_temp_prev_parent_now_child` AS
+CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.scratch.backfill_temp_prev_parent_now_child` AS
 SELECT 
     id AS fp_id, parent_ticket_id, anon_comments, pii_private_notes
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_backfill`
+FROM `{os.environ['GCLOUD_PROJECT']}.scratch.temp_backfill`
 WHERE id IN (SELECT 
                 group_id
-             FROM`{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests`)
+             FROM`{os.environ['GCLOUD_PROJECT']}.scratch.all_linked_requests`)
 AND child_ticket = TRUE ;
 
 -- delete the false parent ticket's information 
-DELETE FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests`
+DELETE FROM `{os.environ['GCLOUD_PROJECT']}.scratch.all_linked_requests`
 WHERE group_id IN 
-        (SELECT fp_id FROM `{os.environ['GCLOUD_PROJECT']}.qalert.backfill_temp_prev_parent_now_child`);
+        (SELECT fp_id FROM `{os.environ['GCLOUD_PROJECT']}.scratch.backfill_temp_prev_parent_now_child`);
 """
 remove_false_parents = BigQueryOperator(
     task_id='remove_false_parents',
@@ -236,7 +237,7 @@ the other newly identified children (those which were never associated with a fa
 Thus, the need to combine ALL OF THE CHILD TICKETS (both those associated with a false parent and those never being
 misrepresented) is handled by this query
 */
-CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.backfill_temp_child_combined` AS
+CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.scratch.backfill_temp_child_combined` AS
 (
     -- children never seen before and without a false parent
     WITH new_children AS
@@ -244,8 +245,8 @@ CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.backfill_temp_chi
     SELECT
         id, parent_ticket_id, anon_comments, pii_private_notes
     FROM
-        `{os.environ['GCLOUD_PROJECT']}.qalert.temp_backfill` new_c
-    WHERE new_c.id NOT IN (SELECT id FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`)
+        `{os.environ['GCLOUD_PROJECT']}.scratch.temp_backfill` new_c
+    WHERE new_c.id NOT IN (SELECT id FROM `{os.environ['GCLOUD_PROJECT']}.scratch.all_tickets_current_status`)
     AND new_c.child_ticket = TRUE
     ),
 
@@ -258,7 +259,7 @@ CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.backfill_temp_chi
     UNION ALL
 
     SELECT fp_id AS id, parent_ticket_id, anon_comments, pii_private_notes
-    FROM `{os.environ['GCLOUD_PROJECT']}.qalert.backfill_temp_prev_parent_now_child`
+    FROM `{os.environ['GCLOUD_PROJECT']}.scratch.backfill_temp_prev_parent_now_child`
     ),
 
     -- from ALL children tickets, concatenate the necessary string data
@@ -293,24 +294,24 @@ CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.backfill_temp_chi
 );
 
 -- update existing entries inside all_linked_requests
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
+UPDATE `{os.environ['GCLOUD_PROJECT']}.scratch.all_linked_requests` alr
 SET alr.num_requests = tcc.cts + alr.num_requests
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.backfill_temp_child_combined` tcc
+FROM `{os.environ['GCLOUD_PROJECT']}.scratch.backfill_temp_child_combined` tcc
 WHERE alr.group_id = tcc.p_id;
 
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
+UPDATE `{os.environ['GCLOUD_PROJECT']}.scratch.all_linked_requests` alr
 SET alr.child_ids =  CONCAT(alr.child_ids,tcc.child_ids)
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.backfill_temp_child_combined` tcc
+FROM `{os.environ['GCLOUD_PROJECT']}.scratch.backfill_temp_child_combined` tcc
 WHERE alr.group_id = tcc.p_id;
 
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
+UPDATE `{os.environ['GCLOUD_PROJECT']}.scratch.all_linked_requests` alr
 SET alr.anon_comments =  CONCAT(alr.anon_comments,tcc.child_anon_comments)
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.backfill_temp_child_combined` tcc
+FROM `{os.environ['GCLOUD_PROJECT']}.scratch.backfill_temp_child_combined` tcc
 WHERE alr.group_id = tcc.p_id;
 
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
+UPDATE `{os.environ['GCLOUD_PROJECT']}.scratch.all_linked_requests` alr
 SET alr.pii_private_notes =  CONCAT(alr.pii_private_notes,tcc.child_pii_notes)
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.backfill_temp_child_combined` tcc
+FROM `{os.environ['GCLOUD_PROJECT']}.scratch.backfill_temp_child_combined` tcc
 WHERE alr.group_id = tcc.p_id;
 """
 integrate_children = BigQueryOperator(
@@ -339,7 +340,7 @@ changes to the child ticket. This query selects parent tickets which have been p
 simply extracts and updates the status timestamp data from those tickets. This data is then updated in
 all_linked_requests.
 */
-CREATE OR REPLACE TABLE  `{os.environ['GCLOUD_PROJECT']}.qalert.backfill_temp_update` AS
+CREATE OR REPLACE TABLE  `{os.environ['GCLOUD_PROJECT']}.scratch.backfill_temp_update` AS
 (
 SELECT
     id,
@@ -350,145 +351,145 @@ SELECT
     input_pii_lat, input_pii_long, input_anon_lat, input_anon_long,
     address_type, neighborhood_name, council_district, ward, police_zone, 
     fire_zone, dpw_streets, dpw_enviro, dpw_parks
-FROM  `{os.environ['GCLOUD_PROJECT']}.qalert.temp_backfill`
+FROM  `{os.environ['GCLOUD_PROJECT']}.scratch.temp_backfill`
 
-WHERE id IN (SELECT id FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`)
+WHERE id IN (SELECT id FROM `{os.environ['GCLOUD_PROJECT']}.scratch.all_tickets_current_status`)
 AND child_ticket = FALSE
 );
 
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
+UPDATE `{os.environ['GCLOUD_PROJECT']}.scratch.all_linked_requests` alr
 SET alr.parent_closed = tu.p_closed
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.backfill_temp_update` tu
+FROM `{os.environ['GCLOUD_PROJECT']}.scratch.backfill_temp_update` tu
 WHERE alr.group_id = tu.id;
 
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
+UPDATE `{os.environ['GCLOUD_PROJECT']}.scratch.all_linked_requests` alr
 SET alr.status_name = tu.status_name
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.backfill_temp_update` tu
+FROM `{os.environ['GCLOUD_PROJECT']}.scratch.backfill_temp_update` tu
 WHERE alr.group_id = tu.id;
 
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
+UPDATE `{os.environ['GCLOUD_PROJECT']}.scratch.all_linked_requests` alr
 SET alr.status_code = tu.status_code
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.backfill_temp_update` tu
+FROM `{os.environ['GCLOUD_PROJECT']}.scratch.backfill_temp_update` tu
 WHERE alr.group_id = tu.id;
 
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
+UPDATE `{os.environ['GCLOUD_PROJECT']}.scratch.all_linked_requests` alr
 SET alr.request_type_name = tu.request_type_name
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.backfill_temp_update` tu
+FROM `{os.environ['GCLOUD_PROJECT']}.scratch.backfill_temp_update` tu
 WHERE alr.group_id = tu.id
 AND alr.request_type_name != tu.request_type_name;
 
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
+UPDATE `{os.environ['GCLOUD_PROJECT']}.scratch.all_linked_requests` alr
 SET alr.request_type_id = tu.request_type_id
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.backfill_temp_update` tu
+FROM `{os.environ['GCLOUD_PROJECT']}.scratch.backfill_temp_update` tu
 WHERE alr.group_id = tu.id
 AND alr.request_type_id != tu.request_type_id;
 
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
+UPDATE `{os.environ['GCLOUD_PROJECT']}.scratch.all_linked_requests` alr
 SET alr.input_pii_lat = tu.input_pii_lat
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.backfill_temp_update` tu
+FROM `{os.environ['GCLOUD_PROJECT']}.scratch.backfill_temp_update` tu
 WHERE alr.group_id = tu.id
 AND alr.input_pii_lat != tu.input_pii_lat;
 
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
+UPDATE `{os.environ['GCLOUD_PROJECT']}.scratch.all_linked_requests` alr
 SET alr.input_pii_long = tu.input_pii_long
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.backfill_temp_update` tu
+FROM `{os.environ['GCLOUD_PROJECT']}.scratch.backfill_temp_update` tu
 WHERE alr.group_id = tu.id
 AND alr.input_pii_long != tu.input_pii_long;
 
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
+UPDATE `{os.environ['GCLOUD_PROJECT']}.scratch.all_linked_requests` alr
 SET alr.input_anon_lat = tu.input_anon_lat
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.backfill_temp_update` tu
+FROM `{os.environ['GCLOUD_PROJECT']}.scratch.backfill_temp_update` tu
 WHERE alr.group_id = tu.id
 AND alr.input_anon_lat != tu.input_anon_lat;
 
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
+UPDATE `{os.environ['GCLOUD_PROJECT']}.scratch.all_linked_requests` alr
 SET alr.input_anon_long = tu.input_anon_long
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.backfill_temp_update` tu
+FROM `{os.environ['GCLOUD_PROJECT']}.scratch.backfill_temp_update` tu
 WHERE alr.group_id = tu.id
 AND alr.input_anon_long != tu.input_anon_long;
 
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
+UPDATE `{os.environ['GCLOUD_PROJECT']}.scratch.all_linked_requests` alr
 SET alr.address_type = tu.address_type
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.backfill_temp_update` tu
+FROM `{os.environ['GCLOUD_PROJECT']}.scratch.backfill_temp_update` tu
 WHERE alr.group_id = tu.id
 AND alr.address_type != tu.address_type;
 
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
+UPDATE `{os.environ['GCLOUD_PROJECT']}.scratch.all_linked_requests` alr
 SET alr.neighborhood_name = tu.neighborhood_name
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.backfill_temp_update` tu
+FROM `{os.environ['GCLOUD_PROJECT']}.scratch.backfill_temp_update` tu
 WHERE alr.group_id = tu.id
 AND alr.neighborhood_name != tu.neighborhood_name;
 
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
+UPDATE `{os.environ['GCLOUD_PROJECT']}.scratch.all_linked_requests` alr
 SET alr.council_district = tu.council_district
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.backfill_temp_update` tu
+FROM `{os.environ['GCLOUD_PROJECT']}.scratch.backfill_temp_update` tu
 WHERE alr.group_id = tu.id
 AND alr.council_district != tu.council_district;
 
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
+UPDATE `{os.environ['GCLOUD_PROJECT']}.scratch.all_linked_requests` alr
 SET alr.ward = tu.ward
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.backfill_temp_update` tu
+FROM `{os.environ['GCLOUD_PROJECT']}.scratch.backfill_temp_update` tu
 WHERE alr.group_id = tu.id
 AND alr.ward != tu.ward;
 
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
+UPDATE `{os.environ['GCLOUD_PROJECT']}.scratch.all_linked_requests` alr
 SET alr.police_zone = tu.police_zone
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.backfill_temp_update` tu
+FROM `{os.environ['GCLOUD_PROJECT']}.scratch.backfill_temp_update` tu
 WHERE alr.group_id = tu.id
 AND alr.police_zone != tu.police_zone;
 
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
+UPDATE `{os.environ['GCLOUD_PROJECT']}.scratch.all_linked_requests` alr
 SET alr.fire_zone = tu.fire_zone
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.backfill_temp_update` tu
+FROM `{os.environ['GCLOUD_PROJECT']}.scratch.backfill_temp_update` tu
 WHERE alr.group_id = tu.id
 AND alr.fire_zone != tu.fire_zone;
 
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
+UPDATE `{os.environ['GCLOUD_PROJECT']}.scratch.all_linked_requests` alr
 SET alr.dpw_streets = tu.dpw_streets
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.backfill_temp_update` tu
+FROM `{os.environ['GCLOUD_PROJECT']}.scratch.backfill_temp_update` tu
 WHERE alr.group_id = tu.id
 AND alr.dpw_streets != tu.dpw_streets;
 
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
+UPDATE `{os.environ['GCLOUD_PROJECT']}.scratch.all_linked_requests` alr
 SET alr.dpw_enviro = tu.dpw_enviro
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.backfill_temp_update` tu
+FROM `{os.environ['GCLOUD_PROJECT']}.scratch.backfill_temp_update` tu
 WHERE alr.group_id = tu.id
 AND alr.dpw_enviro != tu.dpw_enviro;
 
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
+UPDATE `{os.environ['GCLOUD_PROJECT']}.scratch.all_linked_requests` alr
 SET alr.dpw_parks = tu.dpw_parks
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.backfill_temp_update` tu
+FROM `{os.environ['GCLOUD_PROJECT']}.scratch.backfill_temp_update` tu
 WHERE alr.group_id = tu.id
 AND alr.dpw_parks != tu.dpw_parks;
 
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
+UPDATE `{os.environ['GCLOUD_PROJECT']}.scratch.all_linked_requests` alr
 SET alr.closed_date_est = tu.closed_date_est
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.backfill_temp_update` tu
+FROM `{os.environ['GCLOUD_PROJECT']}.scratch.backfill_temp_update` tu
 WHERE alr.group_id = tu.id;
 
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
+UPDATE `{os.environ['GCLOUD_PROJECT']}.scratch.all_linked_requests` alr
 SET alr.closed_date_utc = tu.closed_date_utc
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.backfill_temp_update` tu
+FROM `{os.environ['GCLOUD_PROJECT']}.scratch.backfill_temp_update` tu
 WHERE alr.group_id = tu.id;
 
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
+UPDATE `{os.environ['GCLOUD_PROJECT']}.scratch.all_linked_requests` alr
 SET alr.closed_date_unix = tu.closed_date_unix
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.backfill_temp_update` tu
+FROM `{os.environ['GCLOUD_PROJECT']}.scratch.backfill_temp_update` tu
 WHERE alr.group_id = tu.id;
 
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
+UPDATE `{os.environ['GCLOUD_PROJECT']}.scratch.all_linked_requests` alr
 SET alr.last_action_est = tu.last_action_est
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.backfill_temp_update` tu
+FROM `{os.environ['GCLOUD_PROJECT']}.scratch.backfill_temp_update` tu
 WHERE alr.group_id = tu.id;
 
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
+UPDATE `{os.environ['GCLOUD_PROJECT']}.scratch.all_linked_requests` alr
 SET alr.last_action_utc = tu.last_action_utc
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.backfill_temp_update` tu
+FROM `{os.environ['GCLOUD_PROJECT']}.scratch.backfill_temp_update` tu
 WHERE alr.group_id = tu.id;
 
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
+UPDATE `{os.environ['GCLOUD_PROJECT']}.scratch.all_linked_requests` alr
 SET alr.last_action_unix = tu.last_action_unix
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.backfill_temp_update` tu
+FROM `{os.environ['GCLOUD_PROJECT']}.scratch.backfill_temp_update` tu
 WHERE alr.group_id = tu.id;
 """
 replace_last_update = BigQueryOperator(
@@ -514,12 +515,12 @@ all_tickets_current_status is currently (01/22) maintained for historical purpos
 analysis as the linkages between tickets are not taken into account.
 */
 
-DELETE FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`
-WHERE id IN (SELECT id FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_backfill`);
-INSERT INTO `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`
+DELETE FROM `{os.environ['GCLOUD_PROJECT']}.scratch.all_tickets_current_status`
+WHERE id IN (SELECT id FROM `{os.environ['GCLOUD_PROJECT']}.scratch.temp_backfill`);
+INSERT INTO `{os.environ['GCLOUD_PROJECT']}.scratch.all_tickets_current_status`
 SELECT 
     {COLS_IN_ORDER}
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_backfill`;
+FROM `{os.environ['GCLOUD_PROJECT']}.scratch.temp_backfill`;
 """
 delete_old_insert_new_records = BigQueryOperator(
     task_id='delete_old_insert_new_records',
