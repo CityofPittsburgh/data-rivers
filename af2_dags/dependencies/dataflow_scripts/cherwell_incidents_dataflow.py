@@ -8,7 +8,7 @@ from apache_beam.io import ReadFromText
 from apache_beam.io.avroio import WriteToAvro
 
 from dataflow_utils import dataflow_utils
-from dataflow_utils.dataflow_utils import JsonCoder, generate_args, ExtractFieldWithComplexity
+from dataflow_utils.dataflow_utils import JsonCoder, generate_args, ExtractFieldWithComplexity, StandardizeTimes
 
 DEFAULT_DATAFLOW_ARGS = [
     '--save_main_session',
@@ -54,6 +54,9 @@ def run(argv=None):
                          {'name': 'Stat_NumberOfEscalations'}, {'name': 'RequesterDepartment'}, {'name': 'Requester'},
                          {'name': 'OnBehalfOf'}, {'name': 'InitialAssignedTeam'}]
         add_search_vals = [''] * FIELD_COUNT
+        times = [('created_date', 'EST'), ('last_modified_date', 'EST'), ('closed_date', 'EST'),
+                 ('responded_date', 'EST'), ('resolved_date', 'EST'),
+                 ('respond_by_deadline', 'EST'), ('resolve_by_deadline', 'EST')]
 
         lines = p | ReadFromText(known_args.input, coder=JsonCoder())
 
@@ -61,6 +64,7 @@ def run(argv=None):
                 lines
                 | beam.ParDo(ExtractFieldWithComplexity(source_fields, nested_fields, new_field_names,
                                                         add_nested_fields, search_fields, add_search_vals))
+                | beam.ParDo(StandardizeTimes(times, "%m/%d/%Y %I:%M:%S %p"))
                 | WriteToAvro(known_args.avro_output, schema=avro_schema, file_name_suffix='.avro',
                               use_fastavro=True)
         )
