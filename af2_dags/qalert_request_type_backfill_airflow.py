@@ -10,7 +10,7 @@ from airflow.contrib.operators.bigquery_to_gcs import BigQueryToCloudStorageOper
 
 from dependencies import airflow_utils
 from dependencies.airflow_utils import get_ds_year, get_ds_month, get_ds_day, default_args, build_city_limits_query, \
-    build_sync_update_query, build_insert_new_records_query
+    build_sync_update_query, build_revgeo_time_bound_query, build_dedup_old_updates
 
 COLS_IN_ORDER = """id, parent_ticket_id, child_ticket, dept, status_name, status_code, request_type_name, 
 request_type_id, origin, pii_comments, anon_comments, pii_private_notes, create_date_est, create_date_utc, 
@@ -81,7 +81,7 @@ gcs_to_bq = GoogleCloudStorageToBigQueryOperator(
     dag=dag
 )
 
-query_format_dedupe = f"""
+query_format_table = f"""
 CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.scratch.temp_backfill` AS
 WITH formatted  AS 
     (
@@ -105,9 +105,9 @@ SELECT
 FROM 
     formatted
 """
-format_dedupe = BigQueryOperator(
-    task_id='format_dedupe',
-    sql=query_format_dedupe,
+format_table = BigQueryOperator(
+    task_id='format_table',
+    sql=query_format_table,
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
@@ -141,11 +141,39 @@ city_limits = BigQueryOperator(
     dag=dag
 )
 
+dedup_src_query = build_dedup_old_updates('scratch', 'temp_backfill', 'id', 'last_action_unix')
+dedup_src_table = BigQueryOperator(
+    task_id='dedup_src_table',
+    sql=dedup_src_query,
+    bigquery_conn_id='google_cloud_default',
+    use_legacy_sql=False,
+    dag=dag
+)
+
+dedup_sub_query = build_dedup_old_updates('scratch', 'temp_backfill_subset', 'id', 'last_action_unix')
+dedup_sub_table = BigQueryOperator(
+    task_id='dedup_sub_table',
+    sql=dedup_sub_query,
+    bigquery_conn_id='google_cloud_default',
+    use_legacy_sql=False,
+    dag=dag
+)
+
 upd_fields = ['address_type']
 query_sync_update = build_sync_update_query('scratch', 'temp_backfill', 'temp_backfill_subset', 'id', upd_fields)
 update_address_types = BigQueryOperator(
     task_id='update_address_types',
     sql=query_sync_update,
+    bigquery_conn_id='google_cloud_default',
+    use_legacy_sql=False,
+    dag=dag
+)
+
+query_geo_join = build_revgeo_time_bound_query('scratch', 'temp_backfill', 'backfill_enriched',
+                                               'create_date_utc', 'id', 'input_pii_lat', 'input_pii_long')
+geojoin = BigQueryOperator(
+    task_id='geojoin',
+    sql=query_geo_join,
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
@@ -171,7 +199,7 @@ SELECT
     {LINKED_COLS_IN_ORDER}
 
 FROM
-    `{os.environ['GCLOUD_PROJECT']}.scratch.temp_backfill`
+    `{os.environ['GCLOUD_PROJECT']}.scratch.backfill_enriched`
 WHERE id NOT IN (SELECT id FROM `{os.environ['GCLOUD_PROJECT']}.scratch.all_tickets_current_status`)
 AND child_ticket = False
 );
@@ -201,7 +229,7 @@ along with the other child tickets
 CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.scratch.backfill_temp_prev_parent_now_child` AS
 SELECT 
     id AS fp_id, parent_ticket_id, anon_comments, pii_private_notes
-FROM `{os.environ['GCLOUD_PROJECT']}.scratch.temp_backfill`
+FROM `{os.environ['GCLOUD_PROJECT']}.scratch.backfill_enriched`
 WHERE id IN (SELECT 
                 group_id
              FROM`{os.environ['GCLOUD_PROJECT']}.scratch.all_linked_requests`)
@@ -245,7 +273,7 @@ CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.scratch.backfill_temp_ch
     SELECT
         id, parent_ticket_id, anon_comments, pii_private_notes
     FROM
-        `{os.environ['GCLOUD_PROJECT']}.scratch.temp_backfill` new_c
+        `{os.environ['GCLOUD_PROJECT']}.scratch.backfill_enriched` new_c
     WHERE new_c.id NOT IN (SELECT id FROM `{os.environ['GCLOUD_PROJECT']}.scratch.all_tickets_current_status`)
     AND new_c.child_ticket = TRUE
     ),
@@ -351,7 +379,7 @@ SELECT
     input_pii_lat, input_pii_long, input_anon_lat, input_anon_long,
     address_type, neighborhood_name, council_district, ward, police_zone, 
     fire_zone, dpw_streets, dpw_enviro, dpw_parks
-FROM  `{os.environ['GCLOUD_PROJECT']}.scratch.temp_backfill`
+FROM  `{os.environ['GCLOUD_PROJECT']}.scratch.backfill_enriched`
 
 WHERE id IN (SELECT id FROM `{os.environ['GCLOUD_PROJECT']}.scratch.all_tickets_current_status`)
 AND child_ticket = FALSE
@@ -375,92 +403,77 @@ WHERE alr.group_id = tu.id;
 UPDATE `{os.environ['GCLOUD_PROJECT']}.scratch.all_linked_requests` alr
 SET alr.request_type_name = tu.request_type_name
 FROM `{os.environ['GCLOUD_PROJECT']}.scratch.backfill_temp_update` tu
-WHERE alr.group_id = tu.id
-AND alr.request_type_name != tu.request_type_name;
+WHERE alr.group_id = tu.id;
 
 UPDATE `{os.environ['GCLOUD_PROJECT']}.scratch.all_linked_requests` alr
 SET alr.request_type_id = tu.request_type_id
 FROM `{os.environ['GCLOUD_PROJECT']}.scratch.backfill_temp_update` tu
-WHERE alr.group_id = tu.id
-AND alr.request_type_id != tu.request_type_id;
+WHERE alr.group_id = tu.id;
 
 UPDATE `{os.environ['GCLOUD_PROJECT']}.scratch.all_linked_requests` alr
 SET alr.input_pii_lat = tu.input_pii_lat
 FROM `{os.environ['GCLOUD_PROJECT']}.scratch.backfill_temp_update` tu
-WHERE alr.group_id = tu.id
-AND alr.input_pii_lat != tu.input_pii_lat;
+WHERE alr.group_id = tu.id;
 
 UPDATE `{os.environ['GCLOUD_PROJECT']}.scratch.all_linked_requests` alr
 SET alr.input_pii_long = tu.input_pii_long
 FROM `{os.environ['GCLOUD_PROJECT']}.scratch.backfill_temp_update` tu
-WHERE alr.group_id = tu.id
-AND alr.input_pii_long != tu.input_pii_long;
+WHERE alr.group_id = tu.id;
 
 UPDATE `{os.environ['GCLOUD_PROJECT']}.scratch.all_linked_requests` alr
 SET alr.input_anon_lat = tu.input_anon_lat
 FROM `{os.environ['GCLOUD_PROJECT']}.scratch.backfill_temp_update` tu
-WHERE alr.group_id = tu.id
-AND alr.input_anon_lat != tu.input_anon_lat;
+WHERE alr.group_id = tu.id;
 
 UPDATE `{os.environ['GCLOUD_PROJECT']}.scratch.all_linked_requests` alr
 SET alr.input_anon_long = tu.input_anon_long
 FROM `{os.environ['GCLOUD_PROJECT']}.scratch.backfill_temp_update` tu
-WHERE alr.group_id = tu.id
-AND alr.input_anon_long != tu.input_anon_long;
+WHERE alr.group_id = tu.id;
 
 UPDATE `{os.environ['GCLOUD_PROJECT']}.scratch.all_linked_requests` alr
 SET alr.address_type = tu.address_type
 FROM `{os.environ['GCLOUD_PROJECT']}.scratch.backfill_temp_update` tu
-WHERE alr.group_id = tu.id
-AND alr.address_type != tu.address_type;
+WHERE alr.group_id = tu.id;
 
 UPDATE `{os.environ['GCLOUD_PROJECT']}.scratch.all_linked_requests` alr
 SET alr.neighborhood_name = tu.neighborhood_name
 FROM `{os.environ['GCLOUD_PROJECT']}.scratch.backfill_temp_update` tu
-WHERE alr.group_id = tu.id
-AND alr.neighborhood_name != tu.neighborhood_name;
+WHERE alr.group_id = tu.id;
 
 UPDATE `{os.environ['GCLOUD_PROJECT']}.scratch.all_linked_requests` alr
 SET alr.council_district = tu.council_district
 FROM `{os.environ['GCLOUD_PROJECT']}.scratch.backfill_temp_update` tu
-WHERE alr.group_id = tu.id
-AND alr.council_district != tu.council_district;
+WHERE alr.group_id = tu.id;
 
 UPDATE `{os.environ['GCLOUD_PROJECT']}.scratch.all_linked_requests` alr
 SET alr.ward = tu.ward
 FROM `{os.environ['GCLOUD_PROJECT']}.scratch.backfill_temp_update` tu
-WHERE alr.group_id = tu.id
-AND alr.ward != tu.ward;
+WHERE alr.group_id = tu.id;
 
 UPDATE `{os.environ['GCLOUD_PROJECT']}.scratch.all_linked_requests` alr
 SET alr.police_zone = tu.police_zone
 FROM `{os.environ['GCLOUD_PROJECT']}.scratch.backfill_temp_update` tu
-WHERE alr.group_id = tu.id
-AND alr.police_zone != tu.police_zone;
+WHERE alr.group_id = tu.id;
 
 UPDATE `{os.environ['GCLOUD_PROJECT']}.scratch.all_linked_requests` alr
 SET alr.fire_zone = tu.fire_zone
 FROM `{os.environ['GCLOUD_PROJECT']}.scratch.backfill_temp_update` tu
-WHERE alr.group_id = tu.id
-AND alr.fire_zone != tu.fire_zone;
+WHERE alr.group_id = tu.id;
 
 UPDATE `{os.environ['GCLOUD_PROJECT']}.scratch.all_linked_requests` alr
 SET alr.dpw_streets = tu.dpw_streets
 FROM `{os.environ['GCLOUD_PROJECT']}.scratch.backfill_temp_update` tu
-WHERE alr.group_id = tu.id
-AND alr.dpw_streets != tu.dpw_streets;
+WHERE alr.group_id = tu.id;
 
 UPDATE `{os.environ['GCLOUD_PROJECT']}.scratch.all_linked_requests` alr
 SET alr.dpw_enviro = tu.dpw_enviro
 FROM `{os.environ['GCLOUD_PROJECT']}.scratch.backfill_temp_update` tu
-WHERE alr.group_id = tu.id
-AND alr.dpw_enviro != tu.dpw_enviro;
+WHERE alr.group_id = tu.id;
 
 UPDATE `{os.environ['GCLOUD_PROJECT']}.scratch.all_linked_requests` alr
 SET alr.dpw_parks = tu.dpw_parks
 FROM `{os.environ['GCLOUD_PROJECT']}.scratch.backfill_temp_update` tu
-WHERE alr.group_id = tu.id
-AND alr.dpw_parks != tu.dpw_parks;
+WHERE alr.group_id = tu.id;
 
 UPDATE `{os.environ['GCLOUD_PROJECT']}.scratch.all_linked_requests` alr
 SET alr.closed_date_est = tu.closed_date_est
@@ -516,11 +529,11 @@ analysis as the linkages between tickets are not taken into account.
 */
 
 DELETE FROM `{os.environ['GCLOUD_PROJECT']}.scratch.all_tickets_current_status`
-WHERE id IN (SELECT id FROM `{os.environ['GCLOUD_PROJECT']}.scratch.temp_backfill`);
+WHERE id IN (SELECT id FROM `{os.environ['GCLOUD_PROJECT']}.scratch.backfill_enriched`);
 INSERT INTO `{os.environ['GCLOUD_PROJECT']}.scratch.all_tickets_current_status`
 SELECT 
     {COLS_IN_ORDER}
-FROM `{os.environ['GCLOUD_PROJECT']}.scratch.temp_backfill`;
+FROM `{os.environ['GCLOUD_PROJECT']}.scratch.backfill_enriched`;
 """
 delete_old_insert_new_records = BigQueryOperator(
     task_id='delete_old_insert_new_records',
@@ -538,6 +551,6 @@ beam_cleanup = BashOperator(
 )
 
 # DAG execution:
-gcs_loader >> dataflow >> gcs_to_bq >> format_dedupe >> create_subset >> city_limits >> update_address_types >> \
-    insert_new_parent >> remove_false_parents >> integrate_children >> replace_last_update >> \
-    delete_old_insert_new_records >> beam_cleanup
+gcs_loader >> dataflow >> gcs_to_bq >> format_table >> create_subset >> city_limits >> dedup_src_table >> \
+    dedup_sub_table >> update_address_types >> geojoin >> insert_new_parent >> remove_false_parents >> \
+    integrate_children >> replace_last_update >> delete_old_insert_new_records >> beam_cleanup
