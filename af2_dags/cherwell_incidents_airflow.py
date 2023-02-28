@@ -18,7 +18,7 @@ from dependencies.airflow_utils import get_ds_month, get_ds_year, get_ds_day, de
 INSERT_COLS = """id, created_date, status, service, category, subcategory, description,
 priority, last_modified_date, closed_date, assigned_team, assigned_to,
 assigned_to_manager, incident_type, respond_by_deadline, resolve_by_deadline,
-call_source, incident_reopened, responded_date, number_of_touches,
+call_source, incident_reopened, responded_date, resolved_date, number_of_touches,
 number_of_escalations, requester_department, requester, on_behalf_of,
 initial_assigned_team, assigned_to AS initial_assigned_to"""  # Preserve name of person initially assigned to ticket
 
@@ -44,7 +44,7 @@ new_table = f"incoming_{dataset}"
 master_table = f"all_{dataset}"
 id_col = "id"
 upd_fields = ['status', 'priority', 'last_modified_date', 'closed_date', 'assigned_team', 'assigned_to',
-              'assigned_to_manager', 'responded_date', 'respond_by_deadline', 'resolve_by_deadline',
+              'assigned_to_manager', 'responded_date', 'resolved_date', 'respond_by_deadline', 'resolve_by_deadline',
               'number_of_touches', 'number_of_escalations', 'incident_reopened']
 
 cherwell_incidents_gcs = BashOperator(
