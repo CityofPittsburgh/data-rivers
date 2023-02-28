@@ -143,8 +143,8 @@ def build_insert_new_records_query(dataset, incoming_table, master_table, id_fie
     sql = F"""
     INSERT INTO `{os.environ['GCLOUD_PROJECT']}.{dataset}.{master_table}`
     (
-        SELECT {cols} FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{incoming_table}`
-        WHERE {id_field} NOT IN (SELECT {id_field} FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{master_table}`)
+        SELECT {cols} FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{incoming_table}` inc
+        WHERE inc.{id_field} NOT IN (SELECT mst.{id_field} FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{master_table}` mst)
     )
     """
     return sql
@@ -439,6 +439,7 @@ def build_sync_staging_table_query(dataset, new_table, upd_table, src_table, is_
                 comparison_list.append(f'IFNULL(upd.{field}, "") != IFNULL({alias}.{field}, "") ')
     sql += "OR ".join(str(field) for field in comparison_list)
     return sql
+
 
 def build_sync_update_query(dataset, upd_table, src_table, id_field, upd_fields):
     sql = f"UPDATE `{os.environ['GCLOUD_PROJECT']}.{dataset}.{upd_table}` upd SET "
