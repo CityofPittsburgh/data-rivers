@@ -142,7 +142,7 @@ city_limits = BigQueryOperator(
 )
 
 upd_fields = ['address_type']
-query_sync_update = build_sync_update_query('qalert', 'temp_backfill', 'temp_backfill_subset', 'id', upd_fields)
+query_sync_update = build_sync_update_query('scratch', 'temp_backfill', 'temp_backfill_subset', 'id', upd_fields)
 update_address_types = BigQueryOperator(
     task_id='update_address_types',
     sql=query_sync_update,
