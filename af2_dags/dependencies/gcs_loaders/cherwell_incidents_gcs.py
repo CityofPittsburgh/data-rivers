@@ -54,6 +54,7 @@ payload = {
         "93670bdf8abe2cd1f92b1f490a90c7b7d684222e13",  # "CallSource"
         "93843c51c65c4feef225de469c9389729162bc750e",  # "Stat_IncidentReopened"
         "93843c5730fc45cfb91e404bafaae5ad5978ebdb22",  # "Stat_DateTimeResponded"
+        "93b63c949c847642f72c0c43beb901d6806e74901a",  # "Stat_DateTimeResolved"
         "93843c2301c27644faed9e48328310bffaf04250bc",  # "Stat_NumberOfTouches"
         "93843c454f073f3f574df84a7c8c8d7767e08039af",  # "Stat_NumberOfEscalations"
         "940484fd4dad30b6c511da4f8bb0c6d3b614e28806",  # "RequesterDepartment"
