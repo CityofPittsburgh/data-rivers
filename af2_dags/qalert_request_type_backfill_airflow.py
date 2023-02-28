@@ -132,7 +132,7 @@ create_subset = BigQueryOperator(
 )
 
 # Query new tickets to determine if they are in the city limits
-query_city_lim = build_city_limits_query('qalert', 'temp_backfill_subset', 'input_pii_lat', 'input_pii_long')
+query_city_lim = build_city_limits_query('scratch', 'temp_backfill_subset', 'input_pii_lat', 'input_pii_long')
 city_limits = BigQueryOperator(
     task_id='city_limits',
     sql=query_city_lim,
