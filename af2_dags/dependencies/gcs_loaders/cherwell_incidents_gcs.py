@@ -104,14 +104,14 @@ while more is True:
     # append list of API results to growing all_records list (should not need more than initial API call after 1st run)
     all_records += incidents
 
-    # write the successful run information (used by each successive run to find the backfill start date)
-    successful_run = {
-        "requests_retrieved": len(all_records),
-        "since": run_start_win,
-        "current_run": curr_run,
-        "note": "Data retrieved between the time points listed above"
-    }
-    json_to_gcs("incidents/successful_run_log/log.json", [successful_run],
-                bucket)
+# write the successful run information (used by each successive run to find the backfill start date)
+successful_run = {
+    "requests_retrieved": len(all_records),
+    "since": run_start_win,
+    "current_run": curr_run,
+    "note": "Data retrieved between the time points listed above"
+}
+json_to_gcs("incidents/successful_run_log/log.json", [successful_run],
+            bucket)
 
 json_to_gcs(f"{args['out_loc']}", all_records, bucket)
