@@ -440,6 +440,7 @@ def build_sync_staging_table_query(dataset, new_table, upd_table, src_table, is_
     sql += "OR ".join(str(field) for field in comparison_list)
     return sql
 
+
 def build_sync_update_query(dataset, upd_table, src_table, id_field, upd_fields):
     sql = f"UPDATE `{os.environ['GCLOUD_PROJECT']}.{dataset}.{upd_table}` upd SET "
     upd_str_list = []
@@ -451,6 +452,34 @@ def build_sync_update_query(dataset, upd_table, src_table, id_field, upd_fields)
     WHERE upd.{id_field} = temp.{id_field}
     """
     return sql
+
+
+def build_format_dedup_query(dataset, table, cast_type, cast_fields, cols_in_order, datestring_fmt=""):
+    sql = f"""
+    CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.{dataset}.{table}` AS
+    WITH formatted  AS 
+        (
+        SELECT DISTINCT * EXCEPT ("""
+    sql += ", ".join(str(field) for field in cast_fields)
+    sql += "), "
+    cast_str_list = []
+    for field in cast_fields:
+        if cast_type == 'DATETIME':
+            cast_str_list.append(f'PARSE_DATETIME("{datestring_fmt}", {field}) AS {field}')
+        else:
+            cast_str_list.append(f'CAST({field} AS {cast_type}) AS {field}')
+    sql += ", ".join(str(cast) for cast in cast_str_list)
+    sql += f"""
+    FROM 
+        {os.environ['GCLOUD_PROJECT']}.{dataset}.{table}
+    )
+    SELECT 
+        {cols_in_order} 
+    FROM 
+        formatted
+    """
+    return sql
+
 
 def dedup_table(dataset, table):
     return f"""
