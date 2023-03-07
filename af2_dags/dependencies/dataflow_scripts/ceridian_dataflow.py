@@ -48,6 +48,14 @@ class CrosswalkDeptNames(beam.DoFn):
                 datum['dept_desc'] = dict['Department Description']
                 datum['office'] = dict['Office']
                 datum['corporation'] = dict['Corporation']
+        if datum['dept'] == '':
+            split_dept = datum['Department_ShortName'].split("-")
+            datum['dept'] = split_dept[0]
+            try:
+                datum['dept_desc'] = split_dept[1]
+            except:
+                datum['dept_desc'] = split_dept[0]
+            datum['corporation'] = 'City of Pittsburgh'
         yield datum
 
 
