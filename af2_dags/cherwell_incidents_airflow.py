@@ -57,6 +57,7 @@ upd_fields = ['status', 'priority', 'last_modified_date_EST', 'last_modified_dat
               'resolve_by_deadline_UTC', 'resolve_by_deadline_UNIX', 'number_of_touches', 'number_of_escalations',
               'incident_reopened']
 
+
 cherwell_incidents_gcs = BashOperator(
     task_id='cherwell_incidents_gcs',
     bash_command=f"python {os.environ['GCS_LOADER_PATH']}/cherwell_incidents_gcs.py --output_arg {json_loc}",
