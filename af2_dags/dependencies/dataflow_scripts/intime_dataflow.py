@@ -46,8 +46,8 @@ def run(argv = None):
                             ('other_id', 'badge_number'), ('anniversary_date', 'hire_date')]
         type_changes = [('employee_id', 'str')]
         keep_fields = ['employee_id', 'mpoetc_number', 'badge_number', 'first_name', 'middle_initial', 'last_name',
-                       'email', 'birth_date', 'hire_date', 'rank', 'rank_valid_date', 'unit', 'unit_valid_date',
-                       'race', 'gender', 'employee_type']
+                       'display_name', 'email', 'birth_date', 'hire_date', 'rank', 'rank_valid_date', 'unit',
+                       'unit_valid_date', 'race', 'gender', 'employee_type']
 
         lines = p | ReadFromText(known_args.input, coder = JsonCoder())
 

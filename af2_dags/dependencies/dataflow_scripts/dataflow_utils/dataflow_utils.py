@@ -526,7 +526,7 @@ class StandardizeTimes(beam.DoFn, ABC):
     def process(self, datum):
 
         for time_change in self.time_changes:
-            if datum[time_change[0]] is not None:
+            if datum[time_change[0]] is not None and datum[time_change[0]] != '':
                 parse_dt = parser.parse(datum[time_change[0]])
                 clean_dt = parse_dt.replace(tzinfo = None)
                 try:
