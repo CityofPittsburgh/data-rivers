@@ -156,6 +156,24 @@ pli_export_dead_end = BigQueryToCloudStorageOperator(
 )
 
 
+# push table of ALL permits (not just active) data-bridGIS BQ
+query_push_gis_cde = F"""
+CREATE OR REPLACE TABLE `data-bridgis.computronix.condemned_dead_end_properties` AS 
+SELECT 
+    *
+FROM `{os.environ['GCLOUD_PROJECT']}.computronix.pli_program_inspection_properties`
+WHERE insp_type_desc LIKE 'Dead End Property' OR insp_type_desc LIKE 'Condemned Property'
+"""
+push_gis_cde = BigQueryOperator(
+        task_id = 'push_gis_cde',
+        sql = query_push_gis_cde,
+        bigquery_conn_id='google_cloud_default',
+        use_legacy_sql = False,
+        dag = dag
+)
+
+
+
 beam_cleanup = BashOperator(
     task_id='beam_cleanup',
     bash_command=airflow_utils.beam_cleanup_statement('{}_computronix'.format(os.environ['GCS_PREFIX'])),
@@ -167,4 +185,4 @@ gcs_loader >> dataflow >> gcs_to_bq
 gcs_to_bq >> seperate_condemned >> pli_export_condemned >> beam_cleanup
 gcs_to_bq >> seperate_dead_end >> pli_export_dead_end >> beam_cleanup
 gcs_to_bq >> seperate_wprdc_exp >> wprdc_export >> beam_cleanup
-
+gcs_to_bq >> push_gis_cde >> beam_cleanup
