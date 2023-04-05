@@ -158,11 +158,20 @@ pli_export_dead_end = BigQueryToCloudStorageOperator(
 
 # push table of ALL permits (not just active) data-bridGIS BQ
 query_push_gis_cde = F"""
-CREATE OR REPLACE TABLE `data-bridgis.computronix.condemned_dead_end_properties` AS 
+CREATE OR REPLACE TABLE `data-bridgis.computronix.cde_properties_latest_update` AS
 SELECT 
-    *
-FROM `{os.environ['GCLOUD_PROJECT']}.computronix.pli_program_inspection_properties`
-WHERE insp_type_desc LIKE 'Dead End Property' OR insp_type_desc LIKE 'Condemned Property'
+  cde.*,
+  ROW_NUMBER () OVER (ORDER BY create_date_UNIX) as parc_unique_id
+FROM `{os.environ['GCLOUD_PROJECT']}.computronix.pli_cde_properties_wprdc_exp` cde
+JOIN
+(SELECT 
+  MAX(create_date_unix) as max_date,
+  parc_num
+FROM `{os.environ['GCLOUD_PROJECT']}.computronix.pli_cde_properties_wprdc_exp`
+GROUP BY parc_num
+) AS max_vals
+ON cde.create_date_UNIX = max_vals.max_date AND cde.parc_num = max_vals.parc_num
+ORDER BY cde.create_date_UNIX
 """
 push_gis_cde = BigQueryOperator(
         task_id = 'push_gis_cde',
