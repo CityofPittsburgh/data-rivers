@@ -9,7 +9,7 @@ from apache_beam.io.avroio import WriteToAvro
 
 from dataflow_utils import dataflow_utils
 from dataflow_utils.dataflow_utils import JsonCoder, SwapFieldNames, generate_args, FilterFields, \
-    ColumnsCamelToSnakeCase, ChangeDataTypes, ExtractFieldWithComplexity
+    ColumnsCamelToSnakeCase, ChangeDataTypes, ExtractFieldWithComplexity, PrependCharacters
 
 DEFAULT_DATAFLOW_ARGS = [
         '--save_main_session',
@@ -44,7 +44,8 @@ def run(argv = None):
         additional_search_vals = ['pittsburghpa.gov', '', '', '', '', '', '', '']
         field_name_swaps = [('middle_name', 'middle_initial'), ('external_id', 'mpoetc_number'),
                             ('other_id', 'badge_number'), ('anniversary_date', 'hire_date')]
-        type_changes = [('employee_id', 'str')]
+        id_field = 'employee_id'
+        type_changes = [(id_field, 'str')]
         keep_fields = ['employee_id', 'mpoetc_number', 'badge_number', 'first_name', 'middle_initial', 'last_name',
                        'display_name', 'email', 'birth_date', 'hire_date', 'rank', 'rank_valid_date', 'unit',
                        'unit_valid_date', 'race', 'gender', 'employee_type']
@@ -58,6 +59,7 @@ def run(argv = None):
                 | beam.ParDo(ColumnsCamelToSnakeCase())
                 | beam.ParDo(SwapFieldNames(field_name_swaps))
                 | beam.ParDo(ChangeDataTypes(type_changes))
+                | beam.ParDo(PrependCharacters(id_field, 6))
                 | beam.ParDo(FilterFields(keep_fields, exclude_target_fields=False))
                 | WriteToAvro(known_args.avro_output, schema = avro_schema, file_name_suffix = '.avro',
                               use_fastavro = True)

@@ -460,6 +460,23 @@ class GeocodeAddress(beam.DoFn, ABC):
         yield datum
 
 
+class PrependCharacters(beam.DoFn, ABC):
+    def __init__(self, input_field, length, char='0'):
+        self.input_field = input_field
+        self.length = length
+        self.char = char
+
+    def process(self, datum):
+        if datum[self.input_field]:
+            id_str = str(datum[self.input_field])
+            if id_str not in ('nan', 'None', 'null'):
+                while len(id_str) < self.length:
+                    id_str = self.char + id_str
+            datum[self.input_field] = id_str
+
+        yield datum
+
+
 class ReformatPhoneNumbers(beam.DoFn, ABC):
     """
     Method to standardize phone number format according to North American Number Plan.
