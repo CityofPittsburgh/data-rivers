@@ -156,6 +156,33 @@ pli_export_dead_end = BigQueryToCloudStorageOperator(
 )
 
 
+# push table of ALL permits (not just active) data-bridGIS BQ
+query_push_gis_cde = F"""
+CREATE OR REPLACE TABLE `data-bridgis.computronix.cde_properties_latest_update` AS
+SELECT 
+  cde.*,
+  ROW_NUMBER () OVER (ORDER BY create_date_UNIX) as parc_unique_id
+FROM `{os.environ['GCLOUD_PROJECT']}.computronix.pli_cde_properties_wprdc_exp` cde
+JOIN
+(SELECT 
+  MAX(create_date_unix) as max_date,
+  parc_num
+FROM `{os.environ['GCLOUD_PROJECT']}.computronix.pli_cde_properties_wprdc_exp`
+GROUP BY parc_num
+) AS max_vals
+ON cde.create_date_UNIX = max_vals.max_date AND cde.parc_num = max_vals.parc_num
+ORDER BY cde.create_date_UNIX
+"""
+push_gis_cde = BigQueryOperator(
+        task_id = 'push_gis_cde',
+        sql = query_push_gis_cde,
+        bigquery_conn_id='google_cloud_default',
+        use_legacy_sql = False,
+        dag = dag
+)
+
+
+
 beam_cleanup = BashOperator(
     task_id='beam_cleanup',
     bash_command=airflow_utils.beam_cleanup_statement('{}_computronix'.format(os.environ['GCS_PREFIX'])),
@@ -167,4 +194,4 @@ gcs_loader >> dataflow >> gcs_to_bq
 gcs_to_bq >> seperate_condemned >> pli_export_condemned >> beam_cleanup
 gcs_to_bq >> seperate_dead_end >> pli_export_dead_end >> beam_cleanup
 gcs_to_bq >> seperate_wprdc_exp >> wprdc_export >> beam_cleanup
-
+gcs_to_bq >> push_gis_cde >> beam_cleanup
