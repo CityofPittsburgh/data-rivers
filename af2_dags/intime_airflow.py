@@ -64,10 +64,18 @@ intime_export = BigQueryToCloudStorageOperator(
     dag=dag
 )
 
+intime_iapro_export = BigQueryToCloudStorageOperator(
+    task_id='intime_iapro_export',
+    source_project_dataset_table=f"{os.environ['GCLOUD_PROJECT']}.{dataset}.employee_data",
+    destination_cloud_storage_uris=[f"gs://{os.environ['GCS_PREFIX']}_iapro/intime_report.csv"],
+    bigquery_conn_id='google_cloud_default',
+    dag=dag
+)
+
 beam_cleanup = BashOperator(
     task_id='intime_beam_cleanup',
     bash_command=airflow_utils.beam_cleanup_statement(f"{os.environ['GCS_PREFIX']}_intime"),
     dag=dag
 )
 
-intime_gcs >> intime_dataflow >> intime_bq_load >> intime_export >> beam_cleanup
+intime_gcs >> intime_dataflow >> intime_bq_load >> intime_export >> intime_iapro_export >> beam_cleanup
