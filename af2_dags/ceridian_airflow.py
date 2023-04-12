@@ -108,6 +108,14 @@ ceridian_export = BigQueryToCloudStorageOperator(
         dag = dag
 )
 
+ceridian_iapro_export = BigQueryToCloudStorageOperator(
+        task_id = 'ceridian_iapro_export',
+        source_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}.ceridian.all_employees",
+        destination_cloud_storage_uris = [f"gs://{os.environ['GCS_PREFIX']}_iapro/ceridian_report.csv"],
+        bigquery_conn_id='google_cloud_default',
+        dag = dag
+)
+
 beam_cleanup = BashOperator(
         task_id = 'ceridian_beam_cleanup',
         bash_command = airflow_utils.beam_cleanup_statement(f"{os.environ['GCS_PREFIX']}_ceridian"),
@@ -116,4 +124,4 @@ beam_cleanup = BashOperator(
 
 
 ceridian_gcs >> ceridian_dataflow >> ceridian_bq_load >> create_gender_comp_table >> create_racial_comp_table >> \
-ceridian_export >> beam_cleanup
+    ceridian_export >> ceridian_iapro_export >>beam_cleanup
