@@ -244,6 +244,18 @@ class TestDataflowUtils(unittest.TestCase):
         ff = dataflow_utils.FilterFields(relevant_fields, exclude_relevant_fields=False)
         self.assertEqual(next(ff.process(datum)), expected)
 
+    def test_prepend_characters(self):
+        datum = [{'id': '13342'}, {'id': '312258'}, {'id': '8070'}, {'id': None}, {'id': '2'}]
+        input_field = 'id'
+        length = 6
+        expected = [{'id': '013342'}, {'id': '312258'}, {'id': '008070'}, {'id': None}, {'id': '000002'}]
+        pc = dataflow_utils.PrependCharacters(input_field, length)
+        results = []
+        for val in datum:
+            result = next(pc.process(val))
+            results.append(result)
+        self.assertEqual(results, expected)
+
     def test_replace_pii(self):
         datum = [{'comments': 'remove pothole'},
                  {'comments': 'John Doe is causing a lot of noise'},
