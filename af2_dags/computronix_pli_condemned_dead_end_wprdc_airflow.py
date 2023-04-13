@@ -157,6 +157,7 @@ pli_export_dead_end = BigQueryToCloudStorageOperator(
 
 
 # push table of ALL permits (not just active) data-bridGIS BQ
+
 query_push_gis_latest_cde = F"""
 CREATE OR REPLACE TABLE `data-bridgis.computronix.cde_properties_latest_update` AS
 SELECT 
