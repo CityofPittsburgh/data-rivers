@@ -28,10 +28,12 @@ initial_assigned_team, assigned_to AS initial_assigned_to"""  # Preserve name of
 dag = DAG(
     'cherwell_incidents',
     default_args=default_args,
-    schedule_interval='@daily',
-    start_date=datetime(2023, 2, 14),
+    schedule_interval='@hourly',
+    start_date=datetime(2023, 4, 19),
+    catchup=False,
     user_defined_filters={'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year,
-                          'get_ds_day': get_ds_day}
+                          'get_ds_day': get_ds_day},
+    max_active_runs=1
 )
 
 # initialize gcs locations and store endpoint names in variables
@@ -39,7 +41,7 @@ source = "cherwell"
 bucket = f"gs://{os.environ['GCS_PREFIX']}_{source}"
 dataset = "incidents"
 exec_date = "{{ ds }}"
-path = "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ run_id }}"
+path = "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds|get_ds_day }}/{{ run_id }}"
 json_loc = f"{dataset}/{path}_{dataset}.json"
 avro_loc = f"{dataset}/avro_output/{path}"
 new_table = f"incoming_{dataset}"
