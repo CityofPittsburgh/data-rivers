@@ -135,9 +135,12 @@ WHERE from_date_UNIX <= {unix_date} AND to_date_unix >= {unix_date};
 CREATE OR REPLACE TABLE `data-bridgis.computronix.gis_active_street_closures` AS 
 SELECT 
   * EXCEPT(from_date_UTC, from_date_EST, from_date_UNIX, to_date_UTC, to_date_EST, to_date_UNIX),
-  DATE (PARSE_DATETIME ("%m/%d/%Y %H:%M:%S",from_date_EST)) as from_est,
-  DATE (PARSE_DATETIME ("%m/%d/%Y %H:%M:%S",to_date_EST)) as to_est
-FROM `{os.environ["GCLOUD_PROJECT"]}.computronix.gis_active_street_closures` 	
+  (PARSE_DATETIME ("%m/%d/%Y %H:%M:%S",from_date_EST)) as from_est,
+  (PARSE_DATETIME ("%m/%d/%Y %H:%M:%S",to_date_EST)) as to_est,
+  (PARSE_DATETIME ("%m/%d/%Y %H:%M:%S",from_date_UTC)) as from_utc,
+  (PARSE_DATETIME ("%m/%d/%Y %H:%M:%S",to_date_UTC)) as to_utc
+FROM `{os.environ["GCLOUD_PROJECT"]}.computronix.gis_active_street_closures`;
+	
 """
 filter_inactive_push_to_data_bridGIS = BigQueryOperator(
         task_id = 'filter_inactive_push_to_data_bridGIS',
@@ -153,8 +156,10 @@ query_push_all = F"""
 CREATE OR REPLACE TABLE `data-bridgis.computronix.gis_all_street_closures` AS 
 SELECT 
   * EXCEPT(from_date_UTC, from_date_EST, from_date_UNIX, to_date_UTC, to_date_EST, to_date_UNIX),
-  DATE (PARSE_DATETIME ("%m/%d/%Y %H:%M:%S",from_date_EST)) as from_est,
-  DATE (PARSE_DATETIME ("%m/%d/%Y %H:%M:%S",to_date_EST)) as to_est
+  (PARSE_DATETIME ("%m/%d/%Y %H:%M:%S",from_date_EST)) as from_est,
+  (PARSE_DATETIME ("%m/%d/%Y %H:%M:%S",to_date_EST)) as to_est,
+  (PARSE_DATETIME ("%m/%d/%Y %H:%M:%S",from_date_UTC)) as from_utc,
+  (PARSE_DATETIME ("%m/%d/%Y %H:%M:%S",to_date_UTC)) as to_utc
 FROM `{os.environ["GCLOUD_PROJECT"]}.computronix.gis_street_closures` 	
 """
 push_all_data_bridgis = BigQueryOperator(
@@ -166,7 +171,7 @@ push_all_data_bridgis = BigQueryOperator(
 )
 
 
-# Export table as CSV to wprdc bucket
+# Export active table as CSV to wprdc bucket
 dest_bucket = f"gs://{os.environ['GCS_PREFIX']}_wprdc/domi_street_closures/active_street_closures/"
 wprdc_active_csv_export = BigQueryToCloudStorageOperator(
         task_id = 'wprdc_active_csv_export',
