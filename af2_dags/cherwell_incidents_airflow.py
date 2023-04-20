@@ -29,7 +29,7 @@ dag = DAG(
     'cherwell_incidents',
     default_args=default_args,
     schedule_interval='@hourly',
-    start_date=datetime(2023, 4, 21),
+    start_date=datetime(2023, 4, 19),
     catchup=False,
     user_defined_filters={'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year,
                           'get_ds_day': get_ds_day},
