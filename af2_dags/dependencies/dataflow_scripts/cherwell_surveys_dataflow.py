@@ -8,7 +8,8 @@ from apache_beam.io import ReadFromText
 from apache_beam.io.avroio import WriteToAvro
 
 from dataflow_utils import dataflow_utils
-from dataflow_utils.dataflow_utils import JsonCoder, generate_args, ExtractFieldWithComplexity, StandardizeTimes
+from dataflow_utils.dataflow_utils import JsonCoder, generate_args, ExtractFieldWithComplexity, StandardizeTimes, \
+    ChangeDataTypes
 
 DEFAULT_DATAFLOW_ARGS = [
     '--save_main_session',
@@ -50,6 +51,10 @@ def run(argv=None):
                          {'name': 'OwnedByTechnician'}, {'name': 'LastModDateTime'}, {'name': 'LastModBy'}]
         add_search_vals = [''] * FIELD_COUNT
         times = [('created_date', 'EST'), ('submitted_date', 'EST'), ('last_modified_date', 'EST')]
+        type_changes = [('id', 'str'), ('incident_id', 'str'), ('q1_timely_resolution', 'int'),
+                        ('q2_handled_professionally', 'int'), ('q3_clear_communication', 'int'),
+                        ('q4_overall_satisfaction', 'int'), ('survey_complete', 'bool'),
+                        ('survey_score', 'float'), ('avg_survey_score', 'float')]
 
         lines = p | ReadFromText(known_args.input, coder=JsonCoder())
 
@@ -58,6 +63,7 @@ def run(argv=None):
                 | beam.ParDo(ExtractFieldWithComplexity(source_fields, nested_fields, new_field_names,
                                                         add_nested_fields, search_fields, add_search_vals))
                 | beam.ParDo(StandardizeTimes(times, "%m/%d/%Y %I:%M:%S %p"))
+                | beam.ParDo(ChangeDataTypes(type_changes))
                 | WriteToAvro(known_args.avro_output, schema=avro_schema, file_name_suffix='.avro',
                               use_fastavro=True)
         )
