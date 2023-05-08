@@ -11,7 +11,7 @@ from dependencies import airflow_utils
 from dependencies.airflow_utils import get_ds_month, get_ds_year, get_ds_day, default_args, \
     build_insert_new_records_query, build_sync_update_query, build_dedup_old_updates, build_format_dedup_query
 
-# This DAG will perform a daily pull of incoming Cherwell Service Request and Incident tickets.
+# This DAG will perform a hourly pull of incoming Cherwell Service Request and Incident tickets.
 # Ticket information will be displayed on a Google Looker Studio dashboard for use by team managers
 # that do not have access to Cherwell's admin portal.
 
