@@ -15,11 +15,11 @@ from dependencies.airflow_utils import get_ds_month, get_ds_year, get_ds_day, de
 # Ticket information will be displayed on a Google Looker Studio dashboard for use by team managers
 # that do not have access to Cherwell's admin portal.
 
-COLS = """id, incident_id, created_date, submitted_by, submitted_date, survey_complete,
-          q1_timely_resolution, q2_handled_professionally, q3_clear_communication,
-          q4_overall_satisfaction, q5_request_handled_first_time, q6_improvement_suggestions,
-          q7_contact_me, q8_additional_comments, survey_score, avg_survey_score,
-          owned_by, last_modified_date, last_modified_by"""
+COLS = """id, incident_id, created_date_EST, created_date_UTC, created_date_UNIX, submitted_by, 
+          submitted_date_EST, submitted_date_UTC, submitted_date_UNIX, survey_complete, q1_timely_resolution, 
+          q2_handled_professionally, q3_clear_communication, q4_overall_satisfaction, q5_request_handled_first_time, 
+          q6_improvement_suggestions, q7_contact_me, q8_additional_comments, survey_score, avg_survey_score,
+          owned_by, last_modified_date_EST, last_modified_date_UTC, last_modified_date_UNIX, last_modified_by"""
 
 
 dag = DAG(
