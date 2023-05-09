@@ -187,6 +187,30 @@ def replace_pii(input_str, retain_location: bool, info_types=DEFAULT_PII_TYPES):
 #
 #     return redacted
 
+def gen_schema_from_df(name, df):
+    # use a dataframe to find the schema which can be used to create an avro file
+
+    # params: name (string) that specifies avro schema meta data.
+    # params: df (pandas dataframe) the dataframe that will be converted to AVRO
+    # output: schema (dict) this is always a record type schema for AVSC files
+
+    schema = {
+            'doc'      : name,
+            'name'     : name,
+            'namespace': name,
+            'type'     : 'record'
+    }
+
+    info = []
+    cols = df.columns.to_list()
+    for f in cols:
+        t = str(type(df[f][0])).replace("<class '", "").replace("'>", "")
+        field_type = {'name': f, 'type': t}
+        info.append(field_type)
+
+    schema.update({'fields': info})
+    return schema
+
 
 def regex_filter(value):
     """Regex filter for phone and email address patterns. phone_regex is a little greedy so be careful passing
