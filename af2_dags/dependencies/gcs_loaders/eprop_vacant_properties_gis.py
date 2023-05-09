@@ -5,9 +5,8 @@ import requests
 import re
 
 import pandas as pd
-from google.cloud import storage
 
-from gcs_utils import json_to_gcs
+from gcs_utils import json_to_gcs, gen_schema_from_df
 
 # API_LIMIT controls pagination of API request. As of May 2023 it seems that the request cannot be limited to
 # selected fields. The unwanted fields are removed later and the required fields are specified here in the namees
@@ -17,7 +16,6 @@ FIELDS = ["id", "parcelNumber", "propertyAddress1", "currentOwners", "parcelSqua
           "acquisitionDate", "propertyClass", "censusTract", "latitude", "longitude",
           "inventoryType", "zonedAs", "currentStatus", "statusDate"]
 
-storage_client = storage.Client()
 bucket = f"{os.environ['GCS_PREFIX']}_eproperty"
 
 # parser = argparse.ArgumentParser()
@@ -85,7 +83,9 @@ df_records = df_records[name_changes.values()]
 # convert id, an int, to string to be consistent with our SOP
 df_records["id"] = df_records["id"].astype(str)
 
+# generate avro schema
+s = gen_schema("eproperties_vacant_properties", df_records)
 
-
-# write the successful run information (used by each successive run to find the backfill start date)
-# json_to_gcs(f"{args['out_loc']}", all_records, bucket)
+# load API results as a json to GCS and use avro to load directly into BQ
+j = df_records.to_dict(orient = 'records')
+json_to_gcs(f"{args['out_loc']}", j, bucket)
