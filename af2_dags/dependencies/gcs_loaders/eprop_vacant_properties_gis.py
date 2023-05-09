@@ -84,7 +84,7 @@ df_records = df_records[name_changes.values()]
 df_records["id"] = df_records["id"].astype(str)
 
 # generate avro schema
-s = gen_schema("eproperties_vacant_properties", df_records)
+s = gen_schema_from_df("eproperties_vacant_properties", df_records)
 
 # load API results as a json to GCS and use avro to load directly into BQ
 j = df_records.to_dict(orient = 'records')
