@@ -87,8 +87,5 @@ df_records["id"] = df_records["id"].astype(str)
 
 
 
-
-
-
 # write the successful run information (used by each successive run to find the backfill start date)
 # json_to_gcs(f"{args['out_loc']}", all_records, bucket)
