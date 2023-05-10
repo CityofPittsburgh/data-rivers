@@ -383,6 +383,18 @@ def avro_to_gcs(path, file_name, avro_object_list, bucket_name, schema_def):
     print('Successfully uploaded blob {} to bucket {}'.format(path, bucket_name))
 
 
+def avro_to_gcs_from_local_schema(file_name, avro_object_list, bucket_name, schema):
+    """
+    take list of dicts in memory and upload to GCS as AVRO
+    """
+    writer = DataFileWriter(open(file_name, "wb"), DatumWriter(), schema)
+    for item in avro_object_list:
+       writer.append(item)
+    writer.close()
+
+    upload_file_gcs(bucket_name, file_name, f"{file_name}")
+
+
 def json_to_gcs(path, json_object_list, bucket_name):
     """
     take list of dicts in memory and upload to GCS as newline JSON

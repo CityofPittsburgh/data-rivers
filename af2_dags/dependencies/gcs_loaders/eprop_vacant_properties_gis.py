@@ -6,7 +6,7 @@ import re
 
 import pandas as pd
 
-from gcs_utils import json_to_gcs, gen_schema_from_df
+from gcs_utils import json_to_gcs, gen_schema_from_df, avro_to_gcs_from_local_schema
 
 # API_LIMIT controls pagination of API request. As of May 2023 it seems that the request cannot be limited to
 # selected fields. The unwanted fields are removed later and the required fields are specified here in the namees
@@ -87,5 +87,6 @@ df_records["id"] = df_records["id"].astype(str)
 s = gen_schema_from_df("eproperties_vacant_properties", df_records)
 
 # load API results as a json to GCS and use avro to load directly into BQ
-j = df_records.to_dict(orient = 'records')
-json_to_gcs(f"{args['out_loc']}", j, bucket)
+list_of_dict_recs = df_records.to_dict(orient = 'records')
+json_to_gcs(f"{args['out_loc']}", list_of_dict_recs, bucket)
+avro_to_gcs_from_local_schema(args['out_loc'], list_of_dict_recs, F"{os.environ['GCS_PREFIX']}_hot_metal", s)
