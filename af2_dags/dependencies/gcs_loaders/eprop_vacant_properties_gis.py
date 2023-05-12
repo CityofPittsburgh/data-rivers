@@ -3,25 +3,31 @@ import argparse
 import json
 import requests
 import re
-
 import pandas as pd
 
-from gcs_utils import json_to_gcs, gen_schema_from_df, avro_to_gcs_from_local_schema
+from gcs_utils import json_to_gcs, avro_to_gcs
 
 # API_LIMIT controls pagination of API request. As of May 2023 it seems that the request cannot be limited to
 # selected fields. The unwanted fields are removed later and the required fields are specified here in the namees
-# returned directly from the API
+# returned directly from the API. Results are uploaded into long-term storage as a json. This is placed in an
+# auto-class bucket, so that data that is not touched (essentially each json) for 30 days is moved to colder storage.
+# The script also uploads AVRO files for BQ ingestion. These files are never used after ingestion and can be
+# recovered from the json quite easily. Each DAG, including this one, will load the AVRO into a single hot bucket and
+# then delete it when it is uploaded into BQ
+
 API_LIMIT = 10000
 FIELDS = ["id", "parcelNumber", "propertyAddress1", "currentOwners", "parcelSquareFootage", "acquisitionMethod",
           "acquisitionDate", "propertyClass", "censusTract", "latitude", "longitude",
           "inventoryType", "zonedAs", "currentStatus", "statusDate"]
+AVRO_SCHEMA = "eproperty_vacant_property.avsc"
 
-bucket = f"{os.environ['GCS_PREFIX']}_eproperty"
+json_bucket = f"{os.environ['GCS_PREFIX']}_eproperty"
+hot_bucket = F"{os.environ['GCS_PREFIX']}_hot_metal"
 
-# parser = argparse.ArgumentParser()
-# parser.add_argument('--output_arg', dest = 'out_loc', required = True,
-#                     help = 'fully specified location to upload the processed file')
-# args = vars(parser.parse_args())
+parser = argparse.ArgumentParser()
+parser.add_argument('--json_output_arg', dest = 'json_out_loc', required = True,
+                    help = 'fully specified location to upload the processed json file for long-term storage')
+args = vars(parser.parse_args())
 
 # Build the API request components
 URL_BASE = F"https://api.epropertyplus.com/landmgmt/api/property/"
@@ -83,10 +89,9 @@ df_records = df_records[name_changes.values()]
 # convert id, an int, to string to be consistent with our SOP
 df_records["id"] = df_records["id"].astype(str)
 
-# generate avro schema
-s = gen_schema_from_df("eproperties_vacant_properties", df_records)
 
-# load API results as a json to GCS and use avro to load directly into BQ
+# load API results as a json to GCS autoclass storage and avro to temporary hot storage bucket (deleted after load
+# into BQ)
 list_of_dict_recs = df_records.to_dict(orient = 'records')
-json_to_gcs(f"{args['out_loc']}", list_of_dict_recs, bucket)
-avro_to_gcs_from_local_schema(args['out_loc'], list_of_dict_recs, F"{os.environ['GCS_PREFIX']}_hot_metal", s)
+json_to_gcs(args['json_out_loc'], list_of_dict_recs, json_bucket)
+avro_to_gcs('incoming', list_of_dict_recs, hot_bucket, AVRO_SCHEMA)
