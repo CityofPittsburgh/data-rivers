@@ -339,31 +339,35 @@ def sql_to_dict_list(conn, sql_query, db='mssql', date_col=None, date_format=Non
     return results_dict
 
 
-def upload_file_gcs(bucket_name, source_file_name, destination_blob_name):
+# , destination_blob_name
+def upload_file_gcs(bucket_name, file):
     """
     Uploads a file to the bucket.
-    param bucket_name:str = "your-bucket-name"
-    param source_file_name:str = "local/path/to/file"
+    param bucket_name:str = "your-bucket-name" where the file will be placed
+    param source_file:str = "local/path/to/file"
     param destination_blob_name:str = "storage-object-name"
     """
 
     bucket = storage_client.bucket(bucket_name)
-    blob = bucket.blob(destination_blob_name)
+    blob = bucket.blob(file)
+    blob.upload_from_filename(file)
 
-    blob.upload_from_filename(source_file_name)
-
-    print("File {} uploaded to {}.".format(source_file_name, destination_blob_name))
-
-    os.remove(source_file_name)
+    os.remove(file)
 
 
-def avro_to_gcs(path, file_name, avro_object_list, bucket_name, schema_def):
+def avro_to_gcs(file_name, avro_object_list, bucket_name, schema_name):
     """
     take list of dicts in memory and upload to GCS as AVRO
+    :params
+    :file_name: str file name ending in ".avro" example-> "test.avro"
+    :avro_object_list: a list of dictionaries. each dictionary is a single row of all fields
+    :bucket_name: str of destination bucket. for avro files to be pushed into BQ and then deleted (the most common
+    use case) this will be F"{os.environ['GCS_PREFIX']}_hot_metal"
+    :schema_name: str containing the schema name example -> "test_schema.avsc"
     """
     avro_bucket = F"{os.environ['GCS_PREFIX']}_avro_schemas"
     blob = storage.Blob(
-        name=schema_def,
+        name=schema_name,
         bucket=storage_client.get_bucket(avro_bucket),
     )
 
@@ -375,24 +379,7 @@ def avro_to_gcs(path, file_name, avro_object_list, bucket_name, schema_def):
        writer.append(item)
     writer.close()
 
-    upload_file_gcs(bucket_name, file_name, f"{path}/{file_name}")
-
-    logging.info(
-        'Successfully uploaded blob %r to bucket %r.', path, bucket_name)
-
-    print('Successfully uploaded blob {} to bucket {}'.format(path, bucket_name))
-
-
-def avro_to_gcs_from_local_schema(file_name, avro_object_list, bucket_name, schema):
-    """
-    take list of dicts in memory and upload to GCS as AVRO
-    """
-    writer = DataFileWriter(open(file_name, "wb"), DatumWriter(), schema)
-    for item in avro_object_list:
-       writer.append(item)
-    writer.close()
-
-    upload_file_gcs(bucket_name, file_name, f"{file_name}")
+    upload_file_gcs(bucket_name, file_name)
 
 
 def json_to_gcs(path, json_object_list, bucket_name):
