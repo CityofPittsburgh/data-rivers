@@ -16,9 +16,12 @@ from gcs_utils import json_to_gcs, avro_to_gcs
 # then delete it when it is uploaded into BQ
 
 API_LIMIT = 10000
-FIELDS = ["id", "parcelNumber", "propertyAddress1", "currentOwners", "parcelSquareFootage", "acquisitionMethod",
-          "acquisitionDate", "propertyClass", "censusTract", "latitude", "longitude",
-          "inventoryType", "zonedAs", "currentStatus", "statusDate"]
+FIELDS = {"id": "id", "parcelNumber": "parc", "propertyAddress1": "address",
+          "currentOwners": "owner", "parcelSquareFootage": "parc_sq_ft", "acquisitionMethod": "acquisition_method",
+          "acquisitionDate": "acquisition_date", "propertyClass": "class", "censusTract": "census_tract",
+          "latitude": "lat", "longitude": "long", "inventoryType": "inventory_type", "zonedAs": "zoned_as",
+          "currentStatus": "current_status", "statusDate": "status_date_utc"}
+
 AVRO_SCHEMA = "eproperty_vacant_property.avsc"
 
 json_bucket = f"{os.environ['GCS_PREFIX']}_eproperty"
@@ -71,30 +74,24 @@ while more is True:
 # However, as of May 2023, this does not seem likely to occur
 df_records = pd.DataFrame(all_records)
 
-drops = [f for f in df_records.columns.to_list() if f not in FIELDS]
+drops = [f for f in df_records.columns.to_list() if f not in FIELDS.keys()]
 df_records.drop(drops, axis = 1, inplace = True)
 
-# insert an underscore between any camel cased characters, convert to lower case, and remove numbers
-# change all column names. reorder column for easy inspection.
-name_changes = {}
-for old in FIELDS:
-    old_conv = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', old)
-    new_name = re.sub('([a-z0-9])([A-Z])', r'\1_\2', old_conv).lower().strip()
-    new_name = re.sub(r'[0-9]', '', new_name)
-    name_changes.update({old: new_name})
+df_records.rename(columns = FIELDS, inplace = True)
+df_records = df_records[FIELDS.values()]
 
-df_records.rename(columns = name_changes, inplace = True)
-df_records = df_records[name_changes.values()]
 
 # convert id, an int, to string to be consistent with our SOP and change NaNs to Null
 df_records["id"] = df_records["id"].astype(str)
-# df_records = df_records.fillna(None)
-df_records = df_records.dropna()
 df_records[["neighborhood_name", "council_district", "ward", "fire_zone", "police_zone",
             "dpw_streets", "dpw_enviro", "dpw_parks"]] = ""
+
+
+df_records.to_gbq("scratch.temp_test", "data-rivers-testing", if_exists= "replace")
+
 
 # load API results as a json to GCS autoclass storage and avro to temporary hot storage bucket (deleted after load
 # into BQ)
 list_of_dict_recs = df_records.to_dict(orient = 'records')
 json_to_gcs(args['json_out_loc'], list_of_dict_recs, json_bucket)
-avro_to_gcs('eproperties.avro', list_of_dict_recs, hot_bucket, AVRO_SCHEMA)
+# avro_to_gcs('eproperties.avro', list_of_dict_recs, hot_bucket, AVRO_SCHEMA)
