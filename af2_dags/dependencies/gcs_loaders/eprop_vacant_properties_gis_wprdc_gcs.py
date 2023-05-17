@@ -4,7 +4,8 @@ import json
 import requests
 import pandas as pd
 
-from gcs_utils import json_to_gcs
+from gcs_utils import json_to_gcs, conv_avsc_to_bq_schema
+
 
 # API_LIMIT controls pagination of API request. As of May 2023 it seems that the request cannot be limited to
 # selected fields. The unwanted fields are removed later and the required fields are specified here in the namees
@@ -82,7 +83,9 @@ df_records[["neighborhood_name", "council_district", "ward", "fire_zone", "polic
             "dpw_streets", "dpw_enviro", "dpw_parks"]] = ""
 
 # load into BQ
-df_records.to_gbq("eproperty.vacant_properties", F"{os.environ['GCLOUD_PROJECT']}", if_exists= "replace")
+schema = conv_avsc_to_bq_schema(F"{os.environ['GCS_PREFIX']}_avro_schemas", "eproperty_vacant_property.avsc")
+df_records.to_gbq("eproperty.vacant_properties", F"{os.environ['GCLOUD_PROJECT']}", if_exists= "replace",
+                  table_schema = schema)
 
 # load API results as a json to GCS autoclass storage and avro to temporary hot storage bucket (deleted after load
 # into BQ)

@@ -80,6 +80,28 @@ def call_odata_api_with_limit(targ_url, results_upper_limit = 1000):
     return records
 
 
+def conv_avsc_to_bq_schema(avro_bucket, schema_name):
+    # bigquery schemas that are used to upload directly from pandas are not formatted identically as an avsc filie.
+    # this func makes the necessary conversions. this allows a single schema to serve both purposes
+
+    blob = storage.Blob(name=schema_name, bucket=storage_client.get_bucket(avro_bucket))
+    schema_text = blob.download_as_string()
+    schema = json.loads(schema_text)
+
+    schema = schema['fields']
+
+    new_schema = []
+    change_vals = {"float": "float64", "integer": "int64"}
+    change_keys = change_vals.keys()
+    for s in schema:
+        if 'null' in s["type"]: s["type"].remove('null')
+        s["type"] = s["type"][0]
+        if s["type"] in change_keys: s["type"] = change_vals[s["type"]]
+        new_schema.append(s)
+
+    return new_schema
+
+
 def snake_case_place_names(input):
     # Helper function to take a pair of words, containing place name identifiers, and join them together (with an
     # underscore by default). This prevents NLP based Data Loss Prevention/PII scrubbers from targeting places for
