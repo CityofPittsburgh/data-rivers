@@ -81,6 +81,9 @@ def call_odata_api_with_limit(targ_url, results_upper_limit = 1000):
 
 
 def conv_avsc_to_bq_schema(avro_bucket, schema_name):
+    # bigquery schemas that are used to upload directly from pandas are not formatted identically as an avsc filie.
+    # this func makes the necessary conversions. this allows a single schema to serve both purposes
+
     blob = storage.Blob(
         name=schema_name,
         bucket=storage_client.get_bucket(avro_bucket),
