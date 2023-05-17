@@ -2,10 +2,11 @@ import os
 import argparse
 import json
 import requests
-import re
+# import re
 import pandas as pd
 
-from gcs_utils import json_to_gcs, avro_to_gcs
+from gcs_utils import json_to_gcs\
+    # , avro_to_gcs
 
 # API_LIMIT controls pagination of API request. As of May 2023 it seems that the request cannot be limited to
 # selected fields. The unwanted fields are removed later and the required fields are specified here in the namees
@@ -22,10 +23,10 @@ FIELDS = {"id": "id", "parcelNumber": "parc", "propertyAddress1": "address",
           "latitude": "lat", "longitude": "long", "inventoryType": "inventory_type", "zonedAs": "zoned_as",
           "currentStatus": "current_status", "statusDate": "status_date_utc"}
 
-AVRO_SCHEMA = "eproperty_vacant_property.avsc"
+# AVRO_SCHEMA = "eproperty_vacant_property.avsc"
 
 json_bucket = f"{os.environ['GCS_PREFIX']}_eproperty"
-hot_bucket = F"{os.environ['GCS_PREFIX']}_hot_metal"
+# hot_bucket = F"{os.environ['GCS_PREFIX']}_hot_metal"
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--json_output_arg', dest = 'json_out_loc', required = True,
@@ -87,7 +88,7 @@ df_records[["neighborhood_name", "council_district", "ward", "fire_zone", "polic
             "dpw_streets", "dpw_enviro", "dpw_parks"]] = ""
 
 
-df_records.to_gbq("scratch.temp_test", "data-rivers-testing", if_exists= "replace")
+df_records.to_gbq("eproperty.vacant_properties", F"{os.environ['GCLOUD_PROJECT']}", if_exists= "replace")
 
 
 # load API results as a json to GCS autoclass storage and avro to temporary hot storage bucket (deleted after load

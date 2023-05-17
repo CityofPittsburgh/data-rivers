@@ -43,21 +43,21 @@ gcs_loader = BashOperator(
 
 # Load AVRO data produced by gcs_loader (which creates avro directly) into BQ table
 # TODO: use AF2 operator when we convert --> gcs_to_bq = GCSToBigQueryOperator(
-gcs_to_bq = GoogleCloudStorageToBigQueryOperator(
-        task_id = 'gcs_to_bq',
-        destination_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}:eproperty.vacant_properties",
-        bucket = f"{os.environ['GCS_PREFIX']}_hot_metal",
-        source_objects = ["eproperties.avro"],
-        write_disposition = 'WRITE_TRUNCATE',
-        create_disposition = 'CREATE_IF_NEEDED',
-        source_format = 'AVRO',
-        autodetect = True,
-        dag = dag
-)
+# gcs_to_bq = GoogleCloudStorageToBigQueryOperator(
+#         task_id = 'gcs_to_bq',
+#         destination_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}:eproperty.vacant_properties",
+#         bucket = f"{os.environ['GCS_PREFIX']}_hot_metal",
+#         source_objects = ["eproperties.avro"],
+#         write_disposition = 'WRITE_TRUNCATE',
+#         create_disposition = 'CREATE_IF_NEEDED',
+#         source_format = 'AVRO',
+#         autodetect = True,
+#         dag = dag
+# )
 
 # reverse geocode
 query_geo_join = build_revgeo_time_bound_query('eproperty', 'vacant_properties', 'vacant_properties_enriched',
-                                             'status_date', 'id', 'latitude', 'longitude')
+                                             'status_date', 'id', 'lat', 'long')
 geojoin = BigQueryOperator(
         task_id = 'geojoin',
         sql = query_geo_join,
@@ -68,11 +68,11 @@ geojoin = BigQueryOperator(
 
 
 # delete the temporary avro in hot storage
-delete_avro = BashOperator(
-        task_id = 'delete_avro',
-        bash_command = F"gsutil rm -r gs://{os.environ['GCS_PREFIX']}_hot_metal/eproperties*",
-        dag = dag
-)
+# delete_avro = BashOperator(
+#         task_id = 'delete_avro',
+#         bash_command = F"gsutil rm -r gs://{os.environ['GCS_PREFIX']}_hot_metal/eproperties*",
+#         dag = dag
+# )
 
 
 # Export table as CSV to WPRDC bucket
@@ -92,7 +92,7 @@ query_push_gis = F"""
 CREATE OR REPLACE TABLE `data-bridgis.eproperty.gis_vacant_properties_enriched` AS 
 SELECT 
   *
-FROM `{os.environ["GCLOUD_PROJECT"]}.eproperty.vacant_properties` 	
+FROM `{os.environ["GCLOUD_PROJECT"]}.eproperty.vacant_properties_enriched`
 """
 push_gis = BigQueryOperator(
         task_id = 'push_gis',
@@ -110,9 +110,11 @@ beam_cleanup = BashOperator(
 )
 
 
-# branching DAG splits after the gcs_to_bq stage and converges back at beam_cleanup
-gcs_loader >> gcs_to_bq >> geojoin
-geojoin >> delete_avro >> beam_cleanup
+# gcs_loader >> gcs_to_bq >> geojoin
+# geojoin >> delete_avro >> beam_cleanup
+# geojoin >> wprdc_export >> beam_cleanup
+# geojoin >> push_gis >> beam_cleanup
+
+gcs_loader >> geojoin
 geojoin >> wprdc_export >> beam_cleanup
 geojoin >> push_gis >> beam_cleanup
-
