@@ -84,10 +84,7 @@ def conv_avsc_to_bq_schema(avro_bucket, schema_name):
     # bigquery schemas that are used to upload directly from pandas are not formatted identically as an avsc filie.
     # this func makes the necessary conversions. this allows a single schema to serve both purposes
 
-    blob = storage.Blob(
-        name=schema_name,
-        bucket=storage_client.get_bucket(avro_bucket),
-    )
+    blob = storage.Blob(name=schema_name, bucket=storage_client.get_bucket(avro_bucket))
     schema_text = blob.download_as_string()
     schema = json.loads(schema_text)
 
