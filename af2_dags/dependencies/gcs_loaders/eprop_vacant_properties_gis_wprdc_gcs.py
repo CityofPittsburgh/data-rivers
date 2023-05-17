@@ -6,6 +6,7 @@ import pandas as pd
 
 from gcs_utils import json_to_gcs, conv_avsc_to_bq_schema
 
+
 # API_LIMIT controls pagination of API request. As of May 2023 it seems that the request cannot be limited to
 # selected fields. The unwanted fields are removed later and the required fields are specified here in the namees
 # returned directly from the API. Results are uploaded into long-term storage as a json. This is placed in an
