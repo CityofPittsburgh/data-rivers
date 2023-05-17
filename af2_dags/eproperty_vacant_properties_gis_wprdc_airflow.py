@@ -5,7 +5,6 @@ from datetime import datetime
 
 from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
-from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOperator
 from airflow.contrib.operators.bigquery_to_gcs import BigQueryToCloudStorageOperator
 from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 
@@ -17,20 +16,18 @@ from dependencies.airflow_utils import get_ds_year, get_ds_month, get_ds_day, de
 # and pass the argument 'py_interpreter=python3'
 
 dag = DAG(
-    'eprop_vacant_gis_wprdc',
-    default_args=default_args,
-    schedule_interval='@daily',
-    user_defined_filters={'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year, 'get_ds_day': get_ds_day},
-    start_date=datetime(2023, 5, 1),
-    catchup = False
+        'eprop_vacant_gis_wprdc',
+        default_args = default_args,
+        schedule_interval = '@daily',
+        user_defined_filters = {'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year, 'get_ds_day': get_ds_day},
+        start_date = datetime(2023, 5, 1),
+        catchup = False
 )
-
 
 # initialize gcs locations
 bucket = f"gs://{os.environ['GCS_PREFIX']}_eproperty"
 path = "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds|get_ds_day }}/{{ run_id }}"
 json_loc = "{{ ds|get_ds_month }}/{{ ds|get_ds_day }}" + "_vacant_properties.json"
-
 
 # Run gcs_loader
 exec_gcs = f"python {os.environ['GCS_LOADER_PATH']}/eprop_vacant_properties_gis_wprdc_gcs.py"
@@ -41,38 +38,16 @@ gcs_loader = BashOperator(
 )
 
 
-# Load AVRO data produced by gcs_loader (which creates avro directly) into BQ table
-# TODO: use AF2 operator when we convert --> gcs_to_bq = GCSToBigQueryOperator(
-# gcs_to_bq = GoogleCloudStorageToBigQueryOperator(
-#         task_id = 'gcs_to_bq',
-#         destination_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}:eproperty.vacant_properties",
-#         bucket = f"{os.environ['GCS_PREFIX']}_hot_metal",
-#         source_objects = ["eproperties.avro"],
-#         write_disposition = 'WRITE_TRUNCATE',
-#         create_disposition = 'CREATE_IF_NEEDED',
-#         source_format = 'AVRO',
-#         autodetect = True,
-#         dag = dag
-# )
-
 # reverse geocode
 query_geo_join = build_revgeo_time_bound_query('eproperty', 'vacant_properties', 'vacant_properties_enriched',
-                                             'status_date', 'id', 'lat', 'long')
+                                               'status_date_utc', 'id', 'lat', 'long')
 geojoin = BigQueryOperator(
         task_id = 'geojoin',
         sql = query_geo_join,
-        bigquery_conn_id='google_cloud_default',
+        bigquery_conn_id = 'google_cloud_default',
         use_legacy_sql = False,
         dag = dag
 )
-
-
-# delete the temporary avro in hot storage
-# delete_avro = BashOperator(
-#         task_id = 'delete_avro',
-#         bash_command = F"gsutil rm -r gs://{os.environ['GCS_PREFIX']}_hot_metal/eproperties*",
-#         dag = dag
-# )
 
 
 # Export table as CSV to WPRDC bucket
@@ -97,23 +72,18 @@ FROM `{os.environ["GCLOUD_PROJECT"]}.eproperty.vacant_properties_enriched`
 push_gis = BigQueryOperator(
         task_id = 'push_gis',
         sql = query_push_gis,
-        bigquery_conn_id='google_cloud_default',
+        bigquery_conn_id = 'google_cloud_default',
         use_legacy_sql = False,
         dag = dag
 )
 
 
 beam_cleanup = BashOperator(
-    task_id='beam_cleanup',
-    bash_command=airflow_utils.beam_cleanup_statement(f"{os.environ['GCS_PREFIX']}_eproperties"),
-    dag=dag
+        task_id = 'beam_cleanup',
+        bash_command = airflow_utils.beam_cleanup_statement(f"{os.environ['GCS_PREFIX']}_eproperties"),
+        dag = dag
 )
 
-
-# gcs_loader >> gcs_to_bq >> geojoin
-# geojoin >> delete_avro >> beam_cleanup
-# geojoin >> wprdc_export >> beam_cleanup
-# geojoin >> push_gis >> beam_cleanup
 
 gcs_loader >> geojoin
 geojoin >> wprdc_export >> beam_cleanup

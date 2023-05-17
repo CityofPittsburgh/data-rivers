@@ -2,19 +2,15 @@ import os
 import argparse
 import json
 import requests
-# import re
 import pandas as pd
 
-from gcs_utils import json_to_gcs\
-    # , avro_to_gcs
+from gcs_utils import json_to_gcs
 
 # API_LIMIT controls pagination of API request. As of May 2023 it seems that the request cannot be limited to
 # selected fields. The unwanted fields are removed later and the required fields are specified here in the namees
 # returned directly from the API. Results are uploaded into long-term storage as a json. This is placed in an
 # auto-class bucket, so that data that is not touched (essentially each json) for 30 days is moved to colder storage.
-# The script also uploads AVRO files for BQ ingestion. These files are never used after ingestion and can be
-# recovered from the json quite easily. Each DAG, including this one, will load the AVRO into a single hot bucket and
-# then delete it when it is uploaded into BQ
+# The script also uploads the recrods from a dataframe into BQ. No AVRO is loaded into GCS for later movement into BQ
 
 API_LIMIT = 10000
 FIELDS = {"id": "id", "parcelNumber": "parc", "propertyAddress1": "address",
@@ -23,10 +19,8 @@ FIELDS = {"id": "id", "parcelNumber": "parc", "propertyAddress1": "address",
           "latitude": "lat", "longitude": "long", "inventoryType": "inventory_type", "zonedAs": "zoned_as",
           "currentStatus": "current_status", "statusDate": "status_date_utc"}
 
-# AVRO_SCHEMA = "eproperty_vacant_property.avsc"
 
 json_bucket = f"{os.environ['GCS_PREFIX']}_eproperty"
-# hot_bucket = F"{os.environ['GCS_PREFIX']}_hot_metal"
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--json_output_arg', dest = 'json_out_loc', required = True,
@@ -87,12 +81,10 @@ df_records["id"] = df_records["id"].astype(str)
 df_records[["neighborhood_name", "council_district", "ward", "fire_zone", "police_zone",
             "dpw_streets", "dpw_enviro", "dpw_parks"]] = ""
 
-
+# load into BQ
 df_records.to_gbq("eproperty.vacant_properties", F"{os.environ['GCLOUD_PROJECT']}", if_exists= "replace")
-
 
 # load API results as a json to GCS autoclass storage and avro to temporary hot storage bucket (deleted after load
 # into BQ)
 list_of_dict_recs = df_records.to_dict(orient = 'records')
 json_to_gcs(args['json_out_loc'], list_of_dict_recs, json_bucket)
-# avro_to_gcs('eproperties.avro', list_of_dict_recs, hot_bucket, AVRO_SCHEMA)
