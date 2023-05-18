@@ -50,7 +50,7 @@ def run(argv=None):
                          {'name': 'Q7'}, {'name': 'Q8'}, {'name': 'SurveyScore'}, {'name': 'AvgSurveyScore'},
                          {'name': 'OwnedByTechnician'}, {'name': 'LastModDateTime'}, {'name': 'LastModBy'}]
         add_search_vals = [''] * FIELD_COUNT
-        times = [('created_date', 'EST'), ('submitted_date', 'EST'), ('last_modified_date', 'EST')]
+        times = [('created_date', 'US/Eastern'), ('submitted_date', 'US/Eastern'), ('last_modified_date', 'US/Eastern')]
         type_changes = [('id', 'str'), ('incident_id', 'str'), ('q1_timely_resolution', 'int'),
                         ('q2_handled_professionally', 'int'), ('q3_clear_communication', 'int'),
                         ('q4_overall_satisfaction', 'int'), ('survey_complete', 'bool'),
@@ -62,7 +62,7 @@ def run(argv=None):
                 lines
                 | beam.ParDo(ExtractFieldWithComplexity(source_fields, nested_fields, new_field_names,
                                                         add_nested_fields, search_fields, add_search_vals))
-                | beam.ParDo(StandardizeTimes(times, "%m/%d/%Y %I:%M:%S %p"))
+                | beam.ParDo(StandardizeTimes(times, "%m/%d/%Y %I:%M:%S"))
                 | beam.ParDo(ChangeDataTypes(type_changes))
                 | WriteToAvro(known_args.avro_output, schema=avro_schema, file_name_suffix='.avro',
                               use_fastavro=True)
