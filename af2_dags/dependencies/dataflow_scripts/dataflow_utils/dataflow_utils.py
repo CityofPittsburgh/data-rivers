@@ -545,24 +545,24 @@ class StandardizeTimes(beam.DoFn, ABC):
         for time_change in self.time_changes:
             if datum[time_change[0]] is not None and datum[time_change[0]] != '':
                 parse_dt = parser.parse(datum[time_change[0]])
-                clean_dt = parse_dt.replace(tzinfo = None)
+                clean_dt = parse_dt.replace(tzinfo=None)
                 try:
                     pytz.all_timezones.index(time_change[1])
                 except ValueError:
                     pass
 
                 else:
-                    loc_time = pytz.timezone(time_change[1]).localize(clean_dt, is_dst = None)
-                    utc_conv = loc_time.astimezone(tz = pytz.utc)
-                    east_conv = loc_time.astimezone(tz = pytz.timezone('America/New_York'))
+                    loc_time = pytz.timezone(time_change[1]).localize(clean_dt, is_dst=None)
+                    utc_conv = loc_time.astimezone(tz=pytz.utc)
+                    east_conv = loc_time.astimezone(tz=pytz.timezone('US/Eastern'))
                     unix_conv = utc_conv.timestamp()
                     datum.update({'{}_UTC'.format(time_change[0]) : utc_conv.strftime(self.t_format),
                                   '{}_EST'.format(time_change[0]) : east_conv.strftime(self.t_format),
                                   '{}_UNIX'.format(time_change[0]): int(unix_conv)})
 
             else:
-                datum.update({'{}_UTC'.format(time_change[0]) : None,
-                              '{}_EST'.format(time_change[0]) : None,
+                datum.update({'{}_UTC'.format(time_change[0]): None,
+                              '{}_EST'.format(time_change[0]): None,
                               '{}_UNIX'.format(time_change[0]): None})
 
         yield datum
