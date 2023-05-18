@@ -17,7 +17,7 @@ from dependencies.airflow_utils import get_ds_year, get_ds_month, get_ds_day, de
 dag = DAG(
     'computronix_pli_permits_wprdc',
     default_args=default_args,
-    schedule_interval='@daily',
+    schedule_interval='5 3 * * *',
     user_defined_filters={'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year, 'get_ds_day': get_ds_day},
     start_date=datetime(2022, 10, 16),
     catchup = False

@@ -19,7 +19,7 @@ from dependencies.airflow_utils import get_ds_year, get_ds_month, get_ds_day, de
 dag = DAG(
     'computronix_pli_condemned_dead_end_properties',
     default_args=default_args,
-    schedule_interval='@daily',
+    schedule_interval='5 4 * * *',
     user_defined_filters={'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year, 'get_ds_day': get_ds_day},
     start_date=datetime(2022, 12, 16),
     catchup = False
