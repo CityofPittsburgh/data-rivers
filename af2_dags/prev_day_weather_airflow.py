@@ -27,6 +27,8 @@ dag = DAG(
 # initialize gcs locations
 dataset = "weather"
 bucket = f"{os.environ['GCS_PREFIX']}_{dataset}"
+hot_bucket = f"{os.environ['GCS_PREFIX']}_hot_metal"
+avro_loc = "weather_report"
 path = "prev_day_weather/{{ prev_ds|get_prev_ds_year }}/{{ prev_ds|get_prev_ds_month }}"
 
 prev_day_weather_gcs = BashOperator(
@@ -39,8 +41,8 @@ prev_day_weather_gcs = BashOperator(
 prev_day_weather_bq_load = GoogleCloudStorageToBigQueryOperator(
     task_id='prev_day_weather_bq_load',
     destination_project_dataset_table=f"{os.environ['GCLOUD_PROJECT']}.{dataset}.daily_weather",
-    bucket=bucket,
-    source_objects=[f"{path}/" + "{{ prev_ds }}_weather_report.avro"],
+    bucket=hot_bucket,
+    source_objects=[f"{avro_loc}*.avro"],
     bigquery_conn_id='google_cloud_default',
     write_disposition='WRITE_APPEND',
     create_disposition='CREATE_IF_NEEDED',
@@ -49,10 +51,16 @@ prev_day_weather_bq_load = GoogleCloudStorageToBigQueryOperator(
     dag=dag
 )
 
+delete_avro = BashOperator(
+    task_id='delete_avro',
+    bash_command=f"gsutil rm -r gs://{hot_bucket}/{avro_loc}*.avro",
+    dag=dag
+)
+
 beam_cleanup = BashOperator(
-    task_id='prev_day_weather_beam_cleanup',
+    task_id='beam_cleanup',
     bash_command=airflow_utils.beam_cleanup_statement(f"{os.environ['GCS_PREFIX']}_prev_day_weather"),
     dag=dag
 )
 
-prev_day_weather_gcs >> prev_day_weather_bq_load >> beam_cleanup
+prev_day_weather_gcs >> prev_day_weather_bq_load >> delete_avro >> beam_cleanup
