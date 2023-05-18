@@ -5,7 +5,7 @@ import requests
 import json
 import pytz
 
-from gcs_utils import avro_to_gcs
+from gcs_utils import avro_to_gcs, json_to_gcs
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-l', '--lookback_date', dest='lookback_date',
@@ -18,6 +18,7 @@ PGH_LONG = '-79.995888'
 UNITS = 'imperial'
 
 bucket = f"{os.environ['GCS_PREFIX']}_weather"
+avro_bucket = f"{os.environ['GCS_PREFIX']}_hot_metal"
 
 lookback_date = datetime.strptime(args['lookback_date'], '%Y-%m-%d')
 lookback_api_date = datetime(lookback_date.year, lookback_date.month, lookback_date.day, 1, 0, 0)
@@ -65,6 +66,7 @@ for hour in hourly_conditions:
     datum.append(hour_dict)
 
 
-avro_to_gcs(f"prev_day_weather/{args['lookback_date'].split('-')[0]}/{args['lookback_date'].split('-')[1]}",
-            f"{args['lookback_date']}_weather_report.avro",
-            datum, bucket, "prev_day_weather.avsc")
+json_to_gcs(f"prev_day_weather/{args['lookback_date'].split('-')[0]}/{args['lookback_date'].split('-')[1]}/"
+            f"{args['lookback_date']}_weather_report.json", datum, bucket)
+
+avro_to_gcs("weather_report.avro", datum, avro_bucket, "prev_day_weather.avsc")
