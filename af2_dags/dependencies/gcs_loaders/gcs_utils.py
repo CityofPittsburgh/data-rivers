@@ -209,31 +209,6 @@ def replace_pii(input_str, retain_location: bool, info_types=DEFAULT_PII_TYPES):
 #
 #     return redacted
 
-def gen_schema_from_df(name, df):
-    # use a dataframe to find the schema which can be used to create an avro file
-
-    # params: name (string) that specifies avro schema meta data.
-    # params: df (pandas dataframe) the dataframe that will be converted to AVRO
-    # output: schema (dict) this is always a record type schema for AVSC files
-
-    schema = {
-            'doc'      : name,
-            'name'     : name,
-            'namespace': name,
-            'type'     : 'record'
-    }
-
-    info = []
-    cols = df.columns.to_list()
-    for f in cols:
-        t = str(type(df[f][0])).replace("<class '", "").replace("'>", "")
-        field_type = {'name': f, 'type': t}
-        info.append(field_type)
-
-    schema.update({'fields': info})
-    return schema
-
-
 def regex_filter(value):
     """Regex filter for phone and email address patterns. phone_regex is a little greedy so be careful passing
     through fields with ID numbers and so forth"""
@@ -361,13 +336,11 @@ def sql_to_dict_list(conn, sql_query, db='mssql', date_col=None, date_format=Non
     return results_dict
 
 
-# , destination_blob_name
 def upload_file_gcs(bucket_name, file):
     """
     Uploads a file to the bucket.
     param bucket_name:str = "your-bucket-name" where the file will be placed
-    param source_file:str = "local/path/to/file"
-    param destination_blob_name:str = "storage-object-name"
+    param file:str = "local/path/to/file"
     """
 
     bucket = storage_client.bucket(bucket_name)
