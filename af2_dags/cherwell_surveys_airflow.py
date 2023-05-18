@@ -75,7 +75,7 @@ cherwell_surveys_bq_load = GoogleCloudStorageToBigQueryOperator(
 )
 
 format_date_query = build_format_dedup_query(source, table, 'DATETIME', date_fields, COLS,
-                                             datestring_fmt="%m/%d/%Y %I:%M:%S %p")
+                                             datestring_fmt="%m/%d/%Y %I:%M:%S")
 format_dates = BigQueryOperator(
     task_id='format_dates',
     sql=format_date_query,
