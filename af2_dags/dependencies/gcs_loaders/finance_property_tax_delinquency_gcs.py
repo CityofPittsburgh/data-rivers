@@ -2,7 +2,6 @@ import os
 import argparse
 import re
 import jaydebeapi
-import jpype
 import pendulum
 from datetime import datetime
 from google.cloud import storage
@@ -20,6 +19,7 @@ args = vars(parser.parse_args())
 run_start_win, first_run = find_last_successful_run(json_bucket, "tax_delinquency/successful_run_log/log.json",
                                                     "2023-01-05")
 
+# connect to Oracle database using creds hidden in environmental variables and driver found in JAR file
 conn = jaydebeapi.connect("oracle.jdbc.OracleDriver", os.environ['REALESTATE_DB'],
                           [os.environ['REALESTATE_UN'], os.environ['REALESTATE_PW']],
                           f"{os.environ['GCS_LOADER_PATH']}/ojdbc6.jar")
@@ -32,9 +32,11 @@ query = F"""SELECT cca.CNTY_ACCT AS PIN, m.MODIFY_DATE, PROP_LOCATION AS ADDRESS
                AND m.ACCT_NO = cca.CITY_ACCT
                AND m.MODIFY_DATE > TO_DATE('{run_start_win}', 'yyyy-mm-dd')"""
 
+# parse query results into Pandas dataframe
 data = sql_to_df(conn, query, db=os.environ['REALESTATE_DRIVER'])
 data = data.rename(columns=str.lower)
 
+# convert neighborhood names to match WPRDC standards
 ngh_convs = {
     'BANKSVILLE CITY': 'BANKSVILLE',
     'ALLENTOWN SLOPES': 'ALLENTOWN',
@@ -46,10 +48,14 @@ ngh_convs = {
 }
 data['neighborhood'] = data['neighborhood'].replace(ngh_convs)
 data['neighborhood'] = data['neighborhood'].str.title()
+
+# strip leading 0's from addresses (e.g., 0 MAIN ST should just become MAIN ST)
 data['address'] = data['address'].apply(lambda x: re.sub(r'^0\s', '', x) if isinstance(x, str) else x)
+# billing_city is the city and state separate by a comma, so if both of these values are blank, the field
+# will display as ', '. This code converts empty city names to null
 data['billing_city'] = data['billing_city'].mask(data['billing_city'] == ', ', None)
-data['prior_years'] = data['prior_years'].astype(str)
-# load into BQ
+
+#  read in AVRO schema and load into BQ
 schema = conv_avsc_to_bq_schema(F"{os.environ['GCS_PREFIX']}_avro_schemas", "property_tax_delinquency.avsc")
 data.to_gbq("finance.incoming_property_tax_delinquency", project_id=f"{os.environ['GCLOUD_PROJECT']}",
             if_exists="replace", table_schema=schema)
