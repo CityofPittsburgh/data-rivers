@@ -16,7 +16,7 @@ from google.cloud import bigquery, storage
 
 
 local_tz = pendulum.timezone('America/New_York')
-dt = datetime.now(tz = local_tz)
+dt = datetime.now(tz=local_tz)
 yesterday = datetime.combine(dt - timedelta(1), datetime.min.time())
 
 bq_client = bigquery.Client()
@@ -27,23 +27,23 @@ def on_failure(context):
     dag_id = context['dag_run'].dag_id
 
     task_id = context['task_instance'].task_id
-    context['task_instance'].xcom_push(key = dag_id, value = True)
+    context['task_instance'].xcom_push(key=dag_id, value=True)
 
     logs_url = "{}/admin/airflow/log?dag_id={}&task_id={}&execution_date={}".format(
-            os.environ['AIRFLOW_WEB_SERVER'], dag_id, task_id, context['ts'])
+        os.environ['AIRFLOW_WEB_SERVER'], dag_id, task_id, context['ts'])
     utc_time = logs_url.split('T')[-1]
     logs_url = logs_url.replace(utc_time, urllib.parse.quote(utc_time))
 
     if os.environ['GCLOUD_PROJECT'] == 'data-rivers':
         teams_notification = MSTeamsWebhookOperator(
-                task_id = "msteams_notify_failure",
-                trigger_rule = "all_done",
-                message = "`{}` has failed on task: `{}`".format(dag_id, task_id),
-                button_text = "View log",
-                button_url = logs_url,
-                subtitle = "View log: {}".format(logs_url),
-                theme_color = "FF0000",
-                http_conn_id = 'msteams_webhook_url')
+            task_id="msteams_notify_failure",
+            trigger_rule="all_done",
+            message="`{}` has failed on task: `{}`".format(dag_id, task_id),
+            button_text="View log",
+            button_url=logs_url,
+            subtitle="View log: {}".format(logs_url),
+            theme_color="FF0000",
+            http_conn_id='msteams_webhook_url')
 
         teams_notification.execute(context)
         return
@@ -51,20 +51,20 @@ def on_failure(context):
         pass
 
 
-#TODO: email can be added in later, but that functionality is currently not used. expect this to change soon (05/22)
+# TODO: email can be added in later, but that functionality is currently not used. expect this to change soon (05/22)
 # 'email': os.environ['EMAIL'],
 default_args = {
-        'depends_on_past'         : False,
-        'start_date'              : yesterday,
-        'email_on_failure'        : True,
-        'email_on_retry'          : False,
-        'retries'                 : 1,
-        'retry_delay'             : timedelta(minutes = 5),
-        'project_id'              : os.environ['GCLOUD_PROJECT'],
-        'on_failure_callback'     : on_failure,
-        'dataflow_default_options': {
-                'project': os.environ['GCLOUD_PROJECT']
-        }
+    'depends_on_past': False,
+    'start_date': yesterday,
+    'email_on_failure': True,
+    'email_on_retry': False,
+    'retries': 1,
+    'retry_delay': timedelta(minutes=5),
+    'project_id': os.environ['GCLOUD_PROJECT'],
+    'on_failure_callback': on_failure,
+    'dataflow_default_options': {
+        'project': os.environ['GCLOUD_PROJECT']
+    }
 }
 
 
@@ -92,7 +92,8 @@ def get_prev_ds_day(ds):
     return ds.split('-')[2]
 
 
-def build_dashburgh_street_tix_query(dataset, raw_table, new_table, is_deduped, id_field, group_field, limit, start_time, field_groups):
+def build_dashburgh_street_tix_query(dataset, raw_table, new_table, is_deduped, id_field, group_field, limit,
+                                     start_time, field_groups):
     sql = f"""
     CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.{dataset}.{new_table}` AS 
     SELECT {'DISTINCT' if is_deduped else ''} {id_field} AS id, dept, tix.request_type_name, closed_date_est
@@ -151,7 +152,8 @@ def build_insert_new_records_query(dataset, incoming_table, master_table, id_fie
 
 
 # TODO: phase out the usage of build_revgeo_query() in favor of build_rev_geo_time_bound_query()
-def build_revgeo_time_bound_query(dataset, raw_table, new_table, create_date, id_col, lat_field, long_field):
+def build_revgeo_time_bound_query(dataset, raw_table, new_table, create_date, id_col, lat_field, long_field,
+                                  table_or_view='TABLE'):
     """
     Take a table with lat/long values and reverse-geocode it into a new a final table.
     This function is a substantial refactor of the build_rev_geo() function. This query allows a lat/long point to be
@@ -167,11 +169,12 @@ def build_revgeo_time_bound_query(dataset, raw_table, new_table, create_date, id
     :param create_date: ticket creation date (string)
     :param lat_field: field in table that identifies latitude value
     :param long_field: field in table that identifies longitude value
+    :param table_or_view: indication of whether the output of the query will be a new table or a view
     :return: string to be passed through as arg to BigQueryOperator
     """
 
     return f"""
-    CREATE OR REPLACE TABLE `{os.environ["GCLOUD_PROJECT"]}.{dataset}.{new_table}` AS
+    CREATE OR REPLACE {table_or_view} `{os.environ["GCLOUD_PROJECT"]}.{dataset}.{new_table}` AS
 
     -- return zones for all records that it is possible to rev geocode. some records will not be possible to process 
     -- (bad lat/long etc) and will be pulled in via the next blocked
@@ -253,7 +256,7 @@ def build_revgeo_time_bound_query(dataset, raw_table, new_table, create_date, id
     SELECT 
         raw.* EXCEPT(neighborhood_name, council_district, ward, fire_zone, police_zone, dpw_streets, dpw_enviro, 
         dpw_parks),
-        sel_zones.* EXCEPT (id)
+        sel_zones.* EXCEPT ({id_col})
     FROM `{os.environ["GCLOUD_PROJECT"]}.{dataset}.{raw_table}` raw
     LEFT OUTER JOIN sel_zones ON sel_zones.{id_col} = raw.{id_col}
 """
@@ -328,10 +331,10 @@ def build_revgeo_query(dataset, raw_table, id_field):
 
 
 def build_piecemeal_revgeo_query(dataset, raw_table, new_table, create_date, id_col, lat_field, long_field,
-                                 geo_table, geo_field):
+                                 geo_table, geo_field, table_or_view='TABLE'):
     return f"""
-    CREATE OR REPLACE TABLE `{os.environ["GCLOUD_PROJECT"]}.{dataset}.{new_table}` AS
-    
+    CREATE OR REPLACE {table_or_view} `{os.environ["GCLOUD_PROJECT"]}.{dataset}.{new_table}` AS
+
     WITH
       sel_zones AS (
       SELECT DISTINCT
@@ -351,12 +354,14 @@ def build_piecemeal_revgeo_query(dataset, raw_table, new_table, create_date, id_
     -- rev coded above)
     SELECT DISTINCT
         raw.* EXCEPT({geo_field}),
-        sel_zones.* EXCEPT (id)
+        sel_zones.* EXCEPT ({id_col})
     FROM `{os.environ["GCLOUD_PROJECT"]}.{dataset}.{raw_table}` raw
     LEFT OUTER JOIN sel_zones ON sel_zones.{id_col} = raw.{id_col};
     """
 
-def build_percentage_table_query(dataset, raw_table, new_table, is_deduped, id_field, pct_field, categories, hardcoded_vals):
+
+def build_percentage_table_query(dataset, raw_table, new_table, is_deduped, id_field, pct_field, categories,
+                                 hardcoded_vals):
     sql = f"""
     CREATE OR REPLACE TABLE  `{os.environ['GCLOUD_PROJECT']}.{dataset}.{new_table}` AS
     SELECT {'DISTINCT' if is_deduped else ''} {pct_field}, 
@@ -384,7 +389,7 @@ def build_split_table_query(dataset, raw_table, start, stop, num_shards, date_fi
     timestamps = range(start, stop, step)
 
     for i in range(len(timestamps)):
-        query += F"""CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.{dataset}.{raw_table}_{i+1}` AS
+        query += F"""CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.{dataset}.{raw_table}_{i + 1}` AS
         WITH formatted  AS 
             (
             SELECT 
@@ -396,11 +401,11 @@ def build_split_table_query(dataset, raw_table, start, stop, num_shards, date_fi
             FROM 
                 `{os.environ['GCLOUD_PROJECT']}.{dataset}.{raw_table}` """
         if i == 0:
-            query += f"WHERE {date_field} < {timestamps[i+1]}"
+            query += f"WHERE {date_field} < {timestamps[i + 1]}"
         elif i == len(timestamps) - 1:
             query += f"WHERE {date_field} >= {timestamps[i]}"
         else:
-            query += f"WHERE {date_field} >= {timestamps[i]} AND {date_field} < {timestamps[i+1]}"
+            query += f"WHERE {date_field} >= {timestamps[i]} AND {date_field} < {timestamps[i + 1]}"
         query += F""")
         SELECT 
             {cols_in_order} 
@@ -411,7 +416,8 @@ def build_split_table_query(dataset, raw_table, start, stop, num_shards, date_fi
     return query
 
 
-def build_sync_staging_table_query(dataset, new_table, upd_table, src_table, is_deduped, upd_id_field, join_id_field, field_groups, comp_fields):
+def build_sync_staging_table_query(dataset, new_table, upd_table, src_table, is_deduped, upd_id_field, join_id_field,
+                                   field_groups, comp_fields):
     sql = F"""
     CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.{dataset}.{new_table}` AS 
     SELECT {'DISTINCT' if is_deduped else ''} {upd_id_field}, """
@@ -516,7 +522,7 @@ def find_backfill_date(bucket_name, subfolder):
     # only search back to 2017
     while not valid and int(dt_yr) > 2017:
         prefix = subfolder + '/' + dt_yr + '/' + dt_month
-        blobs = storage_client.list_blobs(bucket_name, prefix = prefix)
+        blobs = storage_client.list_blobs(bucket_name, prefix=prefix)
         list_blobs = list(blobs)
 
         # if blobs are found
@@ -599,7 +605,7 @@ def format_dataflow_call(script_name, bucket_name, sub_direc, dataset_id):
     return exec_script_cmd + input_arg + output_arg
 
 
-def build_city_limits_query(dataset, raw_table, lat_field = 'lat', long_field = 'long'):
+def build_city_limits_query(dataset, raw_table, lat_field='lat', long_field='long'):
     """
     Determine whether a set of coordinates fall within the borders of the City of Pittsburgh,
     while also falling outside the borders of Mt. Oliver. If an address is within the city,
