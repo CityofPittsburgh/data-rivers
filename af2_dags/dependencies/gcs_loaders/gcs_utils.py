@@ -210,6 +210,31 @@ def replace_pii(input_str, retain_location: bool, info_types=DEFAULT_PII_TYPES):
 #
 #     return redacted
 
+def gen_schema_from_df(name, df):
+    # use a dataframe to find the schema which can be used to create an avro file
+
+    # params: name (string) that specifies avro schema meta data.
+    # params: df (pandas dataframe) the dataframe that will be converted to AVRO
+    # output: schema (dict) this is always a record type schema for AVSC files
+
+    schema = {
+            'doc'      : name,
+            'name'     : name,
+            'namespace': name,
+            'type'     : 'record'
+    }
+
+    info = []
+    cols = df.columns.to_list()
+    for f in cols:
+        t = str(type(df[f][0])).replace("<class '", "").replace("'>", "")
+        field_type = {'name': f, 'type': t}
+        info.append(field_type)
+
+    schema.update({'fields': info})
+    return schema
+
+
 def regex_filter(value):
     """Regex filter for phone and email address patterns. phone_regex is a little greedy so be careful passing
     through fields with ID numbers and so forth"""
@@ -341,7 +366,6 @@ def upload_file_gcs(bucket_name, file):
     """
     Uploads a file to the bucket.
     param bucket_name:str = "your-bucket-name" where the file will be placed
-    param file:str = "local/path/to/file"
     """
 
     bucket = storage_client.bucket(bucket_name)
@@ -774,3 +798,35 @@ def json_linter(ndjson: str):
                     result_ndjson.append('{' + json_split[idx] + '}')
 
     return '\n'.join(result_ndjson)
+
+
+def sql_to_df(conn, sql_query, db='MSSQL', date_col=None, date_format=None):
+    """
+    Execute sql query and return list of dicts
+    :param conn: sql db connection
+    :param sql_query: str
+    :param db: database type (cursor result syntax differs)
+    :param date_col: str - dataframe column to be converted from datetime object to string
+    :param date_format: str (format for conversion of datetime object to date string)
+    :return: query results as pandas dataframe
+    """
+    cursor = conn.cursor()
+    cursor.execute(sql_query)
+    field_names = [i[0] for i in cursor.description]
+
+    if db == 'MSSQL':
+        results = [result for result in cursor]
+    elif db == 'Oracle':
+        results = cursor.fetchall()
+    conn.close()
+
+    df = pd.DataFrame(results)
+    df.columns = field_names
+
+    if date_col is not None:
+        if date_format is not None:
+            df[date_col] = df[date_col].apply(lambda x: x.strftime(date_format))
+        else:
+            df[date_col] = df[date_col].apply(lambda x: x.strftime('%Y-%m-%d'))
+
+    return df
