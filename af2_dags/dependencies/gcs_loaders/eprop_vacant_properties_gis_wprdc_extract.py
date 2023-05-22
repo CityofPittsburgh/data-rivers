@@ -6,7 +6,6 @@ import pandas as pd
 
 from gcs_utils import json_to_gcs, conv_avsc_to_bq_schema
 
-
 # API_LIMIT controls pagination of API request. As of May 2023 it seems that the request cannot be limited to
 # selected fields. The unwanted fields are removed later and the required fields are specified here in the namees
 # returned directly from the API. Results are uploaded into long-term storage as a json. This is placed in an
@@ -14,12 +13,11 @@ from gcs_utils import json_to_gcs, conv_avsc_to_bq_schema
 # The script also uploads the recrods from a dataframe into BQ. No AVRO is loaded into GCS for later movement into BQ
 
 API_LIMIT = 10000
-FIELDS = {"id": "id", "parcelNumber": "parc", "propertyAddress1": "address",
-          "currentOwners": "owner", "parcelSquareFootage": "parc_sq_ft", "acquisitionMethod": "acquisition_method",
+FIELDS = {"id"             : "id", "parcelNumber": "parc", "propertyAddress1": "address",
+          "currentOwners"  : "owner", "parcelSquareFootage": "parc_sq_ft", "acquisitionMethod": "acquisition_method",
           "acquisitionDate": "acquisition_date", "propertyClass": "class", "censusTract": "census_tract",
-          "latitude": "lat", "longitude": "long", "inventoryType": "inventory_type", "zonedAs": "zoned_as",
-          "currentStatus": "current_status", "statusDate": "status_date_utc"}
-
+          "latitude"       : "lat", "longitude": "long", "inventoryType": "inventory_type", "zonedAs": "zoned_as",
+          "currentStatus"  : "current_status", "statusDate": "status_date_utc"}
 
 json_bucket = f"{os.environ['GCS_PREFIX']}_eproperty"
 
@@ -76,15 +74,15 @@ df_records.drop(drops, axis = 1, inplace = True)
 df_records.rename(columns = FIELDS, inplace = True)
 df_records = df_records[FIELDS.values()]
 
-
 # convert id, an int, to string to be consistent with our SOP and change NaNs to Null
 df_records["id"] = df_records["id"].astype(str)
+df_records["address"].apply(lambda x: x.upper())
 df_records[["neighborhood_name", "council_district", "ward", "fire_zone", "police_zone",
             "dpw_streets", "dpw_enviro", "dpw_parks"]] = ""
 
 # load into BQ
 schema = conv_avsc_to_bq_schema(F"{os.environ['GCS_PREFIX']}_avro_schemas", "eproperty_vacant_property.avsc")
-df_records.to_gbq("eproperty.vacant_properties", F"{os.environ['GCLOUD_PROJECT']}", if_exists= "replace",
+df_records.to_gbq("eproperty.vacant_properties", F"{os.environ['GCLOUD_PROJECT']}", if_exists = "replace",
                   table_schema = schema)
 
 # load API results as a json to GCS autoclass storage and avro to temporary hot storage bucket (deleted after load
