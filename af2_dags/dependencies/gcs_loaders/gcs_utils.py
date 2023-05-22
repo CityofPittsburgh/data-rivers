@@ -820,7 +820,10 @@ def sql_to_df(conn, sql_query, db='MSSQL', date_col=None, date_format=None):
     conn.close()
 
     df = pd.DataFrame(results)
-    df.columns = field_names
+    try:
+        df.columns = field_names
+    except ValueError:
+        df = pd.DataFrame(columns=field_names, dtype=object)
 
     if date_col is not None:
         if date_format is not None:
