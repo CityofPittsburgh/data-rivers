@@ -53,14 +53,9 @@ tax_delinquency_gcs = BashOperator(
     dag=dag
 )
 
-format_dedup_table = BigQueryOperator(
-    task_id='format_dedup_table',
-    sql=build_format_dedup_query(source, f"incoming_{table}", "INT64", ["prior_years"], COLS),
-    bigquery_conn_id='google_cloud_default',
-    use_legacy_sql=False,
-    dag=dag
-)
-
+# the primary key of tax delinquency data is parcel ID; parcel data is also stored in the timebound_geography dataset
+# with corresponding geographical boundaries. this query uses the ST_CENTROID geographic function to obtain lat/longs
+# for each parcel
 coord_query = F"""
 CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.{source}.incoming_{table}` AS
     SELECT {COLS}, NULL AS neighborhood_name, NULL AS council_district, NULL AS ward, 
@@ -77,16 +72,7 @@ get_coords = BigQueryOperator(
     dag=dag
 )
 
-# query_geo_join = build_revgeo_time_bound_query('finance', f'incoming_{table}', f'incoming_{table}',
-#                                                'modify_date', 'pin', 'latitude', 'longitude', table_or_view='VIEW')
-# geojoin = BigQueryOperator(
-#     task_id='geojoin',
-#     sql=query_geo_join,
-#     bigquery_conn_id='google_cloud_default',
-#     use_legacy_sql=False,
-#     dag=dag
-# )
-
+# the following 5 tasks join the parcel records to the geographic zones displayed in the published WPRDC dataset
 geojoin_council = BigQueryOperator(
     task_id='geojoin_council',
     sql=build_piecemeal_revgeo_query(source, f'incoming_{table}', f'incoming_{table}', 'modify_date', 'pin',
@@ -132,6 +118,7 @@ geojoin_fire = BigQueryOperator(
     dag=dag
 )
 
+# insert records for delinquent properties that don't already exist in the final dataset
 insert_new = BigQueryOperator(
     task_id='insert_new',
     sql=build_insert_new_records_query(source, f"incoming_{table}", table, "pin", FINAL_COLS),
@@ -140,6 +127,7 @@ insert_new = BigQueryOperator(
     dag=dag
 )
 
+# update details for delinquent properties if they are already present in the final dataset
 update_changed = BigQueryOperator(
     task_id='update_changed',
     sql=build_sync_update_query(source, table, f"incoming_{table}", "pin", UPD_COLS),
@@ -148,6 +136,8 @@ update_changed = BigQueryOperator(
     dag=dag
 )
 
+# export the final dataset to a new table that will be converted to a CSV and provided to WPRDC
+# modify_date is excluded as that field is not present in the published dataset
 query_export_cols = f"""
 CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.{source}.data_export_wprdc` AS
 SELECT
@@ -163,7 +153,7 @@ create_wprdc_table = BigQueryOperator(
     dag=dag
 )
 
-# Export table as CSV to WPRDC bucket
+# export table as CSV to WPRDC bucket
 wprdc_export = BigQueryToCloudStorageOperator(
     task_id='wprdc_export',
     source_project_dataset_table=f"{os.environ['GCLOUD_PROJECT']}.{source}.data_export_wprdc",
@@ -172,6 +162,7 @@ wprdc_export = BigQueryToCloudStorageOperator(
     dag=dag
 )
 
+# clean up BQ by removing temporary WPRDC table after it has been converted to a CSV
 delete_export = BigQueryTableDeleteOperator(
     task_id="delete_export",
     deletion_dataset_table=f"{os.environ['GCLOUD_PROJECT']}.{source}.data_export_wprdc",
@@ -185,6 +176,6 @@ beam_cleanup = BashOperator(
     dag=dag
 )
 
-tax_delinquency_gcs >> format_dedup_table >> get_coords >> geojoin_council >> geojoin_ward >> geojoin_dpw >> \
+tax_delinquency_gcs >> get_coords >> geojoin_council >> geojoin_ward >> geojoin_dpw >> \
     geojoin_police >> geojoin_fire >> insert_new >> update_changed >> create_wprdc_table >> wprdc_export >> \
     delete_export >> beam_cleanup
