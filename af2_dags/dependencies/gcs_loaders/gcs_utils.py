@@ -31,21 +31,45 @@ WPRDC_API_HARD_LIMIT = 500001  # A limit set by the CKAN instance.
 
 
 
-def call_odata_api(targ_url, limit_results = False):
+def call_odata_api(targ_url, limit_results = False, max_fails = 2):
     """
     :param targ_url: string value of fully formed odata_query (needs to be constructed before passing in)
+    :param limit_results: Boolean to make sure the API is only called once (this is good for testing)
+    :param limit_results: Boolean to allow graceful failures of the API call. Once the limit is reached the function
+    will exit
     :return: list of dicts containing API results
     """
     records = []
     more_links = True
+    fail_count = 0
+    fail_occurred = False
 
     while more_links:
-        res = requests.get(targ_url)
-        records.extend(res.json()['value'])
+        try:
+            res = requests.get(targ_url)
+            records.extend(res.json()['value'])
+
+        except KeyError:
+            # key error returns when api call fails-- increment the failure counter. if the max fails have been
+            # reached then no more calls will be made. records may be empty if the max_fails has been reached before
+            # a single successful api request. in this case, if records is empty, and the script will be exited
+            # right away. if a single call fails, it is advantageous to continue retrieving data. this functionality
+            # will allow for some failures and will print an error alert in the log
+            fail_count += 1
+            if fail_count >= max_fails:
+                if records:
+                    print("multiple api calls failed...significant amounts of data are missing")
+                    return records
+                else:
+                    print("all api calls failed")
+                    exit()
+            else:
+                print("an api call failed...some data are missing")
+                fail_occurred = True
 
         if limit_results:
             more_links = False
-        elif '@odata.nextLink' in res.json().keys():
+        elif '@odata.nextLink' in res.json().keys() or fail_occurred:
             targ_url = res.json()['@odata.nextLink']
         else:
             more_links = False
