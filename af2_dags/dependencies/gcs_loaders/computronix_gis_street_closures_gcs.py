@@ -1,7 +1,7 @@
 import os
 import argparse
 
-from gcs_utils import json_to_gcs, select_expand_odata, unnest_domi_street_seg
+from gcs_utils import json_to_gcs, unnest_domi_street_seg, call_odata_api
 
 # names to swap for fields that are not nested in raw data
 SWAPS = [
@@ -26,35 +26,30 @@ args = vars(parser.parse_args())
 
 bucket = f"{os.environ['GCS_PREFIX']}_computronix"
 
-
 # CX ODATA API URL base
 url = 'https://staff.onestoppgh.pittsburghpa.gov/pghprod/odata/odata/'
 
 # fields to select from a each table (inserted into "tables" list in the order the tables appear)
-sel_fields = [
-        "EXTERNALFILENUM,PERMITTYPEPERMITTYPE,WORKDESCRIPTION,TYPEOFWORKDESCRIPTION," \
-        "APPLICANTCUSTOMFORMATTEDNAME,ALLCONTRACTORSNAME",
+fds_base = "EXTERNALFILENUM,PERMITTYPEPERMITTYPE,WORKDESCRIPTION,TYPEOFWORKDESCRIPTION," \
+        "APPLICANTCUSTOMFORMATTEDNAME,ALLCONTRACTORSNAME"
 
-        "SPECIALINSTRUCTIONS,FROMDATE,TODATE,WEEKDAYWORKHOURS,WEEKENDWORKHOURS,PRIMARYSTREET,FROMSTREET," \
-        "TOSTREET,FULLCLOSURE,TRAVELLANE,PARKINGLANE,METEREDPARKING,SIDEWALK",
+fds_nt1 = "SPECIALINSTRUCTIONS,FROMDATE,TODATE,WEEKDAYWORKHOURS,WEEKENDWORKHOURS,PRIMARYSTREET,FROMSTREET," \
+        "TOSTREET,FULLCLOSURE,TRAVELLANE,PARKINGLANE,METEREDPARKING,SIDEWALK"
 
-        "CARTEID"
-]
+fds_nt2 = "CARTEID"
 
-# first tuple refers to the base table & subsequent tuples are expansions
-# "STREETCLOSUREDOMISTREETSEGMENT" is a nested join into 'DOMISTREETCLOSURE'
-tables = [
+# base table and nested tables (nt)
+tb_base = "DOMIPERMIT"
+tb_nt1 = 'DOMISTREETCLOSURE'
+tb_nt2 = "STREETCLOSUREDOMISTREETSEGMENT"
 
-        ("DOMIPERMIT", False, [sel_fields[0]]),
-        ('DOMISTREETCLOSURE', ["STREETCLOSUREDOMISTREETSEGMENT"], [sel_fields[1], sel_fields[2]])
-]
+odata_url = F"{url}{tb_base}?$select={fds_base}," + F"&$expand={tb_nt1}" \
+            + F"($select={fds_nt1},;" + F"$expand={tb_nt2}($select={fds_nt2})),"
 
 # extract the data from ODATA API
-nested_permits = select_expand_odata(url, tables, limit_results = False)
-
+nested_permits = call_odata_api(odata_url, limit_results = False)
 unnested_data = unnest_domi_street_seg(nested_permits, SWAPS, OLD_KEYS, NEW_KEYS)
 
 # load data into GCS
 # out loc = <dataset>/<full date>/<run_id>_str_closures.json
 json_to_gcs(args["out_loc"], unnested_data, bucket)
-
