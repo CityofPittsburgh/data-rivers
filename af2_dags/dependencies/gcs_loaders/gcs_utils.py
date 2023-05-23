@@ -17,9 +17,10 @@ from avro.datafile import DataFileWriter
 from avro.io import DatumWriter
 
 from datetime import datetime
-from google.cloud import storage, dlp
+from google.cloud import storage, bigquery, dlp
 
 storage_client = storage.Client()
+bigquery_client = bigquery.Client()
 dlp_client = dlp.DlpServiceClient()
 
 PROJECT = os.environ['GCLOUD_PROJECT']
