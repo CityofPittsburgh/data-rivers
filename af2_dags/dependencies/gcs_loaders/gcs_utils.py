@@ -29,7 +29,7 @@ DEFAULT_PII_TYPES = [{"name": "PERSON_NAME"}, {"name": "EMAIL_ADDRESS"}, {"name"
 WPRDC_API_HARD_LIMIT = 500001  # A limit set by the CKAN instance.
 
 
-def call_odata_api(targ_url):
+def call_odata_api(targ_url, limit_results = False):
     """
     :param targ_url: string value of fully formed odata_query (needs to be constructed before passing in)
     :return: list of dicts containing API results
@@ -41,11 +41,9 @@ def call_odata_api(targ_url):
         res = requests.get(targ_url)
         records.extend(res.json()['value'])
 
-        if res.status_code != 200:
-            print("API call failed")
-            print(f"Status Code:  {res.status_code}")
-
-        if '@odata.nextLink' in res.json().keys():
+        if limit_results:
+            more_links = False
+        elif '@odata.nextLink' in res.json().keys():
             targ_url = res.json()['@odata.nextLink']
         else:
             more_links = False
@@ -209,6 +207,31 @@ def replace_pii(input_str, retain_location: bool, info_types=DEFAULT_PII_TYPES):
 #
 #     return redacted
 
+def gen_schema_from_df(name, df):
+    # use a dataframe to find the schema which can be used to create an avro file
+
+    # params: name (string) that specifies avro schema meta data.
+    # params: df (pandas dataframe) the dataframe that will be converted to AVRO
+    # output: schema (dict) this is always a record type schema for AVSC files
+
+    schema = {
+            'doc'      : name,
+            'name'     : name,
+            'namespace': name,
+            'type'     : 'record'
+    }
+
+    info = []
+    cols = df.columns.to_list()
+    for f in cols:
+        t = str(type(df[f][0])).replace("<class '", "").replace("'>", "")
+        field_type = {'name': f, 'type': t}
+        info.append(field_type)
+
+    schema.update({'fields': info})
+    return schema
+
+
 def regex_filter(value):
     """Regex filter for phone and email address patterns. phone_regex is a little greedy so be careful passing
     through fields with ID numbers and so forth"""
@@ -340,7 +363,6 @@ def upload_file_gcs(bucket_name, file):
     """
     Uploads a file to the bucket.
     param bucket_name:str = "your-bucket-name" where the file will be placed
-    param file:str = "local/path/to/file"
     """
 
     bucket = storage_client.bucket(bucket_name)
@@ -402,80 +424,6 @@ def json_to_gcs(path, json_object_list, bucket_name):
     logging.info('Successfully uploaded blob %r to bucket %r.', path, bucket_name)
 
     print('Successfully uploaded blob {} to bucket {}'.format(path, bucket_name))
-
-
-def select_expand_odata(url, tables, limit_results=False):
-    """
-        General ODATA API query generator. This function will format the query, request from the API, and loop through
-        all result pages, Data are returned as a list of dicts. Note- This function is used for Selects and Joins (
-        expansions) ONLY. More complicated queries need to be customized.
-
-        :param: url (str): full URL base for the API (not including the base table that will form the beginning of
-        the query
-        :param: tables (list): List of tuples. Each tuple contains the following elements in this order-
-
-            [
-                ( 'Table Name', ['Table(s) to form nested expansion on'], [String(s) of columns to select from the
-                tables] )
-            ]
-            The first value in each tuple is a string. The second is a LIST of strings (still put the string in a
-            list even if it is only value). The third is a list of strings.
-            EXAMPLE:
-            tables = [
-                        ("base_table",False,["id"]),
-                        ("abc",False,["name"]),
-                        ("def",["hij","klm"],["phone", "address", "DOB, age"])
-                    ]
-
-            The input above would 1) select the property "id" from "base_table". 2) expand the above data on "abc"
-            and select "name" from "abc". 3) expand the above data on table "def" and select "phone" from that table.
-            4) perform a nested expansion of both "hij" and "klm" on "def". "address" will be selected from "hij" and
-            "DOB, age" will be selected from "klm". Remember- this will nest "hij" and "klm" into "def" expansion.
-            This will NOT nest "klm" in "hij"
-
-            All operations will begin with the base_table
-
-            To simply select all columns from a table use a star in the third value of the tuple (e.g. ["*"])
-
-            Insert a False into the second value of the table to avoid nested expansions. If only 1 table is needed,
-            just use 1 tuple.
-        :return: list of dicts representing ODATA API results
-        """
-
-    odata_url = F"{url}{tables[0][0]}?$select={tables[0][2][0]}"
-
-    # if more than one table
-    if len(tables) > 1:
-        odata_url += ',&$expand='
-
-        for t in tables[1:]:
-            odata_url += F'{t[0]}($select={t[2][0]}'
-            if t[1]:
-                for (sub_t, sub_cols) in zip(t[1], t[2][1:]):
-                    odata_url += F',;$expand={sub_t}($select={sub_cols})'
-
-            odata_url += '),'
-
-    more_links = True
-    records = []
-
-    while more_links:
-        res = requests.get(odata_url)
-
-        if res.status_code != 200:
-            print("API call failed")
-            print(f"Status Code:  {res.status_code}")
-
-
-        records.extend(res.json()['value'])
-        if limit_results:
-            more_links = False
-        elif '@odata.nextLink' in res.json().keys():
-            odata_url = res.json()['@odata.nextLink']
-        else:
-            more_links = False
-
-    return records
 
 
 def unnest_domi_street_seg(nested_data, name_swaps, old_nested_keys, new_unnested_keys):
@@ -773,3 +721,38 @@ def json_linter(ndjson: str):
                     result_ndjson.append('{' + json_split[idx] + '}')
 
     return '\n'.join(result_ndjson)
+
+
+def sql_to_df(conn, sql_query, db='MSSQL', date_col=None, date_format=None):
+    """
+    Execute sql query and return list of dicts
+    :param conn: sql db connection
+    :param sql_query: str
+    :param db: database type (cursor result syntax differs)
+    :param date_col: str - dataframe column to be converted from datetime object to string
+    :param date_format: str (format for conversion of datetime object to date string)
+    :return: query results as pandas dataframe
+    """
+    cursor = conn.cursor()
+    cursor.execute(sql_query)
+    field_names = [i[0] for i in cursor.description]
+
+    if db == 'MSSQL':
+        results = [result for result in cursor]
+    elif db == 'Oracle':
+        results = cursor.fetchall()
+    conn.close()
+
+    df = pd.DataFrame(results)
+    try:
+        df.columns = field_names
+    except ValueError:
+        df = pd.DataFrame(columns=field_names, dtype=object)
+
+    if date_col is not None:
+        if date_format is not None:
+            df[date_col] = df[date_col].apply(lambda x: x.strftime(date_format))
+        else:
+            df[date_col] = df[date_col].apply(lambda x: x.strftime('%Y-%m-%d'))
+
+    return df
