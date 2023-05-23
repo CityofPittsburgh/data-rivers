@@ -1,7 +1,7 @@
 import os
 import argparse
 
-from gcs_utils import json_to_gcs, select_expand_odata, unnest_domi_street_seg, call_odata_api
+from gcs_utils import json_to_gcs, unnest_domi_street_seg, call_odata_api
 
 # names to swap for fields that are not nested in raw data
 SWAPS = [
