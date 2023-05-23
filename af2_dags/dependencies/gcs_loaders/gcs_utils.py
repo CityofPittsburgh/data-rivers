@@ -29,7 +29,7 @@ DEFAULT_PII_TYPES = [{"name": "PERSON_NAME"}, {"name": "EMAIL_ADDRESS"}, {"name"
 WPRDC_API_HARD_LIMIT = 500001  # A limit set by the CKAN instance.
 
 
-def call_odata_api(targ_url):
+def call_odata_api(targ_url, limit_results = False):
     """
     :param targ_url: string value of fully formed odata_query (needs to be constructed before passing in)
     :return: list of dicts containing API results
@@ -41,11 +41,9 @@ def call_odata_api(targ_url):
         res = requests.get(targ_url)
         records.extend(res.json()['value'])
 
-        if res.status_code != 200:
-            print("API call failed")
-            print(f"Status Code:  {res.status_code}")
-
-        if '@odata.nextLink' in res.json().keys():
+        if limit_results:
+            more_links = False
+        elif '@odata.nextLink' in res.json().keys():
             targ_url = res.json()['@odata.nextLink']
         else:
             more_links = False
@@ -489,7 +487,6 @@ def select_expand_odata(url, tables, limit_results=False):
         if res.status_code != 200:
             print("API call failed")
             print(f"Status Code:  {res.status_code}")
-
 
         records.extend(res.json()['value'])
         if limit_results:
