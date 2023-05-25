@@ -18,7 +18,7 @@ from dependencies.airflow_utils import get_ds_month, get_ds_year, get_ds_day, de
 # The final output will be stored as a CSV file in GCS and made available to WPRDC for public display.
 
 COLS = "pin, modify_date, address, billing_city, current_delq, prior_years, state_description, neighborhood"
-FINAL_COLS = COLS + ", council_district, ward, public_works_division, police_zone, fire_zone, longitude, latitude"
+FINAL_COLS = COLS + ", council_district, ward, public_works_division, ward AS pli_division, police_zone, fire_zone, longitude, latitude"
 UPD_COLS = ["modify_date", "current_delq", "prior_years", "state_description"]
 
 dag = DAG(
