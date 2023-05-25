@@ -58,12 +58,12 @@ tax_delinquency_gcs = BashOperator(
 # for each parcel
 coord_query = F"""
 CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.{source}.incoming_{table}` AS
-    SELECT {COLS}, NULL AS council_district, NULL AS ward, NULL AS public_works_division, 
-           NULL AS police_zone, NULL AS fire_zone, 
-           ST_Y(ST_CENTROID(p.geometry)) AS latitude, ST_X(ST_CENTROID(p.geometry)) AS longitude
-      FROM `{os.environ['GCLOUD_PROJECT']}.{source}.incoming_{table}`
-      LEFT OUTER JOIN `{os.environ['GCLOUD_PROJECT']}.timebound_geography.parcels` p
-        ON pin = p.zone"""
+SELECT {COLS}, NULL AS council_district, NULL AS ward, NULL AS public_works_division, 
+       NULL AS police_zone, NULL AS fire_zone, 
+       ST_Y(ST_CENTROID(p.geometry)) AS latitude, ST_X(ST_CENTROID(p.geometry)) AS longitude
+  FROM `{os.environ['GCLOUD_PROJECT']}.{source}.incoming_{table}`
+  LEFT OUTER JOIN `{os.environ['GCLOUD_PROJECT']}.timebound_geography.parcels` p
+    ON pin = p.zone"""
 get_coords = BigQueryOperator(
     task_id='get_coords',
     sql=coord_query,
