@@ -56,11 +56,11 @@ tax_delinquency_gcs = BashOperator(
 # the primary key of tax delinquency data is parcel ID; parcel data is also stored in the timebound_geography dataset
 # with corresponding geographical boundaries. this query uses the ST_CENTROID geographic function to obtain lat/longs
 # for each parcel
-coord_query = F"""
-CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.{source}.incoming_{table}` AS
-SELECT {COLS}, NULL AS council_district, NULL AS ward, NULL AS public_works_division, 
-       NULL AS police_zone, NULL AS fire_zone, 
-       ST_Y(ST_CENTROID(p.geometry)) AS latitude, ST_X(ST_CENTROID(p.geometry)) AS longitude
+coord_query = F"""       
+CREATE OR REPLACE TABLE {os.environ['GCLOUD_PROJECT']}.{source}.incoming_{table} AS
+SELECT {COLS}, NULL AS council_district, NULL AS ward, NULL AS public_works_division,
+NULL AS pli_division, NULL AS police_zone, NULL AS fire_zone,
+ST_Y(ST_CENTROID(p.geometry)) AS latitude, ST_X(ST_CENTROID(p.geometry)) AS longitude
   FROM `{os.environ['GCLOUD_PROJECT']}.{source}.incoming_{table}`
   LEFT OUTER JOIN `{os.environ['GCLOUD_PROJECT']}.timebound_geography.parcels` p
     ON pin = p.zone"""
