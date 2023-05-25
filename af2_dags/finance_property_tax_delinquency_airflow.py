@@ -18,7 +18,7 @@ from dependencies.airflow_utils import get_ds_month, get_ds_year, get_ds_day, de
 # The final output will be stored as a CSV file in GCS and made available to WPRDC for public display.
 
 COLS = "pin, modify_date, address, billing_city, current_delq, prior_years, state_description, neighborhood"
-FINAL_COLS = COLS + ", council_district, ward, public_works_division, police_zone, fire_zone, longitude, latitude"
+FINAL_COLS = COLS + ", council_district, ward, public_works_division, ward AS pli_division, police_zone, fire_zone, longitude, latitude"
 UPD_COLS = ["modify_date", "current_delq", "prior_years", "state_description"]
 
 dag = DAG(
@@ -56,14 +56,14 @@ tax_delinquency_gcs = BashOperator(
 # the primary key of tax delinquency data is parcel ID; parcel data is also stored in the timebound_geography dataset
 # with corresponding geographical boundaries. this query uses the ST_CENTROID geographic function to obtain lat/longs
 # for each parcel
-coord_query = F"""
-CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.{source}.incoming_{table}` AS
-    SELECT {COLS}, NULL AS council_district, NULL AS ward, NULL AS public_works_division, 
-           NULL AS police_zone, NULL AS fire_zone, 
-           ST_Y(ST_CENTROID(p.geometry)) AS latitude, ST_X(ST_CENTROID(p.geometry)) AS longitude
-      FROM `{os.environ['GCLOUD_PROJECT']}.{source}.incoming_{table}`
-      LEFT OUTER JOIN `{os.environ['GCLOUD_PROJECT']}.timebound_geography.parcels` p
-        ON pin = p.zone"""
+coord_query = F"""       
+CREATE OR REPLACE TABLE {os.environ['GCLOUD_PROJECT']}.{source}.incoming_{table} AS
+SELECT {COLS}, NULL AS council_district, NULL AS ward, NULL AS public_works_division,
+NULL AS pli_division, NULL AS police_zone, NULL AS fire_zone,
+ST_Y(ST_CENTROID(p.geometry)) AS latitude, ST_X(ST_CENTROID(p.geometry)) AS longitude
+  FROM `{os.environ['GCLOUD_PROJECT']}.{source}.incoming_{table}`
+  LEFT OUTER JOIN `{os.environ['GCLOUD_PROJECT']}.timebound_geography.parcels` p
+    ON pin = p.zone"""
 get_coords = BigQueryOperator(
     task_id='get_coords',
     sql=coord_query,
