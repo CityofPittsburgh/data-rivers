@@ -175,7 +175,6 @@ def build_revgeo_time_bound_query(dataset, raw_table, new_table, create_date, id
 
     return f"""
     CREATE OR REPLACE {table_or_view} `{os.environ["GCLOUD_PROJECT"]}.{dataset}.{new_table}` AS
-
     -- return zones for all records that it is possible to rev geocode. some records will not be possible to process 
     -- (bad lat/long etc) and will be pulled in via the next blocked
     WITH
@@ -485,6 +484,36 @@ def build_format_dedup_query(dataset, table, cast_type, cast_fields, cols_in_ord
         formatted
     """
     return sql
+
+
+def create_partitioned_bq_table(avro_bucket, schema_name, table_id, partition):
+    # bigquery schemas that are used to upload directly from pandas are not formatted identically as an avsc filie.
+    # this func makes the necessary conversions. this allows a single schema to serve both purposes
+
+    blob = storage.Blob(name = schema_name, bucket = storage_client.get_bucket(avro_bucket))
+    schema_text = blob.download_as_string()
+    schema = json.loads(schema_text)
+    schema = schema['fields']
+
+    change_look_up = {"float": "FLOAT64", "integer": "INT64", "boolean": "BOOL"}
+
+    schema_lst = []
+    for s in schema:
+        f = s["name"]
+
+        if 'null' in s["type"]:
+            s["type"].remove('null')
+        curr_type = s["type"][0]
+
+        if curr_type in change_look_up.keys(): curr_type = change_look_up[curr_type]
+        t = curr_type.upper()
+
+        schema_lst.append(bigquery.SchemaField(f, t))
+
+    table = bigquery.Table(table_id, schema = schema_lst)
+    table.time_partitioning = bigquery.table.TimePartitioning(type_ = partition)
+
+    bq_client.create_table(table)
 
 
 def dedup_table(dataset, table):
