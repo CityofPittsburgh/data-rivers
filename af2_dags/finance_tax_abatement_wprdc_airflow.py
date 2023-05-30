@@ -9,6 +9,7 @@ from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 from airflow.contrib.operators.bigquery_to_gcs import BigQueryToCloudStorageOperator
 from airflow.contrib.operators.bigquery_table_delete_operator import BigQueryTableDeleteOperator
 from dependencies import airflow_utils
+
 from dependencies.airflow_utils import get_ds_month, get_ds_year, get_ds_day, default_args, \
     build_insert_new_records_query, build_format_dedup_query, build_revgeo_time_bound_query, build_sync_update_query, \
     build_piecemeal_revgeo_query
@@ -79,9 +80,10 @@ get_coords = BigQueryOperator(
     dag=dag
 )
 
-
-query_geo_join = build_revgeo_time_bound_query('finance', 'incoming_tax_abatement', 'enriched_tax_abatement',
-                                               'approved_date', 'pin', 'latitude', 'longitude')
+query_geo_join = build_revgeo_time_bound_query('finance', 'incoming_tax_abatement',
+                                               'geo_enriched_tax_abatement',
+                                               'approved_date_UTC', 'pin', 'latitude', 'longitude', geo_fields_in_raw
+                                               = False)
 geojoin = BigQueryOperator(
         task_id = 'geojoin',
         sql = query_geo_join,
