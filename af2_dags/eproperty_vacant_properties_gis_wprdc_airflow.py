@@ -76,9 +76,7 @@ csv_file_name = f"{path}"
 dest_bucket = f"gs://{os.environ['GCS_PREFIX']}_wprdc/eproperty/vacant_properties/"
 wprdc_export = BigQueryToCloudStorageOperator(
         task_id = 'wprdc_export',
-        source_project_dataset_table = f""
-                                       f""
-                                       f"{os.environ['GCLOUD_PROJECT']}.eproperty.vacant_properties_partitioned",
+        source_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}.eproperty.vacant_properties_partitioned",
         destination_cloud_storage_uris = [f"{dest_bucket}{csv_file_name}.csv"],
         dag = dag
 )
@@ -89,7 +87,7 @@ CREATE OR REPLACE TABLE `data-bridgis.eproperty.gis_vacant_properties_partitione
 SELECT 
 * 
 FROM 
-  `data-rivers-testing.eproperty.vacant_properties_partitioned`;
+  `{os.environ['GCS_PREFIX']}.eproperty.vacant_properties_partitioned`;
 """
 push_gis = BigQueryOperator(
         task_id = 'push_gis',
