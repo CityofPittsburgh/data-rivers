@@ -78,3 +78,55 @@ geojoin = BigQueryOperator(
         use_legacy_sql = False,
         dag = dag
 )
+
+
+query_create_partition = F"""CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.finance.tax_abatement_partitioned` 
+partition by partition_approval_date_utc AS
+SELECT 
+* EXCEPT(approval_date_UTC),
+PARSE_DATE ("%Y-%m-%d", status_date_utc) as partition_approval_date_UTC
+FROM 
+  `{os.environ['GCLOUD_PROJECT']}.finance.geo_enriched_tax_abatement`;
+DROP TABLE `{os.environ['GCLOUD_PROJECT']}.finance.geo_enriched_tax_abatement`;
+DROP TABLE `{os.environ['GCLOUD_PROJECT']}.finance.incoming_tax_abatement`;"""
+create_partition = BigQueryOperator(
+        task_id = 'create_partition',
+        sql = query_create_partition,
+        bigquery_conn_id = 'google_cloud_default',
+        use_legacy_sql = False,
+        dag = dag
+)
+
+
+# Export table as CSV to WPRDC bucket
+# file name is the date. path contains the date info
+csv_file_name = f"{path}"
+dest_bucket = f"gs://{os.environ['GCS_PREFIX']}_wprdc/finance/tax_abatement/"
+wprdc_export = BigQueryToCloudStorageOperator(
+        task_id = 'wprdc_export',
+        source_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}.finance.tax_abatement_partitioned",
+        destination_cloud_storage_uris = [f"{dest_bucket}{csv_file_name}.csv"],
+        dag = dag
+)
+
+# push table to data-bridGIS BQ
+query_push_gis = F"""
+CREATE OR REPLACE TABLE `data-bridgis.finance.tax_abatement_partitioned` AS 
+SELECT 
+* 
+FROM 
+  `{os.environ['GCS_PREFIX']}.finance.tax_abatement_partitioned`;
+"""
+push_gis = BigQueryOperator(
+        task_id = 'push_gis',
+        sql = query_push_gis,
+        bigquery_conn_id = 'google_cloud_default',
+        use_legacy_sql = False,
+        dag = dag
+)
+
+beam_cleanup = BashOperator(
+        task_id = 'beam_cleanup',
+        bash_command = airflow_utils.beam_cleanup_statement(f"{os.environ['GCS_PREFIX']}_eproperties"),
+        dag = dag
+)
