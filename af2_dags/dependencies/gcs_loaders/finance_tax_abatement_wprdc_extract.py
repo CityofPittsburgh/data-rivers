@@ -1,17 +1,19 @@
 import os
 import argparse
+
 import re
 import jaydebeapi
+import pandas as pd
+
 from gcs_utils import json_to_gcs, sql_to_df, conv_avsc_to_bq_schema
 
 # Note: we recently (5/23) learned that this pipeline is end of life with 6 months of creation (11/23). While more
 # data enrichment and work would normally be completed, this is sufficient, given this situation.
-
-
 # column name changes
-NEW_NAMES = {"PIN": "pin", "ADDRESS": "address", "NEIGHBORHOOD":"neighborhood", "START_YEAR": "start_year",
+NEW_NAMES = {"PIN": "pin", "ADDRESS": "address", "START_YEAR": "start_year",
              "APPROVED_DATE": "approved_date", "PROGRAM_NAME": "program_name", "NO_YEARS": "num_years",
              "ABATEMENT_AMT": "abatement_amount"}
+
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--output_arg', dest='out_loc', required=True,
@@ -24,11 +26,11 @@ conn = jaydebeapi.connect("oracle.jdbc.OracleDriver", os.environ['REALESTATE_DB'
                           [os.environ['REALESTATE_UN'], os.environ['REALESTATE_PW']],
                           f"{os.environ['GCS_LOADER_PATH']}/ojdbc6.jar")
 
+
 # build query
 query = """SELECT DISTINCT
     city_county_accounts.cnty_acct PIN,
     master.prop_low_house_no || ' ' || master.prop_street_name ADDRESS,
-    master.neighborhood,
     start_year,
     approved_date,
     abatement_programs.program_name,
@@ -53,24 +55,16 @@ data = sql_to_df(conn, query, db = os.environ['REALESTATE_DRIVER'])
 # rename columns
 data.rename(columns = NEW_NAMES, inplace = True)
 
-# convert neighborhood names to match WPRDC standards
-ngh_convs = {
-    'BANKSVILLE CITY': 'BANKSVILLE',
-    'ALLENTOWN SLOPES': 'ALLENTOWN',
-    'ARLINGTON FLATS': 'ARLINGTON',
-    'ARLINGTON SLOPES': 'ARLINGTON',
-    'BLOOMFIELD BUSINESS DISTR': 'BLOOMFIELD',
-    'SHADYSIDE BUSINESS DISTR': 'SHADYSIDE',
-    'DOWNTOWN': 'CENTRAL BUSINESS DISTRICT'
-}
-data['neighborhood'] = data['neighborhood'].replace(ngh_convs)
-data['neighborhood'] = data['neighborhood'].str.title()
 
 # strip leading 0's from addresses (e.g., 0 MAIN ST should just become MAIN ST)
 data['address'] = data['address'].apply(lambda x: re.sub(r'^0\s', '', x) if isinstance(x, str) else x)
 
 # convert date to same format as in the timebound geo tables
-data["approved_date"] = data["approved_date"].apply(lambda x: F"{x[5:7]}/{x[8:10]}/{x[:4]} 00:00:00")
+data["approved_date_UNIX"] = pd.to_datetime(data["approved_date"]).map(pd.Timestamp.timestamp).astype(int)
+data["approved_date_EST"] = pd.to_datetime(data["approved_date"], utc = True).map(lambda x: x.tz_convert('EST'))
+data["approved_date_UTC"] = pd.to_datetime(data["approved_date"], utc = True).map(lambda x: x.tz_convert('UTC'))
+data.drop("approved_date", axis = 1, inplace = True)
+
 
 # load into BQ via the avsc file in schemas direc
 schema = conv_avsc_to_bq_schema(F"{os.environ['GCS_PREFIX']}_avro_schemas", "tax_abatement.avsc")
