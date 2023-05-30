@@ -59,10 +59,14 @@ data.rename(columns = NEW_NAMES, inplace = True)
 # strip leading 0's from addresses (e.g., 0 MAIN ST should just become MAIN ST)
 data['address'] = data['address'].apply(lambda x: re.sub(r'^0\s', '', x) if isinstance(x, str) else x)
 
-# convert date to same format as in the timebound geo tables
+# convert date to same format as in the timebound geo tables and also get the UTC time
+# the source dates are odd in this case. they are UTC, with a meaningless designation of midnight for all timestamps
+# (the data were not altered at midnight in actuality). We want to add EST times as part of our SOP, but a normal
+# derivation of EST would make the date one day prior to the real UTC date. We copy EST directly from UTC here,
+# with the understanding that both timestamps are incorrect
 data["approved_date_UNIX"] = pd.to_datetime(data["approved_date"]).map(pd.Timestamp.timestamp).astype(int)
-data["approved_date_EST"] = pd.to_datetime(data["approved_date"], utc = True).map(lambda x: x.tz_convert('EST'))
 data["approved_date_UTC"] = pd.to_datetime(data["approved_date"], utc = True).map(lambda x: x.tz_convert('UTC'))
+data["approved_date_EST"] = data["approved_date_UTC"]
 data.drop("approved_date", axis = 1, inplace = True)
 
 
