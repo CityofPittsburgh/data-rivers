@@ -52,14 +52,12 @@ extract = BashOperator(
 # the primary key of tax delinquency data is parcel ID; parcel data is also stored in the timebound_geography dataset
 # with corresponding geographical boundaries. this query uses the ST_CENTROID geographic function to obtain lat/longs
 # for each parcel
-query_coords = F"""       
-CREATE OR REPLACE TABLE {os.environ['GCLOUD_PROJECT']}.finance.incoming_{data_name} AS
-SELECT
-    *,
-    ST_Y(ST_CENTROID(p.geometry)) AS latitude, 
-    ST_X(ST_CENTROID(p.geometry)) AS longitude
-FROM `{os.environ['GCLOUD_PROJECT']}.finance.incoming_{data_name}`
-LEFT OUTER JOIN `{os.environ['GCLOUD_PROJECT']}.timebound_geography.parcels` p ON pin = p.zone"""
+query_coords = build_geo_coords_from_parcel_query(dest = "add_lat_long",
+                                                  raw = {os.environ['GCLOUD_PROJECT']}.finance.incoming_tax_abatement,
+                                                  parc_field = "pin", table_view_cte = "WITH")
+
+
+
 get_coords = BigQueryOperator(
     task_id='get_coords',
     sql=query_coords,
@@ -87,8 +85,6 @@ SELECT
 PARSE_DATE ("%Y-%m-%d", status_date_utc) as partition_approval_date_UTC
 FROM 
   `{os.environ['GCLOUD_PROJECT']}.finance.geo_enriched_tax_abatement`;
-DROP TABLE `{os.environ['GCLOUD_PROJECT']}.finance.geo_enriched_tax_abatement`;
-DROP TABLE `{os.environ['GCLOUD_PROJECT']}.finance.incoming_tax_abatement`;"""
 create_partition = BigQueryOperator(
         task_id = 'create_partition',
         sql = query_create_partition,
