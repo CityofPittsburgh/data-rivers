@@ -153,7 +153,7 @@ def build_insert_new_records_query(dataset, incoming_table, master_table, id_fie
 
 # TODO: phase out the usage of build_revgeo_query() in favor of build_rev_geo_time_bound_query()
 def build_revgeo_time_bound_query(dataset, raw_table, new_table, create_date, id_col, lat_field, long_field,
-                                  table_or_view='TABLE', geo_fields_in_raw = True):
+                                  table_view_cte='TABLE', geo_fields_in_raw = True):
     """
     Take a table with lat/long values and reverse-geocode it into a new a final table.
     This function is a substantial refactor of the build_rev_geo() function. This query allows a lat/long point to be
@@ -179,6 +179,13 @@ def build_revgeo_time_bound_query(dataset, raw_table, new_table, create_date, id
                         "dpw_enviro, dpw_parks)"
     else:
         except_fields = ""
+
+    if table_view_cte.upper().strip() == "WITH":
+        creation_format = "WITH"
+    elif table_view_cte.upper().strip() == "TABLE":
+        creation_format = "CREATE OR REPLACE TABLE"
+    elif table_view_cte.upper().strip() == "VIEW":
+        creation_format = "CREATE OR REPLACE VIEW"
 
     return f"""
     CREATE OR REPLACE {table_or_view} `{os.environ["GCLOUD_PROJECT"]}.{dataset}.{new_table}` AS
@@ -675,6 +682,25 @@ def build_city_limits_query(dataset, raw_table, lat_field='lat', long_field='lon
     """
 
 
+def build_geo_coords_from_parcel_query(dest, raw_table, parc_field, lat_field = "latitude", long_field = "longitude",
+                                       table_view_cte = "WITH"):
+    if table_view_cte.upper().strip() == "WITH":
+        creation_format = "WITH"
+    elif table_view_cte.upper().strip() == "TABLE":
+        creation_format = "CREATE OR REPLACE TABLE"
+    elif table_view_cte.upper().strip() == "VIEW":
+        creation_format = "CREATE OR REPLACE VIEW"
+
+    return F"""
+    {creation_format} {dest} AS
+    SELECT
+        raw.*,
+        p.ST_Y(ST_CENTROID(p.geometry)) AS {lat_field}, 
+        p.ST_X(ST_CENTROID(p.geometry)) AS {long_field}
+    FROM `{os.environ['GCLOUD_PROJECT']}.{raw_table}` raw
+    LEFT OUTER JOIN `{os.environ['GCLOUD_PROJECT']}.timebound_geography.parcels` p ON 
+    {parc_field} = p.zone
+    """
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.INFO)
     run()
