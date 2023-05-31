@@ -688,9 +688,9 @@ def build_geo_coords_from_parcel_query(dest, raw_table, parc_field, lat_field = 
     {creation_format} {dest} AS
     SELECT
         raw.*,
-        p.ST_Y(ST_CENTROID(p.geometry)) AS {lat_field}, 
-        p.ST_X(ST_CENTROID(p.geometry)) AS {long_field}
-    FROM `{os.environ['GCLOUD_PROJECT']}.{raw_table}` raw
+        ST_Y(ST_CENTROID(p.geometry)) AS {lat_field}, 
+        ST_X(ST_CENTROID(p.geometry)) AS {long_field}
+    FROM `{raw_table}` raw
     LEFT OUTER JOIN `{os.environ['GCLOUD_PROJECT']}.timebound_geography.parcels` p ON 
     {parc_field} = p.zone
     """
