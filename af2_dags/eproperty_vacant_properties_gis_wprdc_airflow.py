@@ -63,7 +63,7 @@ geojoin = BigQueryOperator(
 
 query_create_partition = \
     F"""CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.eproperty.vacant_properties_partitioned` 
-partition by partition_status_date_utc AS
+partition by DATE_TRUNC(partition_status_date_utc, MONTH) AS
 SELECT 
 * EXCEPT(status_date_utc, acquisition_date),
 PARSE_DATE ("%Y-%m-%d", status_date_utc) as partition_status_date_utc,
