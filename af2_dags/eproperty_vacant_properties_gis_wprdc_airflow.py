@@ -36,11 +36,21 @@ extract_data = BashOperator(
 )
 
 # geocode missing lat/long based on parc id
-query_parc_coords = build_geo_coords_from_parcel_query(dest = F"{os.environ['GCLOUD_PROJECT']}.eproperty.vacant_properties",
+query_parc_coords = build_geo_coords_from_parcel_query(dest = "get_all_coords",
                                                        raw_table = F"{os.environ['GCLOUD_PROJECT']}.eproperty.vacant_properties",
-                                                       parc_field = "parc",
-                                                       lat_field = "latitude", long_field = "longitude",
-                                                       table_view_cte = "TABLE")
+                                                       parc_field = "parc", lat_field = "lat_parc", long_field =
+                                                       "long_parc")
+query_parc_coords = F"""
+CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.eproperty.vacant_properties` AS
+{query_parc_coords} 
+SELECT
+    * EXCEPT(lat, long, lat_parc, long_parc),
+    COALESCE(lat, lat_parc) AS latitude, 
+    COALESCE(long, long_parc) AS longitude, 
+FROM get_all_coords"""
+
+
+
 get_coords = BigQueryOperator(
     task_id='get_coords',
     sql=query_parc_coords,
@@ -52,7 +62,7 @@ get_coords = BigQueryOperator(
 
 # reverse geocode
 query_geo_join = build_revgeo_time_bound_query('eproperty', 'vacant_properties', 'vacant_properties_enriched',
-                                               'status_date_utc', 'id', 'lat', 'long')
+                                               'status_date_utc', 'id', 'latitude', 'longitude')
 geojoin = BigQueryOperator(
         task_id = 'geojoin',
         sql = query_geo_join,
