@@ -53,8 +53,8 @@ extract = BashOperator(
 # with corresponding geographical boundaries. this query uses the ST_CENTROID geographic function to obtain lat/longs
 # for each parcel
 query_coords = build_geo_coords_from_parcel_query(dest = "add_lat_long",
-                                                  raw_table = {os.environ['GCLOUD_PROJECT']}.finance.incoming_tax_abatement,
-                                                  parc_field = "pin", table_view_cte = "WITH")
+                                                  raw_table = "{os.environ['GCLOUD_PROJECT']}.finance.incoming_tax_abatement",
+                                                  parc_field = "pin", table_view_cte = "TABLE")
 get_coords = BigQueryOperator(
     task_id='get_coords',
     sql=query_coords,
@@ -64,8 +64,8 @@ get_coords = BigQueryOperator(
 )
 
 query_geo_join = build_revgeo_time_bound_query('finance', 'incoming_tax_abatement', 'geo_enriched_tax_abatement',
-                                               'approved_date_UTC', 'pin', 'latitude', 'longitude', geo_fields_in_raw
-                                               = False)
+                                               'approved_date_UTC', 'pin', 'latitude', 'longitude',
+                                               geo_fields_in_raw = False)
 geojoin = BigQueryOperator(
         task_id = 'geojoin',
         sql = query_geo_join,
