@@ -93,7 +93,7 @@ wprdc_export = BigQueryToCloudStorageOperator(
         dag = dag
 )
 
-# push table of ALL properties data-bridGIS BQ
+# push table to data-bridGIS BQ
 query_push_gis = F"""
 CREATE OR REPLACE TABLE `data-bridgis.eproperty.gis_vacant_properties_partitioned` AS 
 SELECT 
