@@ -153,7 +153,7 @@ def build_insert_new_records_query(dataset, incoming_table, master_table, id_fie
 
 # TODO: phase out the usage of build_revgeo_query() in favor of build_rev_geo_time_bound_query()
 def build_revgeo_time_bound_query(dataset, raw_table, new_table, create_date, id_col, lat_field, long_field,
-                                  table_view_cte='TABLE', geo_fields_in_raw = True):
+                                  table_or_view='TABLE', geo_fields_in_raw = True):
     """
     Take a table with lat/long values and reverse-geocode it into a new a final table.
     This function is a substantial refactor of the build_rev_geo() function. This query allows a lat/long point to be
@@ -179,6 +179,7 @@ def build_revgeo_time_bound_query(dataset, raw_table, new_table, create_date, id
                         "dpw_enviro, dpw_parks)"
     else:
         except_fields = ""
+<<<<<<< HEAD
 
     if table_view_cte.upper().strip() == "WITH":
         creation_format = "WITH"
@@ -186,6 +187,8 @@ def build_revgeo_time_bound_query(dataset, raw_table, new_table, create_date, id
         creation_format = "CREATE OR REPLACE TABLE"
     elif table_view_cte.upper().strip() == "VIEW":
         creation_format = "CREATE OR REPLACE VIEW"
+=======
+>>>>>>> data-rivers-testing
 
     return f"""
     CREATE OR REPLACE {table_or_view} `{os.environ["GCLOUD_PROJECT"]}.{dataset}.{new_table}` AS
