@@ -12,8 +12,6 @@ from dependencies import airflow_utils
 from dependencies.airflow_utils import get_ds_year, get_ds_month, get_ds_day, default_args, \
     build_revgeo_time_bound_query, build_geo_coords_from_parcel_query
 
-# TODO: When Airflow 2.0 is released, upgrade the package, sub in DataFlowPythonOperator for BashOperator,
-# and pass the argument 'py_interpreter=python3'
 
 dag = DAG(
         'eprop_vacant_gis_wprdc',
@@ -38,10 +36,11 @@ extract_data = BashOperator(
 )
 
 # geocode missing lat/long based on parc id
-query_parc_coords = build_geo_coords_from_parcel_query(dest, raw_table, parc_field, lat_field = "latitude", long_field = "longitude",
-                                       table_view_cte = "WITH")
-
-
+query_parc_coords = build_geo_coords_from_parcel_query(dest = F"{os.environ['GCLOUD_PROJECT']}.eproperty.vacant_properties",
+                                                       raw_table = F"{os.environ['GCLOUD_PROJECT']}.eproperty.vacant_properties",
+                                                       parc_field = "parc",
+                                                       lat_field = "latitude", long_field = "longitude",
+                                                       table_view_cte = "TABLE")
 get_coords = BigQueryOperator(
     task_id='get_coords',
     sql=query_parc_coords,
@@ -116,6 +115,6 @@ beam_cleanup = BashOperator(
         dag = dag
 )
 
-extract_data >> geojoin >> create_partition
+extract_data >> get_coords >> geojoin >> create_partition
 create_partition >> wprdc_export >> beam_cleanup
 create_partition >> push_gis >> beam_cleanup
