@@ -7,14 +7,11 @@ from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
 from airflow.contrib.operators.bigquery_to_gcs import BigQueryToCloudStorageOperator
 from airflow.contrib.operators.bigquery_operator import BigQueryOperator
-# from airflow.operators.python_operator import PythonOperator
 
 from dependencies import airflow_utils
 from dependencies.airflow_utils import get_ds_year, get_ds_month, get_ds_day, default_args, \
-    build_revgeo_time_bound_query, create_partitioned_bq_table
+    build_revgeo_time_bound_query, build_geo_coords_from_parcel_query
 
-# TODO: When Airflow 2.0 is released, upgrade the package, sub in DataFlowPythonOperator for BashOperator,
-# and pass the argument 'py_interpreter=python3'
 
 dag = DAG(
         'eprop_vacant_gis_wprdc',
@@ -38,9 +35,34 @@ extract_data = BashOperator(
         dag = dag
 )
 
+# geocode missing lat/long based on parc id
+query_parc_coords = build_geo_coords_from_parcel_query(dest = "get_all_coords",
+                                                       raw_table = F"{os.environ['GCLOUD_PROJECT']}.eproperty.vacant_properties",
+                                                       parc_field = "parc", lat_field = "lat_parc", long_field =
+                                                       "long_parc")
+query_parc_coords = F"""
+CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.eproperty.vacant_properties` AS
+{query_parc_coords} 
+SELECT
+    * EXCEPT(lat, long, lat_parc, long_parc),
+    COALESCE(lat, lat_parc) AS latitude, 
+    COALESCE(long, long_parc) AS longitude, 
+FROM get_all_coords"""
+
+
+
+get_coords = BigQueryOperator(
+    task_id='get_coords',
+    sql=query_parc_coords,
+    bigquery_conn_id='google_cloud_default',
+    use_legacy_sql=False,
+    dag=dag
+)
+
+
 # reverse geocode
 query_geo_join = build_revgeo_time_bound_query('eproperty', 'vacant_properties', 'vacant_properties_enriched',
-                                               'status_date_utc', 'id', 'lat', 'long')
+                                               'status_date_utc', 'id', 'latitude', 'longitude')
 geojoin = BigQueryOperator(
         task_id = 'geojoin',
         sql = query_geo_join,
@@ -51,7 +73,7 @@ geojoin = BigQueryOperator(
 
 query_create_partition = \
     F"""CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.eproperty.vacant_properties_partitioned` 
-partition by partition_status_date_utc AS
+partition by DATE_TRUNC(partition_status_date_utc, MONTH) AS
 SELECT 
 * EXCEPT(status_date_utc, acquisition_date),
 PARSE_DATE ("%Y-%m-%d", status_date_utc) as partition_status_date_utc,
@@ -76,20 +98,18 @@ csv_file_name = f"{path}"
 dest_bucket = f"gs://{os.environ['GCS_PREFIX']}_wprdc/eproperty/vacant_properties/"
 wprdc_export = BigQueryToCloudStorageOperator(
         task_id = 'wprdc_export',
-        source_project_dataset_table = f""
-                                       f""
-                                       f"{os.environ['GCLOUD_PROJECT']}.eproperty.vacant_properties_partitioned",
+        source_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}.eproperty.vacant_properties_partitioned",
         destination_cloud_storage_uris = [f"{dest_bucket}{csv_file_name}.csv"],
         dag = dag
 )
 
-# push table of ALL properties data-bridGIS BQ
+# push table to data-bridGIS BQ
 query_push_gis = F"""
 CREATE OR REPLACE TABLE `data-bridgis.eproperty.gis_vacant_properties_partitioned` AS 
 SELECT 
 * 
 FROM 
-  `data-rivers-testing.eproperty.vacant_properties_partitioned`;
+  `{os.environ['GCP_PROJECT']}.eproperty.vacant_properties_partitioned`;
 """
 push_gis = BigQueryOperator(
         task_id = 'push_gis',
@@ -105,6 +125,6 @@ beam_cleanup = BashOperator(
         dag = dag
 )
 
-extract_data >> geojoin >> create_partition
+extract_data >> get_coords >> geojoin >> create_partition
 create_partition >> wprdc_export >> beam_cleanup
 create_partition >> push_gis >> beam_cleanup
