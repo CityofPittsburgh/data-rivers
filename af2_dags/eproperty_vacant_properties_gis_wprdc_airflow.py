@@ -99,7 +99,7 @@ CREATE OR REPLACE TABLE `data-bridgis.eproperty.gis_vacant_properties_partitione
 SELECT 
 * 
 FROM 
-  `{os.environ['GCS_PREFIX']}.eproperty.vacant_properties_partitioned`;
+  `{os.environ['GCP_PROJECT']}.eproperty.vacant_properties_partitioned`;
 """
 push_gis = BigQueryOperator(
         task_id = 'push_gis',
