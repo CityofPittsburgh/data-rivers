@@ -7,11 +7,10 @@ from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
 from airflow.contrib.operators.bigquery_to_gcs import BigQueryToCloudStorageOperator
 from airflow.contrib.operators.bigquery_operator import BigQueryOperator
-# from airflow.operators.python_operator import PythonOperator
 
 from dependencies import airflow_utils
 from dependencies.airflow_utils import get_ds_year, get_ds_month, get_ds_day, default_args, \
-    build_revgeo_time_bound_query, create_partitioned_bq_table
+    build_revgeo_time_bound_query, build_geo_coords_from_parcel_query
 
 # TODO: When Airflow 2.0 is released, upgrade the package, sub in DataFlowPythonOperator for BashOperator,
 # and pass the argument 'py_interpreter=python3'
@@ -37,6 +36,20 @@ extract_data = BashOperator(
         bash_command = f"{exec_extraction} --json_output_arg {json_loc}",
         dag = dag
 )
+
+# geocode missing lat/long based on parc id
+query_parc_coords = build_geo_coords_from_parcel_query(dest, raw_table, parc_field, lat_field = "latitude", long_field = "longitude",
+                                       table_view_cte = "WITH")
+
+
+get_coords = BigQueryOperator(
+    task_id='get_coords',
+    sql=query_parc_coords,
+    bigquery_conn_id='google_cloud_default',
+    use_legacy_sql=False,
+    dag=dag
+)
+
 
 # reverse geocode
 query_geo_join = build_revgeo_time_bound_query('eproperty', 'vacant_properties', 'vacant_properties_enriched',
