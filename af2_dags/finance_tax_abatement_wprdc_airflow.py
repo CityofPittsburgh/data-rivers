@@ -12,7 +12,7 @@ from dependencies import airflow_utils
 
 from dependencies.airflow_utils import get_ds_month, get_ds_year, get_ds_day, default_args, \
     build_insert_new_records_query, build_format_dedup_query, build_revgeo_time_bound_query, build_sync_update_query, \
-    build_piecemeal_revgeo_query
+    build_piecemeal_revgeo_query, build_geo_coords_from_parcel_query
 
 # This DAG will perform an extract and transformation of Property Tax Abatement data from the Real Estate Oracle
 # database. Once the data is extracted, it will be uploaded to BigQuery and geocoded by matching on parcel number.
@@ -53,11 +53,8 @@ extract = BashOperator(
 # with corresponding geographical boundaries. this query uses the ST_CENTROID geographic function to obtain lat/longs
 # for each parcel
 query_coords = build_geo_coords_from_parcel_query(dest = "add_lat_long",
-                                                  raw = {os.environ['GCLOUD_PROJECT']}.finance.incoming_tax_abatement,
+                                                  raw_table = {os.environ['GCLOUD_PROJECT']}.finance.incoming_tax_abatement,
                                                   parc_field = "pin", table_view_cte = "WITH")
-
-
-
 get_coords = BigQueryOperator(
     task_id='get_coords',
     sql=query_coords,
@@ -67,8 +64,8 @@ get_coords = BigQueryOperator(
 )
 
 query_geo_join = build_revgeo_time_bound_query('finance', 'incoming_tax_abatement', 'geo_enriched_tax_abatement',
-                                               'approved_date_UTC', 'pin', 'latitude', 'longitude',
-                                               geo_fields_in_raw = False)
+                                               'approved_date_UTC', 'pin', 'latitude', 'longitude', geo_fields_in_raw
+                                               = False)
 geojoin = BigQueryOperator(
         task_id = 'geojoin',
         sql = query_geo_join,
@@ -107,7 +104,7 @@ wprdc_export = BigQueryToCloudStorageOperator(
 
 # push table to data-bridGIS BQ
 query_push_gis = F"""
-CREATE OR REPLACE TABLE `data-bridgis.finance.tax_abatement_partitioned` AS 
+CREATE OR REPLACE TABLE `data-bridgis.finance.tax_abatement_partitioned` AS
 SELECT 
 * 
 FROM 
