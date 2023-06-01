@@ -118,12 +118,7 @@ push_gis = BigQueryOperator(
         dag = dag
 )
 
-beam_cleanup = BashOperator(
-        task_id = 'beam_cleanup',
-        bash_command = airflow_utils.beam_cleanup_statement(f"{os.environ['GCS_PREFIX']}_eproperties"),
-        dag = dag
-)
 
 extract_data >> get_coords >> geojoin >> create_partition
-create_partition >> wprdc_export >> beam_cleanup
-create_partition >> push_gis >> beam_cleanup
+create_partition >> wprdc_export
+create_partition >> push_gis
