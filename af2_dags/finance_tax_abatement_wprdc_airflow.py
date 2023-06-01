@@ -21,7 +21,7 @@ from dependencies.airflow_utils import get_ds_month, get_ds_year, get_ds_day, de
 COLS = "pin, modify_date, address, billing_city, current_delq, prior_years, state_description, neighborhood"
 
 dag = DAG(
-    'finance_property_tax_delinquency',
+    'finance_property_tax_abatement',
     default_args=default_args,
     schedule_interval='@daily',
     start_date=datetime(2023, 5, 17),
