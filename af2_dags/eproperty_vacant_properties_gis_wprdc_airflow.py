@@ -48,9 +48,6 @@ SELECT
     COALESCE(lat, lat_parc) AS latitude, 
     COALESCE(long, long_parc) AS longitude, 
 FROM get_all_coords"""
-
-
-
 get_coords = BigQueryOperator(
     task_id='get_coords',
     sql=query_parc_coords,
@@ -103,11 +100,13 @@ wprdc_export = BigQueryToCloudStorageOperator(
         dag = dag
 )
 
-# push table to data-bridGIS BQ
+# push table to data-bridGIS BQ and convert police zone to an int (this is to conform to their needs and a deviation
+# from our traditional approach of having all categorical vars as strings)
 query_push_gis = F"""
 CREATE OR REPLACE TABLE `data-bridgis.eproperty.gis_vacant_properties_partitioned` AS 
 SELECT 
-* 
+* EXCEPT(police_zone), 
+CAST (police_zone AS INT64) AS police_zone
 FROM 
   `{os.environ['GCP_PROJECT']}.eproperty.vacant_properties_partitioned`;
 """
