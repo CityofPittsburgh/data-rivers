@@ -108,7 +108,7 @@ SELECT
 * EXCEPT(police_zone), 
 CAST (police_zone AS INT64) AS police_zone
 FROM 
-  `{os.environ['GCP_PROJECT']}.eproperty.vacant_properties_partitioned`;
+  `{os.environ['GCLOUD_PROJECT']}.eproperty.vacant_properties_partitioned`;
 """
 push_gis = BigQueryOperator(
         task_id = 'push_gis',
