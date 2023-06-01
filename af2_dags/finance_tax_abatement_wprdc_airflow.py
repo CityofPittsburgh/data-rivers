@@ -54,6 +54,8 @@ extract = BashOperator(
 # for each parcel
 query_coords = build_geo_coords_from_parcel_query(raw_table = F"{os.environ['GCLOUD_PROJECT']}.finance.incoming_tax_abatement",
                                                   parc_field = "pin")
+query_coords = F""" CREATE OR REPLACE TABLE {os.environ['GCLOUD_PROJECT']}.finance.incoming_tax_abatement AS
+{query_coords}"""
 get_coords = BigQueryOperator(
     task_id='get_coords',
     sql=query_coords,
@@ -75,10 +77,10 @@ geojoin = BigQueryOperator(
 
 
 query_create_partition = F"""CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.finance.tax_abatement_partitioned` 
-partition by DATE_TRUNC(partition_approval_date_utc, MONTH) AS
+partition by DATE_TRUNC(partition_approved_date_UTC, MONTH) AS
 SELECT 
-* EXCEPT(approval_date_UTC),
-PARSE_DATE ("%Y-%m-%d", status_date_utc) as partition_approval_date_UTC
+* EXCEPT(approved_date_UTC),
+PARSE_DATE ("%Y-%m-%d", approved_date_UTC) as partition_approved_date_UTC
 FROM 
   `{os.environ['GCLOUD_PROJECT']}.finance.geo_enriched_tax_abatement`;"""
 create_partition = BigQueryOperator(
