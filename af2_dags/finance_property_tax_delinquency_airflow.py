@@ -170,12 +170,7 @@ delete_export = BigQueryTableDeleteOperator(
     dag=dag
 )
 
-beam_cleanup = BashOperator(
-    task_id='beam_cleanup',
-    bash_command=airflow_utils.beam_cleanup_statement(f"{os.environ['GCS_PREFIX']}_{source}"),
-    dag=dag
-)
 
 tax_delinquency_gcs >> get_coords >> geojoin_council >> geojoin_ward >> geojoin_dpw >> \
     geojoin_police >> geojoin_fire >> insert_new >> update_changed >> create_wprdc_table >> wprdc_export >> \
-    delete_export >> beam_cleanup
+    delete_export
