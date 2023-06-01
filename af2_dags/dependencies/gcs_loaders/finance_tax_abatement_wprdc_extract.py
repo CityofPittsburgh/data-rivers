@@ -65,8 +65,9 @@ data['address'] = data['address'].apply(lambda x: re.sub(r'^0\s', '', x) if isin
 # derivation of EST would make the date one day prior to the real UTC date. We copy EST directly from UTC here,
 # with the understanding that both timestamps are incorrect
 data["approved_date_UNIX"] = pd.to_datetime(data["approved_date"]).map(pd.Timestamp.timestamp).astype(int)
-data["approved_date_UTC"] = pd.to_datetime(data["approved_date"], utc = True).map(lambda x: x.tz_convert('UTC'))
-data["approved_date_EST"] = data["approved_date_UTC"]
+data["approved_date_UTC"] = pd.to_datetime(data["approved_date"], utc = True).map(lambda x: x.tz_convert(
+        'UTC')).astype(str)
+data["approved_date_EST"] = data["approved_date_UTC"].astype(str)
 data.drop("approved_date", axis = 1, inplace = True)
 
 
