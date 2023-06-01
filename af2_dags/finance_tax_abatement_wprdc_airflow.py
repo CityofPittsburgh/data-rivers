@@ -54,7 +54,7 @@ extract = BashOperator(
 # for each parcel
 query_coords = build_geo_coords_from_parcel_query(dest = "add_lat_long",
                                                   raw_table = "{os.environ['GCLOUD_PROJECT']}.finance.incoming_tax_abatement",
-                                                  parc_field = "pin", table_view_cte = "TABLE")
+                                                  parc_field = "pin")
 get_coords = BigQueryOperator(
     task_id='get_coords',
     sql=query_coords,
@@ -76,12 +76,12 @@ geojoin = BigQueryOperator(
 
 
 query_create_partition = F"""CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.finance.tax_abatement_partitioned` 
-partition by partition_approval_date_utc AS
+partition by DATE_TRUNC(partition_approval_date_utc, MONTH) AS
 SELECT 
 * EXCEPT(approval_date_UTC),
 PARSE_DATE ("%Y-%m-%d", status_date_utc) as partition_approval_date_UTC
 FROM 
-  `{os.environ['GCLOUD_PROJECT']}.finance.geo_enriched_tax_abatement`;
+  `{os.environ['GCLOUD_PROJECT']}.finance.geo_enriched_tax_abatement`;"""
 create_partition = BigQueryOperator(
         task_id = 'create_partition',
         sql = query_create_partition,
@@ -108,7 +108,7 @@ CREATE OR REPLACE TABLE `data-bridgis.finance.tax_abatement_partitioned` AS
 SELECT 
 * 
 FROM 
-  `{os.environ['GCS_PREFIX']}.finance.tax_abatement_partitioned`;
+  `{os.environ['GCLOUD_PROJECT']}.finance.tax_abatement_partitioned`;
 """
 push_gis = BigQueryOperator(
         task_id = 'push_gis',
@@ -118,8 +118,7 @@ push_gis = BigQueryOperator(
         dag = dag
 )
 
-beam_cleanup = BashOperator(
-        task_id = 'beam_cleanup',
-        bash_command = airflow_utils.beam_cleanup_statement(f"{os.environ['GCS_PREFIX']}_eproperties"),
-        dag = dag
-)
+
+extract >> get_coords >> geojoin >> create_partition
+create_partition >> wprdc_export
+create_partition >> push_gis
