@@ -52,8 +52,7 @@ extract = BashOperator(
 # the primary key of tax delinquency data is parcel ID; parcel data is also stored in the timebound_geography dataset
 # with corresponding geographical boundaries. this query uses the ST_CENTROID geographic function to obtain lat/longs
 # for each parcel
-query_coords = build_geo_coords_from_parcel_query(dest = "add_lat_long",
-                                                  raw_table = "{os.environ['GCLOUD_PROJECT']}.finance.incoming_tax_abatement",
+query_coords = build_geo_coords_from_parcel_query(raw_table = F"{os.environ['GCLOUD_PROJECT']}.finance.incoming_tax_abatement",
                                                   parc_field = "pin")
 get_coords = BigQueryOperator(
     task_id='get_coords',
