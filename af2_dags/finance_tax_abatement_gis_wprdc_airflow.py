@@ -44,7 +44,7 @@ json_loc = f"{data_name}/{path}_tax_abatement.json"
 
 extract = BashOperator(
     task_id='extract',
-    bash_command=f"python {os.environ['GCS_LOADER_PATH']}/finance_tax_abatement_wprdc_extract.py --output_arg"
+    bash_command=f"python {os.environ['GCS_LOADER_PATH']}/finance_tax_abatement_gis_wprdc_extract.py --output_arg"
                  f" {json_loc}",
     dag=dag
 )
