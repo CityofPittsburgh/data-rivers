@@ -79,7 +79,8 @@ geojoin = BigQueryOperator(
 query_create_partition = F"""CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.finance.tax_abatement_partitioned` 
 partition by DATE_TRUNC(partition_approved_date_UTC, MONTH) AS
 SELECT 
-* EXCEPT(approved_date_UTC),
+* EXCEPT(approved_date_UTC, start_year),
+CAST (start_year AS string) as start_year,
 PARSE_DATE ("%Y-%m-%d", approved_date_UTC) as partition_approved_date_UTC
 FROM 
   `{os.environ['GCLOUD_PROJECT']}.finance.geo_enriched_tax_abatement`;"""
