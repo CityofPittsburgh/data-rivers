@@ -44,33 +44,17 @@ WHERE
 # execute query
 data = sql_to_df(conn, query, db = os.environ['REALESTATE_DRIVER'])
 
-
-
-
-
-
 # data cleaning:
 # rename columns
 data.rename(columns = NEW_NAMES, inplace = True)
 
-
 # strip leading 0's from addresses (e.g., 0 MAIN ST should just become MAIN ST)
 data['address'] = data['address'].apply(lambda x: re.sub(r'^0\s', '', x) if isinstance(x, str) else x)
 
-# convert date to same format as in the timebound geo tables and also get the UTC time
-# the source dates are odd in this case. they are UTC, with a meaningless designation of midnight for all timestamps
-# (the data were not altered at midnight in actuality). We want to add EST times as part of our SOP, but a normal
-# derivation of EST would make the date one day prior to the real UTC date. We copy EST directly from UTC here,
-# with the understanding that both timestamps are incorrect
-data["approved_date_UNIX"] = pd.to_datetime(data["approved_date"]).map(pd.Timestamp.timestamp).astype(int)
-data["approved_date_UTC"] = data["approved_date"].map(lambda x: x[:10])
-data["approved_date_EST"] = data["approved_date"].map(lambda x: x[:10])
-data.drop("approved_date", axis = 1, inplace = True)
-
 
 # load into BQ via the avsc file in schemas direc
-schema = conv_avsc_to_bq_schema(F"{os.environ['GCS_PREFIX']}_avro_schemas", "tax_abatement.avsc")
-data.to_gbq("finance.incoming_tax_abatement", project_id=f"{os.environ['GCLOUD_PROJECT']}",
+schema = conv_avsc_to_bq_schema(F"{os.environ['GCS_PREFIX']}_avro_schemas", "city_owned_properties.avsc")
+data.to_gbq("finance.incoming_city_owned_properties", project_id=f"{os.environ['GCLOUD_PROJECT']}",
             if_exists="replace", table_schema=schema)
 
 # load query results as a json to GCS autoclass storage for archival
