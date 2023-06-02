@@ -169,7 +169,6 @@ def build_revgeo_time_bound_query(dataset, raw_table, new_table, create_date, id
     :param create_date: ticket creation date (string)
     :param lat_field: field in table that identifies latitude value
     :param long_field: field in table that identifies longitude value
-    :param table_or_view: indication of whether the output of the query will be a new table or a view
     :param geo_fields_in_raw: indication of whether the raw source already contains the zone columns
 
     :return: string to be passed through as arg to BigQueryOperator
