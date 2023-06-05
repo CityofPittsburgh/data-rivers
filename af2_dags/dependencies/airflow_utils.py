@@ -684,8 +684,6 @@ def build_geo_coords_from_parcel_query(raw_table, parc_field, lat_field = "latit
     LEFT OUTER JOIN `{os.environ['GCLOUD_PROJECT']}.timebound_geography.parcels` p ON 
     {parc_field} = p.zone
     """
-
-
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.INFO)
     run()
