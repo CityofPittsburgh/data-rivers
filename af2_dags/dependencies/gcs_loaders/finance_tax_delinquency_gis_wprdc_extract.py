@@ -9,7 +9,6 @@ from gcs_utils import find_last_successful_run, json_to_gcs, sql_to_df, conv_avs
 
 storage_client = storage.Client()
 json_bucket = f"{os.environ['GCS_PREFIX']}_finance"
-hot_bucket = f"{os.environ['GCS_PREFIX']}_hot_metal"
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--output_arg', dest='out_loc', required=True,
@@ -29,8 +28,7 @@ query = F"""SELECT cca.CNTY_ACCT AS PIN, m.MODIFY_DATE, PROP_LOCATION AS ADDRESS
                    PRIOR_YEARS, STATE_DESCRIPTION, NEIGHBORHOOD
               FROM WEB_DELINQUENTS wd, MASTER m, CITY_COUNTY_ACCOUNTS cca
              WHERE wd.ACCT_NO = m.ACCT_NO
-               AND m.ACCT_NO = cca.CITY_ACCT
-               AND m.MODIFY_DATE > TO_DATE('{run_start_win}', 'yyyy-mm-dd')"""
+               AND m.ACCT_NO = cca.CITY_ACCT"""
 
 # parse query results into Pandas dataframe
 data = sql_to_df(conn, query, db=os.environ['REALESTATE_DRIVER'])
@@ -60,7 +58,7 @@ schema = conv_avsc_to_bq_schema(F"{os.environ['GCS_PREFIX']}_avro_schemas", "pro
 data.to_gbq("finance.incoming_property_tax_delinquency", project_id=f"{os.environ['GCLOUD_PROJECT']}",
             if_exists="replace", table_schema=schema)
 
-# write the successful run information (used by each successive run to find the backfill start date)
+# write the successful run information for logging purposes
 curr_run = datetime.now(tz=pendulum.timezone('EST')).strftime("%Y-%m-%d")
 successful_run = {
     "requests_retrieved": len(data),
