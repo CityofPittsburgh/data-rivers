@@ -4,7 +4,6 @@ import os
 import re
 import jaydebeapi
 import numpy as np
-import pandas as pd
 
 from gcs_utils import json_to_gcs, sql_to_df, conv_avsc_to_bq_schema
 
@@ -59,8 +58,6 @@ data.rename(columns = NEW_NAMES, inplace = True)
 # strip leading 0's from addresses (e.g., 0 MAIN ST should just become MAIN ST)
 data['address'] = data['address'].apply(lambda x: re.sub(r'^0\s', '', x) if isinstance(x, str) else x)
 
-# convert 0 dollar sales to null values
-data.loc[data["sale_price"] == 0, "sale_price"] = np.nan
 
 # convert all dates to YYYY-MM-DD (or None)
 col_list = ["latest_sale_date", "treasury_sale_date", "last_payment_date", "act77_gent_date"]
