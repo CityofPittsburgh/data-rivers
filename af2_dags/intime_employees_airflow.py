@@ -38,7 +38,7 @@ intime_gcs = BashOperator(
 
 intime_dataflow = BashOperator(
     task_id='intime_dataflow',
-    bash_command=f"python {os.environ['DATAFLOW_SCRIPT_PATH']}/intime_dataflow.py --input {bucket}/{json_loc} --avro_output {bucket}/{avro_loc}",
+    bash_command=f"python {os.environ['DATAFLOW_SCRIPT_PATH']}/intime_dataflow.py --input {bucket}/{json_loc}",
     dag=dag
 )
 
