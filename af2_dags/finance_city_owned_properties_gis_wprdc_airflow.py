@@ -19,7 +19,7 @@ from dependencies.airflow_utils import get_ds_month, get_ds_year, default_args, 
 
 
 dag = DAG(
-    'finance_city_owned_properties ',
+    'finance_city_owned_properties',
     default_args=default_args,
     schedule_interval='@daily',
     start_date=datetime(2023, 6, 4),
