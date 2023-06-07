@@ -15,7 +15,7 @@ from dependencies.airflow_utils import get_ds_month, get_ds_year, default_args, 
 # database. Once the data is extracted, it will be uploaded to BigQuery and geocoded by matching on parcel number.
 # The final output will be stored as a JSON file in GCS and made available to WPRDC for public display.
 
-COLS = "pin, modify_date, address, billing_city, current_delq, prior_years, state_description, neighborhood"
+# COLS = "pin, modify_date, address, billing_city, current_delq, prior_years, state_description, neighborhood"
 
 
 dag = DAG(
@@ -42,9 +42,9 @@ extract = BashOperator(
 )
 
 
-# the primary key of city owned properties is parcel ID; parcel data is also stored in the timebound_geography dataset
-# with corresponding geographical boundaries. this query uses the ST_CENTROID geographic function to obtain lat/longs
-# for each parcel
+# the primary key of city owned properties is parcel ID (pin); parcel data is also stored in the timebound_geography
+# dataset with corresponding geographical boundaries. this query uses the ST_CENTROID geographic function to obtain
+# lat/longs for each parcel
 query_coords = build_geo_coords_from_parcel_query(raw_table = F"{os.environ['GCLOUD_PROJECT']}.finance.incoming_city_owned_properties",
                                                   parc_field = "pin")
 query_coords = F""" CREATE OR REPLACE TABLE {os.environ['GCLOUD_PROJECT']}.finance.incoming_city_owned_properties AS
@@ -58,33 +58,10 @@ get_coords = BigQueryOperator(
 )
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 # ToDo: get a date field
 query_geo_join = build_revgeo_time_bound_query('finance', 'incoming_city_owned_properties',
                                                'geo_enriched_city_owned_properties',
-                                               'approved_date_UTC', 'pin', 'latitude', 'longitude',
+                                               'latest_sale_date', 'pin', 'latitude', 'longitude',
                                                geo_fields_in_raw = False)
 geojoin = BigQueryOperator(
         task_id = 'geojoin',
@@ -95,14 +72,14 @@ geojoin = BigQueryOperator(
 )
 
 
-query_create_partition = F"""CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.finance.tax_abatement_partitioned` 
-partition by DATE_TRUNC(partition_approved_date_UTC, MONTH) AS
+query_create_partition = F"""CREATE OR REPLACE TABLE
+`{os.environ['GCLOUD_PROJECT']}.finance.city_owned_properties_partitioned`
+partition by DATE_TRUNC(partition_latest_sale_date, YEAR) AS
 SELECT 
-* EXCEPT(approved_date_UTC, start_year),
-CAST (start_year AS string) as start_year,
-PARSE_DATE ("%Y-%m-%d", approved_date_UTC) as partition_approved_date_UTC
+* EXCEPT(latest_sale_date),
+PARSE_DATE ("%Y-%m-%d", latest_sale_date) as partition_latest_sale_date
 FROM 
-  `{os.environ['GCLOUD_PROJECT']}.finance.geo_enriched_tax_abatement`;"""
+  `{os.environ['GCLOUD_PROJECT']}.finance.geo_enriched_city_owned_properties`;"""
 create_partition = BigQueryOperator(
         task_id = 'create_partition',
         sql = query_create_partition,
@@ -115,22 +92,21 @@ create_partition = BigQueryOperator(
 # Export table as CSV to WPRDC bucket
 # file name is the date. path contains the date info
 csv_file_name = f"{path}"
-dest_bucket = f"gs://{os.environ['GCS_PREFIX']}_wprdc/finance/tax_abatement/"
+dest_bucket = f"gs://{os.environ['GCS_PREFIX']}_wprdc/finance/city_owned_properties/"
 wprdc_export = BigQueryToCloudStorageOperator(
         task_id = 'wprdc_export',
-        source_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}.finance.tax_abatement_partitioned",
+        source_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}.finance.city_owned_properties_partitioned",
         destination_cloud_storage_uris = [f"{dest_bucket}{csv_file_name}.csv"],
         dag = dag
 )
 
-
 # push table to data-bridGIS BQ
 query_push_gis = F"""
-CREATE OR REPLACE TABLE `data-bridgis.finance.tax_abatement_partitioned` AS
+CREATE OR REPLACE TABLE `data-bridgis.finance.city_owned_partitioned` AS
 SELECT 
 * 
 FROM 
-  `{os.environ['GCLOUD_PROJECT']}.finance.tax_abatement_partitioned`;
+  `{os.environ['GCLOUD_PROJECT']}.finance.city_owned_properties_partitioned`;
 """
 push_gis = BigQueryOperator(
         task_id = 'push_gis',
