@@ -30,7 +30,7 @@ DEFAULT_PII_TYPES = [{"name": "PERSON_NAME"}, {"name": "EMAIL_ADDRESS"}, {"name"
 WPRDC_API_HARD_LIMIT = 500001  # A limit set by the CKAN instance.
 
 
-def call_odata_api(targ_url, limit_results = False):
+def call_odata_api(targ_url, pipeline, limit_results = False):
     """
     :param targ_url: string value of fully formed odata_query (needs to be constructed before passing in)
     :param limit_results: boolean to limit the func from hitting the API more than once (useful for testing)
@@ -38,19 +38,55 @@ def call_odata_api(targ_url, limit_results = False):
     """
     records = []
     more_links = True
+    call_attempt = 0
 
     while more_links:
-        res = requests.get(targ_url)
-        records.extend(res.json()['value'])
+        call_attempt += 1
+        # try the call
+        try:
+            res = requests.get(targ_url, timeout=300)
 
-        if limit_results:
-            more_links = False
-        elif '@odata.nextLink' in res.json().keys():
-            targ_url = res.json()['@odata.nextLink']
+        #exceptions for calls that are never executed or completed
+        except requests.exceptions.Timeout:
+            print(F"API call failed on attempt #: {call_attempt}")
+            print ("request timed out")
+            send_team_email_notification(F"{pipeline} ODATA API CALL", "timed out")
+
+        except requests.exceptions.KeyError:
+            print(F"API call failed on attempt #: {call_attempt}")
+            print("request KeyError occurred in the API request")
+            send_team_email_notification(F"{pipeline} ODATA API CALL", "key error occurred in API request")
+
+        # request call was completed
+        if res.status_code == 200:
+            try:
+                records.extend(res.json()['value'])
+                if limit_results:
+                    more_links = False
+                elif '@odata.nextLink' in res.json().keys():
+                    targ_url = res.json()['@odata.nextLink']
+                else:
+                    more_links = False
+
+            # handle calls which return a success code (200) but still generate exceptions (the cause of this usually
+            # unclear)
+            except:
+                print(F"API call returned a 200 code with an exception on call attempt: {call_attempt}")
+                send_team_email_notification(F"{pipeline} ODATA API CALL", "200 code returned along with a misc
+                exception")
+
+
+        # request failed but the call was executed
         else:
-            more_links = False
+            print(F"API call failed on attempt #: {call_attempt}")
+            print(F"Status Code:  {res.status_code}")
+            send_team_email_notification(F"{pipeline} ODATA API CALL", F"returned an exception with {res.status_code} code")
 
-    return records
+        if records:
+            return records
+        else:
+            # bust loose!!
+
 
 # ToDo: ultimately, this function is in need of refactoring. The code below is a work in progress, and does not work
 #  correctly. The version above runs, but is insufficient for our current needs. In order to get changes into prod,
