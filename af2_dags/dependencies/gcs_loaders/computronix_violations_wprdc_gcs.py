@@ -100,7 +100,7 @@ odata_url = F"{root}{base}?" \
             F"{unnested_table_3}($select={fds_unt3})"
 
 # get violations from API
-violations = call_odata_api(odata_url)
+violations = call_odata_api(odata_url ,"computronix violations")
 
 # names to swap for fields that are not nested in raw data
 swaps = [
