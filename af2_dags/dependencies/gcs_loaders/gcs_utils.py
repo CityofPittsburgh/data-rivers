@@ -11,6 +11,8 @@ import pytz
 import requests
 import pandas as pd
 import jaydebeapi
+from sendgrid import SendGridAPIClient
+from sendgrid.helpers.mail import Mail
 
 import avro.schema
 from avro.datafile import DataFileWriter
@@ -33,6 +35,7 @@ WPRDC_API_HARD_LIMIT = 500001  # A limit set by the CKAN instance.
 def call_odata_api(targ_url, pipeline, limit_results = False):
     """
     :param targ_url: string value of fully formed odata_query (needs to be constructed before passing in)
+    :param pipeline: string of the pipeline name (e.g. computronix_shadow_jobs) for error notification
     :param limit_results: boolean to limit the func from hitting the API more than once (useful for testing)
     :return: list of dicts containing API results
     """
@@ -44,18 +47,20 @@ def call_odata_api(targ_url, pipeline, limit_results = False):
         call_attempt += 1
         # try the call
         try:
-            res = requests.get(targ_url, timeout=300)
+            res = requests.get(targ_url, timeout = 300)
 
-        #exceptions for calls that are never executed or completed
+        # exceptions for calls that are never executed or completed
         except requests.exceptions.Timeout:
             print(F"API call failed on attempt #: {call_attempt}")
-            print ("request timed out")
+            print("request timed out")
             send_team_email_notification(F"{pipeline} ODATA API CALL", "timed out")
+            break
 
         except requests.exceptions.KeyError:
             print(F"API call failed on attempt #: {call_attempt}")
             print("request KeyError occurred in the API request")
-            send_team_email_notification(F"{pipeline} ODATA API CALL", "key error occurred in API request")
+            send_team_email_notification(F"{pipeline} ODATA API CALL", "produced a key error during the API request")
+            break
 
         # request call was completed
         if res.status_code == 200:
@@ -69,23 +74,41 @@ def call_odata_api(targ_url, pipeline, limit_results = False):
                     more_links = False
 
             # handle calls which return a success code (200) but still generate exceptions (the cause of this usually
-            # unclear)
-            except:
+            # unclear, but it does happen in some cases)
+            # using a broad Exception isn't best practice, and this can be phased out with time. Currently,
+            # it is unclear what is causing these exceptions and we cannot use a more specific failure state.
+            except Exception:
                 print(F"API call returned a 200 code with an exception on call attempt: {call_attempt}")
-                send_team_email_notification(F"{pipeline} ODATA API CALL", "200 code returned along with a misc
-                exception")
+                send_team_email_notification(F"{pipeline} ODATA API CALL", "produced a 200 code along with an "
+                                                                           "exception")
+                break
 
-
-        # request failed but the call was executed
+        # request failed but the call was executed (no 200 code returned)
         else:
             print(F"API call failed on attempt #: {call_attempt}")
             print(F"Status Code:  {res.status_code}")
-            send_team_email_notification(F"{pipeline} ODATA API CALL", F"returned an exception with {res.status_code} code")
+            send_team_email_notification(F"{pipeline} ODATA API CALL",
+                                         F"returned an exception with {res.status_code} code")
+            break
 
-        if records:
-            return records
-        else:
-            # bust loose!!
+    if records:
+        return records
+
+
+def send_team_email_notification(failed_process, message):
+    message = Mail(
+            from_email = 'ip.analytics@pittsburghpa.gov',
+            to_emails = 'ip.analytics@pittsburghpa.gov',
+
+            subject = "Airflow Failure Notification",
+            html_content = F""""
+                    Bad things have happened...
+                    {failed_process} has {message}...check the log for the offending airflow operator for 
+                    more info
+                    """
+    )
+    sg = SendGridAPIClient(os.environ['SENDGRID_API_KEY'])
+    response = sg.send(message)
 
 
 # ToDo: ultimately, this function is in need of refactoring. The code below is a work in progress, and does not work
@@ -161,7 +184,6 @@ def call_odata_api_with_limit(targ_url, results_upper_limit = 1000):
         else:
             more_links = False
 
-
     return records
 
 
@@ -169,7 +191,7 @@ def conv_avsc_to_bq_schema(avro_bucket, schema_name):
     # bigquery schemas that are used to upload directly from pandas are not formatted identically as an avsc filie.
     # this func makes the necessary conversions. this allows a single schema to serve both purposes
 
-    blob = storage.Blob(name=schema_name, bucket=storage_client.get_bucket(avro_bucket))
+    blob = storage.Blob(name = schema_name, bucket = storage_client.get_bucket(avro_bucket))
     schema_text = blob.download_as_string()
     schema = json.loads(schema_text)
 
@@ -201,12 +223,12 @@ def snake_case_place_names(input):
     # if an identifier is found (indicative of a place such as a road or park), we want to join the place with the
     # preceding word with the join character. Thus, "Moore Park" would become "Moore_Park".
     joined_places = (re.sub(r'(\s)\b({})\b'.format(place_name_identifiers), r'_\2', input,
-                            flags=re.IGNORECASE))
+                            flags = re.IGNORECASE))
 
     return joined_places
 
 
-def replace_pii(input_str, retain_location: bool, info_types=DEFAULT_PII_TYPES):
+def replace_pii(input_str, retain_location: bool, info_types = DEFAULT_PII_TYPES):
     # This helper function added 2021-07-26 to update the existing methodology (deprecated below).
     # configure API client call arguments (incuding a full resource id for the project)
 
@@ -217,16 +239,16 @@ def replace_pii(input_str, retain_location: bool, info_types=DEFAULT_PII_TYPES):
     max_findings = 0
     include_quote = False
     inspect_config = {
-        "info_types": info_types,
-        "include_quote": include_quote,
-        "limits": {"max_findings_per_request": max_findings},
+            "info_types"   : info_types,
+            "include_quote": include_quote,
+            "limits"       : {"max_findings_per_request": max_findings},
     }
     deidentify_config = {
-        "info_type_transformations": {
-            "transformations": [
-                {"primitive_transformation": {"replace_with_info_type_config": {}}}
-            ]
-        }
+            "info_type_transformations": {
+                    "transformations": [
+                            {"primitive_transformation": {"replace_with_info_type_config": {}}}
+                    ]
+            }
     }
     parent = "projects/{}".format(PROJECT)
 
@@ -336,10 +358,10 @@ def time_to_seconds(t):
     :return: int (time in seconds, 12:00 AM UTC)
     """
     ts = datetime.strptime(t, '%Y-%m-%d')
-    return int(ts.replace(tzinfo=pytz.UTC).timestamp())
+    return int(ts.replace(tzinfo = pytz.UTC).timestamp())
 
 
-def filter_fields(results, relevant_fields, add_fields=True):
+def filter_fields(results, relevant_fields, add_fields = True):
     """
     Remove unnecessary keys from results or filter for only those you want depending on add_fields arg
     :param results: list of dicts
@@ -416,7 +438,7 @@ def execution_date_to_prev_quarter(execution_date):
     return quarter, int(year)
 
 
-def sql_to_dict_list(conn, sql_query, db='mssql', date_col=None, date_format=None):
+def sql_to_dict_list(conn, sql_query, db = 'mssql', date_col = None, date_format = None):
     """
     Execute sql query and return list of dicts
     :param conn: sql db connection
@@ -471,8 +493,8 @@ def avro_to_gcs(file_name, avro_object_list, bucket_name, schema_name):
     """
     avro_bucket = F"{os.environ['GCS_PREFIX']}_avro_schemas"
     blob = storage.Blob(
-        name=schema_name,
-        bucket=storage_client.get_bucket(avro_bucket),
+            name = schema_name,
+            bucket = storage_client.get_bucket(avro_bucket),
     )
 
     schema_text = blob.download_as_string()
@@ -480,7 +502,7 @@ def avro_to_gcs(file_name, avro_object_list, bucket_name, schema_name):
 
     writer = DataFileWriter(open(file_name, "wb"), DatumWriter(), schema)
     for item in avro_object_list:
-       writer.append(item)
+        writer.append(item)
     writer.close()
 
     upload_file_gcs(bucket_name, file_name)
@@ -491,15 +513,15 @@ def json_to_gcs(path, json_object_list, bucket_name):
     take list of dicts in memory and upload to GCS as newline JSON
     """
     blob = storage.Blob(
-        name=path,
-        bucket=storage_client.get_bucket(bucket_name),
+            name = path,
+            bucket = storage_client.get_bucket(bucket_name),
     )
     try:
         blob.upload_from_string(
-            # dataflow needs newline-delimited json, so use ndjson
-            data=ndjson.dumps(json_object_list),
-            content_type='application/json',
-            client=storage_client,
+                # dataflow needs newline-delimited json, so use ndjson
+                data = ndjson.dumps(json_object_list),
+                content_type = 'application/json',
+                client = storage_client,
         )
     except json.decoder.JSONDecodeError:
         print("Error uploading data to GCS bucket, linting and trying again")
@@ -583,7 +605,7 @@ def unnest_domi_street_seg(nested_data, name_swaps, old_nested_keys, new_unneste
 def query_resource(site, query):
     """Use the datastore_search_sql API endpoint to query a public CKAN resource."""
     ckan = ckanapi.RemoteCKAN(site)
-    response = ckan.action.datastore_search_sql(sql=query)
+    response = ckan.action.datastore_search_sql(sql = query)
     data = response['records']
     # Note that if a CKAN table field name is a Postgres reserved word (like
     # ALL or CAST or NEW), you get a not-very-useful error
@@ -604,14 +626,14 @@ def query_any_resource(resource_id, query):
     site = "https://data.wprdc.org"
     ckan = ckanapi.RemoteCKAN(site)
     # From resource ID, determine package ID.
-    package_id = ckan.action.resource_show(id=resource_id)['package_id']
+    package_id = ckan.action.resource_show(id = resource_id)['package_id']
     # From package ID, determine if the package is private.
-    private = ckan.action.package_show(id=package_id)['private']
+    private = ckan.action.package_show(id = package_id)['private']
     if private:
         print(
-            "As of February 2018, CKAN still doesn't allow you to run a datastore_search_sql query on a private "
-            "dataset. Sorry. See this GitHub issue if you want to know a little more: "
-            "https://github.com/ckan/ckan/issues/1954")
+                "As of February 2018, CKAN still doesn't allow you to run a datastore_search_sql query on a private "
+                "dataset. Sorry. See this GitHub issue if you want to know a little more: "
+                "https://github.com/ckan/ckan/issues/1954")
         raise ValueError("CKAN can't query private resources (like {}) yet.".format(resource_id))
     else:
         return query_resource(site, query)
@@ -641,8 +663,8 @@ def remove_fields(records, fields_to_remove):
     return records
 
 
-def synthesize_query(resource_id, select_fields=['*'], where_clauses=None, group_by=None, order_by=None,
-                     limit=None):
+def synthesize_query(resource_id, select_fields = ['*'], where_clauses = None, group_by = None, order_by = None,
+                     limit = None):
     query = f'SELECT {", ".join(select_fields)} FROM "{resource_id}"'
 
     if where_clauses is not None:
@@ -708,8 +730,8 @@ Here are the resulting top five names for the POODLE STANDARD breed, sorted by d
 """
 
 
-def get_wprdc_data(resource_id, select_fields=['*'], where_clauses=None, group_by=None, order_by=None,
-                   limit=None, fields_to_remove=None):
+def get_wprdc_data(resource_id, select_fields = ['*'], where_clauses = None, group_by = None, order_by = None,
+                   limit = None, fields_to_remove = None):
     """
     helper to construct query for CKAN API and return results as list of dictionaries
     :param resource_id: str
@@ -726,9 +748,9 @@ def get_wprdc_data(resource_id, select_fields=['*'], where_clauses=None, group_b
 
     if len(records) == WPRDC_API_HARD_LIMIT:
         print(
-            f"Note that there may be more results than you have obtained since the WPRDC CKAN instance only "
-            f"returns "
-            f"{WPRDC_API_HARD_LIMIT} records at a time.")
+                f"Note that there may be more results than you have obtained since the WPRDC CKAN instance only "
+                f"returns "
+                f"{WPRDC_API_HARD_LIMIT} records at a time.")
         # If you send a bogus SQL query through to the CKAN API, the resulting error message will include the full
         # query used by CKAN, which wraps the query you send something like this: "SELECT * FROM (<your query>) LIMIT
         # 500001", so you can determine the actual hard limit that way.
@@ -743,10 +765,10 @@ def get_wprdc_data(resource_id, select_fields=['*'], where_clauses=None, group_b
 
 def rmsprod_setup():
     parser = argparse.ArgumentParser()
-    parser.add_argument('-e', '--execution_date', dest='execution_date',
-                        required=True, help='DAG execution date (YYYY-MM-DD)')
-    parser.add_argument('-s', '--prev_execution_date', dest='prev_execution_date',
-                        required=True, help='Previous DAG execution date (YYYY-MM-DD)')
+    parser.add_argument('-e', '--execution_date', dest = 'execution_date',
+                        required = True, help = 'DAG execution date (YYYY-MM-DD)')
+    parser.add_argument('-s', '--prev_execution_date', dest = 'prev_execution_date',
+                        required = True, help = 'Previous DAG execution date (YYYY-MM-DD)')
     args = vars(parser.parse_args())
     execution_year = args['execution_date'].split('-')[0]
     execution_month = args['execution_date'].split('-')[1]
@@ -802,7 +824,7 @@ def json_linter(ndjson: str):
             for idx in range(len(json_split)):
                 if idx == 0:
                     result_ndjson.append(json_split[idx] + '}')
-                elif idx == (len(json_split)-1):
+                elif idx == (len(json_split) - 1):
                     result_ndjson.append('{' + json_split[idx])
                 else:
                     result_ndjson.append('{' + json_split[idx] + '}')
@@ -810,7 +832,7 @@ def json_linter(ndjson: str):
     return '\n'.join(result_ndjson)
 
 
-def sql_to_df(conn, sql_query, db='MSSQL', date_col=None, date_format=None):
+def sql_to_df(conn, sql_query, db = 'MSSQL', date_col = None, date_format = None):
     """
     Execute sql query and return list of dicts
     :param conn: sql db connection
@@ -834,7 +856,7 @@ def sql_to_df(conn, sql_query, db='MSSQL', date_col=None, date_format=None):
     try:
         df.columns = field_names
     except ValueError:
-        df = pd.DataFrame(columns=field_names, dtype=object)
+        df = pd.DataFrame(columns = field_names, dtype = object)
 
     if date_col is not None:
         if date_format is not None:
