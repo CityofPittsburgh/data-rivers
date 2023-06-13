@@ -181,5 +181,5 @@ df = df[~df['employee_id'].isin(exclude)]
 
 #  read in AVRO schema and load into BQ
 schema = conv_avsc_to_bq_schema(F"{os.environ['GCS_PREFIX']}_avro_schemas", "intime_employees.avsc")
-df.to_gbq("intime.employee_data_pandas", project_id=f"{os.environ['GCLOUD_PROJECT']}",
+df.to_gbq("intime.employee_data", project_id=f"{os.environ['GCLOUD_PROJECT']}",
           if_exists="replace", table_schema=schema)
