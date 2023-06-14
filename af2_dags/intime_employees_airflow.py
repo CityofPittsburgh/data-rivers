@@ -15,7 +15,7 @@ from dependencies.airflow_utils import get_ds_month, get_ds_year, get_ds_day, de
 # to be merged into the Police Active Directory.
 
 dag = DAG(
-    'intime',
+    'intime_employees',
     default_args=default_args,
     schedule_interval='@hourly',
     user_defined_filters={'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year,
@@ -32,26 +32,13 @@ avro_loc = f"avro_output/{path}/"
 
 intime_gcs = BashOperator(
     task_id='intime_gcs',
-    bash_command=f"python {os.environ['GCS_LOADER_PATH']}/intime_gcs.py --output_arg {json_loc}",
+    bash_command=f"python {os.environ['GCS_LOADER_PATH']}/intime_employees_gcs.py --output_arg {json_loc}",
     dag=dag
 )
 
-intime_dataflow = BashOperator(
-    task_id='intime_dataflow',
-    bash_command=f"python {os.environ['DATAFLOW_SCRIPT_PATH']}/intime_dataflow.py --input {bucket}/{json_loc} --avro_output {bucket}/{avro_loc}",
-    dag=dag
-)
-
-intime_bq_load = GoogleCloudStorageToBigQueryOperator(
-    task_id='intime_bq_load',
-    destination_project_dataset_table=f"{os.environ['GCLOUD_PROJECT']}.{dataset}.employee_data",
-    bucket=f"{os.environ['GCS_PREFIX']}_intime",
-    source_objects=[f"{avro_loc}*.avro"],
-    write_disposition='WRITE_TRUNCATE',
-    create_disposition='CREATE_IF_NEEDED',
-    source_format='AVRO',
-    autodetect=True,
-    bigquery_conn_id='google_cloud_default',
+intime_pandas = BashOperator(
+    task_id='intime_pandas',
+    bash_command=f"python {os.environ['DATAFLOW_SCRIPT_PATH']}/intime_employees_pandas.py --input {json_loc}",
     dag=dag
 )
 
@@ -72,10 +59,4 @@ intime_iapro_export = BigQueryToCloudStorageOperator(
     dag=dag
 )
 
-beam_cleanup = BashOperator(
-    task_id='intime_beam_cleanup',
-    bash_command=airflow_utils.beam_cleanup_statement(f"{os.environ['GCS_PREFIX']}_intime"),
-    dag=dag
-)
-
-intime_gcs >> intime_dataflow >> intime_bq_load >> intime_export >> intime_iapro_export >>beam_cleanup
+intime_gcs >> intime_pandas >> intime_export >> intime_iapro_export
