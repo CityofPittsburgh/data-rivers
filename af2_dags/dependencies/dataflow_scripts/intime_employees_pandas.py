@@ -147,7 +147,7 @@ field_name_swaps = [('middle_name', 'middle_initial'), ('external_id', 'mpoetc_n
 df = swap_field_names(df, field_name_swaps)
 
 # remove decimals from badge numbers
-df = strip_char_pattern(df, ['badge_number'], "(?<=\d)\.0$")
+df = strip_char_pattern(df, ['badge_number', 'mpoetc_number'], "(?<=\d)\.0$")
 df['badge_number'] = df['badge_number'].replace('nan', None)
 # leading 0s get mistakenly stripped from Ceridian ID values. this code adds 0s back until IDs are 6 digits
 df = fill_leading_zeroes(df, 'employee_id', 6)
@@ -164,8 +164,8 @@ df = df.where(df.notnull(), None)
 # strip special characters from employee names
 name_fields = ['first_name', 'last_name']
 for field in name_fields:
-    df[field] = df[field].str.replace(r'[^a-zA-Z\'\-]', '', regex=True)
-df['display_name'] = df['display_name'].str.replace(r'[^a-zA-Z\'\-, ]', '', regex=True)
+    df[field] = df[field].str.replace(r'[^a-zA-Z\'(\s)]|([^a-zA-Z]\w$)|-$', '', regex=True)
+df['display_name'] = df['display_name'].str.replace(r'[^a-zA-Z\'(\s),]|([^a-zA-Z]\w$)|-$', '', regex=True)
 
 # drop all fields except those included in BQ schema
 keep_fields = ['employee_id', 'mpoetc_number', 'ncic_username', 'badge_number', 'first_name', 'middle_initial',
