@@ -162,10 +162,9 @@ df['ncic_username'] = np.where(df['ncic_username'].notnull(), '~ALCPP' +
 df = df.where(df.notnull(), None)
 
 # strip special characters from employee names
-name_fields = ['first_name', 'last_name']
+name_fields = ['first_name', 'last_name', 'display_name']
 for field in name_fields:
-    df[field] = df[field].str.replace(r'[^a-zA-Z\'(\s)]|([^a-zA-Z]\w$)|-$', '', regex=True)
-df['display_name'] = df['display_name'].str.replace(r'[^a-zA-Z\'(\s),]|([^a-zA-Z]\w$)|-$', '', regex=True)
+    df[field] = df[field].str.replace(r'[^a-zA-Z\'(\s),]|([^a-zA-Z]\w$)|-$', '', regex=True)
 
 # drop all fields except those included in BQ schema
 keep_fields = ['employee_id', 'mpoetc_number', 'ncic_username', 'badge_number', 'first_name', 'middle_initial',
