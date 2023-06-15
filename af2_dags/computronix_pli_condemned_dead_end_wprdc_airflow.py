@@ -12,7 +12,7 @@ from airflow.contrib.operators.bigquery_to_gcs import BigQueryToCloudStorageOper
 from dependencies import airflow_utils
 from dependencies.airflow_utils import get_ds_year, get_ds_month, get_ds_day, default_args
 
-from bq_queries import computronix_pli_condemned_dead_end_properties_queries as q
+from dependencies.bq_queries import computronix_pli_condemned_dead_end_properties_queries as q
 
 
 dag = DAG(
