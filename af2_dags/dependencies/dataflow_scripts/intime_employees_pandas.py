@@ -155,7 +155,8 @@ df = swap_field_names(df, field_name_swaps)
 secondary_ids = ['badge_number', 'mpoetc_number']
 df = strip_char_pattern(df, secondary_ids, "(?<=\d)\.0$")
 for id in secondary_ids:
-    df[id] = df[id].replace('nan', None)
+    df[id] = df[id].apply(lambda x: None if x == 'nan' else x)
+    df[id] = df[id].apply(lambda x: None if x == 'None' else x)
 # leading 0s get mistakenly stripped from Ceridian ID values. this code adds 0s back until IDs are 6 digits
 df = fill_leading_zeroes(df, 'employee_id', 6)
 
