@@ -103,6 +103,11 @@ for i in range(len(assignment_fields)):
                                                         df.loc[index, f"{new_asg_field_names[i]}_valid_date"] = item['validFrom']
                                                 except KeyError:
                                                     pass
+                            elif new_asg_field_names[i] == 'rank':
+                                try:
+                                    df.loc[index, new_asg_field_names[i]] = item[nested_asg_fields[i]]
+                                except KeyError:
+                                    pass
                         elif 'validFrom' in item:
                             if (item['validFrom'] < today) and (item['validTo'] > today):
                                 try:
@@ -147,8 +152,10 @@ field_name_swaps = [('middle_name', 'middle_initial'), ('external_id', 'mpoetc_n
 df = swap_field_names(df, field_name_swaps)
 
 # remove decimals from badge numbers
-df = strip_char_pattern(df, ['badge_number', 'mpoetc_number'], "(?<=\d)\.0$")
-df['badge_number'] = df['badge_number'].replace('nan', None)
+secondary_ids = ['badge_number', 'mpoetc_number']
+df = strip_char_pattern(df, secondary_ids, "(?<=\d)\.0$")
+for id in secondary_ids:
+    df[id] = df[id].replace('nan', None)
 # leading 0s get mistakenly stripped from Ceridian ID values. this code adds 0s back until IDs are 6 digits
 df = fill_leading_zeroes(df, 'employee_id', 6)
 
@@ -163,8 +170,10 @@ df = df.where(df.notnull(), None)
 
 # strip special characters from employee names
 name_fields = ['first_name', 'last_name', 'display_name']
+df = strip_char_pattern(df, name_fields, r'\s*\([^)]*\)$')
+df = strip_char_pattern(df, name_fields, r'\s*\d+$')
 for field in name_fields:
-    df[field] = df[field].str.replace(r'[^a-zA-Z\'(\s),]|([^a-zA-Z]\w$)|-$', '', regex=True)
+    df[field] = df[field].str.replace(' -', '')
 
 # drop all fields except those included in BQ schema
 keep_fields = ['employee_id', 'mpoetc_number', 'ncic_username', 'badge_number', 'first_name', 'middle_initial',
