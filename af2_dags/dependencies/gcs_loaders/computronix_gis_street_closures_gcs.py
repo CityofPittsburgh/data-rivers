@@ -47,7 +47,7 @@ odata_url = F"{url}{tb_base}?$select={fds_base}," + F"&$expand={tb_nt1}" \
             + F"($select={fds_nt1},;" + F"$expand={tb_nt2}($select={fds_nt2})),"
 
 # extract the data from ODATA API
-nested_permits = call_odata_api(odata_url, limit_results = False)
+nested_permits = call_odata_api(odata_url, "computronix gis street closures", limit_results = False)
 unnested_data = unnest_domi_street_seg(nested_permits, SWAPS, OLD_KEYS, NEW_KEYS)
 
 # load data into GCS
