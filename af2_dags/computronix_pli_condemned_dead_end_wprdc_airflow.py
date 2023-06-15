@@ -55,7 +55,7 @@ dataflow = BashOperator(
 # Load AVRO data produced by dataflow_script into BQ temp table
 gcs_to_bq = GoogleCloudStorageToBigQueryOperator(
         task_id = 'gcs_to_bq',
-        destination_project_dataset_table =f"{os.environ['GCLOUD_PROJECT']}:computronix.pli_program_inspection_properties",
+        destination_project_dataset_table = F"{os.environ['GCLOUD_PROJECT']}:computronix.incoming_pli_program_inspection_properties",
         bucket = f"{os.environ['GCS_PREFIX']}_computronix",
         source_objects = [f"{dataset}/{avro_loc}*.avro"],
         write_disposition = 'WRITE_TRUNCATE',
@@ -156,7 +156,7 @@ pli_export_dead_end = BigQueryToCloudStorageOperator(
 )
 
 
-# push table of ALL permits (not just active) data-bridGIS BQ
+# push table of the latest updates of ALL permits (not just active) data-bridGIS BQ
 query_push_gis_latest_cde = F"""
 CREATE OR REPLACE TABLE `data-bridgis.computronix.cde_properties_latest_update` AS
 SELECT 
