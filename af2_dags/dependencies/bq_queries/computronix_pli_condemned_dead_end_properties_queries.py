@@ -8,7 +8,7 @@ WITH new_t AS
 (SELECT 
     *      
 FROM `{os.environ['GCLOUD_PROJECT']}.computronix.incoming_pli_program_inspection_properties`
-),
+), 
 
 old_t AS 
 (SELECT 
@@ -38,7 +38,7 @@ SELECT
     *      
 FROM `{os.environ['GCLOUD_PROJECT']}.computronix.pli_cde_properties`
 WHERE (insp_type_desc LIKE 'Condemned' AND insp_status LIKE 'Active')
-,"""
+"""
 
 
 def create_wprdc_exp_table():
