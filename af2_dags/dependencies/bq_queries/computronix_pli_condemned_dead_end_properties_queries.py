@@ -76,5 +76,5 @@ def push_gis_all_recs():
 CREATE OR REPLACE TABLE `data-bridgis.computronix.cde_properties` AS
 SELECT 
   cde.*,
-FROM `{os.environ['GCLOUD_PROJECT']}.computronix.pli_cde_properties_wprdc_exp` cde""
+FROM `{os.environ['GCLOUD_PROJECT']}.computronix.pli_cde_properties_wprdc_exp` cde
 """
