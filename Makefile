@@ -16,8 +16,9 @@
 #     gsutil cp -r ./af2_dags/dependencies/dataflow_scripts/dataflow_utils/*.py gs://us-east4-cx-test-af2-ver8-53364719-bucket/dags/dependencies/dataflow_scripts/dataflow_utils
 
 deploy_af2_dags_data_rivers_testing:
-	gsutil cp -r ./af2_dags/*.py gs://us-east4-data-rivers-testin-bd9ba943-bucket/dags && \
-	gsutil cp -r ./af2_dags/dependencies/*.py gs://us-east4-data-rivers-testin-bd9ba943-bucket/dags/dependencies && \
-	gsutil cp -r ./af2_dags/dependencies/gcs_loaders/*.py gs://us-east4-data-rivers-testin-bd9ba943-bucket/dags/dependencies/gcs_loaders && \
-	gsutil cp -r ./af2_dags/dependencies/dataflow_scripts/*.py gs://us-east4-data-rivers-testin-bd9ba943-bucket/dags/dependencies/dataflow_scripts && \
-	gsutil cp -r ./af2_dags/dependencies/dataflow_scripts/dataflow_utils/*.py gs://us-east4-data-rivers-testin-bd9ba943-bucket/dags/dependencies/dataflow_scripts/dataflow_utils
+	gsutil -m cp -r ./af2_dags/*.py gs://us-east4-data-rivers-testin-bd9ba943-bucket/dags && \
+	gsutil -m cp -r ./af2_dags/dependencies/*.py gs://us-east4-data-rivers-testin-bd9ba943-bucket/dags/dependencies && \
+	gsutil -m cp -r ./af2_dags/dependencies/gcs_loaders/*.py gs://us-east4-data-rivers-testin-bd9ba943-bucket/dags/dependencies/gcs_loaders && \
+	gsutil -m cp -r ./af2_dags/dependencies/dataflow_scripts/*.py gs://us-east4-data-rivers-testin-bd9ba943-bucket/dags/dependencies/dataflow_scripts && \
+	gsutil -m cp -r ./af2_dags/dependencies/dataflow_scripts/dataflow_utils/*.py gs://us-east4-data-rivers-testin-bd9ba943-bucket/dags/dependencies/dataflow_scripts/dataflow_utils && \
+    gsutil -m cp -r ./af2_dags/dependencies/bq_queries/*.py gs://us-east4-data-rivers-testin-bd9ba943-bucket/dags/dependencies/bq_queries
