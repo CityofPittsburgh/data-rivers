@@ -47,6 +47,7 @@ def call_odata_api(targ_url, pipeline, limit_results = False):
         call_attempt += 1
         # try the call
         try:
+            print(F"executing call #{call_attempt}")
             res = requests.get(targ_url, timeout = 300)
 
         # exceptions for calls that are never executed or completed
