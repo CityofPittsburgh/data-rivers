@@ -9,6 +9,7 @@ import ckanapi
 import ndjson
 import pytz
 import requests
+import xmltodict
 import pandas as pd
 import jaydebeapi
 from sendgrid import SendGridAPIClient
@@ -47,6 +48,7 @@ def call_odata_api(targ_url, pipeline, limit_results = False):
         call_attempt += 1
         # try the call
         try:
+            print(F"executing call #{call_attempt}")
             res = requests.get(targ_url, timeout = 300)
 
         # exceptions for calls that are never executed or completed
@@ -789,3 +791,14 @@ def sql_to_df(conn, sql_query, db = 'MSSQL', date_col = None, date_format = None
             df[date_col] = df[date_col].apply(lambda x: x.strftime('%Y-%m-%d'))
 
     return df
+
+
+def post_xml(base_url, envelope, auth, headers, res_start, res_stop):
+    # API call to get data
+    response = requests.post(base_url, data=envelope, auth=auth, headers=headers)
+    # Print API status code for debugging purposes
+    print("API response code: " + str(response.status_code))
+    vals = response.text[response.text.find(res_start) + len(res_start):response.text.rfind(res_stop)]
+    vals = '<root>' + vals + '</root>'
+    xml_dict = xmltodict.parse(xml_input=vals, encoding='utf-8')
+    return xml_dict
