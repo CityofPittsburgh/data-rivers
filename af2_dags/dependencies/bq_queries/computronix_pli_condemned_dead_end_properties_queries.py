@@ -18,7 +18,7 @@ LEFT OUTER JOIN new_t ON old_t.parc_num = new_t.parc_num
 WHERE new_t.parc_num IS NULL
 )
 
-SELECT * FROM new_tp
+SELECT * FROM new_t
 UNION ALL
 SELECT * FROM old_t;
 """
