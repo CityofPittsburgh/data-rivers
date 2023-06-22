@@ -32,8 +32,9 @@ DEFAULT_PII_TYPES = [{"name": "PERSON_NAME"}, {"name": "EMAIL_ADDRESS"}, {"name"
 
 WPRDC_API_HARD_LIMIT = 500001  # A limit set by the CKAN instance.
 
-
-def call_odata_api(targ_url, limit_results = False):
+# pipeline var is unused for now 6/23. This func will be removed w/in 30 days and this for compliance with incoming
+# refactor
+def call_odata_api(targ_url, pipeline, limit_results = False):
     """
     :param targ_url: string value of fully formed odata_query (needs to be constructed before passing in)
     :param limit_results: boolean to limit the func from hitting the API more than once (useful for testing)
