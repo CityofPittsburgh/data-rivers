@@ -39,7 +39,7 @@ odata_url = F"{url}{base}?&{odata_url_base_fields}{odata_url_tail}"
 
 
 # hit the api
-properties = call_odata_api(odata_url)
+properties = call_odata_api(odata_url, "computronix condemned and dead end properties")
 
 
 # load data into GCS

@@ -3,12 +3,11 @@ import time
 import argparse
 import pendulum
 from datetime import datetime, timedelta
-import xmltodict
 import requests
 from requests.auth import HTTPBasicAuth
 from google.cloud import storage
 
-from gcs_utils import json_to_gcs, find_last_successful_run
+from gcs_utils import json_to_gcs, find_last_successful_run, post_xml
 
 # the date the first employee record was entered
 DEFAULT_RUN_START = "2020-06-11"
@@ -59,32 +58,19 @@ end = '</ns2:getEmployeeDataListResponse>'
 run_start_win, first_run = find_last_successful_run(bucket, "successful_run_log/log.json", DEFAULT_RUN_START)
 from_time = run_start_win.split(' ')[0]
 
-# continue running the API until data is retrieved (wait 5 min if there is no new data between last_good_run and now (
-# curr_run))
-data_retrieved = False
-while data_retrieved is False:
-    # API call to get data
-    response = requests.post(BASE_URL, data=generate_xml('POLICE', from_time, today), auth=auth, headers=headers)
-    # Print API status code for debugging purposes
-    print("API response code: " + str(response.status_code))
-    vals = response.text[response.text.find(start) + len(start):response.text.rfind(end)]
-    vals = '<root>' + vals + '</root>'
-    xml_dict = xmltodict.parse(xml_input=vals, encoding='utf-8')
-    records = xml_dict['root']['return']
-    # verify the API called returned data (if no new records, then type will be NONE)
-    if records is not None:
-        data_retrieved = True
-        # write the successful run information (used by each successive DAG run to find the backfill date)
-        successful_run = [{"requests_retrieved": len(records),
-                           "since": run_start_win,
-                           "current_run": today,
-                           "note": "Data retrieved between the time points listed above"}]
-        json_to_gcs("successful_run_log/log.json", successful_run,
-                    bucket)
+# API call to get data
+response = post_xml(BASE_URL, envelope=generate_xml('POLICE', from_time, today), auth=auth, headers=headers,
+                        res_start=start, res_stop=end)
+records = response['root']['return']
 
-    else:
-        print("No new requests. Sleeping with retry scheduled.")
-        time.sleep(300)
+# verify the API called returned data (if no new records, then type will be NONE)
+if records is not None:
+    # write the successful run information (used by each successive DAG run to find the backfill date)
+    successful_run = [{"requests_retrieved": len(records),
+                       "since": run_start_win,
+                       "current_run": today,
+                       "note": "Data retrieved between the time points listed above"}]
+    json_to_gcs("successful_run_log/log.json", successful_run, bucket)
 
 
 json_to_gcs(f"{args['out_loc']}", records, bucket)
