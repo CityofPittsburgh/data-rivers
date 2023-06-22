@@ -33,7 +33,30 @@ DEFAULT_PII_TYPES = [{"name": "PERSON_NAME"}, {"name": "EMAIL_ADDRESS"}, {"name"
 WPRDC_API_HARD_LIMIT = 500001  # A limit set by the CKAN instance.
 
 
-def call_odata_api(targ_url, pipeline, limit_results = False):
+def call_odata_api(targ_url, limit_results = False):
+    """
+    :param targ_url: string value of fully formed odata_query (needs to be constructed before passing in)
+    :param limit_results: boolean to limit the func from hitting the API more than once (useful for testing)
+    :return: list of dicts containing API results
+    """
+    records = []
+    more_links = True
+
+    while more_links:
+        res = requests.get(targ_url)
+        records.extend(res.json()['value'])
+
+        if limit_results:
+            more_links = False
+        elif '@odata.nextLink' in res.json().keys():
+            targ_url = res.json()['@odata.nextLink']
+        else:
+            more_links = False
+
+    return records
+
+
+def call_odata_api_error_handling(targ_url, pipeline, limit_results = False):
     """
     :param targ_url: string value of fully formed odata_query (needs to be constructed before passing in)
     :param pipeline: string of the pipeline name (e.g. computronix_shadow_jobs) for error notification
