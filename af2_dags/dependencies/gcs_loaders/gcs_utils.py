@@ -4,22 +4,23 @@ import argparse
 import os
 import logging
 import re
+import requests
+from datetime import datetime
+import time
+
 import json
 import ckanapi
 import ndjson
 import pytz
-import requests
 import xmltodict
 import pandas as pd
 import jaydebeapi
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
-
 import avro.schema
 from avro.datafile import DataFileWriter
 from avro.io import DatumWriter
 
-from datetime import datetime
 from google.cloud import storage, bigquery, dlp
 
 storage_client = storage.Client()
@@ -57,7 +58,7 @@ def call_odata_api(targ_url, pipeline, limit_results = False):
     return records
 
 
-def call_odata_api_error_handling(targ_url, pipeline, limit_results = False):
+def call_odata_api_error_handling(targ_url, pipeline, limit_results = False, time_out = 3600):
     """
     :param targ_url: string value of fully formed odata_query (needs to be constructed before passing in)
     :param pipeline: string of the pipeline name (e.g. computronix_shadow_jobs) for error notification
@@ -67,19 +68,31 @@ def call_odata_api_error_handling(targ_url, pipeline, limit_results = False):
     records = []
     more_links = True
     call_attempt = 0
+    start = time.time()
 
     while more_links:
         call_attempt += 1
+        elapsed_time = time.time() - start
+
+        if elapsed_time > time_out:
+            print(F"API call failed on attempt #: {call_attempt}")
+            print("Overall run time exceded the time out limit")
+            msg = """function timed out 
+                    (individual API calls MAY be working fine...this could be caused by somoething else. 
+                    Check logs and returned data.)"""
+            send_team_email_notification(F"{pipeline} ODATA API CALL", msg)
+            break
+
         # try the call
         try:
             print(F"executing call #{call_attempt}")
             res = requests.get(targ_url, timeout = 300)
 
-        # exceptions for calls that are never executed or completed
+        # exceptions for calls that are never executed or completed w/in time limit
         except requests.exceptions.Timeout:
-            print(F"API call failed on attempt #: {call_attempt}")
-            print("request timed out")
-            send_team_email_notification(F"{pipeline} ODATA API CALL", "timed out")
+            print(F"API call timed out during attempt #: {call_attempt}")
+            print("API request timed out")
+            send_team_email_notification(F"{pipeline} ODATA API CALL", "timed out during the API call")
             break
 
         except requests.exceptions.KeyError:
@@ -117,8 +130,8 @@ def call_odata_api_error_handling(targ_url, pipeline, limit_results = False):
                                          F"returned an exception with {res.status_code} code")
             break
 
-    if records:
-        return records
+    # if records:   
+    #     return records
 
 
 def send_team_email_notification(failed_process, message):
