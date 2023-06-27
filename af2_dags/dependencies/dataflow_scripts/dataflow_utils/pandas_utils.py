@@ -79,7 +79,8 @@ def change_data_type(df, convs):
 
 
 def fill_leading_zeroes(df, field_name, digits):
-    df[field_name] = df[field_name].apply(lambda x: x.zfill(6) if x is not None else x)
+    df[field_name] = df[field_name].astype(str)
+    df[field_name] = df[field_name].apply(lambda x: x.zfill(digits) if x != 'None' else None)
     return df
 
 
