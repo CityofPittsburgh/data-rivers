@@ -58,10 +58,12 @@ WPRDC_API_HARD_LIMIT = 500001  # A limit set by the CKAN instance.
 #     return records
 
 
-def call_odata_api_error_handling(targ_url, pipeline, limit_results = False, time_out = 3600):
+def call_odata_api_error_handling(targ_url, pipeline, time_out = 3600, limit_results = False):
     """
     :param targ_url: string value of fully formed odata_query (needs to be constructed before passing in)
     :param pipeline: string of the pipeline name (e.g. computronix_shadow_jobs) for error notification
+    :param time_out: int value in seconds for indicating how long the function should be allowed to run before
+    failing out
     :param limit_results: boolean to limit the func from hitting the API more than once (useful for testing)
     :return: list of dicts containing API results
     """
