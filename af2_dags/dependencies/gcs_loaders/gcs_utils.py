@@ -82,8 +82,8 @@ def call_odata_api_error_handling(targ_url, pipeline, time_out = 3600, limit_res
         if elapsed_time > time_out:
             print(F"API call failed on attempt #: {call_attempt}")
             print("Overall run time exceded the time out limit")
-            msg = """function timed out 
-                    (individual API calls MAY be working fine...this could be caused by somoething else. 
+            msg = """the entire function timed out 
+                    (individual API calls MAY be working fine...this could be caused by something else. 
                     Check logs and returned data.)"""
             send_team_email_notification(F"{pipeline} ODATA API CALL", msg)
             error_flag = True
@@ -96,16 +96,8 @@ def call_odata_api_error_handling(targ_url, pipeline, time_out = 3600, limit_res
 
         # exceptions for calls that are never executed or completed w/in time limit
         except requests.exceptions.Timeout:
-            print(F"API call timed out during attempt #: {call_attempt}")
-            print("API request timed out")
-            send_team_email_notification(F"{pipeline} ODATA API CALL", "timed out during the API call")
-            error_flag = True
-            break
-
-        except requests.exceptions.KeyError:
-            print(F"API call failed on attempt #: {call_attempt}")
-            print("request KeyError occurred in the API request")
-            send_team_email_notification(F"{pipeline} ODATA API CALL", "produced a key error during the API request")
+            print(F"API call timed out during API request attempt #: {call_attempt}")
+            send_team_email_notification(F"{pipeline} ODATA API CALL", "timed out during the request")
             error_flag = True
             break
 
@@ -119,6 +111,15 @@ def call_odata_api_error_handling(targ_url, pipeline, time_out = 3600, limit_res
                     targ_url = res.json()['@odata.nextLink']
                 else:
                     more_links = False
+
+            except requests.exceptions.KeyError:
+                print(F"API call failed on attempt #: {call_attempt}")
+                print("request KeyError occurred in the API request")
+                msg = """produced a key error during the API request. This is often because the request was successfull 
+                but it returned an empty dataset...the 'value' key contains nothing..."""
+                send_team_email_notification(F"{pipeline} ODATA API CALL", msg)
+                error_flag = True
+                break
 
             # handle calls which return a success code (200) but still generate exceptions (the cause of this usually
             # unclear, but it does happen in some cases)
