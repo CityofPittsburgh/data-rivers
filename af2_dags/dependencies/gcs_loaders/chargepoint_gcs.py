@@ -3,10 +3,10 @@ import argparse
 import pendulum
 from datetime import datetime, timedelta
 import requests
-import xmltodict
+from requests.auth import HTTPBasicAuth
 from google.cloud import storage
 
-from gcs_utils import json_to_gcs, find_last_successful_run
+from gcs_utils import json_to_gcs, find_last_successful_run, post_xml
 
 # the first recorded charging session was on 10/10/2017
 DEFAULT_RUN_START = "2017-10-10T00:00:00Z"
@@ -24,6 +24,7 @@ args = vars(parser.parse_args())
 today = datetime.now(tz = pendulum.timezone("utc")).strftime("%Y-%m-%d")
 
 BASE_URL = 'https://webservices.chargepoint.com/webservices/chargepoint/services/5.0/'
+auth = HTTPBasicAuth(os.environ['CHARGEPOINT_USER'], os.environ['CHARGEPOINT_PW'])
 
 def generate_xml(from_time, interval):
     return F"""
@@ -62,22 +63,17 @@ all_records = []
 more = True
 while more is True:
     # API call to get data
-    response = requests.post(BASE_URL, data=generate_xml(run_start_win, interval), headers=headers)
-    # Print API status code for debugging purposes
-    print("API response code: " + str(response.status_code))
-    vals = response.text[response.text.find(start) + len(start):response.text.rfind(end)]
-    vals = '<root>' + vals + '</root>'
-    xml_dict = xmltodict.parse(xml_input=vals, encoding='utf-8')
-    # continue looping through records until the API has a MoreFlag value of 0
+    response = post_xml(BASE_URL, envelope=generate_xml(run_start_win, interval), auth=auth, headers=headers,
+                        res_start=start, res_stop=end)
     try:
-        if xml_dict['root']['MoreFlag']:
-            more = (xml_dict['root']['MoreFlag'] == '1')
+        if response['root']['MoreFlag']:
+            more = (response['root']['MoreFlag'] == '1')
         else:
             more = False
     except:
         print("Error parsing for additional data")
         more = False
-    records = xml_dict['root']['ChargingSessionData']
+    records = response['root']['ChargingSessionData']
     # append list of API results to growing all_records list (assuming API pull contains >100 records)
     all_records += records
     # increment interval by constant value (100) until all records are returned
