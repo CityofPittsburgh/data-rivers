@@ -130,6 +130,7 @@ def call_odata_api_error_handling(targ_url, pipeline, limit_results = False, tim
                                          F"returned an exception with {res.status_code} code")
             break
 
+
     # if records:
     #     return records
 
