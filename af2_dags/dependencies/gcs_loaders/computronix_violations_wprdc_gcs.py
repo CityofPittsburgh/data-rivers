@@ -2,7 +2,7 @@ import os
 import argparse
 from datetime import date
 
-from gcs_utils import json_to_gcs, call_odata_api
+from gcs_utils import json_to_gcs, call_odata_api_error_handling
 
 
 def unnest_violations(nested_data, name_swaps):
@@ -100,7 +100,8 @@ odata_url = F"{root}{base}?" \
             F"{unnested_table_3}($select={fds_unt3})"
 
 # get violations from API
-violations = call_odata_api(odata_url ,"computronix violations")
+violations = call_odata_api_error_handling(odata_url ,"computronix violations", time_out = 7200)
+
 
 # names to swap for fields that are not nested in raw data
 swaps = [
