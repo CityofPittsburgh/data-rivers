@@ -71,6 +71,7 @@ def call_odata_api_error_handling(targ_url, pipeline, time_out = 3600, limit_res
     more_links = True
     call_attempt = 0
     start = time.time()
+    error_flag = False
 
     while more_links:
         call_attempt += 1
@@ -83,6 +84,7 @@ def call_odata_api_error_handling(targ_url, pipeline, time_out = 3600, limit_res
                     (individual API calls MAY be working fine...this could be caused by somoething else. 
                     Check logs and returned data.)"""
             send_team_email_notification(F"{pipeline} ODATA API CALL", msg)
+            error_flag = True
             break
 
         # try the call
@@ -95,12 +97,14 @@ def call_odata_api_error_handling(targ_url, pipeline, time_out = 3600, limit_res
             print(F"API call timed out during attempt #: {call_attempt}")
             print("API request timed out")
             send_team_email_notification(F"{pipeline} ODATA API CALL", "timed out during the API call")
+            error_flag = True
             break
 
         except requests.exceptions.KeyError:
             print(F"API call failed on attempt #: {call_attempt}")
             print("request KeyError occurred in the API request")
             send_team_email_notification(F"{pipeline} ODATA API CALL", "produced a key error during the API request")
+            error_flag = True
             break
 
         # request call was completed
@@ -122,6 +126,7 @@ def call_odata_api_error_handling(targ_url, pipeline, time_out = 3600, limit_res
                 print(F"API call returned a 200 code with an exception on call attempt: {call_attempt}")
                 send_team_email_notification(F"{pipeline} ODATA API CALL", "produced a 200 code along with an "
                                                                            "exception")
+                error_flag = True
                 break
 
         # request failed but the call was executed (no 200 code returned)
@@ -130,14 +135,15 @@ def call_odata_api_error_handling(targ_url, pipeline, time_out = 3600, limit_res
             print(F"Status Code:  {res.status_code}")
             send_team_email_notification(F"{pipeline} ODATA API CALL",
                                          F"returned an exception with {res.status_code} code")
+            error_flag = True
             break
 
-    # TODO: when we're ready, uncomment the lines below. This  will allow the func to return partial results
+    # TODO: when we're ready, remove the error_flag control flow. This  will allow the func to return partial results
     #  retrieved up until the API requests fail. This requires that old tables are not truncated when new ones are
     #  written. instead, a more complicated series of joins/unions are needed to combine the newly retrieved records
     #  and the older records which may not be present in the partial results.
-    # if records:
-    #     return records
+    if not error_flag:
+        return records
 
 
 def send_team_email_notification(failed_process, message):
