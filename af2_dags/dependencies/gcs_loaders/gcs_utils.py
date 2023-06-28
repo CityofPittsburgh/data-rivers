@@ -142,6 +142,7 @@ def call_odata_api_error_handling(targ_url, pipeline, time_out = 3600, limit_res
     #  retrieved up until the API requests fail. This requires that old tables are not truncated when new ones are
     #  written. instead, a more complicated series of joins/unions are needed to combine the newly retrieved records
     #  and the older records which may not be present in the partial results.
+    print("exiting the odata api request function")
     if not error_flag:
         return records
 
