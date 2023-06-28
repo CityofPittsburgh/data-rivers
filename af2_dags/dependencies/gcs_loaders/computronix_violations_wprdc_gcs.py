@@ -102,6 +102,7 @@ odata_url = F"{root}{base}?" \
 # get violations from API
 violations = call_odata_api_error_handling(odata_url ,"computronix violations")
 
+
 # names to swap for fields that are not nested in raw data
 swaps = [
         fds_base.split(", "),

@@ -41,7 +41,6 @@ odata_url = F"{url}{base}?&{odata_url_base_fields}{odata_url_tail}"
 # hit the api
 properties = call_odata_api_error_handling(odata_url, "computronix condemned and dead end properties")
 
-
 # load data into GCS
 # out loc = <dataset>/<full date>/<run_id>_properties.json
 json_to_gcs(args["out_loc"], properties, bucket)

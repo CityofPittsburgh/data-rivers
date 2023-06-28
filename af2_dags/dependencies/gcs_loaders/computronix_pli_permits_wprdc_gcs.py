@@ -71,6 +71,7 @@ for (b, i) in zip(bases, fds_id):
 # since general permits have a slightly different set of fields, construct the url seperately here
 odata_url = F"{url}GENERALPERMIT?{odata_url_date_filter}&{odata_url_base_fields}, PERMITTYPEPERMITTYPE, " \
             F"EXTERNALFILENUM, {odata_url_tail}"
+
 gen_permits = call_odata_api_error_handling(odata_url, "computronix pli general permits")
 
 # change field to 'permit_type' for consistency with other tables

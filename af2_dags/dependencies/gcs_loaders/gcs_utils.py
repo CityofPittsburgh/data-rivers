@@ -33,6 +33,7 @@ DEFAULT_PII_TYPES = [{"name": "PERSON_NAME"}, {"name": "EMAIL_ADDRESS"}, {"name"
 
 WPRDC_API_HARD_LIMIT = 500001  # A limit set by the CKAN instance.
 
+
 # # pipeline var is unused for now 6/23. This func will be removed w/in 30 days and this for compliance with incoming
 # # refactor
 # def call_odata_api(targ_url, pipeline, limit_results = False):
@@ -70,6 +71,7 @@ def call_odata_api_error_handling(targ_url, pipeline, time_out = 3600, limit_res
     records = []
     more_links = True
     call_attempt = 0
+
     start = time.time()
     error_flag = False
 
