@@ -464,20 +464,20 @@ def build_sync_update_query(dataset, upd_table, src_table, id_field, upd_fields)
     return sql
 
 
-def build_format_dedup_query(dataset, table, cast_type, cast_fields, cols_in_order, datestring_fmt=""):
+def build_format_dedup_query(dataset, table, cast_fields, cols_in_order, datestring_fmt=""):
     sql = f"""
     CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.{dataset}.{table}` AS
     WITH formatted  AS 
         (
         SELECT DISTINCT * EXCEPT ("""
-    sql += ", ".join(str(field) for field in cast_fields)
+    sql += ", ".join(str(field['field']) for field in cast_fields)
     sql += "), "
     cast_str_list = []
-    for field in cast_fields:
-        if cast_type == 'DATETIME':
-            cast_str_list.append(f'PARSE_DATETIME("{datestring_fmt}", {field}) AS {field}')
+    for conv in cast_fields:
+        if conv['type'] == 'DATETIME':
+            cast_str_list.append(f'PARSE_DATETIME("{datestring_fmt}", {conv["field"]}) AS {conv["field"]}')
         else:
-            cast_str_list.append(f'CAST({field} AS {cast_type}) AS {field}')
+            cast_str_list.append(f'CAST({conv["field"]} AS {conv["type"]}) AS {conv["field"]}')
     sql += ", ".join(str(cast) for cast in cast_str_list)
     sql += f"""
     FROM 
@@ -488,6 +488,7 @@ def build_format_dedup_query(dataset, table, cast_type, cast_fields, cols_in_ord
     FROM 
         formatted
     """
+    print(sql)
     return sql
 
 
