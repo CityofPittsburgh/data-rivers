@@ -23,7 +23,7 @@ COLS = """id, incident_id, created_date_EST, created_date_UTC, created_date_UNIX
 
 
 dag = DAG(
-    'cherwell_surveys_pandas',
+    'cherwell_surveys',
     default_args=default_args,
     schedule_interval='@daily',
     start_date=datetime(2023, 5, 8),
@@ -42,7 +42,7 @@ exec_date = "{{ ds }}"
 path = "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ run_id }}"
 json_loc = f"{dataset}/{path}_{dataset}.json"
 avro_loc = "survey_responses"
-table = "customer_satisfaction_survey_responses_pandas"
+table = "customer_satisfaction_survey_responses"
 id_col = "id"
 cast_fields = [{'field': 'created_date_EST', 'type': 'DATETIME'},
                {'field': 'created_date_UTC', 'type': 'DATETIME'},
@@ -53,8 +53,8 @@ cast_fields = [{'field': 'created_date_EST', 'type': 'DATETIME'},
                {'field': 'last_modified_date_UTC', 'type': 'DATETIME'}]
 
 
-cherwell_surveys_pandas_gcs = BashOperator(
-    task_id='cherwell_surveys_pandas_gcs',
+cherwell_surveys_gcs = BashOperator(
+    task_id='cherwell_surveys_gcs',
     bash_command=f"python {os.environ['GCS_LOADER_PATH']}/cherwell_surveys_gcs.py --output_arg {json_loc}",
     dag=dag
 )
@@ -65,10 +65,10 @@ cherwell_surveys_pandas = BashOperator(
     dag=dag
 )
 
-format_date_query = build_format_dedup_query(source, table, cast_fields, COLS, datestring_fmt="%Y-%m-%d %H:%M:%S")
-pandas_format_dates = BigQueryOperator(
-    task_id='pandas_format_dates',
-    sql=format_date_query,
+format_column_query = build_format_dedup_query(source, table, cast_fields, COLS, datestring_fmt="%Y-%m-%d %H:%M:%S")
+format_column_types = BigQueryOperator(
+    task_id='format_column_types',
+    sql=format_column_query,
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
@@ -82,4 +82,4 @@ pandas_dedup_table = BigQueryOperator(
     dag=dag
 )
 
-cherwell_surveys_pandas_gcs >> cherwell_surveys_pandas >> pandas_format_dates >> pandas_dedup_table
+cherwell_surveys_gcs >> cherwell_surveys_pandas >> format_column_types >> dedup_table
