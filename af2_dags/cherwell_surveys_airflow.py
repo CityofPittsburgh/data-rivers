@@ -35,13 +35,9 @@ dag = DAG(
 
 # initialize gcs locations and store endpoint names in variables
 source = "cherwell"
-bucket = f"gs://{os.environ['GCS_PREFIX']}_{source}"
-hot_bucket = f"{os.environ['GCS_PREFIX']}_hot_metal"
 dataset = "surveys"
-exec_date = "{{ ds }}"
 path = "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ run_id }}"
 json_loc = f"{dataset}/{path}_{dataset}.json"
-avro_loc = "survey_responses"
 table = "customer_satisfaction_survey_responses"
 id_col = "id"
 cast_fields = [{'field': 'created_date_EST', 'type': 'DATETIME'},
@@ -74,8 +70,8 @@ format_column_types = BigQueryOperator(
     dag=dag
 )
 
-pandas_dedup_table = BigQueryOperator(
-    task_id='pandas_dedup_table',
+dedup_table = BigQueryOperator(
+    task_id='dedup_table',
     sql=build_dedup_old_updates(source, table, id_col, 'last_modified_date_UNIX'),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,

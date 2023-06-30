@@ -488,7 +488,6 @@ def build_format_dedup_query(dataset, table, cast_fields, cols_in_order, datestr
     FROM 
         formatted
     """
-    print(sql)
     return sql
 
 
