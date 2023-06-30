@@ -24,7 +24,6 @@ responded_date_UTC, responded_date_UNIX, resolved_date_EST, resolved_date_UTC, r
 number_of_escalations, requester_department, requester, on_behalf_of,
 initial_assigned_team, assigned_to AS initial_assigned_to"""  # Preserve name of person initially assigned to ticket
 
-
 dag = DAG(
     'cherwell_incidents',
     default_args=default_args,
@@ -47,10 +46,20 @@ avro_loc = f"{dataset}/avro_output/{path}"
 new_table = f"incoming_{dataset}"
 master_table = f"all_{dataset}"
 id_col = "id"
-date_fields = ['created_date_EST', 'created_date_UTC', 'last_modified_date_EST', 'last_modified_date_UTC',
-               'closed_date_EST', 'closed_date_UTC', 'respond_by_deadline_EST', 'respond_by_deadline_UTC',
-               'resolve_by_deadline_EST', 'resolve_by_deadline_UTC', 'responded_date_EST', 'responded_date_UTC',
-               'resolved_date_EST', 'resolved_date_UTC']
+date_fields = [{'field': 'created_date_EST', 'type': 'DATETIME'},
+               {'field': 'created_date_UTC', 'type': 'DATETIME'},
+               {'field': 'last_modified_date_EST', 'type': 'DATETIME'},
+               {'field': 'last_modified_date_UTC', 'type': 'DATETIME'},
+               {'field': 'closed_date_EST', 'type': 'DATETIME'},
+               {'field': 'closed_date_UTC', 'type': 'DATETIME'},
+               {'field': 'respond_by_deadline_EST', 'type': 'DATETIME'},
+               {'field': 'respond_by_deadline_UTC', 'type': 'DATETIME'},
+               {'field': 'resolve_by_deadline_EST', 'type': 'DATETIME'},
+               {'field': 'resolve_by_deadline_UTC', 'type': 'DATETIME'},
+               {'field': 'responded_date_EST', 'type': 'DATETIME'},
+               {'field': 'responded_date_UTC', 'type': 'DATETIME'},
+               {'field': 'resolved_date_EST', 'type': 'DATETIME'},
+               {'field': 'resolved_date_UTC', 'type': 'DATETIME'}]
 upd_fields = ['status', 'priority', 'last_modified_date_EST', 'last_modified_date_UTC', 'last_modified_date_UNIX',
               'closed_date_EST', 'closed_date_UTC', 'closed_date_UNIX', 'assigned_team', 'assigned_to',
               'assigned_to_manager', 'responded_date_EST', 'responded_date_UTC', 'responded_date_UNIX',
@@ -58,7 +67,6 @@ upd_fields = ['status', 'priority', 'last_modified_date_EST', 'last_modified_dat
               'respond_by_deadline_UTC', 'respond_by_deadline_UNIX', 'resolve_by_deadline_EST',
               'resolve_by_deadline_UTC', 'resolve_by_deadline_UNIX', 'number_of_touches', 'number_of_escalations',
               'incident_reopened']
-
 
 cherwell_incidents_gcs = BashOperator(
     task_id='cherwell_incidents_gcs',
@@ -86,11 +94,11 @@ cherwell_incidents_bq_load = GoogleCloudStorageToBigQueryOperator(
     dag=dag
 )
 
-format_date_query = build_format_dedup_query(source, new_table, 'DATETIME', date_fields, INSERT_COLS,
-                                             datestring_fmt="%m/%d/%Y %I:%M:%S %p")
-format_dates = BigQueryOperator(
-    task_id='format_dates',
-    sql=format_date_query,
+format_data_types_query = build_format_dedup_query(source, new_table, date_fields, INSERT_COLS,
+                                                   datestring_fmt="%m/%d/%Y %I:%M:%S %p")
+format_data_types = BigQueryOperator(
+    task_id='format_data_types',
+    sql=format_data_types_query,
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
@@ -126,5 +134,5 @@ beam_cleanup = BashOperator(
     dag=dag
 )
 
-cherwell_incidents_gcs >> cherwell_incidents_dataflow >> cherwell_incidents_bq_load >> format_dates >> \
-    insert_new_incidents >> update_changed_incidents >> dedup_table >> beam_cleanup
+cherwell_incidents_gcs >> cherwell_incidents_dataflow >> cherwell_incidents_bq_load >> format_data_types >> \
+insert_new_incidents >> update_changed_incidents >> dedup_table >> beam_cleanup
