@@ -18,7 +18,6 @@ FINAL_COLS = ['id', 'incident_id', 'created_date_EST', 'created_date_UTC', 'crea
 
 storage_client = storage.Client()
 bucket = storage_client.bucket(f"{os.environ['GCS_PREFIX']}_cherwell")
-hot_bucket = f"{os.environ['GCS_PREFIX']}_hot_metal"
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--input', dest='input', required=True,
@@ -58,13 +57,11 @@ convs = {'id': str, 'incident_id': str, 'q1_timely_resolution': int,
          'submitted_date_UNIX': int, 'last_modified_date_UNIX': int,
          'survey_score': float, 'avg_survey_score': float}
 df = change_data_type(df, convs)
-# df['submitted_date_UNIX'] = df['submitted_date_UNIX'].mask(df['submitted_date_UNIX'] == 0, None)
 df['survey_complete'] = df['survey_complete'].map({'True': True, 'False': False})
 
 # convert all different Null types to a single type (None)
 df = df.applymap(lambda x: None if isinstance(x, str) and x == '' else x)
 df = df.where(df.notnull(), None)
-# df = strip_char_pattern(df, ['submitted_date_UNIX'], "(?<=\d)\.0$")
 df = df[FINAL_COLS]
 
 #  read in AVRO schema and load into BQ
