@@ -7,7 +7,7 @@ import io
 import pandas as pd
 from google.cloud import storage
 
-from dataflow_utils.pandas_utils import change_data_type, conv_avsc_to_bq_schema, standardize_times #, strip_char_pattern
+from dataflow_utils.pandas_utils import change_data_type, standardize_times
 
 FINAL_COLS = ['id', 'incident_id', 'created_date_EST', 'created_date_UTC', 'created_date_UNIX', 'submitted_by',
               'submitted_date_EST', 'submitted_date_UTC', 'submitted_date_UNIX', 'survey_complete',
@@ -68,6 +68,5 @@ df = df.where(df.notnull(), None)
 df = df[FINAL_COLS]
 
 #  read in AVRO schema and load into BQ
-schema = conv_avsc_to_bq_schema(F"{os.environ['GCS_PREFIX']}_avro_schemas", "cherwell_surveys.avsc")
-df.to_gbq("cherwell.customer_satisfaction_survey_responses_pandas", project_id=f"{os.environ['GCLOUD_PROJECT']}",
-          if_exists="replace") #, table_schema=schema)
+df.to_gbq("cherwell.customer_satisfaction_survey_responses", project_id=f"{os.environ['GCLOUD_PROJECT']}",
+          if_exists="replace")
