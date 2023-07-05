@@ -35,17 +35,18 @@ dag = DAG(
 
 # initialize gcs locations and store endpoint names in variables
 source = "cherwell"
-bucket = f"gs://{os.environ['GCS_PREFIX']}_{source}"
 dataset = "surveys"
-exec_date = "{{ ds }}"
 path = "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ run_id }}"
 json_loc = f"{dataset}/{path}_{dataset}.json"
-avro_loc = f"{dataset}/avro_output/{path}"
 table = "customer_satisfaction_survey_responses"
 id_col = "id"
-date_fields = ['created_date_EST', 'created_date_UTC',
-               'submitted_date_EST', 'submitted_date_UTC',
-               'last_modified_date_EST', 'last_modified_date_UTC']
+cast_fields = [{'field': 'created_date_EST', 'type': 'DATETIME'},
+               {'field': 'created_date_UTC', 'type': 'DATETIME'},
+               {'field': 'submitted_date_EST', 'type': 'DATETIME'},
+               {'field': 'submitted_date_UTC', 'type': 'DATETIME'},
+               {'field': 'submitted_date_UNIX', 'type': 'INT64'},
+               {'field': 'last_modified_date_EST', 'type': 'DATETIME'},
+               {'field': 'last_modified_date_UTC', 'type': 'DATETIME'}]
 
 
 cherwell_surveys_gcs = BashOperator(
@@ -54,31 +55,16 @@ cherwell_surveys_gcs = BashOperator(
     dag=dag
 )
 
-cherwell_surveys_dataflow = BashOperator(
-    task_id='cherwell_surveys_dataflow',
-    bash_command=f"python {os.environ['DATAFLOW_SCRIPT_PATH']}/cherwell_surveys_dataflow.py "
-                 f"--input {bucket}/{json_loc} --avro_output {bucket}/{avro_loc}",
+cherwell_surveys_pandas = BashOperator(
+    task_id='cherwell_surveys_pandas',
+    bash_command=f"python {os.environ['DATAFLOW_SCRIPT_PATH']}/cherwell_surveys_pandas.py --input {json_loc}",
     dag=dag
 )
 
-cherwell_surveys_bq_load = GoogleCloudStorageToBigQueryOperator(
-    task_id='cherwell_surveys_bq_load',
-    destination_project_dataset_table=f"{os.environ['GCLOUD_PROJECT']}.{source}.{table}",
-    bucket=f"{os.environ['GCS_PREFIX']}_{source}",
-    source_objects=[f"{avro_loc}*.avro"],
-    write_disposition='WRITE_TRUNCATE',
-    create_disposition='CREATE_IF_NEEDED',
-    source_format='AVRO',
-    autodetect=True,
-    bigquery_conn_id='google_cloud_default',
-    dag=dag
-)
-
-format_date_query = build_format_dedup_query(source, table, 'DATETIME', date_fields, COLS,
-                                             datestring_fmt="%m/%d/%Y %I:%M:%S")
-format_dates = BigQueryOperator(
-    task_id='format_dates',
-    sql=format_date_query,
+format_column_query = build_format_dedup_query(source, table, cast_fields, COLS, datestring_fmt="%Y-%m-%d %H:%M:%S")
+format_column_types = BigQueryOperator(
+    task_id='format_column_types',
+    sql=format_column_query,
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
@@ -92,11 +78,4 @@ dedup_table = BigQueryOperator(
     dag=dag
 )
 
-beam_cleanup = BashOperator(
-    task_id='beam_cleanup',
-    bash_command=airflow_utils.beam_cleanup_statement(f"{os.environ['GCS_PREFIX']}_{source}"),
-    dag=dag
-)
-
-cherwell_surveys_gcs >> cherwell_surveys_dataflow >> cherwell_surveys_bq_load >> format_dates >> \
-    dedup_table >> beam_cleanup
+cherwell_surveys_gcs >> cherwell_surveys_pandas >> format_column_types >> dedup_table
