@@ -67,5 +67,5 @@ df = df[FINAL_COLS]
 
 #  read in AVRO schema and load into BQ
 schema = conv_avsc_to_bq_schema(F"{os.environ['GCS_PREFIX']}_avro_schemas", "cherwell_surveys.avsc")
-df.to_gbq("cherwell.customer_satisfaction_survey_responses_pandas", project_id=f"{os.environ['GCLOUD_PROJECT']}",
+df.to_gbq("cherwell.customer_satisfaction_survey_responses", project_id=f"{os.environ['GCLOUD_PROJECT']}",
           if_exists="replace", table_schema=schema)
