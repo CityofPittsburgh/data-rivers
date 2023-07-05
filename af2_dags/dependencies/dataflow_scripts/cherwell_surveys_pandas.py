@@ -7,7 +7,7 @@ import io
 import pandas as pd
 from google.cloud import storage
 
-from dataflow_utils.pandas_utils import change_data_type, standardize_times
+from dataflow_utils.pandas_utils import change_data_type, conv_avsc_to_bq_schema, standardize_times
 
 FINAL_COLS = ['id', 'incident_id', 'created_date_EST', 'created_date_UTC', 'created_date_UNIX', 'submitted_by',
               'submitted_date_EST', 'submitted_date_UTC', 'submitted_date_UNIX', 'survey_complete',
@@ -57,6 +57,7 @@ convs = {'id': str, 'incident_id': str, 'q1_timely_resolution': int,
          'submitted_date_UNIX': int, 'last_modified_date_UNIX': int,
          'survey_score': float, 'avg_survey_score': float}
 df = change_data_type(df, convs)
+df['submitted_date_UNIX'] = df['submitted_date_UNIX'].mask(df['submitted_date_UNIX'] == 0, None)
 df['survey_complete'] = df['survey_complete'].map({'True': True, 'False': False})
 
 # convert all different Null types to a single type (None)
@@ -65,5 +66,6 @@ df = df.where(df.notnull(), None)
 df = df[FINAL_COLS]
 
 #  read in AVRO schema and load into BQ
-df.to_gbq("cherwell.customer_satisfaction_survey_responses", project_id=f"{os.environ['GCLOUD_PROJECT']}",
-          if_exists="replace")
+schema = conv_avsc_to_bq_schema(F"{os.environ['GCS_PREFIX']}_avro_schemas", "cherwell_surveys.avsc")
+df.to_gbq("cherwell.customer_satisfaction_survey_responses_pandas", project_id=f"{os.environ['GCLOUD_PROJECT']}",
+          if_exists="replace", table_schema=schema)
