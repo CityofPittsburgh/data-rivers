@@ -179,6 +179,14 @@ def swap_field_names(df, name_changes):
     return df
 
 
+def swap_two_columns(df, col1, col2):
+    col_list = list(df.columns)
+    x, y = col_list.index(col1), col_list.index(col2)
+    col_list[y], col_list[x] = col_list[x], col_list[y]
+    df = df[col_list]
+    return df
+
+
 def upload_file_gcs(bucket_name, file):
     """
     Uploads a file to the bucket.
