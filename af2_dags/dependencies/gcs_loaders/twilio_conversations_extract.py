@@ -8,6 +8,7 @@ import pandas as pd
 from datetime import datetime
 from google.cloud import storage
 from gcs_utils import find_last_successful_run, json_to_gcs, conv_avsc_to_bq_schema
+from af2_dags.dependencies.dataflow_scripts.dataflow_utils.pandas_utils import swap_two_columns
 
 storage_client = storage.Client()
 json_bucket = f"{os.environ['GCS_PREFIX']}_twilio"
@@ -109,6 +110,7 @@ while export_status == '202' and attempt <= 25:
 # convert all different Null types to a single type (None)
 df = df.applymap(lambda x: None if isinstance(x, str) and x == '' else x)
 df = df.where(df.notnull(), None)
+df = swap_two_columns(df, 'Date_Time', 'Segment')
 df.columns = FINAL_COLS
 
 #  read in AVRO schema and load into BQ
