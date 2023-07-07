@@ -4,22 +4,23 @@ import argparse
 import os
 import logging
 import re
+import requests
+from datetime import datetime
+import time
+
 import json
 import ckanapi
 import ndjson
 import pytz
-import requests
 import xmltodict
 import pandas as pd
 import jaydebeapi
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
-
 import avro.schema
 from avro.datafile import DataFileWriter
 from avro.io import DatumWriter
 
-from datetime import datetime
 from google.cloud import storage, bigquery, dlp
 
 storage_client = storage.Client()
@@ -32,35 +33,38 @@ DEFAULT_PII_TYPES = [{"name": "PERSON_NAME"}, {"name": "EMAIL_ADDRESS"}, {"name"
 
 WPRDC_API_HARD_LIMIT = 500001  # A limit set by the CKAN instance.
 
-# pipeline var is unused for now 6/23. This func will be removed w/in 30 days and this for compliance with incoming
-# refactor
-def call_odata_api(targ_url, pipeline, limit_results = False):
-    """
-    :param targ_url: string value of fully formed odata_query (needs to be constructed before passing in)
-    :param limit_results: boolean to limit the func from hitting the API more than once (useful for testing)
-    :return: list of dicts containing API results
-    """
-    records = []
-    more_links = True
 
-    while more_links:
-        res = requests.get(targ_url)
-        records.extend(res.json()['value'])
+# # pipeline var is unused for now 6/23. This func will be removed w/in 30 days and this for compliance with incoming
+# # refactor
+# def call_odata_api(targ_url, pipeline, limit_results = False):
+#     """
+#     :param targ_url: string value of fully formed odata_query (needs to be constructed before passing in)
+#     :param limit_results: boolean to limit the func from hitting the API more than once (useful for testing)
+#     :return: list of dicts containing API results
+#     """
+#     records = []
+#     more_links = True
+#
+#     while more_links:
+#         res = requests.get(targ_url)
+#         records.extend(res.json()['value'])
+#
+#         if limit_results:
+#             more_links = False
+#         elif '@odata.nextLink' in res.json().keys():
+#             targ_url = res.json()['@odata.nextLink']
+#         else:
+#             more_links = False
+#
+#     return records
 
-        if limit_results:
-            more_links = False
-        elif '@odata.nextLink' in res.json().keys():
-            targ_url = res.json()['@odata.nextLink']
-        else:
-            more_links = False
 
-    return records
-
-
-def call_odata_api_error_handling(targ_url, pipeline, limit_results = False):
+def call_odata_api_error_handling(targ_url, pipeline, time_out = 3600, limit_results = False):
     """
     :param targ_url: string value of fully formed odata_query (needs to be constructed before passing in)
     :param pipeline: string of the pipeline name (e.g. computronix_shadow_jobs) for error notification
+    :param time_out: int value in seconds for indicating how long the function should be allowed to run before
+    failing out
     :param limit_results: boolean to limit the func from hitting the API more than once (useful for testing)
     :return: list of dicts containing API results
     """
@@ -68,24 +72,33 @@ def call_odata_api_error_handling(targ_url, pipeline, limit_results = False):
     more_links = True
     call_attempt = 0
 
+    start = time.time()
+    error_flag = False
+
     while more_links:
         call_attempt += 1
+        elapsed_time = time.time() - start
+
+        if elapsed_time > time_out:
+            print(F"API call failed on attempt #: {call_attempt}")
+            print("Overall run time exceded the time out limit")
+            msg = """the entire function timed out 
+                    (individual API calls MAY be working fine...this could be caused by something else. 
+                    Check logs and returned data.)"""
+            send_team_email_notification(F"{pipeline} ODATA API CALL", msg)
+            error_flag = True
+            break
+
         # try the call
         try:
             print(F"executing call #{call_attempt}")
             res = requests.get(targ_url, timeout = 300)
 
-        # exceptions for calls that are never executed or completed
+        # exceptions for calls that are never executed or completed w/in time limit
         except requests.exceptions.Timeout:
-            print(F"API call failed on attempt #: {call_attempt}")
-            print("request timed out")
-            send_team_email_notification(F"{pipeline} ODATA API CALL", "timed out")
-            break
-
-        except requests.exceptions.KeyError:
-            print(F"API call failed on attempt #: {call_attempt}")
-            print("request KeyError occurred in the API request")
-            send_team_email_notification(F"{pipeline} ODATA API CALL", "produced a key error during the API request")
+            print(F"API call timed out during API request attempt #: {call_attempt}")
+            send_team_email_notification(F"{pipeline} ODATA API CALL", "timed out during the request")
+            error_flag = True
             break
 
         # request call was completed
@@ -99,6 +112,15 @@ def call_odata_api_error_handling(targ_url, pipeline, limit_results = False):
                 else:
                     more_links = False
 
+            except requests.exceptions.KeyError:
+                print(F"API call failed on attempt #: {call_attempt}")
+                print("request KeyError occurred in the API request")
+                msg = """produced a key error during the API request. This is often because the request was successfull 
+                but it returned an empty dataset...the 'value' key contains nothing..."""
+                send_team_email_notification(F"{pipeline} ODATA API CALL", msg)
+                error_flag = True
+                break
+
             # handle calls which return a success code (200) but still generate exceptions (the cause of this usually
             # unclear, but it does happen in some cases)
             # using a broad Exception isn't best practice, and this can be phased out with time. Currently,
@@ -107,6 +129,7 @@ def call_odata_api_error_handling(targ_url, pipeline, limit_results = False):
                 print(F"API call returned a 200 code with an exception on call attempt: {call_attempt}")
                 send_team_email_notification(F"{pipeline} ODATA API CALL", "produced a 200 code along with an "
                                                                            "exception")
+                error_flag = True
                 break
 
         # request failed but the call was executed (no 200 code returned)
@@ -115,9 +138,15 @@ def call_odata_api_error_handling(targ_url, pipeline, limit_results = False):
             print(F"Status Code:  {res.status_code}")
             send_team_email_notification(F"{pipeline} ODATA API CALL",
                                          F"returned an exception with {res.status_code} code")
+            error_flag = True
             break
 
-    if records:
+    # TODO: when we're ready, remove the error_flag control flow. This  will allow the func to return partial results
+    #  retrieved up until the API requests fail. This requires that old tables are not truncated when new ones are
+    #  written. instead, a more complicated series of joins/unions are needed to combine the newly retrieved records
+    #  and the older records which may not be present in the partial results.
+    print("exiting the odata api request function")
+    if not error_flag:
         return records
 
 
