@@ -13,16 +13,33 @@ from af2_dags.dependencies.dataflow_scripts.dataflow_utils.pandas_utils import s
 storage_client = storage.Client()
 json_bucket = f"{os.environ['GCS_PREFIX']}_twilio"
 BASE_URL = 'https://analytics.ytica.com'
-
 FINAL_COLS = ['id', 'date_time', 'day_of_week', 'agent', 'external_contact', 'abandoned', 'kind', 'direction',
               'talk_time', 'wait_time', 'wrap_up_time']
-
+BASE_HEADERS = {'Accept': 'application/json', 'Content-Type': 'application/json'}
 today = datetime.today()
+
+
+def get_temp_token(url, headers, bucket):
+    token_bucket = storage_client.bucket(bucket)
+    token_blob = token_bucket.get_blob(os.environ['FLEX_INSIGHTS_TOKEN_PATH'])
+    token_text = token_blob.download_as_string()
+    sst = json.loads(token_text.decode('utf-8'))['userLogin']['token']
+
+    sst_headers = headers.copy()
+    sst_headers['X-GDC-AuthSST'] = sst
+    token_req = requests.get(f"{url}/gdc/account/token", headers=sst_headers)
+    print("Temporary token response code: " + str(token_req.status_code))
+    tt = token_req.json()['userToken']['token']
+    tt_headers = headers.copy()
+    tt_headers.update({'Cookie': f"GDCAuthTT={tt}"})
+    return tt_headers
+
 
 run_start_win, first_run = find_last_successful_run(json_bucket, "conversations/successful_run_log/log.json",
                                                     "2020-04-03")
 
-auth_headers = {'Accept': 'application/json', 'Content-Type': 'application/json'}
+# Super Secure Tokens (SSTs) last for two weeks, so this code checks to see if a SST has been uploaded within that time
+# window. If it has, it is pulled from GCS and used in the following API requests. If not, a new one is generated
 if (today - datetime.strptime(run_start_win, '%Y-%m-%d')).days >= 14:
     auth_body = F"""
     \u007b
@@ -39,7 +56,7 @@ if (today - datetime.strptime(run_start_win, '%Y-%m-%d')).days >= 14:
     curr_delay = 1
     max_delay = 10
     while auth_status != '200':
-        auth = requests.post(f"{BASE_URL}/gdc/account/login", data=auth_body, headers=auth_headers)
+        auth = requests.post(f"{BASE_URL}/gdc/account/login", data=auth_body, headers=BASE_HEADERS)
         auth_status = str(auth.status_code)
         if auth_status == '200':
             print("New SST Token Retrieved")
@@ -60,20 +77,7 @@ if (today - datetime.strptime(run_start_win, '%Y-%m-%d')).days >= 14:
             # increment count for reporting
             attempt += 1
 
-token_bucket = storage_client.bucket(json_bucket)
-token_blob = token_bucket.get_blob(os.environ['FLEX_INSIGHTS_TOKEN_PATH'])
-token_text = token_blob.download_as_string()
-sst = json.loads(token_text.decode('utf-8'))['userLogin']['token']
-
-token_headers = auth_headers.copy()
-token_headers['X-GDC-AuthSST'] = sst
-token_req = requests.get(f"{BASE_URL}/gdc/account/token", headers=token_headers)
-print("Temporary token response code: " + str(token_req.status_code))
-tt = token_req.json()['userToken']['token']
-
-report_headers = auth_headers.copy()
-cookie = {'Cookie': f"GDCAuthTT={tt}"}
-report_headers.update(cookie)
+token_headers = get_temp_token(BASE_URL, BASE_HEADERS, json_bucket)
 report_body = F"""
 \u007b
     "report_req": \u007b
@@ -81,21 +85,36 @@ report_body = F"""
     \u007d
 \u007d"""
 report_req = requests.post(f"{BASE_URL}/gdc/app/projects/{os.environ['TWILIO_SD_WORKSPACE']}/execute/raw",
-                           data=report_body, headers=report_headers)
+                           data=report_body, headers=token_headers)
 print("Flex Insights report response code: " + str(report_req.status_code))
 uri = report_req.json()['uri']
 
 export_status = '202'
+round = 1
 attempt = 1
 delay = 3
 
-while export_status == '202' and attempt <= 25:
-    export_req = requests.get(f"{BASE_URL}{uri}", headers=cookie)
+# From https://www.twilio.com/docs/flex/developer/insights/api/export-data:
+#       "If you receive 202 response from API, it means that the request is accepted, but not ready to be delivered
+#       (still computing or preparing the CSV). Since the export API can take several seconds, or minutes in edge cases,
+#       depending on the volume of data and number of columns, you need to add a retry in case the server returns 202.
+#       The data is only ready to download when the server returns 200."
+# This loop repeats until an API returns a 200 response, waiting progressively longer and longer before each request.
+# However, since the temporary token only lasts 10 minutes, a new token is retrieved whenever 401 response occurs
+# (indicating the token has expired). The loop terminates after 5 rounds of refreshed tokens.
+while export_status == '202' and round <= 5:
+    export_req = requests.get(f"{BASE_URL}{uri}", headers=token_headers)
     export_status = str(export_req.status_code)
-    print(f"Flex Insights export response code on attempt #{attempt}: {export_status}")
+    print(f"Flex Insights export response code on round {round}, attempt #{attempt}: {export_status}")
     if export_status == '200':
         df = pd.read_csv(io.BytesIO(export_req.content), encoding='ascii', parse_dates=[['Date', 'Time']])
         break
+    elif export_status == '401':
+        token_headers = get_temp_token(BASE_URL, BASE_HEADERS, json_bucket)
+        export_status = '202'
+        round += 1
+        attempt = 1
+        delay = 3
     else:
         attempt += 1
         if attempt >= 5:
