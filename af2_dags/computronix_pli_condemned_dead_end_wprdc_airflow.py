@@ -84,17 +84,6 @@ seperate_pli_con_dead_end = BigQueryOperator(
 )
 
 
-# seperate the dead end and condemned properties (both together) into a table with inactive and active records
-# create_wprdc_exp = BigQueryOperator(
-#         task_id = 'create_wprdc_exp',
-#         sql = q.create_wprdc_exp_table(),
-#         bigquery_conn_id='google_cloud_default',
-#         use_legacy_sql = False,
-#         dag = dag
-# )
-
-
-
 # Export table 1 as CSV to PLI bucket (file name is the date. path contains the date info)
 csv_file_name = f"{path}"
 dest_bucket = f"gs://{os.environ['GCS_PREFIX']}_pli/condemned_properties/"
@@ -119,7 +108,6 @@ pli_export_dead_end = BigQueryToCloudStorageOperator(
 )
 
 
-
 # Export table as CSV to WPRDC bucket (file name is the date. path contains the date info)
 csv_file_name = f"{path}"
 dest_bucket = f"gs://{os.environ['GCS_PREFIX']}_wprdc/pli/condemned_dead_end_properties/"
@@ -142,16 +130,6 @@ push_gis_latest_cde = BigQueryOperator(
 )
 
 
-# # Push all cde records to GIS
-# push_gis_cde = BigQueryOperator(
-#         task_id = 'push_gis_cde',
-#         sql = q.push_gis_all_recs(),
-#         bigquery_conn_id='google_cloud_default',
-#         use_legacy_sql = False,
-#         dag = dag
-# )
-
-
 beam_cleanup = BashOperator(
     task_id='beam_cleanup',
     bash_command=airflow_utils.beam_cleanup_statement('{}_computronix'.format(os.environ['GCS_PREFIX'])),
@@ -164,4 +142,4 @@ combine_incoming_existing >> wprdc_export >> beam_cleanup
 combine_incoming_existing >> seperate_pli_con_dead_end
 seperate_pli_con_dead_end >> pli_export_condemned >> beam_cleanup
 seperate_pli_con_dead_end >> pli_export_dead_end >> beam_cleanup
-push_gis_latest_cde >> beam_cleanup
+combine_incoming_existing >> push_gis_latest_cde >> beam_cleanup
