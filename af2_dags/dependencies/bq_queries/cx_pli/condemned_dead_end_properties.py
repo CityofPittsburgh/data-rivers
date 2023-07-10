@@ -59,7 +59,7 @@ CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.computronix.pli_active_c
 SELECT 
     *      
 FROM `{os.environ['GCLOUD_PROJECT']}.computronix.pli_cde_properties`
-WHERE (insp_type_desc LIKE 'Condemned' AND insp_status LIKE 'Active')
+WHERE (insp_type_desc LIKE 'Condemned Property' AND insp_status LIKE 'Active')
 """
 
 
