@@ -1,5 +1,4 @@
 import os
-import argparse
 import requests
 import io
 import json
@@ -8,7 +7,8 @@ import pandas as pd
 from datetime import datetime
 from google.cloud import storage
 from gcs_utils import find_last_successful_run, json_to_gcs, conv_avsc_to_bq_schema
-from af2_dags.dependencies.dataflow_scripts.dataflow_utils.pandas_utils import swap_two_columns
+from af2_dags.dependencies.dataflow_scripts.dataflow_utils.pandas_utils import swap_two_columns,\
+    df_to_partitioned_bq_table
 
 storage_client = storage.Client()
 json_bucket = f"{os.environ['GCS_PREFIX']}_twilio"
@@ -18,11 +18,6 @@ FINAL_COLS = ['id', 'date_time', 'day_of_week', 'agent', 'external_contact', 'ab
               'talk_time', 'wait_time', 'wrap_up_time']
 
 today = datetime.today()
-
-parser = argparse.ArgumentParser()
-parser.add_argument('--output_arg', dest='out_loc', required=True,
-                    help='fully specified location to upload the output of the SQL query')
-args = vars(parser.parse_args())
 
 run_start_win, first_run = find_last_successful_run(json_bucket, "conversations/successful_run_log/log.json",
                                                     "2020-04-03")
@@ -115,5 +110,4 @@ df.columns = FINAL_COLS
 
 #  read in AVRO schema and load into BQ
 schema = conv_avsc_to_bq_schema(F"{os.environ['GCS_PREFIX']}_avro_schemas", "twilio_conversations.avsc")
-df.to_gbq("twilio.flex_insights_conversations", project_id=f"{os.environ['GCLOUD_PROJECT']}",
-          if_exists="replace", table_schema=schema)
+df_to_partitioned_bq_table(df, 'twilio', 'flex_insights_conversations', schema, 'MONTH', 'WRITE_TRUNCATE')
