@@ -8,6 +8,7 @@ import re
 
 import pandas as pd
 from google.cloud import storage
+from google.cloud import bigquery
 
 import avro.schema
 from avro.datafile import DataFileWriter
@@ -76,6 +77,28 @@ def conv_avsc_to_bq_schema(avro_bucket, schema_name):
 def change_data_type(df, convs):
     df = df.astype(convs)
     return df
+
+
+def df_to_partitioned_bq_table(df, dataset, table, avro_schema, partition_type="DAY", disposition="WRITE_TRUNCATE"):
+    # adapted from https://stackoverflow.com/a/69666464
+    client = bigquery.Client(project=f"{os.environ['GCLOUD_PROJECT']}")
+
+    schema_list = []
+    for field in avro_schema:
+        schema_list.append(bigquery.SchemaField(name=field['name'], field_type=field['type']))
+
+    # configure BQ upload job with user-defined parameters (or default to WRITE_TRUNCATE/DAY partitioning if left blank)
+    job_config = bigquery.LoadJobConfig(
+        schema=schema_list,
+        write_disposition=disposition,
+        time_partitioning=bigquery.table.TimePartitioning(type_=partition_type)
+    )
+
+    # execute BQ API request to load table
+    job = client.load_table_from_dataframe(df, f"{os.environ['GCLOUD_PROJECT']}.{dataset}.{table}",
+                                           job_config=job_config)
+    # NOTE: pyarrow and numpy libraries must be up to date for this to work
+    job.result()
 
 
 def fill_leading_zeroes(df, field_name, digits):
