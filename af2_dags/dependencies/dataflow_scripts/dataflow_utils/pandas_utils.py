@@ -39,7 +39,7 @@ def avro_to_gcs(file_name, avro_object_list, bucket_name, schema_name):
     schema = avro.schema.Parse(schema_text)
     writer = DataFileWriter(open(file_name, "wb"), DatumWriter(), schema)
     for item in avro_object_list:
-       writer.append(item)
+        writer.append(item)
     writer.close()
 
     upload_file_gcs(bucket_name, file_name)
@@ -85,7 +85,10 @@ def df_to_partitioned_bq_table(df, dataset, table, avro_schema, partition_type="
 
     schema_list = []
     for field in avro_schema:
-        schema_list.append(bigquery.SchemaField(name=field['name'], field_type=field['type']))
+        try:
+            schema_list.append(bigquery.SchemaField(name=field['name'], field_type=field['type'], mode=field['mode']))
+        except:
+            schema_list.append(bigquery.SchemaField(name=field['name'], field_type=field['type']))
 
     # configure BQ upload job with user-defined parameters (or default to WRITE_TRUNCATE/DAY partitioning if left blank)
     job_config = bigquery.LoadJobConfig(
@@ -118,7 +121,7 @@ def json_linter(ndjson: str):
             for idx in range(len(json_split)):
                 if idx == 0:
                     result_ndjson.append(json_split[idx] + '}')
-                elif idx == (len(json_split)-1):
+                elif idx == (len(json_split) - 1):
                     result_ndjson.append('{' + json_split[idx])
                 else:
                     result_ndjson.append('{' + json_split[idx] + '}')
@@ -151,6 +154,16 @@ def json_to_gcs(path, json_object_list, bucket_name):
     logging.info('Successfully uploaded blob %r to bucket %r.', path, bucket_name)
 
     print('Successfully uploaded blob {} to bucket {}'.format(path, bucket_name))
+
+
+def set_col_b_based_on_col_a_val(row, col_a, col_b, check_val, new_val):
+    # adapted from https://stackoverflow.com/a/59796763
+    a = row[col_a]
+    b = row[col_b]
+    if a == check_val:
+        return new_val
+    else:
+        return b
 
 
 def standardize_times(df, time_changes):
@@ -223,4 +236,3 @@ def upload_file_gcs(bucket_name, file):
     blob.upload_from_filename(file)
 
     os.remove(file)
-
