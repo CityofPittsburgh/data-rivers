@@ -5,10 +5,6 @@ from datetime import datetime
 
 from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
-from airflow.contrib.operators.bigquery_operator import BigQueryOperator
-from airflow.contrib.operators.bigquery_to_gcs import BigQueryToCloudStorageOperator
-from airflow.contrib.operators.bigquery_table_delete_operator import BigQueryTableDeleteOperator
-from dependencies import airflow_utils
 from dependencies.airflow_utils import get_ds_month, get_ds_year, get_ds_day, default_args
 
 # This DAG will perform an extract and transformation of phone conversation data obtained from a custom Flex Insights
@@ -28,7 +24,7 @@ dag = DAG(
 
 twilio_gcs = BashOperator(
     task_id='twilio_gcs',
-    bash_command=f"python {os.environ['GCS_LOADER_PATH']}/twilio_conversations_extract.py --output_arg",
+    bash_command=f"python {os.environ['DEPENDENCIES_PATH']}/twilio_conversations_extract.py",
     dag=dag
 )
 
