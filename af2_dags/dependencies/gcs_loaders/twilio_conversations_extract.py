@@ -7,14 +7,15 @@ import pandas as pd
 from datetime import datetime
 from google.cloud import storage
 from gcs_utils import find_last_successful_run, json_to_gcs, conv_avsc_to_bq_schema
-from af2_dags.dependencies.dataflow_scripts.dataflow_utils.pandas_utils import swap_two_columns,\
-    df_to_partitioned_bq_table
+from af2_dags.dependencies.dataflow_scripts.dataflow_utils.pandas_utils import df_to_partitioned_bq_table, \
+    set_col_b_based_on_col_a_val, swap_two_columns
+
 
 storage_client = storage.Client()
 json_bucket = f"{os.environ['GCS_PREFIX']}_twilio"
 BASE_URL = 'https://analytics.ytica.com'
-FINAL_COLS = ['id', 'date_time', 'day_of_week', 'agent', 'external_contact', 'abandoned', 'kind', 'direction',
-              'talk_time', 'wait_time', 'wrap_up_time']
+FINAL_COLS = ['id', 'date_time', 'day_of_week', 'agent', 'customer_phone', 'kind', 'direction', 'wait_time',
+              'talk_time', 'wrap_up_time', 'hold_time']
 BASE_HEADERS = {'Accept': 'application/json', 'Content-Type': 'application/json'}
 today = datetime.today()
 
@@ -121,9 +122,16 @@ while export_status == '202' and round <= 5:
             time.sleep(delay)
             delay *= 1.25
 
+# mark abandoned calls as a 'kind' of conversation, drop 'abandoned' column afterward
+df['Kind'] = df.apply(set_col_b_based_on_col_a_val, col_a='Abandoned', col_b='Kind', check_val='Yes',
+                      new_val='Abandoned Conversation', axis=1)
+df = df.drop('Abandoned', axis=1)
+
 # convert all different Null types to a single type (None)
 df = df.applymap(lambda x: None if isinstance(x, str) and x == '' else x)
 df = df.where(df.notnull(), None)
+
+# reorder and rename columns
 df = swap_two_columns(df, 'Date_Time', 'Segment')
 df.columns = FINAL_COLS
 
