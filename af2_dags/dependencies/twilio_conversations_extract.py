@@ -38,6 +38,9 @@ def get_temp_token(url, headers, bucket):
 
 run_start_win, first_run = find_last_successful_run(json_bucket, "conversations/successful_run_log/log.json",
                                                     "2020-04-03")
+# if this is the first time the DAG has run, request the report that contains every call ever made and upload it to
+# the final BQ table. otherwise, use the report with 1 day's worth of data and upload it to the 'incoming' table
+# to be inserted into the final table in the next step
 if first_run:
     report_id = os.environ['FLEX_INSIGHTS_REPORT_ID']
     table_name = 'flex_insights_conversations'
@@ -146,4 +149,5 @@ df.columns = FINAL_COLS
 
 #  read in AVRO schema and load into BQ
 schema = conv_avsc_to_bq_schema(F"{os.environ['GCS_PREFIX']}_avro_schemas", "twilio_conversations.avsc")
+print(f"Uploading data into {table_name}")
 df_to_partitioned_bq_table(df, 'twilio', table_name, schema, 'MONTH', 'WRITE_TRUNCATE')
