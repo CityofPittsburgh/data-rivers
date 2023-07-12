@@ -38,6 +38,12 @@ def get_temp_token(url, headers, bucket):
 
 run_start_win, first_run = find_last_successful_run(json_bucket, "conversations/successful_run_log/log.json",
                                                     "2020-04-03")
+if first_run:
+    report_id = os.environ['FLEX_INSIGHTS_REPORT_ID']
+    table_name = 'flex_insights_conversations'
+else:
+    report_id = '3442820'
+    table_name = 'incoming_conversations'
 
 # Super Secure Tokens (SSTs) last for two weeks, so this code checks to see if a SST has been uploaded within that time
 # window. If it has, it is pulled from GCS and used in the following API requests. If not, a new one is generated
@@ -82,7 +88,7 @@ token_headers = get_temp_token(BASE_URL, BASE_HEADERS, json_bucket)
 report_body = F"""
 \u007b
     "report_req": \u007b
-        "report": "/gdc/md/{os.environ['TWILIO_SD_WORKSPACE']}/obj/{os.environ['FLEX_INSIGHTS_REPORT_ID']}"
+        "report": "/gdc/md/{os.environ['TWILIO_SD_WORKSPACE']}/obj/{report_id}"
     \u007d
 \u007d"""
 report_req = requests.post(f"{BASE_URL}/gdc/app/projects/{os.environ['TWILIO_SD_WORKSPACE']}/execute/raw",
@@ -140,4 +146,4 @@ df.columns = FINAL_COLS
 
 #  read in AVRO schema and load into BQ
 schema = conv_avsc_to_bq_schema(F"{os.environ['GCS_PREFIX']}_avro_schemas", "twilio_conversations.avsc")
-df_to_partitioned_bq_table(df, 'twilio', 'incoming_conversations', schema, 'MONTH', 'WRITE_TRUNCATE')
+df_to_partitioned_bq_table(df, 'twilio', table_name, schema, 'MONTH', 'WRITE_TRUNCATE')
