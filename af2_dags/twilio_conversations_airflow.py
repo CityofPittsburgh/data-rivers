@@ -30,7 +30,7 @@ dag = DAG(
 
 twilio_gcs = BashOperator(
     task_id='twilio_gcs',
-    bash_command=f"python {os.environ['DEPENDENCIES_PATH']}/twilio_conversations_extract.py",
+    bash_command=f"python {os.environ['PANDAS_ETL_PATH']}/twilio_conversations_etl.py",
     dag=dag
 )
 

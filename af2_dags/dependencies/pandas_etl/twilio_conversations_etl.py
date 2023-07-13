@@ -1,3 +1,5 @@
+from __future__ import absolute_import
+
 import os
 import requests
 import io
@@ -6,7 +8,10 @@ import time
 import pandas as pd
 from datetime import datetime
 from google.cloud import storage
-from gcs_loaders.gcs_utils import find_last_successful_run, json_to_gcs, conv_avsc_to_bq_schema
+
+import sys
+sys.path.append("..")
+from gcs_utils import find_last_successful_run, json_to_gcs, conv_avsc_to_bq_schema
 from dataflow_scripts.dataflow_utils.pandas_utils import change_data_type, df_to_partitioned_bq_table, \
     set_col_b_based_on_col_a_val, swap_two_columns
 
