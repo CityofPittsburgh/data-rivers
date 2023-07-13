@@ -9,9 +9,20 @@ import pandas as pd
 from datetime import datetime
 from google.cloud import storage
 
+# adapted from https://stackoverflow.com/a/28154841 to get branching imports working
 import sys
-sys.path.append("..")
-from gcs_utils import find_last_successful_run, json_to_gcs, conv_avsc_to_bq_schema
+from pathlib import Path
+file = Path(__file__).resolve()
+parent, root = file.parent, file.parents[1]
+sys.path.append(str(root))
+
+try:
+    sys.path.remove(str(parent))
+except ValueError:
+    pass
+
+# import dependencies
+from gcs_loaders.gcs_utils import find_last_successful_run, json_to_gcs, conv_avsc_to_bq_schema
 from dataflow_scripts.dataflow_utils.pandas_utils import change_data_type, df_to_partitioned_bq_table, \
     set_col_b_based_on_col_a_val, swap_two_columns
 
@@ -19,8 +30,8 @@ from dataflow_scripts.dataflow_utils.pandas_utils import change_data_type, df_to
 storage_client = storage.Client()
 json_bucket = f"{os.environ['GCS_PREFIX']}_twilio"
 BASE_URL = 'https://analytics.ytica.com'
-FINAL_COLS = ['id', 'date_time', 'day_of_week', 'agent', 'customer_phone', 'kind', 'direction', 'wait_time',
-              'talk_time', 'wrap_up_time', 'hold_time']
+FINAL_COLS = ['id', 'date_time', 'day_of_week', 'agent', 'customer_phone', 'kind', 'direction',
+              'wait_time', 'talk_time', 'wrap_up_time', 'ring_time', 'hold_time']
 BASE_HEADERS = {'Accept': 'application/json', 'Content-Type': 'application/json'}
 today = datetime.today()
 
