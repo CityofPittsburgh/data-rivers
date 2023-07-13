@@ -8,6 +8,7 @@ import re
 
 import pandas as pd
 from google.cloud import storage
+from google.cloud import bigquery
 
 import avro.schema
 from avro.datafile import DataFileWriter
@@ -38,7 +39,7 @@ def avro_to_gcs(file_name, avro_object_list, bucket_name, schema_name):
     schema = avro.schema.Parse(schema_text)
     writer = DataFileWriter(open(file_name, "wb"), DatumWriter(), schema)
     for item in avro_object_list:
-       writer.append(item)
+        writer.append(item)
     writer.close()
 
     upload_file_gcs(bucket_name, file_name)
@@ -78,6 +79,31 @@ def change_data_type(df, convs):
     return df
 
 
+def df_to_partitioned_bq_table(df, dataset, table, avro_schema, partition_type="DAY", disposition="WRITE_TRUNCATE"):
+    # adapted from https://stackoverflow.com/a/69666464
+    client = bigquery.Client(project=f"{os.environ['GCLOUD_PROJECT']}")
+
+    schema_list = []
+    for field in avro_schema:
+        try:
+            schema_list.append(bigquery.SchemaField(name=field['name'], field_type=field['type'], mode=field['mode']))
+        except:
+            schema_list.append(bigquery.SchemaField(name=field['name'], field_type=field['type']))
+
+    # configure BQ upload job with user-defined parameters (or default to WRITE_TRUNCATE/DAY partitioning if left blank)
+    job_config = bigquery.LoadJobConfig(
+        schema=schema_list,
+        write_disposition=disposition,
+        time_partitioning=bigquery.table.TimePartitioning(type_=partition_type)
+    )
+
+    # execute BQ API request to load table
+    job = client.load_table_from_dataframe(df, f"{os.environ['GCLOUD_PROJECT']}.{dataset}.{table}",
+                                           job_config=job_config)
+    # NOTE: pyarrow and numpy libraries must be up to date for this to work
+    job.result()
+
+
 def fill_leading_zeroes(df, field_name, digits):
     df[field_name] = df[field_name].astype(str)
     df[field_name] = df[field_name].apply(lambda x: x.zfill(digits) if x != 'None' else None)
@@ -95,7 +121,7 @@ def json_linter(ndjson: str):
             for idx in range(len(json_split)):
                 if idx == 0:
                     result_ndjson.append(json_split[idx] + '}')
-                elif idx == (len(json_split)-1):
+                elif idx == (len(json_split) - 1):
                     result_ndjson.append('{' + json_split[idx])
                 else:
                     result_ndjson.append('{' + json_split[idx] + '}')
@@ -128,6 +154,16 @@ def json_to_gcs(path, json_object_list, bucket_name):
     logging.info('Successfully uploaded blob %r to bucket %r.', path, bucket_name)
 
     print('Successfully uploaded blob {} to bucket {}'.format(path, bucket_name))
+
+
+def set_col_b_based_on_col_a_val(row, col_a, col_b, check_val, new_val):
+    # adapted from https://stackoverflow.com/a/59796763
+    a = row[col_a]
+    b = row[col_b]
+    if a == check_val:
+        return new_val
+    else:
+        return b
 
 
 def standardize_times(df, time_changes):
@@ -179,6 +215,14 @@ def swap_field_names(df, name_changes):
     return df
 
 
+def swap_two_columns(df, col1, col2):
+    col_list = list(df.columns)
+    x, y = col_list.index(col1), col_list.index(col2)
+    col_list[y], col_list[x] = col_list[x], col_list[y]
+    df = df[col_list]
+    return df
+
+
 def upload_file_gcs(bucket_name, file):
     """
     Uploads a file to the bucket.
@@ -192,4 +236,3 @@ def upload_file_gcs(bucket_name, file):
     blob.upload_from_filename(file)
 
     os.remove(file)
-

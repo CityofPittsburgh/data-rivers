@@ -15,14 +15,14 @@ from dependencies.airflow_utils import get_ds_month, get_ds_year, get_ds_day, de
 # Ticket information will be displayed on a Google Looker Studio dashboard for use by team managers
 # that do not have access to Cherwell's admin portal.
 
-INSERT_COLS = """id, created_date_EST, created_date_UTC, created_date_UNIX, status, service, category, subcategory, 
+COLS_IN_ORDER = """id, created_date_EST, created_date_UTC, created_date_UNIX, status, service, category, subcategory, 
 description, priority, last_modified_date_EST, last_modified_date_UTC, last_modified_date_UNIX, closed_date_EST, 
 closed_date_UTC, closed_date_UNIX, assigned_team, assigned_to, assigned_to_manager, incident_type, 
 respond_by_deadline_EST, respond_by_deadline_UTC, respond_by_deadline_UNIX, resolve_by_deadline_EST, 
 resolve_by_deadline_UTC, resolve_by_deadline_UNIX, call_source, incident_reopened, responded_date_EST, 
 responded_date_UTC, responded_date_UNIX, resolved_date_EST, resolved_date_UTC, resolved_date_UNIX, number_of_touches,
 number_of_escalations, requester_department, requester, on_behalf_of,
-initial_assigned_team, assigned_to AS initial_assigned_to"""  # Preserve name of person initially assigned to ticket
+initial_assigned_team, """
 
 dag = DAG(
     'cherwell_incidents',
@@ -94,7 +94,9 @@ cherwell_incidents_bq_load = GoogleCloudStorageToBigQueryOperator(
     dag=dag
 )
 
-format_data_types_query = build_format_dedup_query(source, new_table, date_fields, INSERT_COLS,
+format_data_types_query = build_format_dedup_query(source, new_table, date_fields,
+                                                   # Preserve name of person initially assigned to ticket
+                                                   f"{COLS_IN_ORDER} assigned_to AS initial_assigned_to",
                                                    datestring_fmt="%m/%d/%Y %I:%M:%S %p")
 format_data_types = BigQueryOperator(
     task_id='format_data_types',
@@ -106,7 +108,8 @@ format_data_types = BigQueryOperator(
 
 insert_new_incidents = BigQueryOperator(
     task_id='insert_new_incidents',
-    sql=build_insert_new_records_query(source, new_table, master_table, id_col, INSERT_COLS),
+    sql=build_insert_new_records_query(source, new_table, master_table, id_col,
+                                       f"{COLS_IN_ORDER} initial_assigned_to"),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
@@ -135,4 +138,4 @@ beam_cleanup = BashOperator(
 )
 
 cherwell_incidents_gcs >> cherwell_incidents_dataflow >> cherwell_incidents_bq_load >> format_data_types >> \
-insert_new_incidents >> update_changed_incidents >> dedup_table >> beam_cleanup
+    insert_new_incidents >> update_changed_incidents >> dedup_table >> beam_cleanup
