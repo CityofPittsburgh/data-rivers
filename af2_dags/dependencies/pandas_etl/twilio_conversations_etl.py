@@ -156,7 +156,7 @@ df = df.drop('Abandoned', axis=1)
 df = change_data_type(df, {'Customer Phone': str})
 
 # convert all different Null types to a single type (None)
-df = df.applymap(lambda x: None if isinstance(x, str) and x == '' else x)
+df = df.applymap(lambda x: None if isinstance(x, str) and x == '' or x == 'nan' else x)
 df = df.where(df.notnull(), None)
 
 # reorder and rename columns
