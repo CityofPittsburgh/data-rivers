@@ -261,7 +261,7 @@ def build_revgeo_time_bound_query(dataset, raw_table, new_table, create_date, id
 
     -- join in the zones that were assigned in sel_zones with ALL of the records (including those that could not be 
     -- rev coded above)
-    SELECT 
+    SELECT DISTINCT
         raw.* {except_fields}, 
         sel_zones.* EXCEPT ({id_col})
     FROM `{os.environ["GCLOUD_PROJECT"]}.{dataset}.{raw_table}` raw
