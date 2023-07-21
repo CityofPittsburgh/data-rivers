@@ -33,6 +33,7 @@ avro_loc = f"avro_output/{path}/"
 intime_gcs = BashOperator(
     task_id='intime_gcs',
     bash_command=f"python {os.environ['GCS_LOADER_PATH']}/intime_employees_gcs.py --output_arg {json_loc}",
+    execution_timeout=timedelta(hours=1),
     dag=dag
 )
 
