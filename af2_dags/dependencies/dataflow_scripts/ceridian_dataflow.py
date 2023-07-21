@@ -93,7 +93,6 @@ def run(argv = None):
                             ('Employee_FirstName', 'first_name'),
                             ('Employee_LastName', 'last_name'),
                             ('Employee_DisplayName', 'display_name'),
-                            ('Employee_PreferredLastName', 'preferred_name'),
                             ('Job_ShortName', 'job_title'),
                             ('Employee_HireDate', 'hire_date'),
                             ('DFUnion_ShortName', 'union'),
@@ -102,11 +101,11 @@ def run(argv = None):
                             ('EmployeeManager_ManagerDisplayName', 'manager_name'),
                             ('DFEthnicity_ShortName', 'ethnicity'),
                             ('Employee_Gender', 'gender'),
-                            ('DenormEmployeeContact_BusinessPhone', 'work_phone'),
-                            ('DenormEmployeeContact_HomePhone', 'home_phone'),
-                            ('DenormEmployeeContact_MobilePhone', 'mobile_phone')]
+                            ('SSOLogin', 'sso_login')]
         type_changes = [('employee_num', 'str')]
-        drop_fields = ['EmploymentStatus_ShortName', 'DeptJob_ShortName', 'Department_LongName']
+        drop_fields = ['EmploymentStatus_ShortName', 'DeptJob_ShortName', 'Department_LongName',
+                       'Employee_PreferredLastName', 'DenormEmployeeContact_BusinessPhone',
+                       'DenormEmployeeContact_HomePhone', 'DenormEmployeeContact_MobilePhone']
 
         lines = p | ReadFromText(known_args.input, coder = JsonCoder())
 
