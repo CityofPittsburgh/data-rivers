@@ -10,10 +10,12 @@ from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOper
 from dependencies import airflow_utils
 from dependencies.airflow_utils import get_ds_month, get_ds_year, get_ds_day, default_args, build_revgeo_time_bound_query
 
-COLS_IN_ORDER = """id, activity, department, status, entry_date_UTC, entry_date_EST, entry_date_UNIX, 
+INCOMING_COLS = """id, activity, department, status, entry_date_UTC, entry_date_EST, entry_date_UNIX, 
 actual_start_date_UTC, actual_start_date_EST, actual_start_date_UNIX, actual_stop_date_UTC, actual_stop_date_EST, 
 actual_stop_date_UNIX, labor_cost, equipment_cost, material_cost, labor_hours, request_issue, request_department, 
-request_location, asset_id, asset_type, task_description, task_notes, neighborhood_name, council_district, ward, 
+request_location, asset_id, asset_type, task_description, task_notes"""
+
+COLS_IN_ORDER = INCOMING_COLS + """, neighborhood_name, council_district, ward, 
 police_zone, fire_zone, dpw_streets, dpw_enviro, dpw_parks, lat, long"""
 
 # This DAG will perform a pull of all work tasks entered into the Cartegraph application every 3 days
@@ -75,7 +77,7 @@ WITH formatted  AS
     )
 -- drop the final column through slicing the string. final column is added in next query     
 SELECT 
-    {COLS_IN_ORDER} 
+    {INCOMING_COLS}, lat, long
 FROM 
     formatted
 """
@@ -89,7 +91,7 @@ format_dedupe = BigQueryOperator(
 
 # Join all the geo information (e.g. DPW districts, etc) to the new data
 query_geo_join = build_revgeo_time_bound_query('cartegraph', 'incoming_tasks', 'incoming_enriched',
-                                               'actual_start_date_UTC', 'id', 'lat', 'long')
+                                               'actual_start_date_UTC', 'lat', 'long')
 geojoin = BigQueryOperator(
         task_id = 'geojoin',
         sql = query_geo_join,
