@@ -59,7 +59,7 @@ get_coords = BigQueryOperator(
 
 # reverse geocode
 query_geo_join = build_revgeo_time_bound_query('eproperty', 'vacant_properties', 'vacant_properties_enriched',
-                                               'status_date_utc', 'id', 'latitude', 'longitude')
+                                               'status_date_utc', 'latitude', 'longitude')
 geojoin = BigQueryOperator(
         task_id = 'geojoin',
         sql = query_geo_join,
