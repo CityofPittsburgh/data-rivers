@@ -2,22 +2,20 @@ import os
 import argparse
 import pendulum
 import requests
-import pandas as pd
 from datetime import datetime, timedelta
 from requests.auth import HTTPBasicAuth
 from google.cloud import storage
 
-from gcs_utils import json_to_gcs, find_last_successful_run
+from gcs_utils import json_to_gcs
 
-API_LIMIT = 5000
 
 storage_client = storage.Client()
 bucket = f"{os.environ['GCS_PREFIX']}_ceridian"
 
-# parser = argparse.ArgumentParser()
-# parser.add_argument('--output_arg', dest='out_loc', required=True,
-#                     help='fully specified location to upload the combined ndjson file')
-# args = vars(parser.parse_args())
+parser = argparse.ArgumentParser()
+parser.add_argument('--output_arg', dest='out_loc', required=True,
+                    help='fully specified location to upload the combined ndjson file')
+args = vars(parser.parse_args())
 
 # adapted from https://pynative.com/python-get-last-day-of-month/#h-get-last-day-of-a-previous-month
 input_dt = datetime.today()
@@ -33,12 +31,14 @@ print(f'Previous month date range: {prev_month_first}-{prev_month_last}')
 BASE_URL = f"https://www.dayforcehcm.com/Api/{os.environ['CERIDIAN_ORG_ID']}/V1/Reports/TIMESHEETREPORT"
 auth = HTTPBasicAuth(os.environ['CERIDIAN_USER'], os.environ['CERIDIAN_PW'])
 
-all_records = []
+# set filters on API request - data should encompass the entire previous month
 url = BASE_URL + f"?5b93e411-2928-463d-b048-03460269d416={prev_month_first}&" \
                  f"bb93e411-2928-463d-b048-03460269d416={prev_month_last}"
+
 # Make use of session to retain authorization header when a URL redirect happens
 s = requests.session()
 more = True
+all_records = []
 while more is True:
     # API call to get data
     response = s.get(url, auth=auth)
@@ -56,19 +56,7 @@ while more is True:
         url = response.json()['Paging']['Next']
     else:
         more = False
-    # append list of API results to growing all_records list (should not need more than initial API call)
+    # append list of API results to growing all_records list (should require several loops)
     all_records += time_data
 
-# write the successful run information for logging purposes
-successful_run = {
-    "requests_retrieved": len(all_records),
-    "from": prev_month_first,
-    "to": prev_month_last,
-    "note": "Data retrieved between the time points listed above"
-}
-json_to_gcs("timekeeping/successful_run_log/log.json", [successful_run], bucket)
-
-# json_to_gcs(f"{args['out_loc']}", all_records, bucket)
-
-df = pd.DataFrame(all_records)
-df.head()
+json_to_gcs(f"{args['out_loc']}", all_records, bucket)
