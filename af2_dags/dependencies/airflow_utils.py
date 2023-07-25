@@ -155,8 +155,7 @@ def build_insert_new_records_query(dataset, incoming_table, master_table, id_fie
 
 
 # TODO: phase out the usage of build_revgeo_query() in favor of build_rev_geo_time_bound_query()
-def build_revgeo_time_bound_query(dataset, raw_table, new_table, create_date, id_col, lat_field, long_field,
-                                  geo_fields_in_raw = True):
+def build_revgeo_time_bound_query(dataset, raw_table, new_table, create_date, lat_field, long_field):
     """
     Take a table with lat/long values and reverse-geocode it into a new a final table.
     This function is a substantial refactor of the build_rev_geo() function. This query allows a lat/long point to be
@@ -176,20 +175,13 @@ def build_revgeo_time_bound_query(dataset, raw_table, new_table, create_date, id
 
     :return: string to be passed through as arg to BigQueryOperator
     """
-    if geo_fields_in_raw:
-        except_fields = "EXCEPT(neighborhood_name, council_district, ward, fire_zone, police_zone, dpw_streets, " \
-                        "dpw_enviro, dpw_parks)"
-    else:
-        except_fields = ""
 
     return f"""
     CREATE OR REPLACE TABLE `{os.environ["GCLOUD_PROJECT"]}.{dataset}.{new_table}` AS
     -- return zones for all records that it is possible to rev geocode. some records will not be possible to process 
     -- (bad lat/long etc) and will be pulled in via the next blocked
-    WITH
-      sel_zones AS (
-      SELECT
-        raw.{id_col},
+    SELECT
+        raw.*,
         CAST (t_hoods.zone AS STRING) AS neighborhood_name,
         CAST (t_cd.zone AS STRING) AS council_district,
         CAST (t_w.zone AS STRING) AS ward,
@@ -202,7 +194,7 @@ def build_revgeo_time_bound_query(dataset, raw_table, new_table, create_date, id
         `{os.environ["GCLOUD_PROJECT"]}.{dataset}.{raw_table}` raw
 
       -- neighborhoods
-      JOIN `{os.environ["GCLOUD_PROJECT"]}.timebound_geography.neighborhoods` AS t_hoods ON
+      LEFT OUTER JOIN `{os.environ["GCLOUD_PROJECT"]}.timebound_geography.neighborhoods` AS t_hoods ON
         ST_CONTAINS(t_hoods.geometry, ST_GEOGPOINT(raw.{long_field}, raw.{lat_field}))
         AND TIMESTAMP(PARSE_DATETIME('%m/%d/%Y %H:%M:%S-00:00',t_hoods.start_date)) <= TIMESTAMP(raw.{create_date})
         AND IFNULL(TIMESTAMP(PARSE_DATETIME('%m/%d/%Y %H:%M:%S-00:00', t_hoods.end_date)),
@@ -210,62 +202,53 @@ def build_revgeo_time_bound_query(dataset, raw_table, new_table, create_date, id
 
 
       -- council districts
-      JOIN `{os.environ["GCLOUD_PROJECT"]}.timebound_geography.council_districts` AS t_cd ON
+      LEFT OUTER JOIN `{os.environ["GCLOUD_PROJECT"]}.timebound_geography.council_districts` AS t_cd ON
         ST_CONTAINS(t_cd.geometry, ST_GEOGPOINT(raw.{long_field}, raw.{lat_field}))
         AND TIMESTAMP(PARSE_DATETIME('%m/%d/%Y %H:%M:%S-00:00',t_cd.start_date)) <= TIMESTAMP(raw.{create_date})
         AND IFNULL(TIMESTAMP(PARSE_DATETIME('%m/%d/%Y %H:%M:%S-00:00', t_cd.end_date)),
             CURRENT_TIMESTAMP()) >= TIMESTAMP(raw.{create_date})
 
       -- wards
-      JOIN `{os.environ["GCLOUD_PROJECT"]}.timebound_geography.wards` AS t_w ON
+      LEFT OUTER JOIN `{os.environ["GCLOUD_PROJECT"]}.timebound_geography.wards` AS t_w ON
         ST_CONTAINS(t_w.geometry, ST_GEOGPOINT(raw.{long_field}, raw.{lat_field}))
         AND TIMESTAMP(PARSE_DATETIME('%m/%d/%Y %H:%M:%S-00:00',t_w.start_date)) <= TIMESTAMP(raw.{create_date})
         AND IFNULL(TIMESTAMP(PARSE_DATETIME('%m/%d/%Y %H:%M:%S-00:00', t_w.end_date)),
             CURRENT_TIMESTAMP()) >= TIMESTAMP(raw.{create_date})
 
       -- fire zones
-      JOIN `{os.environ["GCLOUD_PROJECT"]}.timebound_geography.fire_zones` AS t_fz ON
+      LEFT OUTER JOIN `{os.environ["GCLOUD_PROJECT"]}.timebound_geography.fire_zones` AS t_fz ON
          ST_CONTAINS(t_fz.geometry, ST_GEOGPOINT(raw.{long_field}, raw.{lat_field}))
         AND TIMESTAMP(PARSE_DATETIME('%m/%d/%Y %H:%M:%S-00:00',t_fz.start_date)) <= TIMESTAMP(raw.{create_date})
         AND IFNULL(TIMESTAMP(PARSE_DATETIME('%m/%d/%Y %H:%M:%S-00:00', t_fz.end_date)),
             CURRENT_TIMESTAMP()) >= TIMESTAMP(raw.{create_date})
 
       -- police zones
-      JOIN `{os.environ["GCLOUD_PROJECT"]}.timebound_geography.police_zones` AS t_pz ON
+      LEFT OUTER JOIN `{os.environ["GCLOUD_PROJECT"]}.timebound_geography.police_zones` AS t_pz ON
          ST_CONTAINS(t_pz.geometry, ST_GEOGPOINT(raw.{long_field}, raw.{lat_field}))
         AND TIMESTAMP(PARSE_DATETIME('%m/%d/%Y %H:%M:%S-00:00',t_pz.start_date)) <= TIMESTAMP(raw.{create_date})
         AND IFNULL(TIMESTAMP(PARSE_DATETIME('%m/%d/%Y %H:%M:%S-00:00', t_pz.end_date)),
             CURRENT_TIMESTAMP()) >= TIMESTAMP(raw.{create_date})
 
       -- DPW streets division
-      JOIN `{os.environ["GCLOUD_PROJECT"]}.timebound_geography.dpw_streets_divisions` AS t_st ON
+      LEFT OUTER JOIN `{os.environ["GCLOUD_PROJECT"]}.timebound_geography.dpw_streets_divisions` AS t_st ON
        ST_CONTAINS(t_st.geometry, ST_GEOGPOINT(raw.{long_field}, raw.{lat_field}))
         AND TIMESTAMP(PARSE_DATETIME('%m/%d/%Y %H:%M:%S-00:00',t_st.start_date)) <= TIMESTAMP(raw.{create_date})
         AND IFNULL(TIMESTAMP(PARSE_DATETIME('%m/%d/%Y %H:%M:%S-00:00', t_st.end_date)),
             CURRENT_TIMESTAMP()) >= TIMESTAMP(raw.{create_date})
 
       -- DPW environment services division
-      JOIN `{os.environ["GCLOUD_PROJECT"]}.timebound_geography.dpw_es_divisions` AS t_es ON 
+      LEFT OUTER JOIN `{os.environ["GCLOUD_PROJECT"]}.timebound_geography.dpw_es_divisions` AS t_es ON 
          ST_CONTAINS(t_es.geometry, ST_GEOGPOINT(raw.{long_field}, raw.{lat_field}))
         AND TIMESTAMP(PARSE_DATETIME('%m/%d/%Y %H:%M:%S-00:00',t_es.start_date)) <= TIMESTAMP(raw.{create_date})
         AND IFNULL(TIMESTAMP(PARSE_DATETIME('%m/%d/%Y %H:%M:%S-00:00', t_es.end_date)),
             CURRENT_TIMESTAMP()) >= TIMESTAMP(raw.{create_date})
 
       -- DPW parks division
-      JOIN `{os.environ["GCLOUD_PROJECT"]}.timebound_geography.dpw_parks_divisions` AS t_pk ON
+      LEFT OUTER JOIN `{os.environ["GCLOUD_PROJECT"]}.timebound_geography.dpw_parks_divisions` AS t_pk ON
          ST_CONTAINS(t_pk.geometry, ST_GEOGPOINT(raw.{long_field}, raw.{lat_field}))
         AND TIMESTAMP(PARSE_DATETIME('%m/%d/%Y %H:%M:%S-00:00',t_pk.start_date)) <= TIMESTAMP(raw.{create_date})
         AND IFNULL(TIMESTAMP(PARSE_DATETIME('%m/%d/%Y %H:%M:%S-00:00', t_pk.end_date)),
             CURRENT_TIMESTAMP()) >= TIMESTAMP(raw.{create_date})
-    )
-
-    -- join in the zones that were assigned in sel_zones with ALL of the records (including those that could not be 
-    -- rev coded above)
-    SELECT 
-        raw.* {except_fields}, 
-        sel_zones.* EXCEPT ({id_col})
-    FROM `{os.environ["GCLOUD_PROJECT"]}.{dataset}.{raw_table}` raw
-    LEFT OUTER JOIN sel_zones ON sel_zones.{id_col} = raw.{id_col}
 """
 
 
@@ -350,7 +333,7 @@ def build_piecemeal_revgeo_query(dataset, raw_table, new_table, create_date, id_
       FROM
         `{os.environ["GCLOUD_PROJECT"]}.{dataset}.{raw_table}` raw
 
-      JOIN `{os.environ["GCLOUD_PROJECT"]}.timebound_geography.{geo_table}` AS geo ON
+      LEFT OUTER JOIN `{os.environ["GCLOUD_PROJECT"]}.timebound_geography.{geo_table}` AS geo ON
         ST_CONTAINS(geo.geometry, ST_GEOGPOINT(raw.{long_field}, raw.{lat_field}))
         AND TIMESTAMP(PARSE_DATETIME('%m/%d/%Y %H:%M:%S-00:00',geo.start_date)) <= TIMESTAMP(raw.{create_date})
         AND IFNULL(TIMESTAMP(PARSE_DATETIME('%m/%d/%Y %H:%M:%S-00:00', geo.end_date)),
