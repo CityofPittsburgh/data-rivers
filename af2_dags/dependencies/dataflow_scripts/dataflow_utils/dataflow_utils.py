@@ -609,7 +609,7 @@ class SwapFieldNames(beam.DoFn, ABC):
 
 
 def generate_args(job_name, bucket, argv, schema_name, default_arguments, limit_workers = [False, None], backfill_dag
-= False):
+= False, use_df_runner = False):
     """
     generate arguments for DataFlow jobs (invoked in DataFlow scripts prior to execution). In brief, this function
     initializes the basic options and setup for each step in a dataflow pipeline(e.g. the GCP project to operate on,
@@ -626,18 +626,51 @@ def generate_args(job_name, bucket, argv, schema_name, default_arguments, limit_
     workers should be limited (to comply with quotas) and the corresponding max number of workers in the second position
     :param backfill_dag boolean indicating if the dataflow job is part of a backfill DAG. Backfill schemas are stored in
     a sub directory and this will instruct the util function to append this to the file path for schema retrieval
+    :param use_df_runner (boolean) that is used to instruct the dataflow pipeline to run in either the VMs
+    instantiated in the dataflow API (True) or directly on the Airflow host machines (False)
     :return: known_args (arg parser values), Beam PipelineOptions instance, avro_schemas stored as dict in memory
 
-    Add --runner='DirectRunner' to execute a script locally for rapid development, e.g.
+    If you're doing local development on your laptop, and you'd like to execute the dataflow pipeline on your
+    own machine, specify the DirectRunner as a runtime arg
+    For example: --runner='DirectRunner' (e.g.
     python qalert_activities_dataflow.py --input gs://pghpa_test_qalert/activities/2020/09/2020-09-23_activities.json
-    --avro_output gs://pghpa_test_qalert/activities/avro_output/2020/09/2020-09-23/ --runner DirectRunner
+    --avro_output gs://pghpa_test_qalert/activities/avro_output/2020/09/2020-09-23/ --runner DirectRunner)
+
+    If you want to use the GCP dataflow runner while testing code from your laptop, you can specify the
+    DataflowRunner. It is smart to make sure the code runs in GCP dataflow before deploying the code. There have been a
+    few rare instances where we've found that the direct runner on your laptop will run, but the same code doesn't
+    run in GCP dataflow.
+
+    When the pipeline is executing in Cloud Composer, the Airflow host that is used by Composer will either run the
+    code "directly" or in Dataflow. The former means that the VMs that run Airflow will execute the dataflow
+    pipeline. In this sense, because the code is run "directly", the Airflow hosts will not pass the job off GCP
+    Dataflow. As of July 2023, we do not use any persistent VMs to host dataflow so submitting a dataflow job
+    requires a new machine to be instantiating. This can take several minutes. If a dataset is large and/or the
+    computations are complex, it may be most efficient to use the Dataflow Runner. However, if the dataset is smaller
+    it is probably much faster to use the DirectRunner on an Airflow Host (the VMs). As of July 2023 we will switch
+    to this approach. Tests have revealed that this is easily 10X faster.
+
+    The DataflowRunner will be specified by default (see input args above). Within the dataflow script itself,
+    the direct runner can be used by setting the boolean variable to False. As of July 2023, we have no plans to use
+    other runners (e.g. Spark). This code would not take that approach into account.
+
+    There are at least 2 ways to change the runner in theory. You can pass this in as a runtime argument in the BASH
+    call that is executed by Airflow, which is the earliest point in the processing chain. Since our default plan
+    going forward (as of July 2023) is to use the Dataflow Runner only when job complexity makes the instantiation
+    time worthwhile, we will make this the default approach. Thus, the runner is specified in this utility function
+    and can be changed to the Dataflow runner in the call that is made to this function from the dataflow script.
 
     """
     parser = argparse.ArgumentParser()
 
     parser.add_argument('--input', dest = 'input', required = True)
     parser.add_argument('--avro_output', dest = 'avro_output', required = True)
-    parser.add_argument('--runner', '-r', dest = 'runner', default = 'DataflowRunner', required = False)
+
+    if use_df_runner:
+        parser.add_argument('--runner', '-r', dest = 'runner', default = 'DataflowRunner', required = False)
+    else:
+        parser.add_argument('--runner', '-r', dest = 'runner', default = 'DirectRunner', required = False)
+
 
     known_args, pipeline_args = parser.parse_known_args(argv)
 
