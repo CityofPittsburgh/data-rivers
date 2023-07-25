@@ -21,7 +21,7 @@ from dependencies.airflow_utils import get_ds_month, get_ds_year,  get_ds_day, \
 # of the city government and how it compares to the demographics of the city as a whole.
 
 dag = DAG(
-    'ceridian',
+    'ceridian_employees',
     default_args=default_args,
     schedule_interval='@daily',
     start_date=datetime(2023, 2, 8),
@@ -39,7 +39,7 @@ avro_loc = f"{dataset}/avro_output/{path}/" + "{{ run_id }}"
 
 ceridian_gcs = BashOperator(
     task_id='ceridian_gcs',
-    bash_command=f"python {os.environ['GCS_LOADER_PATH']}/ceridian_gcs.py --output_arg {json_loc}",
+    bash_command=f"python {os.environ['GCS_LOADER_PATH']}/ceridian_employees_gcs.py --output_arg {json_loc}",
     dag=dag
 )
 
