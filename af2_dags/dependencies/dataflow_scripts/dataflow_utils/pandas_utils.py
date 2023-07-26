@@ -79,7 +79,8 @@ def change_data_type(df, convs):
     return df
 
 
-def df_to_partitioned_bq_table(df, dataset, table, avro_schema, partition_type="DAY", disposition="WRITE_TRUNCATE"):
+def df_to_partitioned_bq_table(df, dataset, table, avro_schema, partition_type="DAY", partition_field=None,
+                               disposition="WRITE_TRUNCATE"):
     # adapted from https://stackoverflow.com/a/69666464
     client = bigquery.Client(project=f"{os.environ['GCLOUD_PROJECT']}")
 
@@ -94,7 +95,7 @@ def df_to_partitioned_bq_table(df, dataset, table, avro_schema, partition_type="
     job_config = bigquery.LoadJobConfig(
         schema=schema_list,
         write_disposition=disposition,
-        time_partitioning=bigquery.table.TimePartitioning(type_=partition_type)
+        time_partitioning=bigquery.table.TimePartitioning(type_=partition_type, field=partition_field)
     )
 
     # execute BQ API request to load table
