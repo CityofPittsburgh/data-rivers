@@ -57,10 +57,4 @@ delete_avro = BashOperator(
     dag=dag
 )
 
-beam_cleanup = BashOperator(
-    task_id='beam_cleanup',
-    bash_command=airflow_utils.beam_cleanup_statement(f"{os.environ['GCS_PREFIX']}_prev_day_weather"),
-    dag=dag
-)
-
-prev_day_weather_gcs >> prev_day_weather_bq_load >> delete_avro >> beam_cleanup
+prev_day_weather_gcs >> prev_day_weather_bq_load >> delete_avro
