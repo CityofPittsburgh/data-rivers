@@ -44,7 +44,7 @@ class CrosswalkDeptNames(beam.DoFn):
         datum['office'] = ''
         datum['corporation'] = ''
         for dict in crosswalk:
-            if datum['OrgUnit_ShortName'] == dict['Ceridian Department Name']:
+            if datum['org_unit'] == dict['Ceridian Department Name']:
                 datum['dept'] = dict['Department']
                 datum['dept_desc'] = dict['Department Description']
                 datum['office'] = dict['Office']
