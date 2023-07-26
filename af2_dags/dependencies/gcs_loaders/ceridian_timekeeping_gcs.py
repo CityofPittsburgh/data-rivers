@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from requests.auth import HTTPBasicAuth
 from google.cloud import storage
 
-from gcs_utils import json_to_gcs
+from gcs_utils import json_to_gcs, find_last_successful_run
 
 
 storage_client = storage.Client()
@@ -25,7 +25,16 @@ prev_month_last = first_curr_month - timedelta(days=1)
 prev_month_first = prev_month_last.replace(day=1)
 
 prev_month_last = str(prev_month_last.date().strftime("%m/%d/%Y")) + " 11:59:59 PM"
-prev_month_first = str(prev_month_first.date().strftime("%m/%d/%Y %H:%M:%S %p"))
+
+run_start_win, first_run = find_last_successful_run(bucket, "timekeeping/successful_run_log/log.json",
+                                                    "01/01/2023 00:00:00 AM")
+
+# if this is the first time the DAG has ran, start pulling data from the beginning of the year
+# otherwise, only get the previous month's data
+if first_run:
+    prev_month_first = run_start_win
+else:
+    prev_month_first = str(prev_month_first.date().strftime("%m/%d/%Y %H:%M:%S %p"))
 print(f'Previous month date range: {prev_month_first}-{prev_month_last}')
 
 BASE_URL = f"https://www.dayforcehcm.com/Api/{os.environ['CERIDIAN_ORG_ID']}/V1/Reports/TIMESHEETREPORT"
@@ -60,3 +69,8 @@ while more is True:
     all_records += time_data
 
 json_to_gcs(f"{args['out_loc']}", all_records, bucket)
+
+successful_run = [{"since": prev_month_first,
+                   "current_run": prev_month_last,
+                   "note": "Timekeeping data retrieved between the time points listed above"}]
+json_to_gcs("timekeeping/successful_run_log/log.json", successful_run, bucket)
