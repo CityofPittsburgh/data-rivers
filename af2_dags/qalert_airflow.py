@@ -17,6 +17,13 @@ from dependencies import airflow_utils
 from dependencies.airflow_utils import get_ds_year, get_ds_month, get_ds_day, default_args, build_city_limits_query, \
     build_revgeo_time_bound_query
 
+INCOMING_COLS = """id, parent_ticket_id, child_ticket, dept, status_name, status_code, request_type_name, 
+request_type_id, origin, pii_comments, anon_comments, pii_private_notes, create_date_est, create_date_utc, 
+create_date_unix, last_action_est, last_action_utc, last_action_unix, closed_date_est, closed_date_utc, 
+closed_date_unix, pii_street_num, street, cross_street, street_id, cross_street_id, city, pii_input_address, 
+pii_google_formatted_address, anon_google_formatted_address, address_type, google_pii_lat, google_pii_long, 
+google_anon_lat, google_anon_long, input_pii_lat, input_pii_long, input_anon_lat, input_anon_long"""
+
 COLS_IN_ORDER = """id, parent_ticket_id, child_ticket, dept, status_name, status_code, request_type_name, 
 request_type_id, origin, pii_comments, anon_comments, pii_private_notes, create_date_est, create_date_utc, 
 create_date_unix, last_action_est, last_action_utc, last_action_unix, closed_date_est, closed_date_utc, 
@@ -120,7 +127,7 @@ WITH formatted  AS
     )
 -- drop the final column through slicing the string (-13). final column is added in next query     
 SELECT 
-    {COLS_IN_ORDER} 
+    {INCOMING_COLS} 
 FROM 
     formatted
 """
@@ -147,7 +154,7 @@ city_limits = BigQueryOperator(
 # FINAL ENRICHMENT OF NEW DATA
 # Join all the geo information (e.g. DPW districts, etc) to the new data
 query_geo_join = build_revgeo_time_bound_query('qalert', 'incoming_actions', 'incoming_enriched',
-                                               'create_date_utc', 'id', 'input_pii_lat', 'input_pii_long')
+                                               'create_date_utc', 'input_pii_lat', 'input_pii_long')
 geojoin = BigQueryOperator(
         task_id = 'geojoin',
         sql = query_geo_join,

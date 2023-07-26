@@ -13,17 +13,17 @@ from gcs_utils import json_to_gcs, conv_avsc_to_bq_schema
 # The script also uploads the recrods from a dataframe into BQ. No AVRO is loaded into GCS for later movement into BQ
 
 API_LIMIT = 10000
-FIELDS = {"id"             : "id", "parcelNumber": "parc", "propertyAddress1": "address",
-          "currentOwners"  : "owner", "parcelSquareFootage": "parc_sq_ft", "acquisitionMethod": "acquisition_method",
+FIELDS = {"id": "id", "parcelNumber": "parc", "propertyAddress1": "address",
+          "currentOwners": "owner", "parcelSquareFootage": "parc_sq_ft", "acquisitionMethod": "acquisition_method",
           "acquisitionDate": "acquisition_date", "propertyClass": "class", "censusTract": "census_tract",
-          "latitude"       : "lat", "longitude": "long", "inventoryType": "inventory_type", "zonedAs": "zoned_as",
-          "currentStatus"  : "current_status", "statusDate": "status_date_utc"}
+          "latitude": "lat", "longitude": "long", "inventoryType": "inventory_type", "zonedAs": "zoned_as",
+          "currentStatus": "current_status", "statusDate": "status_date_utc"}
 
 json_bucket = f"{os.environ['GCS_PREFIX']}_eproperty"
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--json_output_arg', dest = 'json_out_loc', required = True,
-                    help = 'fully specified location to upload the processed json file for long-term storage')
+parser.add_argument('--json_output_arg', dest='json_out_loc', required=True,
+                    help='fully specified location to upload the processed json file for long-term storage')
 args = vars(parser.parse_args())
 
 # Build the API request components
@@ -31,14 +31,14 @@ URL_BASE = F"https://api.epropertyplus.com/landmgmt/api/property/"
 URL_QUERY = F"/summary?"
 url = URL_BASE + URL_QUERY
 
-header = {"Host"            : "api.epropertyplus.com",
-          "Connection"      : "keep-alive",
+header = {"Host": "api.epropertyplus.com",
+          "Connection": "keep-alive",
           "x-strllc-authkey": F"{os.environ['EPROPERTY_TOKEN']}",
-          "User-Agent"      : "Mozilla/5.0(Macintosh;IntelMacOSX10_9_2...",
-          "Content-Type"    : "application/json",
-          "Accept"          : "*/*",
-          "Accept-Encoding" : "gzip, deflate, sdch",
-          "Accept-Language" : "en - US, en;q = 0.8"}
+          "User-Agent": "Mozilla/5.0(Macintosh;IntelMacOSX10_9_2...",
+          "Content-Type": "application/json",
+          "Accept": "*/*",
+          "Accept-Encoding": "gzip, deflate, sdch",
+          "Accept-Language": "en - US, en;q = 0.8"}
 
 params = {"page": 1, "limit": API_LIMIT}
 
@@ -47,7 +47,7 @@ all_records = []
 more = True
 while more is True:
     # API call to get data
-    response = requests.get(url, headers = header, params = params)
+    response = requests.get(url, headers=header, params=params)
 
     # if call is successful and there are records returned then append them to the growing list. if there are no more
     # records in the system, the API will still return 200 codes. "rows" will be an empty list if all the records are
@@ -69,23 +69,21 @@ while more is True:
 df_records = pd.DataFrame(all_records)
 
 drops = [f for f in df_records.columns.to_list() if f not in FIELDS.keys()]
-df_records.drop(drops, axis = 1, inplace = True)
+df_records.drop(drops, axis=1, inplace=True)
 
-df_records.rename(columns = FIELDS, inplace = True)
+df_records.rename(columns=FIELDS, inplace=True)
 df_records = df_records[FIELDS.values()]
 
 # convert id, an int, to string to be consistent with our SOP and change NaNs to Null
 df_records["id"] = df_records["id"].astype(str)
 df_records["address"].apply(lambda x: x.upper())
-df_records[["neighborhood_name", "council_district", "ward", "fire_zone", "police_zone",
-            "dpw_streets", "dpw_enviro", "dpw_parks"]] = ""
 
 # load into BQ
 schema = conv_avsc_to_bq_schema(F"{os.environ['GCS_PREFIX']}_avro_schemas", "eproperty_vacant_property.avsc")
-df_records.to_gbq("eproperty.vacant_properties", F"{os.environ['GCLOUD_PROJECT']}", if_exists = "replace",
-                  table_schema = schema)
+df_records.to_gbq("eproperty.vacant_properties", F"{os.environ['GCLOUD_PROJECT']}", if_exists="replace",
+                  table_schema=schema)
 
 # load API results as a json to GCS autoclass storage and avro to temporary hot storage bucket (deleted after load
 # into BQ)
-list_of_dict_recs = df_records.to_dict(orient = 'records')
+list_of_dict_recs = df_records.to_dict(orient='records')
 json_to_gcs(args['json_out_loc'], list_of_dict_recs, json_bucket)

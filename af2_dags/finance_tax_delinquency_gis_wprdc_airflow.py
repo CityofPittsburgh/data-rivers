@@ -63,8 +63,8 @@ get_coords = BigQueryOperator(
 # the following task joins the parcel records to the geographic zones displayed in the published WPRDC dataset
 geojoin = BigQueryOperator(
     task_id='geojoin',
-    sql=build_revgeo_time_bound_query(source, f"incoming_{table}", f"geo_enriched_{table}", 'modify_date', 'pin',
-                                      'latitude', 'longitude', geo_fields_in_raw=False),
+    sql=build_revgeo_time_bound_query(source, f"incoming_{table}", f"geo_enriched_{table}", 'modify_date',
+                                      'latitude', 'longitude'),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
