@@ -50,7 +50,7 @@ class CrosswalkDeptNames(beam.DoFn):
                 datum['office'] = dict['Office']
                 datum['corporation'] = dict['Corporation']
         if datum['dept'] == '':
-            split_dept = datum['OrgUnit_ShortName'].split("-")
+            split_dept = datum['org_unit'].split("-")
             datum['dept'] = split_dept[0]
             try:
                 datum['dept_desc'] = split_dept[1]
