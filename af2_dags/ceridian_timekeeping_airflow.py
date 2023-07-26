@@ -92,4 +92,4 @@ beam_cleanup = BashOperator(
     dag=dag
 )
 
-ceridian_gcs >> ceridian_dataflow >> ceridian_bq_load >> beam_cleanup
+ceridian_gcs >> ceridian_dataflow >> ceridian_bq_load >> insert_monthly_data >> delete_avro >> beam_cleanup
