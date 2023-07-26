@@ -38,20 +38,20 @@ json_loc = f"{dataset}/{path}/{exec_date}_employees.json"
 avro_loc = f"{dataset}/avro_output/{path}/" + "{{ run_id }}"
 
 ceridian_gcs = BashOperator(
-    task_id='ceridian_gcs',
+    task_id='ceridian_employees_gcs',
     bash_command=f"python {os.environ['GCS_LOADER_PATH']}/ceridian_employees_gcs.py --output_arg {json_loc}",
     dag=dag
 )
 
 ceridian_dataflow = BashOperator(
-    task_id='ceridian_dataflow',
+    task_id='ceridian_employees_dataflow',
     bash_command=f"python {os.environ['DATAFLOW_SCRIPT_PATH']}/ceridian_employees_dataflow.py "
                  f"--input {bucket}/{json_loc} --avro_output {bucket}/{avro_loc}",
     dag=dag
 )
 
 ceridian_bq_load = GoogleCloudStorageToBigQueryOperator(
-    task_id='ceridian_bq_load',
+    task_id='ceridian_employees_bq_load',
     destination_project_dataset_table=f"{os.environ['GCLOUD_PROJECT']}.ceridian.all_employees",
     bucket=f"{os.environ['GCS_PREFIX']}_ceridian",
     source_objects=[f"{avro_loc}*.avro"],
