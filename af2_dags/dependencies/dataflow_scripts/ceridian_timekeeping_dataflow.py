@@ -83,8 +83,8 @@ def run(argv=None):
     with beam.Pipeline(options=pipeline_options) as p:
         field_name_swaps = [('EmployeeEmploymentStatus_EmployeeNumber', 'employee_num'),
                             ('Employee_DisplayName', 'display_name'),
-                            ('Job_ShortName', 'job_title'),
                             ('OrgUnit_ShortName', 'org_unit'),
+                            ('Job_ShortName', 'job_title'),
                             ('EmployeePaySummary_BusinessDate', 'pay_period'),
                             ('PayAdjCode_ShortName', 'pay_code'),
                             ('PayCategory_CodeName', 'pay_category'),
