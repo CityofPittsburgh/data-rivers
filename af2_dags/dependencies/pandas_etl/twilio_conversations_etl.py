@@ -178,4 +178,4 @@ df.columns = FINAL_COLS
 #  read in AVRO schema and load into BQ
 schema = conv_avsc_to_bq_schema(F"{os.environ['GCS_PREFIX']}_avro_schemas", "twilio_conversations.avsc")
 print(f"Uploading data into {table_name}")
-df_to_partitioned_bq_table(df, 'twilio', table_name, schema, 'MONTH', 'WRITE_TRUNCATE')
+df_to_partitioned_bq_table(df, 'twilio', table_name, schema, 'MONTH', 'date_time', 'WRITE_TRUNCATE')
