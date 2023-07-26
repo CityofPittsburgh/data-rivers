@@ -75,7 +75,7 @@ def run(argv=None):
         job_name='ceridian-dataflow',
         bucket=f"{os.environ['GCS_PREFIX']}_ceridian",
         argv=argv,
-        schema_name='ceridian_employees',
+        schema_name='ceridian_timekeeping',
         default_arguments=DEFAULT_DATAFLOW_ARGS,
         limit_workers=[False, None]
     )
