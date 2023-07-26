@@ -36,46 +36,16 @@ BASE_HEADERS = {'Accept': 'application/json', 'Content-Type': 'application/json'
 today = datetime.today()
 
 
-def get_temp_token(url, headers, bucket):
-    token_bucket = storage_client.bucket(bucket)
-    token_blob = token_bucket.get_blob(os.environ['FLEX_INSIGHTS_TOKEN_PATH'])
-    token_text = token_blob.download_as_string()
-    sst = json.loads(token_text.decode('utf-8'))['userLogin']['token']
-
-    sst_headers = headers.copy()
-    sst_headers['X-GDC-AuthSST'] = sst
-    token_req = requests.get(f"{url}/gdc/account/token", headers=sst_headers)
-    print("Temporary token response code: " + str(token_req.status_code))
-    tt = token_req.json()['userToken']['token']
-    tt_headers = headers.copy()
-    tt_headers.update({'Cookie': f"GDCAuthTT={tt}"})
-    return tt_headers
-
-
-run_start_win, first_run = find_last_successful_run(json_bucket, "conversations/successful_run_log/log.json",
-                                                    "2020-04-03")
-# if this is the first time the DAG has run, request the report that contains every call ever made and upload it to
-# the final BQ table. otherwise, use the report with 1 day's worth of data and upload it to the 'incoming' table
-# to be inserted into the final table in the next step
-if first_run:
-    report_id = os.environ['FLEX_INSIGHTS_REPORT_ID']
-    table_name = 'flex_insights_conversations'
-else:
-    report_id = '3442820'
-    table_name = 'incoming_conversations'
-
-# Super Secure Tokens (SSTs) last for two weeks, so this code checks to see if a SST has been uploaded within that time
-# window. If it has, it is pulled from GCS and used in the following API requests. If not, a new one is generated
-if (today - datetime.strptime(run_start_win, '%Y-%m-%d')).days >= 14:
+def reset_sst():
     auth_body = F"""
-    \u007b
-        "postUserLogin":\u007b
-            "login":"{os.environ['FLEX_INSIGHTS_UN']}",
-            "password":"{os.environ['FLEX_INSIGHTS_PW']}",
-            "remember": 0,
-            "verify_level": 2
-        \u007d
-    \u007d"""
+        \u007b
+            "postUserLogin":\u007b
+                "login":"{os.environ['FLEX_INSIGHTS_UN']}",
+                "password":"{os.environ['FLEX_INSIGHTS_PW']}",
+                "remember": 0,
+                "verify_level": 2
+            \u007d
+        \u007d"""
 
     auth_status = ''
     attempt = 1
@@ -102,6 +72,48 @@ if (today - datetime.strptime(run_start_win, '%Y-%m-%d')).days >= 14:
 
             # increment count for reporting
             attempt += 1
+
+
+def get_temp_token(url, headers, bucket):
+    token_bucket = storage_client.bucket(bucket)
+    tt_headers = headers.copy()
+    token_req_status = '401'
+    attempt = 1
+    while token_req_status == '401' and attempt <= 5:
+        token_blob = token_bucket.get_blob(os.environ['FLEX_INSIGHTS_TOKEN_PATH'])
+        token_text = token_blob.download_as_string()
+        sst = json.loads(token_text.decode('utf-8'))['userLogin']['token']
+
+        sst_headers = headers.copy()
+        sst_headers['X-GDC-AuthSST'] = sst
+        token_req = requests.get(f"{url}/gdc/account/token", headers=sst_headers)
+        token_req_status = str(token_req.status_code)
+        print("Temporary token response code: " + token_req_status)
+        if token_req_status == '401':
+            reset_sst()
+            attempt += 1
+        else:
+            tt = token_req.json()['userToken']['token']
+            tt_headers.update({'Cookie': f"GDCAuthTT={tt}"})
+            return tt_headers
+
+
+run_start_win, first_run = find_last_successful_run(json_bucket, "conversations/successful_run_log/log.json",
+                                                    "2020-04-03")
+# if this is the first time the DAG has run, request the report that contains every call ever made and upload it to
+# the final BQ table. otherwise, use the report with 1 day's worth of data and upload it to the 'incoming' table
+# to be inserted into the final table in the next step
+if first_run:
+    report_id = os.environ['FLEX_INSIGHTS_REPORT_ID']
+    table_name = 'flex_insights_conversations'
+else:
+    report_id = '3442820'
+    table_name = 'incoming_conversations'
+
+# Super Secure Tokens (SSTs) last for two weeks, so this code checks to see if a SST has been uploaded within that time
+# window. If it has, it is pulled from GCS and used in the following API requests. If not, a new one is generated
+if (today - datetime.strptime(run_start_win, '%Y-%m-%d')).days >= 14:
+    reset_sst()
 
 token_headers = get_temp_token(BASE_URL, BASE_HEADERS, json_bucket)
 report_body = F"""
