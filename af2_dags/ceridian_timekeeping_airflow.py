@@ -49,7 +49,7 @@ ceridian_gcs = BashOperator(
 ceridian_dataflow = BashOperator(
     task_id='ceridian_timekeeping_dataflow',
     bash_command=f"python {os.environ['DATAFLOW_SCRIPT_PATH']}/ceridian_timekeeping_dataflow.py "
-                 f"--input {bucket}/{json_loc} --avro_output {hot_bucket}/{avro_loc}*.avro",
+                 f"--input {bucket}/{json_loc} --avro_output {hot_bucket}/{avro_loc}",
     dag=dag
 )
 
