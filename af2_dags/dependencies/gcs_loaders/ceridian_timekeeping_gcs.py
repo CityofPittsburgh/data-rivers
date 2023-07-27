@@ -37,7 +37,7 @@ else:
     prev_month_first = str(prev_month_first.date().strftime("%m/%d/%Y %H:%M:%S %p"))
 print(f'Previous month date range: {prev_month_first}-{prev_month_last}')
 
-BASE_URL = f"https://www.dayforcehcm.com/Api/{os.environ['CERIDIAN_ORG_ID']}/V1/Reports/TIMESHEETREPORT"
+BASE_URL = f"https://www.dayforcehcm.com/Api/{os.environ['CERIDIAN_ORG_ID']}/V1/Reports/TIMESHEETREPORTAPI"
 auth = HTTPBasicAuth(os.environ['CERIDIAN_USER'], os.environ['CERIDIAN_PW'])
 
 # set filters on API request - data should encompass the entire previous month
