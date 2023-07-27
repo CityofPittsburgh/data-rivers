@@ -89,7 +89,6 @@ def run(argv=None):
     with beam.Pipeline(options=pipeline_options) as p:
         field_name_swaps = [('EmployeeEmploymentStatus_EmployeeNumber', 'employee_num'),
                             ('Employee_DisplayName', 'display_name'),
-                            ('OrgUnit_ShortName', 'org_unit'),
                             ('Job_ShortName', 'job_title'),
                             ('EmployeePaySummary_BusinessDate', 'pay_period'),
                             ('PayAdjCode_ShortName', 'pay_code'),
@@ -98,7 +97,8 @@ def run(argv=None):
                             ('EmployeePaySummary_NetHoursSum', 'net_hours'),
                             ('LaborMetricsCode0_XRefCode', 'labor_metrics_code')]
         type_changes = [('employee_num', 'str'), ('net_hours', 'float')]
-        drop_fields = ['EmployeePaySummary_PayAmountSum', 'EmployeePaySummary_Rate', 'LaborMetricsCode0_LedgerCode']
+        drop_fields = ['EmployeePaySummary_PayAmountSum', 'EmployeePaySummary_Rate', 'OrgUnit_ShortName',
+                       'LaborMetricsCode0_LedgerCode', 'Department_LongName']
 
         lines = p | ReadFromText(known_args.input, coder=JsonCoder())
 
