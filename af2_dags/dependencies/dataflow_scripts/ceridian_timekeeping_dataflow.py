@@ -39,21 +39,25 @@ class CrosswalkDeptNames(beam.DoFn):
         blob = bucket.get_blob(self.crosswalk_file)
         cw = blob.download_as_string()
         crosswalk = json.loads(cw.decode('utf-8'))
-        datum['dept'] = ''
-        datum['dept_desc'] = ''
-        datum['office'] = ''
-        datum['corporation'] = ''
+        datum['dept'] = None
+        datum['dept_desc'] = None
+        datum['office'] = None
+        datum['corporation'] = None
         for dict in crosswalk:
             if datum['org_unit'] == dict['Ceridian Department Name']:
                 datum['dept'] = dict['Department']
                 datum['dept_desc'] = dict['Department Description']
                 datum['office'] = dict['Office']
                 datum['corporation'] = dict['Corporation']
-        if datum['dept'] == '':
+        if not datum['dept']:
             split_dept = datum['org_unit'].split("-")
             datum['dept'] = split_dept[0]
             try:
                 datum['dept_desc'] = split_dept[1]
+                try:
+                    datum['office'] = split_dept[2]
+                except:
+                    datum['office'] = split_dept[0]
             except:
                 datum['dept_desc'] = split_dept[0]
             datum['corporation'] = 'City of Pittsburgh'
@@ -77,7 +81,9 @@ def run(argv=None):
         argv=argv,
         schema_name='ceridian_timekeeping',
         default_arguments=DEFAULT_DATAFLOW_ARGS,
-        limit_workers=[False, None]
+        limit_workers=[False, None],
+        backfill_dag=False,
+        use_df_runner=True
     )
 
     with beam.Pipeline(options=pipeline_options) as p:
