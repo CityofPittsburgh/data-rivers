@@ -82,7 +82,7 @@ insert_monthly_data = BigQueryOperator(
 
 delete_avro = BashOperator(
     task_id='delete_avro',
-    bash_command=f"gsutil rm -r gs://{hot_bucket}/{avro_loc}*.avro",
+    bash_command=f"gsutil rm -r {hot_bucket}/{avro_loc}*.avro",
     dag=dag
 )
 
