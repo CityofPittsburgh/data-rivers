@@ -44,13 +44,13 @@ class CrosswalkDeptNames(beam.DoFn):
         datum['office'] = None
         datum['corporation'] = None
         for dict in crosswalk:
-            if datum['org_unit'] == dict['Ceridian Department Name']:
+            if datum['Department_LongName'] == dict['Ceridian Department Name']:
                 datum['dept'] = dict['Department']
                 datum['dept_desc'] = dict['Department Description']
                 datum['office'] = dict['Office']
                 datum['corporation'] = dict['Corporation']
         if not datum['dept']:
-            split_dept = datum['org_unit'].split("-")
+            split_dept = datum['Department_LongName'].split("-")
             datum['dept'] = split_dept[0]
             try:
                 datum['dept_desc'] = split_dept[1]
