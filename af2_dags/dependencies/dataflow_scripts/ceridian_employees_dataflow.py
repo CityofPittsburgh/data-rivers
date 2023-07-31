@@ -11,7 +11,6 @@ from apache_beam.io.avroio import WriteToAvro
 from dataflow_utils import dataflow_utils
 from dataflow_utils.dataflow_utils import JsonCoder, SwapFieldNames, generate_args, ChangeDataTypes, FilterFields, \
     CrosswalkDeptNames, StripBeforeDelim
-from google.cloud import storage
 
 DEFAULT_DATAFLOW_ARGS = [
     '--save_main_session',
@@ -70,7 +69,7 @@ def run(argv=None):
                 lines
                 | beam.ParDo(StripBeforeDelim(date_fields, delim='T'))
                 | beam.ParDo(SwapFieldNames(field_name_swaps))
-                | beam.ParDo(CrosswalkDeptNames('Department_ShortName'))
+                | beam.ParDo(CrosswalkDeptNames('Department_ShortName', os.environ['CERIDIAN_DEPT_FILE']))
                 | beam.ParDo(ChangeDataTypes(type_changes))
                 | beam.ParDo(FilterFields(drop_fields, exclude_target_fields=True))
                 | WriteToAvro(known_args.avro_output, schema=avro_schema, file_name_suffix='.avro',
