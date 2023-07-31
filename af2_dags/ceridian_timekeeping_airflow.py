@@ -7,10 +7,8 @@ from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
 from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOperator
-from airflow.contrib.operators.bigquery_to_gcs import BigQueryToCloudStorageOperator
 from dependencies import airflow_utils
-from dependencies.airflow_utils import get_ds_month, get_ds_year, get_ds_day, default_args, \
-    build_insert_new_records_query
+from dependencies.airflow_utils import get_ds_month, get_ds_year, get_ds_day, default_args
 
 # The goal of this DAG is to perform a monthly pull of timesheet entries for all
 # City of Pittsburgh employee via the Ceridian Dayforce API. This  data will be stored securely
