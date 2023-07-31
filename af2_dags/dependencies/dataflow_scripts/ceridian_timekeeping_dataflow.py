@@ -11,7 +11,6 @@ from apache_beam.io.avroio import WriteToAvro
 from dataflow_utils import dataflow_utils
 from dataflow_utils.dataflow_utils import JsonCoder, SwapFieldNames, generate_args, ChangeDataTypes, FilterFields, \
     CrosswalkDeptNames, StripBeforeDelim, StandardizeTimes
-from google.cloud import storage
 
 DEFAULT_DATAFLOW_ARGS = [
     '--save_main_session',
@@ -32,14 +31,12 @@ def run(argv=None):
         argv=argv,
         schema_name='ceridian_timekeeping',
         default_arguments=DEFAULT_DATAFLOW_ARGS,
-        limit_workers=[False, None],
-        backfill_dag=False,
-        use_df_runner=True
+        limit_workers=[False, None]
     )
 
     with beam.Pipeline(options=pipeline_options) as p:
         date_fields = ['EmployeePaySummary_BusinessDate']
-        times = [date_fields[0], 'EST']
+        times = [(date_fields[0], 'EST')]
         field_name_swaps = [('EmployeeEmploymentStatus_EmployeeNumber', 'employee_num'),
                             ('Employee_DisplayName', 'display_name'),
                             ('Job_ShortName', 'job_title'),
@@ -61,7 +58,7 @@ def run(argv=None):
                 | beam.ParDo(StripBeforeDelim(date_fields, delim='T'))
                 | beam.ParDo(StandardizeTimes(times, "%m/%d/%Y"))
                 | beam.ParDo(SwapFieldNames(field_name_swaps))
-                | beam.ParDo(CrosswalkDeptNames('Department_LongName'))
+                | beam.ParDo(CrosswalkDeptNames('Department_LongName', os.environ['CERIDIAN_DEPT_FILE']))
                 | beam.ParDo(ChangeDataTypes(type_changes))
                 | beam.ParDo(FilterFields(drop_fields, exclude_target_fields=True))
                 | WriteToAvro(known_args.avro_output, schema=avro_schema, file_name_suffix='.avro',
