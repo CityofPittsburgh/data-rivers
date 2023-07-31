@@ -51,7 +51,7 @@ def run(argv=None):
                             ('Employee_DisplayName', 'display_name'),
                             ('Job_ShortName', 'job_title'),
                             ('Employee_HireDate', 'hire_date'),
-                            ('Employee_TerminationDate', 'termination_date')
+                            ('Employee_TerminationDate', 'termination_date'),
                             ('DFUnion_ShortName', 'union'),
                             ('EmploymentStatus_LongName', 'status'),
                             ('PayClass_LongName', 'pay_class'),
