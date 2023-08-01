@@ -159,23 +159,28 @@ while export_status == '202' and round <= 5:
             time.sleep(delay)
             delay *= 1.25
 
-# mark abandoned calls as a 'kind' of conversation, drop 'abandoned' column afterward
-df['Kind'] = df.apply(set_col_b_based_on_col_a_val, col_a='Abandoned', col_b='Kind', check_val='Yes',
-                      new_val='Abandoned Conversation', axis=1)
-df = df.drop('Abandoned', axis=1)
+# proceed if any calls were returned on this day
+try:
+    # mark abandoned calls as a 'kind' of conversation, drop 'abandoned' column afterward
+    df['Kind'] = df.apply(set_col_b_based_on_col_a_val, col_a='Abandoned', col_b='Kind', check_val='Yes',
+                          new_val='Abandoned Conversation', axis=1)
+    df = df.drop('Abandoned', axis=1)
 
-# convert phone numbers to string
-df = change_data_type(df, {'Customer Phone': str})
+    # convert phone numbers to string
+    df = change_data_type(df, {'Customer Phone': str})
 
-# convert all different Null types to a single type (None)
-df = df.applymap(lambda x: None if isinstance(x, str) and x == '' or x == 'nan' else x)
-df = df.where(df.notnull(), None)
+    # convert all different Null types to a single type (None)
+    df = df.applymap(lambda x: None if isinstance(x, str) and x == '' or x == 'nan' else x)
+    df = df.where(df.notnull(), None)
 
-# reorder and rename columns
-df = swap_two_columns(df, 'Date_Time', 'Segment')
-df.columns = FINAL_COLS
+    # reorder and rename columns
+    df = swap_two_columns(df, 'Date_Time', 'Segment')
+    df.columns = FINAL_COLS
 
-#  read in AVRO schema and load into BQ
-schema = conv_avsc_to_bq_schema(F"{os.environ['GCS_PREFIX']}_avro_schemas", "twilio_conversations.avsc")
-print(f"Uploading data into {table_name}")
-df_to_partitioned_bq_table(df, 'twilio', table_name, schema, 'MONTH', 'date_time', 'WRITE_TRUNCATE')
+    #  read in AVRO schema and load into BQ
+    schema = conv_avsc_to_bq_schema(F"{os.environ['GCS_PREFIX']}_avro_schemas", "twilio_conversations.avsc")
+    print(f"Uploading data into {table_name}")
+    df_to_partitioned_bq_table(df, 'twilio', table_name, schema, 'MONTH', 'date_time', 'WRITE_TRUNCATE')
+
+except ValueError:
+    print("No calls received today")
