@@ -20,7 +20,7 @@ COLS_IN_ORDER = """id, date_time, day_of_week, agent, customer_phone, kind, dire
 dag = DAG(
     'twilio_conversations',
     default_args=default_args,
-    schedule_interval='0 0 * * 1-5',
+    schedule_interval='@daily',
     start_date=datetime(2023, 7, 10),
     catchup=False,
     user_defined_filters={'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year,
