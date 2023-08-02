@@ -73,8 +73,7 @@ def run(argv = None):
             argv = argv,
             schema_name = 'qalert_requests',
             default_arguments=DEFAULT_DATAFLOW_ARGS,
-            limit_workers = [False, None],
-            use_df_runner = True
+            limit_workers = [False, None]
     )
 
     with beam.Pipeline(options = pipeline_options) as p:
