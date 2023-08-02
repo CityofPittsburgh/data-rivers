@@ -9,22 +9,9 @@ import pandas as pd
 from datetime import datetime
 from google.cloud import storage
 
-# adapted from https://stackoverflow.com/a/28154841 to get branching imports working
-import sys
-from pathlib import Path
-file = Path(__file__).resolve()
-parent, root = file.parent, file.parents[1]
-sys.path.append(str(root))
-
-try:
-    sys.path.remove(str(parent))
-except ValueError:
-    pass
-
 # import dependencies
-from gcs_loaders.gcs_utils import find_last_successful_run, json_to_gcs, conv_avsc_to_bq_schema
-from dataflow_scripts.dataflow_utils.pandas_utils import change_data_type, df_to_partitioned_bq_table, \
-    set_col_b_based_on_col_a_val, swap_two_columns
+from pandas_utils import change_data_type, conv_avsc_to_bq_schema, df_to_partitioned_bq_table, find_last_successful_run, \
+    json_to_gcs, set_col_b_based_on_col_a_val, swap_two_columns
 
 
 storage_client = storage.Client()
