@@ -30,16 +30,16 @@ path = "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds|get_ds_day }}/{{ run_id
 json_loc = f"{path}_records.json"
 avro_loc = f"avro_output/{path}/"
 
-intime_gcs = BashOperator(
-    task_id='intime_gcs',
+intime_employees_gcs = BashOperator(
+    task_id='intime_employees_gcs',
     bash_command=f"python {os.environ['GCS_LOADER_PATH']}/intime_employees_gcs.py --output_arg {json_loc}",
     execution_timeout=timedelta(hours=1),
     dag=dag
 )
 
-intime_pandas = BashOperator(
-    task_id='intime_pandas',
-    bash_command=f"python {os.environ['DATAFLOW_SCRIPT_PATH']}/intime_employees_pandas.py --input {json_loc}",
+intime_employees_pandas = BashOperator(
+    task_id='intime_employees_pandas',
+    bash_command=f"python {os.environ['PANDAS_ETL_PATH']}/intime_employees_pandas.py --input {json_loc}",
     dag=dag
 )
 
@@ -52,4 +52,4 @@ intime_iapro_export = BigQueryToCloudStorageOperator(
     dag=dag
 )
 
-intime_gcs >> intime_pandas >> intime_iapro_export
+intime_employees_gcs >> intime_employees_pandas >> intime_iapro_export
