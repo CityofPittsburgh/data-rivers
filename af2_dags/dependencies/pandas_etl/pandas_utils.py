@@ -111,6 +111,20 @@ def fill_leading_zeroes(df, field_name, digits):
     return df
 
 
+def find_last_successful_run(bucket_name, good_run_path, look_back_date):
+    bucket = storage_client.bucket(bucket_name)
+    blob = bucket.get_blob(good_run_path)
+    # if blobs are found
+    if blob is not None:
+        run_info = blob.download_as_string()
+        last_good_run = ndjson.loads(run_info.decode('utf-8'))[0]["current_run"]
+        first_run = False
+        return last_good_run, first_run
+    else:
+        first_run = True
+        return str(look_back_date), first_run
+
+
 def json_linter(ndjson: str):
     result_ndjson = []
     for i, line in enumerate(ndjson.split('\n')):
