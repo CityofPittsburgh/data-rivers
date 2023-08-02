@@ -28,8 +28,8 @@ dag = DAG(
     max_active_runs=1
 )
 
-twilio_gcs = BashOperator(
-    task_id='twilio_gcs',
+twilio_pandas_etl = BashOperator(
+    task_id='twilio_pandas_etl',
     bash_command=f"python {os.environ['PANDAS_ETL_PATH']}/twilio_conversations_etl.py",
     dag=dag
 )
@@ -43,4 +43,4 @@ insert_new_convos = BigQueryOperator(
     dag=dag
 )
 
-twilio_gcs >> insert_new_convos
+twilio_pandas_etl >> insert_new_convos
