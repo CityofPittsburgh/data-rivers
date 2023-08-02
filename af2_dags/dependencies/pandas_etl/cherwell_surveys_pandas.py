@@ -7,7 +7,7 @@ import io
 import pandas as pd
 from google.cloud import storage
 
-from dataflow_utils.pandas_utils import change_data_type, conv_avsc_to_bq_schema, standardize_times
+from pandas_utils import change_data_type, conv_avsc_to_bq_schema, standardize_times
 
 FINAL_COLS = ['id', 'incident_id', 'created_date_EST', 'created_date_UTC', 'created_date_UNIX', 'submitted_by',
               'submitted_date_EST', 'submitted_date_UTC', 'submitted_date_UNIX', 'survey_complete',
