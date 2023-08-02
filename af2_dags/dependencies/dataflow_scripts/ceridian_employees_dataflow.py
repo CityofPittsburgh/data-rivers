@@ -35,7 +35,7 @@ def run(argv=None):
     # and avro schema to validate data with. Return the arg parser values, PipelineOptions, and avro_schemas (dict)
 
     known_args, pipeline_options, avro_schema = generate_args(
-        job_name='ceridian-dataflow',
+        job_name='ceridian-employees-dataflow',
         bucket=f"{os.environ['GCS_PREFIX']}_ceridian",
         argv=argv,
         schema_name='ceridian_employees',

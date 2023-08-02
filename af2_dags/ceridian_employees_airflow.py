@@ -37,20 +37,20 @@ path = "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}"
 json_loc = f"{dataset}/{path}/{exec_date}_employees.json"
 avro_loc = f"{dataset}/avro_output/{path}/" + "{{ run_id }}"
 
-ceridian_gcs = BashOperator(
+ceridian_employees_gcs = BashOperator(
     task_id='ceridian_employees_gcs',
     bash_command=f"python {os.environ['GCS_LOADER_PATH']}/ceridian_employees_gcs.py --output_arg {json_loc}",
     dag=dag
 )
 
-ceridian_dataflow = BashOperator(
+ceridian_employees_dataflow = BashOperator(
     task_id='ceridian_employees_dataflow',
     bash_command=f"python {os.environ['DATAFLOW_SCRIPT_PATH']}/ceridian_employees_dataflow.py "
                  f"--input {bucket}/{json_loc} --avro_output {bucket}/{avro_loc}",
     dag=dag
 )
 
-ceridian_bq_load = GoogleCloudStorageToBigQueryOperator(
+ceridian_employees_bq_load = GoogleCloudStorageToBigQueryOperator(
     task_id='ceridian_employees_bq_load',
     destination_project_dataset_table=f"{os.environ['GCLOUD_PROJECT']}.ceridian.all_employees",
     bucket=f"{os.environ['GCS_PREFIX']}_ceridian",
@@ -116,5 +116,5 @@ beam_cleanup = BashOperator(
     dag=dag
 )
 
-ceridian_gcs >> ceridian_dataflow >> ceridian_bq_load >> create_gender_comp_table >> create_racial_comp_table >> \
-    ceridian_iapro_export >> beam_cleanup
+ceridian_employees_gcs >> ceridian_employees_dataflow >> ceridian_employees_bq_load >> create_gender_comp_table >> \
+    create_racial_comp_table >> ceridian_iapro_export >> beam_cleanup
