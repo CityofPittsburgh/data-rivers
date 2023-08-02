@@ -10,9 +10,8 @@ import pandas as pd
 from datetime import datetime
 from google.cloud import storage
 
-from dataflow_utils import pandas_utils
-from dataflow_utils.pandas_utils import camel_to_snake_case, conv_avsc_to_bq_schema, fill_leading_zeroes, \
-    strip_char_pattern, swap_field_names
+from pandas_utils import camel_to_snake_case, conv_avsc_to_bq_schema, fill_leading_zeroes, strip_char_pattern, \
+    swap_field_names
 
 storage_client = storage.Client()
 bucket = storage_client.bucket(f"{os.environ['GCS_PREFIX']}_intime")
