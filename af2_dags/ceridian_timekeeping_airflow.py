@@ -38,20 +38,20 @@ path = "{{ ds|get_ds_year }}"
 json_loc = f"{dataset}/{path}/{prev_month}_timekeeping.json"
 avro_loc = "employee_timekeeping"
 
-ceridian_gcs = BashOperator(
+ceridian_timekeeping_gcs = BashOperator(
     task_id='ceridian_timekeeping_gcs',
     bash_command=f"python {os.environ['GCS_LOADER_PATH']}/ceridian_timekeeping_gcs.py --output_arg {json_loc}",
     dag=dag
 )
 
-ceridian_dataflow = BashOperator(
+ceridian_timekeeping_dataflow = BashOperator(
     task_id='ceridian_timekeeping_dataflow',
     bash_command=f"python {os.environ['DATAFLOW_SCRIPT_PATH']}/ceridian_timekeeping_dataflow.py "
                  f"--input {bucket}/{json_loc} --avro_output {hot_bucket}/{avro_loc}",
     dag=dag
 )
 
-ceridian_bq_load = GoogleCloudStorageToBigQueryOperator(
+ceridian_timekeeping_bq_load = GoogleCloudStorageToBigQueryOperator(
     task_id='ceridian_timekeeping_bq_load',
     destination_project_dataset_table=f"{os.environ['GCLOUD_PROJECT']}.ceridian.monthly_timesheet_report",
     bucket=f"{os.environ['GCS_PREFIX']}_hot_metal",
@@ -90,4 +90,5 @@ beam_cleanup = BashOperator(
     dag=dag
 )
 
-ceridian_gcs >> ceridian_dataflow >> ceridian_bq_load >> insert_monthly_data >> delete_avro >> beam_cleanup
+ceridian_timekeeping_gcs >> ceridian_timekeeping_dataflow >> ceridian_timekeeping_bq_load >> insert_monthly_data >> \
+    delete_avro >> beam_cleanup
