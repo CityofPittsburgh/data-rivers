@@ -17,14 +17,30 @@ parser.add_argument('--output_arg', dest='out_loc', required=True,
                     help='fully specified location to upload the combined ndjson file')
 args = vars(parser.parse_args())
 
+
+# adapted from https://stackoverflow.com/a/43088
+def last_day_of_month(datestring):
+    input_date = datetime.strptime(datestring, "%m/%d/%Y %H:%M:%S %p")
+    if input_date.month == 12:
+        return input_date.replace(day=31)
+    date_val = input_date.replace(month=input_date.month+1, day=1) - timedelta(days=1)
+    return str(date_val.date().strftime("%m/%d/%Y")) + " 11:59:59 PM"
+
+
+def set_url(first_of_month, last_of_month):
+    return f"https://www.dayforcehcm.com/Api/{os.environ['CERIDIAN_ORG_ID']}/V1/Reports/TIMESHEETREPORTAPI" \
+                f"?5b93e411-2928-463d-b048-03460269d416={first_of_month}&" \
+                f"bb93e411-2928-463d-b048-03460269d416={last_of_month}"
+
+
 # adapted from https://pynative.com/python-get-last-day-of-month/#h-get-last-day-of-a-previous-month
 input_dt = datetime.today()
-first_curr_month = input_dt.replace(day=1)
+curr_month_first = input_dt.replace(day=1)
 
-prev_month_last = first_curr_month - timedelta(days=1)
-prev_month_first = prev_month_last.replace(day=1)
+month_last = curr_month_first - timedelta(days=1)
+month_first = month_last.replace(day=1)
 
-prev_month_last = str(prev_month_last.date().strftime("%m/%d/%Y")) + " 11:59:59 PM"
+month_last = str(month_last.date().strftime("%m/%d/%Y")) + " 11:59:59 PM"
 
 run_start_win, first_run = find_last_successful_run(bucket, "timekeeping/successful_run_log/log.json",
                                                     "01/01/2023 00:00:00 AM")
@@ -32,22 +48,22 @@ run_start_win, first_run = find_last_successful_run(bucket, "timekeeping/success
 # if this is the first time the DAG has ran, start pulling data from the beginning of the year
 # otherwise, only get the previous month's data
 if first_run:
-    prev_month_first = run_start_win
+    month_first = run_start_win
+    month_last = last_day_of_month(month_first)
 else:
-    prev_month_first = str(prev_month_first.date().strftime("%m/%d/%Y %H:%M:%S %p"))
-print(f'Previous month date range: {prev_month_first}-{prev_month_last}')
+    month_first = str(month_first.date().strftime("%m/%d/%Y %H:%M:%S %p"))
+print(f'Previous month date range: {month_first}-{month_last}')
 
-BASE_URL = f"https://www.dayforcehcm.com/Api/{os.environ['CERIDIAN_ORG_ID']}/V1/Reports/TIMESHEETREPORTAPI"
 auth = HTTPBasicAuth(os.environ['CERIDIAN_USER'], os.environ['CERIDIAN_PW'])
 
 # set filters on API request - data should encompass the entire previous month
-url = BASE_URL + f"?5b93e411-2928-463d-b048-03460269d416={prev_month_first}&" \
-                 f"bb93e411-2928-463d-b048-03460269d416={prev_month_last}"
+url = set_url(month_first, month_last)
 
 # Make use of session to retain authorization header when a URL redirect happens
 s = requests.session()
 more = True
 all_records = []
+
 while more is True:
     # API call to get data
     response = s.get(url, auth=auth)
@@ -63,14 +79,20 @@ while more is True:
     # continue looping through records until the API has a MoreFlag value of 0
     if response.json()['Paging']['Next']:
         url = response.json()['Paging']['Next']
+    elif first_run and (month_first != str(curr_month_first.date().strftime("%m/%d/%Y %H:%M:%S %p"))):
+        month_first = datetime.strptime(month_last, "%m/%d/%Y %H:%M:%S %p").date() + timedelta(days=1)
+        month_first = str(month_first.strftime("%m/%d/%Y %H:%M:%S %p"))
+        month_last = last_day_of_month(month_first)
+        url = set_url(month_first, month_last)
     else:
         more = False
+
     # append list of API results to growing all_records list (should require several loops)
     all_records += time_data
 
 json_to_gcs(f"{args['out_loc']}", all_records, bucket)
 
-successful_run = [{"since": prev_month_first,
-                   "current_run": prev_month_last,
+successful_run = [{"since": month_first,
+                   "current_run": month_last,
                    "note": "Timekeeping data retrieved between the time points listed above"}]
 json_to_gcs("timekeeping/successful_run_log/log.json", successful_run, bucket)
