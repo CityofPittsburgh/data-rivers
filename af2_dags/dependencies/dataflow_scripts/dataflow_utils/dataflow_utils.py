@@ -573,6 +573,8 @@ class ReplacePII(beam.DoFn):
         self.place_id_bucket = place_id_bucket
 
     def process(self, datum):
+        print(F"replacing/scanning PII of {datum['id']}")
+        print(F"{datum}")
         if datum is not None:
             datum[self.new_field_name] = replace_pii(datum, self.input_field, self.retain_location, self.info_types,
                                                      self.gcloud_project, self.place_id_bucket)
@@ -1217,13 +1219,7 @@ def replace_pii(datum, input_field, retain_location, info_types, gcloud_project,
 
     # run until results are retrieved from API or exponential backoff reaches limit
     while curr_delay <= max_delay:
-        response = dlp_client.deidentify_content(
-            request={"parent": parent,
-                     "deidentify_config": deidentify_config,
-                     "inspect_config": inspect_config,
-                     "item": item
-                     }
-        )
+        response = dlp_client.deidentify_content(parent,deidentify_config, inspect_config, item)
         if response.item.value:
             break
         # elif not response and curr_delay < max_delay:
