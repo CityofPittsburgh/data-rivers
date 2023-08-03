@@ -36,11 +36,10 @@ def set_url(first_of_month, last_of_month):
 # adapted from https://pynative.com/python-get-last-day-of-month/#h-get-last-day-of-a-previous-month
 input_dt = datetime.today()
 curr_month_first = input_dt.replace(day=1)
-
+# store the initial first day of the previous month in a variable so the backfill knows when to stop
+curr_month_first_str = str(curr_month_first.date().strftime("%m/%d/%Y %H:%M:%S %p"))
 month_last = curr_month_first - timedelta(days=1)
 month_first = month_last.replace(day=1)
-
-month_last = str(month_last.date().strftime("%m/%d/%Y")) + " 11:59:59 PM"
 
 run_start_win, first_run = find_last_successful_run(bucket, "timekeeping/successful_run_log/log.json",
                                                     "01/01/2023 00:00:00 AM")
@@ -49,10 +48,16 @@ run_start_win, first_run = find_last_successful_run(bucket, "timekeeping/success
 # otherwise, only get the previous month's data
 if first_run:
     month_first = run_start_win
-    month_last = last_day_of_month(month_first)
 else:
     month_first = str(month_first.date().strftime("%m/%d/%Y %H:%M:%S %p"))
-print(f'Previous month date range: {month_first}-{month_last}')
+
+# The Ceridian API can only return up to 100K records per request, and each month of data contains about
+# 120K rows. This code splits the month in half so all the data can be retrrieved
+month_last = (datetime.strptime(month_first, "%m/%d/%Y %H:%M:%S %p")).replace(day=15)
+month_last = str(month_last.strftime("%m/%d/%Y")) + " 11:59:59 PM"
+
+# (DAG should never pull data from the current month)
+print(f'Initial request date range: {month_first}-{month_last}')
 
 auth = HTTPBasicAuth(os.environ['CERIDIAN_USER'], os.environ['CERIDIAN_PW'])
 
@@ -79,11 +84,20 @@ while more is True:
     # continue looping through records until the API has a MoreFlag value of 0
     if response.json()['Paging']['Next']:
         url = response.json()['Paging']['Next']
-    elif first_run and (month_first != str(curr_month_first.date().strftime("%m/%d/%Y %H:%M:%S %p"))):
+    # just because there is no MoreFlag value does not necessarily mean there is no more data
+    # continue looping by moving time window up ~15 days until we catch up to the current month
+    elif month_first != curr_month_first_str:
         month_first = datetime.strptime(month_last, "%m/%d/%Y %H:%M:%S %p").date() + timedelta(days=1)
+        if '/15/' in month_last:
+            month_last = last_day_of_month(month_last)
+        else:
+            month_last = month_first.replace(day=15)
+            month_last = str(month_last.strftime("%m/%d/%Y")) + " 11:59:59 PM"
         month_first = str(month_first.strftime("%m/%d/%Y %H:%M:%S %p"))
-        month_last = last_day_of_month(month_first)
-        url = set_url(month_first, month_last)
+        if month_first != curr_month_first_str:
+            url = set_url(month_first, month_last)
+        else:
+            more = False
     else:
         more = False
 
