@@ -70,8 +70,7 @@ def run(argv = None):
             bucket = '{}_computronix'.format(os.environ['GCS_PREFIX']),
             argv = argv,
             schema_name = 'computronix_pli_condemned_dead_end_properties_wprdc',
-            default_arguments = DEFAULT_DATAFLOW_ARGS,
-            use_df_runner = True
+            default_arguments = DEFAULT_DATAFLOW_ARGS
     )
 
     with beam.Pipeline(options = pipeline_options) as p:
