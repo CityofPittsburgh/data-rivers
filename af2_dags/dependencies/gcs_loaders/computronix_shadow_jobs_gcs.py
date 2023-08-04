@@ -18,7 +18,7 @@ bucket = f"{os.environ['GCS_PREFIX']}_computronix"
 # CX ODATA API URL base
 url = 'https://staff.onestoppgh.pittsburghpa.gov/pghprod/odata/odata/'
 shadow_url = F"{url}SHADOWJOB?"
-shadow_jobs = call_odata_api_error_handling(shadow_url, "computronix shadow jobs", time_out = 7200)
+shadow_jobs = call_odata_api_error_handling(shadow_url, F"{os.environ['GCLOUD_PROJECT']} computronix shadow jobs", time_out = 7200)
 
 
 # load data into GCS

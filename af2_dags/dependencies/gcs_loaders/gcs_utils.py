@@ -72,6 +72,9 @@ def call_odata_api_error_handling(targ_url, pipeline, time_out = 3600, limit_res
     more_links = True
     call_attempt = 0
 
+    print(F"API call initiated at {datetime.utcnow().hour}H: {datetime.utcnow().minute}M UTC")
+    print(F"API call initiated at {datetime.today().hour}H: {datetime.today().minute}M EST")
+
     start = time.time()
     error_flag = False
 
@@ -158,8 +161,7 @@ def send_team_email_notification(failed_process, message):
             subject = "Airflow Failure Notification",
             html_content = F""""
                     Bad things have happened...
-                    {failed_process} has {message}...check the log for the offending airflow operator for 
-                    more info
+                    {failed_process} has {message}...check the airflow log for more info
                     """
     )
     sg = SendGridAPIClient(os.environ['SENDGRID_API_KEY'])

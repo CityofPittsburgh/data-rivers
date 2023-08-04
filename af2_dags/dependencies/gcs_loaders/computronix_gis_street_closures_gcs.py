@@ -48,7 +48,8 @@ odata_url = F"{url}{tb_base}?$select={fds_base}," + F"&$expand={tb_nt1}" \
 
 # extract the data from ODATA API
 
-nested_permits = call_odata_api_error_handling(odata_url, "computronix gis street closures", limit_results = False)
+nested_permits = call_odata_api_error_handling(odata_url,
+                                               F"{os.environ['GCLOUD_PROJECT']} computronix gis street closures")
 unnested_data = unnest_domi_street_seg(nested_permits, SWAPS, OLD_KEYS, NEW_KEYS)
 
 # load data into GCS
