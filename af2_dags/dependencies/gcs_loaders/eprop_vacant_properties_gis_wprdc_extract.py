@@ -179,7 +179,7 @@ df_records = df_records[FIELDS.values()]
 
 # convert id, an int, to string to be consistent with our SOP and change NaNs to Null
 df_records["id"] = df_records["id"].astype(str)
-df_records["address"].apply(lambda x: x.upper())
+df_records["address"] = df_records["address"].apply(lambda x: x.upper())
 
 # clean the parcel numbers
 df_records["parc"] = df_records["parc"].apply(lambda x: normalize_block_lot(x))
