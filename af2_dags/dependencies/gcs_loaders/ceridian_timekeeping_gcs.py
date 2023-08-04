@@ -78,7 +78,7 @@ while more is True:
         # Retry API request with same parameters but new URL
         response = s.get(redir_url, auth=auth)
     curr_run = datetime.now(tz=pendulum.timezone('UTC')).strftime("%Y-%m-%d %H:%M:%S")
-    print(f"Response at {str(curr_run)}: {str(response.status_code)}")
+    print(f"Response for time range {month_first} through {month_last}: {str(response.status_code)}")
 
     time_data = response.json()['Data']['Rows']
     # continue looping through records until the API has a MoreFlag value of 0
@@ -104,6 +104,7 @@ while more is True:
     # append list of API results to growing all_records list (should require several loops)
     all_records += time_data
 
+print(f"Total extract length: {len(all_records)}")
 json_to_gcs(f"{args['out_loc']}", all_records, bucket)
 
 successful_run = [{"since": month_first,
