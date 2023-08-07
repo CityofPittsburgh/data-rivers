@@ -100,7 +100,7 @@ odata_url = F"{root}{base}?" \
             F"{unnested_table_3}($select={fds_unt3})"
 
 # get violations from API
-violations = call_odata_api_error_handling(odata_url ,"computronix violations", time_out = 7200)
+violations = call_odata_api_error_handling(odata_url ,F"{os.environ['GCLOUD_PROJECT']} computronix violations", time_out = 7200)
 
 
 # names to swap for fields that are not nested in raw data
