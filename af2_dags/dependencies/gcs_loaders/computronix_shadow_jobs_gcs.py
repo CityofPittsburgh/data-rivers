@@ -1,7 +1,7 @@
 import os
 import argparse
 
-from gcs_utils import call_odata_api_error_handling, json_to_gcs
+from gcs_utils import call_odata_api_error_handling, json_to_gcs, write_partial_api_request_results_for_inspection
 
 
 parser = argparse.ArgumentParser()
@@ -18,9 +18,14 @@ bucket = f"{os.environ['GCS_PREFIX']}_computronix"
 # CX ODATA API URL base
 url = 'https://staff.onestoppgh.pittsburghpa.gov/pghprod/odata/odata/'
 shadow_url = F"{url}SHADOWJOB?"
-shadow_jobs = call_odata_api_error_handling(shadow_url, F"{os.environ['GCLOUD_PROJECT']} computronix shadow jobs", time_out = 7200)
+shadow_jobs, error_flag = call_odata_api_error_handling(shadow_url, F"{os.environ['GCLOUD_PROJECT']} computronix "
+                                                                    F"shadow "
+                                                              F"jobs", time_out = 7200)
 
 
 # load data into GCS
 # out loc = <dataset>/<full date>/<run_id>_shadow_jobs.json
-json_to_gcs(args["out_loc"], shadow_jobs, bucket)
+if not error_flag:
+    json_to_gcs(args["out_loc"], shadow_jobs, bucket)
+else:
+    write_partial_api_request_results_for_inspection(shadow_jobs, "shadow_jobs")

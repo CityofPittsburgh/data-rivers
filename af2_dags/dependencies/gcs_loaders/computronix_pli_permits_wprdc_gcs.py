@@ -1,7 +1,8 @@
 import os
 import argparse
 
-from gcs_utils import json_to_gcs, call_odata_api_error_handling
+from gcs_utils import json_to_gcs, call_odata_api_error_handling, \
+    write_partial_api_request_results_for_inspection
 
 """
 There are four types of PLI permits (building, electrical, mechanical, and general) that are ingested here. 
@@ -58,7 +59,8 @@ odata_url_tail = F"&$expand={xref_1}" \
 all_permits = []
 for (b, i) in zip(bases, fds_id):
     odata_url = F"{url}{b}?{odata_url_date_filter}&{odata_url_base_fields}, {i}, {odata_url_tail}"
-    permits = call_odata_api_error_handling(odata_url, F"{os.environ['GCLOUD_PROJECT']} computronix pli {b} permits")
+    permits, error_flag = call_odata_api_error_handling(odata_url,
+                                                        F"{os.environ['GCLOUD_PROJECT']} computronix pli {b} permits")
     for p in permits:
         p.update({"permit_type": b.split("PERMIT")[0]})
     if b == bases[0]:
@@ -72,8 +74,8 @@ for (b, i) in zip(bases, fds_id):
 odata_url = F"{url}GENERALPERMIT?{odata_url_date_filter}&{odata_url_base_fields}, PERMITTYPEPERMITTYPE, " \
             F"EXTERNALFILENUM, {odata_url_tail}"
 
-gen_permits = call_odata_api_error_handling(odata_url, F"{os.environ['GCLOUD_PROJECT']} computronix pli general "
-                                                       F"permits")
+gen_permits, error_flag = call_odata_api_error_handling(odata_url,
+                                                        F"{os.environ['GCLOUD_PROJECT']} computronix pli general permits")
 
 # change field to 'permit_type' for consistency with other tables
 for g in gen_permits:
@@ -86,7 +88,10 @@ all_permits.extend(gen_permits)
 
 # load data into GCS
 # out loc = <dataset>/<full date>/<run_id>_all_permits.json
-json_to_gcs(args["out_loc"], all_permits, bucket)
+if not error_flag:
+    json_to_gcs(args["out_loc"], all_permits, bucket)
+else:
+    write_partial_api_request_results_for_inspection(all_permits, "pli_permits")
 
 
 
