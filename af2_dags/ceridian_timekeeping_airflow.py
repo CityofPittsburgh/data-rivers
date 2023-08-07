@@ -66,9 +66,9 @@ ceridian_timekeeping_bq_load = GoogleCloudStorageToBigQueryOperator(
 
 write_append_query = F"""
 CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.ceridian.historic_timekeeping` AS
-    SELECT * FROM `{os.environ['GCLOUD_PROJECT']}.ceridian.historic_timekeeping`
+    SELECT DISTINCT * FROM `{os.environ['GCLOUD_PROJECT']}.ceridian.historic_timekeeping`
     UNION DISTINCT
-    SELECT * FROM `{os.environ['GCLOUD_PROJECT']}.ceridian.monthly_timesheet_report`
+    SELECT DISTINCT * FROM `{os.environ['GCLOUD_PROJECT']}.ceridian.monthly_timesheet_report`
 """
 insert_monthly_data = BigQueryOperator(
     task_id='insert_monthly_data',
