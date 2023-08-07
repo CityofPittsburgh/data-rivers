@@ -58,7 +58,7 @@ odata_url_tail = F"&$expand={xref_1}" \
 all_permits = []
 for (b, i) in zip(bases, fds_id):
     odata_url = F"{url}{b}?{odata_url_date_filter}&{odata_url_base_fields}, {i}, {odata_url_tail}"
-    permits = call_odata_api_error_handling(odata_url, F"computronix pli {b} permits")
+    permits = call_odata_api_error_handling(odata_url, F"{os.environ['GCLOUD_PROJECT']} computronix pli {b} permits")
     for p in permits:
         p.update({"permit_type": b.split("PERMIT")[0]})
     if b == bases[0]:
@@ -72,7 +72,8 @@ for (b, i) in zip(bases, fds_id):
 odata_url = F"{url}GENERALPERMIT?{odata_url_date_filter}&{odata_url_base_fields}, PERMITTYPEPERMITTYPE, " \
             F"EXTERNALFILENUM, {odata_url_tail}"
 
-gen_permits = call_odata_api_error_handling(odata_url, "computronix pli general permits")
+gen_permits = call_odata_api_error_handling(odata_url, F"{os.environ['GCLOUD_PROJECT']} computronix pli general "
+                                                       F"permits")
 
 # change field to 'permit_type' for consistency with other tables
 for g in gen_permits:

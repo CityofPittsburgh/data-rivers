@@ -9,22 +9,9 @@ import pandas as pd
 from datetime import datetime
 from google.cloud import storage
 
-# adapted from https://stackoverflow.com/a/28154841 to get branching imports working
-import sys
-from pathlib import Path
-file = Path(__file__).resolve()
-parent, root = file.parent, file.parents[1]
-sys.path.append(str(root))
-
-try:
-    sys.path.remove(str(parent))
-except ValueError:
-    pass
-
 # import dependencies
-from gcs_loaders.gcs_utils import find_last_successful_run, json_to_gcs, conv_avsc_to_bq_schema
-from dataflow_scripts.dataflow_utils.pandas_utils import change_data_type, df_to_partitioned_bq_table, \
-    set_col_b_based_on_col_a_val, swap_two_columns
+from pandas_utils import change_data_type, conv_avsc_to_bq_schema, df_to_partitioned_bq_table, find_last_successful_run, \
+    json_to_gcs, set_col_b_based_on_col_a_val, swap_two_columns
 
 
 storage_client = storage.Client()
@@ -159,23 +146,28 @@ while export_status == '202' and round <= 5:
             time.sleep(delay)
             delay *= 1.25
 
-# mark abandoned calls as a 'kind' of conversation, drop 'abandoned' column afterward
-df['Kind'] = df.apply(set_col_b_based_on_col_a_val, col_a='Abandoned', col_b='Kind', check_val='Yes',
-                      new_val='Abandoned Conversation', axis=1)
-df = df.drop('Abandoned', axis=1)
+# proceed if any calls were returned on this day
+try:
+    # mark abandoned calls as a 'kind' of conversation, drop 'abandoned' column afterward
+    df['Kind'] = df.apply(set_col_b_based_on_col_a_val, col_a='Abandoned', col_b='Kind', check_val='Yes',
+                          new_val='Abandoned Conversation', axis=1)
+    df = df.drop('Abandoned', axis=1)
 
-# convert phone numbers to string
-df = change_data_type(df, {'Customer Phone': str})
+    # convert phone numbers to string
+    df = change_data_type(df, {'Customer Phone': str})
 
-# convert all different Null types to a single type (None)
-df = df.applymap(lambda x: None if isinstance(x, str) and x == '' or x == 'nan' else x)
-df = df.where(df.notnull(), None)
+    # convert all different Null types to a single type (None)
+    df = df.applymap(lambda x: None if isinstance(x, str) and x == '' or x == 'nan' else x)
+    df = df.where(df.notnull(), None)
 
-# reorder and rename columns
-df = swap_two_columns(df, 'Date_Time', 'Segment')
-df.columns = FINAL_COLS
+    # reorder and rename columns
+    df = swap_two_columns(df, 'Date_Time', 'Segment')
+    df.columns = FINAL_COLS
 
-#  read in AVRO schema and load into BQ
-schema = conv_avsc_to_bq_schema(F"{os.environ['GCS_PREFIX']}_avro_schemas", "twilio_conversations.avsc")
-print(f"Uploading data into {table_name}")
-df_to_partitioned_bq_table(df, 'twilio', table_name, schema, 'MONTH', 'WRITE_TRUNCATE')
+    #  read in AVRO schema and load into BQ
+    schema = conv_avsc_to_bq_schema(F"{os.environ['GCS_PREFIX']}_avro_schemas", "twilio_conversations.avsc")
+    print(f"Uploading data into {table_name}")
+    df_to_partitioned_bq_table(df, 'twilio', table_name, schema, 'MONTH', 'date_time', 'WRITE_TRUNCATE')
+
+except ValueError:
+    print("No calls received today")

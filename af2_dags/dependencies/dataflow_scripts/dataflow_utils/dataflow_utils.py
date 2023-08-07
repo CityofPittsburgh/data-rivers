@@ -25,6 +25,7 @@ dt = datetime.now()
 bq_client = bigquery.Client()
 storage_client = storage.Client()
 
+
 class JsonCoder(object):
     """A JSON coder interpreting each line as a JSON string."""
 
@@ -295,6 +296,59 @@ class ConvertStringCase(beam.DoFn, ABC):
         yield datum
 
 
+class CrosswalkDeptNames(beam.DoFn, ABC):
+    def __init__(self, dept_field, file_name):
+        """
+        :param dept_field - Name of field within datum that contains misformatted department names
+        :param file_name - Name of JSON file that contains mappings of department names
+        """
+        self.dept_field = dept_field
+        self.file_name = file_name
+        cw_bucket = storage_client.get_bucket("user_defined_data")
+        cw_blob = cw_bucket.get_blob(self.file_name)
+        cw = cw_blob.download_as_string()
+        crosswalk_dict = json.loads(cw.decode('utf-8'))
+        self.crosswalk_dict = crosswalk_dict
+
+    def process(self, datum):
+        datum['dept'] = None
+        datum['dept_desc'] = None
+        datum['office'] = None
+        datum['corporation'] = 'City of Pittsburgh'
+        if datum[self.dept_field] in self.crosswalk_dict:
+            try:
+                datum['dept'] = self.crosswalk_dict[datum[self.dept_field]][0]
+                datum['dept_desc'] = self.crosswalk_dict[datum[self.dept_field]][1]
+                if self.crosswalk_dict[datum[self.dept_field]][2] != '':
+                    datum['office'] = self.crosswalk_dict[datum[self.dept_field]][2]
+            except:
+                split_dept = datum[self.dept_field].split("-")
+                datum['dept'] = split_dept[0]
+                try:
+                    datum['dept_desc'] = split_dept[1]
+                    try:
+                        datum['office'] = split_dept[2]
+                    except:
+                        pass
+                except:
+                    datum['dept_desc'] = split_dept[0]
+        else:
+            # Sometimes new sub-departments are added to Ceridian and will not be tracked by the crosswalk file
+            # until manually added - this debug statement prints to the console in case this happens
+            print(f"Untracked department name found: {datum[self.dept_field]}")
+            split_dept = datum[self.dept_field].split("-")
+            datum['dept'] = split_dept[0]
+            try:
+                datum['dept_desc'] = split_dept[1]
+                try:
+                    datum['office'] = split_dept[2]
+                except:
+                    pass
+            except:
+                datum['dept_desc'] = split_dept[0]
+        yield datum
+
+
 class ExtractField(beam.DoFn):
     def __init__(self, source_fields, nested_fields, new_field_names, additional_nested_fields):
         self.source_fields = source_fields
@@ -519,6 +573,8 @@ class ReplacePII(beam.DoFn):
         self.place_id_bucket = place_id_bucket
 
     def process(self, datum):
+        print(F"replacing/scanning PII of {datum['id']}")
+        print(F"{datum}")
         if datum is not None:
             datum[self.new_field_name] = replace_pii(datum, self.input_field, self.retain_location, self.info_types,
                                                      self.gcloud_project, self.place_id_bucket)
@@ -568,6 +624,23 @@ class StandardizeTimes(beam.DoFn, ABC):
                               '{}_EST'.format(time_change[0]): None,
                               '{}_UNIX'.format(time_change[0]): None})
 
+        yield datum
+
+
+class StripBeforeDelim(beam.DoFn, ABC):
+    def __init__(self, date_fields, delim='-'):
+        """
+        :param date_fields: list of date field names; each val describes a datestring field that has unwanted data
+        after the delimiter
+        :param delim: character that appears in date_field, after which all text should be ignored
+        """
+        self.date_fields = date_fields
+        self.delim = delim
+
+    def process(self, datum):
+        for date_field in self.date_fields:
+            if datum[date_field]:
+                datum[date_field] = datum[date_field].split(self.delim)[0]
         yield datum
 
 
@@ -1146,13 +1219,7 @@ def replace_pii(datum, input_field, retain_location, info_types, gcloud_project,
 
     # run until results are retrieved from API or exponential backoff reaches limit
     while curr_delay <= max_delay:
-        response = dlp_client.deidentify_content(
-            request={"parent": parent,
-                     "deidentify_config": deidentify_config,
-                     "inspect_config": inspect_config,
-                     "item": item
-                     }
-        )
+        response = dlp_client.deidentify_content(parent,deidentify_config, inspect_config, item)
         if response.item.value:
             break
         # elif not response and curr_delay < max_delay:

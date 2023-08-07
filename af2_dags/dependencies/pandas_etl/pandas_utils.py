@@ -79,7 +79,8 @@ def change_data_type(df, convs):
     return df
 
 
-def df_to_partitioned_bq_table(df, dataset, table, avro_schema, partition_type="DAY", disposition="WRITE_TRUNCATE"):
+def df_to_partitioned_bq_table(df, dataset, table, avro_schema, partition_type="DAY", partition_field=None,
+                               disposition="WRITE_TRUNCATE"):
     # adapted from https://stackoverflow.com/a/69666464
     client = bigquery.Client(project=f"{os.environ['GCLOUD_PROJECT']}")
 
@@ -94,7 +95,7 @@ def df_to_partitioned_bq_table(df, dataset, table, avro_schema, partition_type="
     job_config = bigquery.LoadJobConfig(
         schema=schema_list,
         write_disposition=disposition,
-        time_partitioning=bigquery.table.TimePartitioning(type_=partition_type)
+        time_partitioning=bigquery.table.TimePartitioning(type_=partition_type, field=partition_field)
     )
 
     # execute BQ API request to load table
@@ -108,6 +109,20 @@ def fill_leading_zeroes(df, field_name, digits):
     df[field_name] = df[field_name].astype(str)
     df[field_name] = df[field_name].apply(lambda x: x.zfill(digits) if x != 'None' else None)
     return df
+
+
+def find_last_successful_run(bucket_name, good_run_path, look_back_date):
+    bucket = storage_client.bucket(bucket_name)
+    blob = bucket.get_blob(good_run_path)
+    # if blobs are found
+    if blob is not None:
+        run_info = blob.download_as_string()
+        last_good_run = ndjson.loads(run_info.decode('utf-8'))[0]["current_run"]
+        first_run = False
+        return last_good_run, first_run
+    else:
+        first_run = True
+        return str(look_back_date), first_run
 
 
 def json_linter(ndjson: str):

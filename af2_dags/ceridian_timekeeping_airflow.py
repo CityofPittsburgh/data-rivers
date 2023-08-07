@@ -7,10 +7,8 @@ from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
 from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOperator
-from airflow.contrib.operators.bigquery_to_gcs import BigQueryToCloudStorageOperator
 from dependencies import airflow_utils
-from dependencies.airflow_utils import get_ds_month, get_ds_year, get_ds_day, default_args, \
-    build_insert_new_records_query
+from dependencies.airflow_utils import get_ds_month, get_ds_year, get_ds_day, default_args
 
 # The goal of this DAG is to perform a monthly pull of timesheet entries for all
 # City of Pittsburgh employee via the Ceridian Dayforce API. This  data will be stored securely
@@ -40,20 +38,20 @@ path = "{{ ds|get_ds_year }}"
 json_loc = f"{dataset}/{path}/{prev_month}_timekeeping.json"
 avro_loc = "employee_timekeeping"
 
-ceridian_gcs = BashOperator(
+ceridian_timekeeping_gcs = BashOperator(
     task_id='ceridian_timekeeping_gcs',
     bash_command=f"python {os.environ['GCS_LOADER_PATH']}/ceridian_timekeeping_gcs.py --output_arg {json_loc}",
     dag=dag
 )
 
-ceridian_dataflow = BashOperator(
+ceridian_timekeeping_dataflow = BashOperator(
     task_id='ceridian_timekeeping_dataflow',
     bash_command=f"python {os.environ['DATAFLOW_SCRIPT_PATH']}/ceridian_timekeeping_dataflow.py "
                  f"--input {bucket}/{json_loc} --avro_output {hot_bucket}/{avro_loc}",
     dag=dag
 )
 
-ceridian_bq_load = GoogleCloudStorageToBigQueryOperator(
+ceridian_timekeeping_bq_load = GoogleCloudStorageToBigQueryOperator(
     task_id='ceridian_timekeeping_bq_load',
     destination_project_dataset_table=f"{os.environ['GCLOUD_PROJECT']}.ceridian.monthly_timesheet_report",
     bucket=f"{os.environ['GCS_PREFIX']}_hot_metal",
@@ -68,9 +66,9 @@ ceridian_bq_load = GoogleCloudStorageToBigQueryOperator(
 
 write_append_query = F"""
 CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.ceridian.historic_timekeeping` AS
-    SELECT * FROM `{os.environ['GCLOUD_PROJECT']}.ceridian.historic_timekeeping`
+    SELECT DISTINCT * FROM `{os.environ['GCLOUD_PROJECT']}.ceridian.historic_timekeeping`
     UNION DISTINCT
-    SELECT * FROM `{os.environ['GCLOUD_PROJECT']}.ceridian.monthly_timesheet_report`
+    SELECT DISTINCT * FROM `{os.environ['GCLOUD_PROJECT']}.ceridian.monthly_timesheet_report`
 """
 insert_monthly_data = BigQueryOperator(
     task_id='insert_monthly_data',
@@ -92,4 +90,5 @@ beam_cleanup = BashOperator(
     dag=dag
 )
 
-ceridian_gcs >> ceridian_dataflow >> ceridian_bq_load >> insert_monthly_data >> delete_avro >> beam_cleanup
+ceridian_timekeeping_gcs >> ceridian_timekeeping_dataflow >> ceridian_timekeeping_bq_load >> insert_monthly_data >> \
+    delete_avro >> beam_cleanup

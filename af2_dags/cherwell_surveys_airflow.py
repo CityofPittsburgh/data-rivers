@@ -57,7 +57,7 @@ cherwell_surveys_gcs = BashOperator(
 
 cherwell_surveys_pandas = BashOperator(
     task_id='cherwell_surveys_pandas',
-    bash_command=f"python {os.environ['DATAFLOW_SCRIPT_PATH']}/cherwell_surveys_pandas.py --input {json_loc}",
+    bash_command=f"python {os.environ['PANDAS_ETL_PATH']}/cherwell_surveys_pandas.py --input {json_loc}",
     dag=dag
 )
 
