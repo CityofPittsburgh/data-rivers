@@ -167,11 +167,10 @@ def build_revgeo_time_bound_query(dataset, raw_table, new_table, create_date, la
 
     :param dataset: BigQuery dataset (string)
     :param raw_table: starting table that has not been geocoded yet (string)
-    :param id_col: field in table to use for deduplication
-    :param create_date: ticket creation date (string)
-    :param lat_field: field in table that identifies latitude value
-    :param long_field: field in table that identifies longitude value
-    :param geo_fields_in_raw: indication of whether the raw source already contains the zone columns
+    :param new_table: name of table that will hold the fully geocoded datta (string)
+    :param create_date: field in raw_table that contains the creation date (string)
+    :param lat_field: field in table that identifies latitude value (string)
+    :param long_field: field in table that identifies longitude value (string)
 
     :return: string to be passed through as arg to BigQueryOperator
     """
