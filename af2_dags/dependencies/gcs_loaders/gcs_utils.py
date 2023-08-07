@@ -12,6 +12,7 @@ import json
 import ckanapi
 import ndjson
 import pytz
+import tzlocal
 import xmltodict
 import pandas as pd
 import jaydebeapi
@@ -72,8 +73,10 @@ def call_odata_api_error_handling(targ_url, pipeline, time_out = 3600, limit_res
     more_links = True
     call_attempt = 0
 
-    print(F"API call initiated at {datetime.utcnow().hour}H: {datetime.utcnow().minute}M UTC")
-    print(F"API call initiated at {datetime.today().hour}H: {datetime.today().minute}M EST")
+    loc_utc = pytz.utc.localize(datetime.utcnow())
+    loc_est = tzlocal.get_localzone().localize(datetime.now())
+    print(F"API call initiated at {loc_utc} UTC")
+    print(F"API call initiated at {loc_est} EST")
 
     start = time.time()
     error_flag = False
