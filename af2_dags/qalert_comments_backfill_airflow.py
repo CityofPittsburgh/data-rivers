@@ -44,13 +44,12 @@ closed_date_unix, street, cross_street, street_id, cross_street_id, city, anon_g
 address_type, neighborhood_name, council_district, ward, police_zone, fire_zone, dpw_streets, 
 dpw_enviro, dpw_parks, input_anon_lat, input_anon_long, google_anon_lat, google_anon_long"""
 
-
 dag = DAG(
-        'qalert_comments_backfill',
-        default_args = default_args,
-        schedule_interval = None,
-        user_defined_filters = {'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year,
-                                'get_ds_day': get_ds_day}
+    'qalert_comments_backfill',
+    default_args=default_args,
+    schedule_interval=None,
+    user_defined_filters={'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year,
+                          'get_ds_day': get_ds_day}
 )
 
 path = "{{ ds|get_ds_year }}-{{ ds|get_ds_month }}-{{ ds|get_ds_day }}"
@@ -76,38 +75,38 @@ dataflow = BashOperator(
 
 # Load AVRO data produced by dataflow_script into BQ temp table
 gcs_to_bq = GoogleCloudStorageToBigQueryOperator(
-    task_id = 'gcs_to_bq',
-    destination_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}:qalert.incoming_backfill",
-    bucket = f"{os.environ['GCS_PREFIX']}_qalert",
+    task_id='gcs_to_bq',
+    destination_project_dataset_table=f"{os.environ['GCLOUD_PROJECT']}:qalert.incoming_backfill",
+    bucket=f"{os.environ['GCS_PREFIX']}_qalert",
     source_objects=[f"requests/backfill/{path}/avro_output/*.avro"],
-    write_disposition = 'WRITE_TRUNCATE',
-    create_disposition = 'CREATE_IF_NEEDED',
-    source_format = 'AVRO',
-    autodetect = True,
+    write_disposition='WRITE_TRUNCATE',
+    create_disposition='CREATE_IF_NEEDED',
+    source_format='AVRO',
+    autodetect=True,
     bigquery_conn_id='google_cloud_default',
-    dag = dag
+    dag=dag
 )
 
 query_split_table = build_split_table_query('qalert', 'incoming_backfill', 1429529820, 1665686739,
                                             30, 'create_date_unix', COLS_IN_ORDER)
 split_table = BigQueryOperator(
-        task_id = 'split_table',
-        sql = query_split_table,
-        bigquery_conn_id='google_cloud_default',
-        use_legacy_sql = False,
-        dag = dag
+    task_id='split_table',
+    sql=query_split_table,
+    bigquery_conn_id='google_cloud_default',
+    use_legacy_sql=False,
+    dag=dag
 )
 
 # Query new tickets to determine if they are in the city limits
 query_city_lim = ""
 for i in range(30):
-    query_city_lim += build_city_limits_query('qalert', f'incoming_backfill_{i+1}', 'pii_lat', 'pii_long') + ";"
+    query_city_lim += build_city_limits_query('qalert', f'incoming_backfill_{i + 1}', 'pii_lat', 'pii_long') + ";"
 city_limits = BigQueryOperator(
-        task_id = 'city_limits',
-        sql = query_city_lim,
-        bigquery_conn_id='google_cloud_default',
-        use_legacy_sql = False,
-        dag = dag
+    task_id='city_limits',
+    sql=query_city_lim,
+    bigquery_conn_id='google_cloud_default',
+    use_legacy_sql=False,
+    dag=dag
 )
 
 query_join_dedupe = f"""
@@ -117,14 +116,14 @@ SELECT * FROM `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_backfill_1`
 for i in range(1, 30):
     query_join_dedupe += F"""
     UNION DISTINCT 
-    SELECT * FROM `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_backfill_{i+1}`
+    SELECT * FROM `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_backfill_{i + 1}`
     """
 join_dedupe = BigQueryOperator(
-        task_id = 'join_dedupe',
-        sql = query_join_dedupe,
-        bigquery_conn_id='google_cloud_default',
-        use_legacy_sql = False,
-        dag = dag
+    task_id='join_dedupe',
+    sql=query_join_dedupe,
+    bigquery_conn_id='google_cloud_default',
+    use_legacy_sql=False,
+    dag=dag
 )
 
 # TODO: investigate (and if necessary fix) the unknown source of duplicates in the geojoin query (see util function
@@ -132,18 +131,18 @@ join_dedupe = BigQueryOperator(
 # FINAL ENRICHMENT OF NEW DATA
 # Join all the geo information (e.g. DPW districts, etc) to the new data
 query_geo_join = build_revgeo_time_bound_query('qalert', 'incoming_backfill', 'backfill_enriched',
-                                               'create_date_utc', 'id', 'pii_lat', 'pii_long')
+                                               'create_date_utc', 'pii_lat', 'pii_long')
 geojoin = BigQueryOperator(
-        task_id = 'geojoin',
-        sql = query_geo_join,
-        bigquery_conn_id='google_cloud_default',
-        use_legacy_sql = False,
-        dag = dag
+    task_id='geojoin',
+    sql=query_geo_join,
+    bigquery_conn_id='google_cloud_default',
+    use_legacy_sql=False,
+    dag=dag
 )
 
 last_upd_field = 'last_action_unix'
 query_dedup_enriched = build_dedup_old_updates('qalert', 'backfill_enriched',
-                                                'id', 'last_action_unix')
+                                               'id', 'last_action_unix')
 dedup_enriched = BigQueryOperator(
     task_id='dedup_enriched',
     sql=query_dedup_enriched,
@@ -151,7 +150,6 @@ dedup_enriched = BigQueryOperator(
     use_legacy_sql=False,
     dag=dag
 )
-
 
 query_add_pii_comments = f"""
 CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` AS
@@ -225,11 +223,11 @@ AND request_type_name NOT IN ({EXCLUDE_TYPES})
 );
 """
 insert_new_parent = BigQueryOperator(
-        task_id = 'insert_new_parent',
-        sql = query_insert_new_parent,
-        bigquery_conn_id='google_cloud_default',
-        use_legacy_sql = False,
-        dag = dag
+    task_id='insert_new_parent',
+    sql=query_insert_new_parent,
+    bigquery_conn_id='google_cloud_default',
+    use_legacy_sql=False,
+    dag=dag
 )
 
 query_remove_false_parents = f"""
@@ -261,11 +259,11 @@ WHERE group_id IN
         (SELECT fp_id FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_prev_parent_now_child`);
 """
 remove_false_parents = BigQueryOperator(
-        task_id = 'remove_false_parents',
-        sql = query_remove_false_parents,
-        bigquery_conn_id='google_cloud_default',
-        use_legacy_sql = False,
-        dag = dag
+    task_id='remove_false_parents',
+    sql=query_remove_false_parents,
+    bigquery_conn_id='google_cloud_default',
+    use_legacy_sql=False,
+    dag=dag
 )
 
 query_integrate_children = f"""
@@ -364,11 +362,11 @@ FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_child_combined` tcc
 WHERE alr.group_id = tcc.p_id;
 """
 integrate_children = BigQueryOperator(
-        task_id = 'integrate_children',
-        sql = query_integrate_children,
-        bigquery_conn_id='google_cloud_default',
-        use_legacy_sql = False,
-        dag = dag
+    task_id='integrate_children',
+    sql=query_integrate_children,
+    bigquery_conn_id='google_cloud_default',
+    use_legacy_sql=False,
+    dag=dag
 )
 
 # Create a table from all_linked_requests that has all columns EXCEPT those that have potential PII. This table is
@@ -386,30 +384,30 @@ FROM
     `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests`
 """
 drop_pii_for_export = BigQueryOperator(
-        task_id = 'drop_pii_for_export',
-        sql = query_drop_pii,
-        bigquery_conn_id='google_cloud_default',
-        use_legacy_sql = False,
-        dag = dag
+    task_id='drop_pii_for_export',
+    sql=query_drop_pii,
+    bigquery_conn_id='google_cloud_default',
+    use_legacy_sql=False,
+    dag=dag
 )
 
 # Export table as CSV to WPRDC bucket
 wprdc_export = BigQueryToCloudStorageOperator(
-        task_id = 'wprdc_export',
-        source_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}.qalert.data_export_scrubbed",
-        destination_cloud_storage_uris = [f"gs://{os.environ['GCS_PREFIX']}_wprdc/qalert_requests/{path}.csv"],
-        bigquery_conn_id='google_cloud_default',
-        dag = dag
+    task_id='wprdc_export',
+    source_project_dataset_table=f"{os.environ['GCLOUD_PROJECT']}.qalert.data_export_scrubbed",
+    destination_cloud_storage_uris=[f"gs://{os.environ['GCS_PREFIX']}_wprdc/qalert_requests/{path}.csv"],
+    bigquery_conn_id='google_cloud_default',
+    dag=dag
 )
 
 # Clean up
 beam_cleanup = BashOperator(
-        task_id = 'qalert_beam_cleanup',
-        bash_command = airflow_utils.beam_cleanup_statement(f"{os.environ['GCS_PREFIX']}_qalert"),
-        dag = dag
+    task_id='qalert_beam_cleanup',
+    bash_command=airflow_utils.beam_cleanup_statement(f"{os.environ['GCS_PREFIX']}_qalert"),
+    dag=dag
 )
 
 # DAG execution:
-gcs_loader >> dataflow >> gcs_to_bq >> split_table >> city_limits >> join_dedupe >> geojoin >> dedup_enriched >>\
-add_pii_comments >> insert_new_parent >> remove_false_parents >> integrate_children >> drop_pii_for_export >>\
+gcs_loader >> dataflow >> gcs_to_bq >> split_table >> city_limits >> join_dedupe >> geojoin >> dedup_enriched >> \
+add_pii_comments >> insert_new_parent >> remove_false_parents >> integrate_children >> drop_pii_for_export >> \
 wprdc_export >> beam_cleanup
