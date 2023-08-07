@@ -149,8 +149,8 @@ def call_odata_api_error_handling(targ_url, pipeline, time_out = 3600, limit_res
     #  written. instead, a more complicated series of joins/unions are needed to combine the newly retrieved records
     #  and the older records which may not be present in the partial results.
     print("exiting the odata api request function")
-    if not error_flag:
-        return records
+    # if not error_flag:
+    return records, error_flag
 
 
 def send_team_email_notification(failed_process, message):
@@ -166,6 +166,46 @@ def send_team_email_notification(failed_process, message):
     )
     sg = SendGridAPIClient(os.environ['SENDGRID_API_KEY'])
     response = sg.send(message)
+
+
+def write_partial_api_request_results_for_inspection(write_object, file_name,
+                                                     out_bucket = F"{os.environ['GCS_PREFIX']}_slag_metal"):
+    """
+    :param write_object: list of dicts to output to gcs bucket
+    :param file_name: string of file name. the file name will ultimately be prepended with the date
+    :param out_bucket: this defaults to slag_metal bucket. this bucket is where all problematic ETL data is dumped
+    after extraction. The most common usage of this bucket would be corrupted data from pre processing or api output
+    that is malformed etc.  (btw- slag is a waste product of metal processing)
+    :return: no values returned
+
+    This function is called when an API calling function returns incomplete results, or perhaps malformed data. This
+    function will attempt to write the data into a bucket specifically designated for bad/problematic data (this
+    bucket is know as metal_slag). The data are generaally not very useful for ETL purposes. Instead, the data can be
+    used for inspection etc. Extreme caution should be used if this data should be inserted into any production
+    datasets
+    """
+    print("GCS Loader has encountered a problem with the API call. Partial results may have been returned, "
+          "depending on the nature of the exception that occurred during the API  request. Check the slag_metal "
+          "bucket ")
+    try:
+        # upload data as a json if possible
+        json_to_gcs(F"{str(datetime.today().date())}_{file_name}.json", write_object,
+                    F"{os.environ['GCS_PREFIX']}_slag_metal")
+    except:
+        print("an exception occurred when attempting to write the data as a json. the causes of this are highly "
+              "specific to each file. the file will be written as plain text if possible")
+        try:
+            # attempt to write data as a plain text file
+            blob = storage.Blob(
+                    name = F"{str(datetime.today().date())}_{file_name}.txt",
+                    bucket = storage_client.get_bucket(out_bucket),
+            )
+            blob.upload_from_string(
+                    data = json.dumps(write_object),
+                    client = storage_client,
+            )
+        except:
+            print("file could not be uploaded as plain text")
 
 
 def conv_avsc_to_bq_schema(avro_bucket, schema_name):
@@ -850,10 +890,10 @@ def sql_to_df(conn, sql_query, db = 'MSSQL', date_col = None, date_format = None
 
 def post_xml(base_url, envelope, auth, headers, res_start, res_stop):
     # API call to get data
-    response = requests.post(base_url, data=envelope, auth=auth, headers=headers)
+    response = requests.post(base_url, data = envelope, auth = auth, headers = headers)
     # Print API status code for debugging purposes
     print("API response code: " + str(response.status_code))
     vals = response.text[response.text.find(res_start) + len(res_start):response.text.rfind(res_stop)]
     vals = '<root>' + vals + '</root>'
-    xml_dict = xmltodict.parse(xml_input=vals, encoding='utf-8')
+    xml_dict = xmltodict.parse(xml_input = vals, encoding = 'utf-8')
     return xml_dict
