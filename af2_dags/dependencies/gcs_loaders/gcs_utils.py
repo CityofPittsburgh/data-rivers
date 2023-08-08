@@ -12,7 +12,6 @@ import json
 import ckanapi
 import ndjson
 import pytz
-import tzlocal
 import xmltodict
 import pandas as pd
 import jaydebeapi
@@ -74,7 +73,7 @@ def call_odata_api_error_handling(targ_url, pipeline, time_out = 3600, limit_res
     call_attempt = 0
 
     loc_utc = pytz.utc.localize(datetime.utcnow())
-    loc_est = tzlocal.get_localzone().localize(datetime.now())
+    loc_est = datetime.now().strftime("%Y-%d-%m %H:%M:%S")
     print(F"API call initiated at {loc_utc} UTC")
     print(F"API call initiated at {loc_est} EST")
 
@@ -152,7 +151,10 @@ def call_odata_api_error_handling(targ_url, pipeline, time_out = 3600, limit_res
     #  written. instead, a more complicated series of joins/unions are needed to combine the newly retrieved records
     #  and the older records which may not be present in the partial results.
     print("exiting the odata api request function")
-    # if not error_flag:
+
+    if error_flag:
+        print(F"API failed...returned reason was {res.reason}")
+
     return records, error_flag
 
 
