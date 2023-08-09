@@ -26,9 +26,8 @@ dag = DAG(
 # initialize gcs locations
 dataset = "intime"
 bucket = f"gs://{os.environ['GCS_PREFIX']}_{dataset}"
-path = "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds|get_ds_day }}/{{ run_id }}"
+path = "employees/{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds|get_ds_day }}/{{ run_id }}"
 json_loc = f"{path}_records.json"
-avro_loc = f"avro_output/{path}/"
 
 intime_employees_gcs = BashOperator(
     task_id='intime_employees_gcs',
