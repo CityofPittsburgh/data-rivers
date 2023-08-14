@@ -1,3 +1,4 @@
+import io
 import json
 import ndjson
 import logging
@@ -123,6 +124,14 @@ def find_last_successful_run(bucket_name, good_run_path, look_back_date):
     else:
         first_run = True
         return str(look_back_date), first_run
+
+
+def gcs_to_df(bucket_name, file_name):
+    bucket = storage_client.bucket(bucket_name)
+    blob = bucket.blob(file_name)
+    content = blob.download_as_string()
+    df = pd.read_csv(io.BytesIO(content))
+    return df
 
 
 def json_linter(ndjson: str):
