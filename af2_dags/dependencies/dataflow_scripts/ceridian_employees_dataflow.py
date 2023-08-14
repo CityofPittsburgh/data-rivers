@@ -44,7 +44,7 @@ def run(argv=None):
     )
 
     with beam.Pipeline(options=pipeline_options) as p:
-        date_fields = ['Employee_HireDate', 'Employee_TerminationDate']
+        date_fields = ['Employee_HireDate', 'Employee_TerminationDate', 'EmployeeEmploymentStatus_CreatedTimestamp']
         field_name_swaps = [('EmployeeEmploymentStatus_EmployeeNumber', 'employee_num'),
                             ('Employee_FirstName', 'first_name'),
                             ('Employee_LastName', 'last_name'),
@@ -52,6 +52,7 @@ def run(argv=None):
                             ('Job_ShortName', 'job_title'),
                             ('Employee_HireDate', 'hire_date'),
                             ('Employee_TerminationDate', 'termination_date'),
+                            ('EmployeeEmploymentStatus_CreatedTimestamp', 'account_modified_date'),
                             ('DFUnion_ShortName', 'union'),
                             ('EmploymentStatus_LongName', 'status'),
                             ('PayClass_LongName', 'pay_class'),
