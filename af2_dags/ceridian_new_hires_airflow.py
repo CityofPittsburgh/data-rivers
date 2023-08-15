@@ -20,12 +20,13 @@ dataset = 'ceridian'
 dir = 'new_hires'
 exec_date = "{{ ds }}"
 path = "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}"
+csv_loc = f"{path}/{exec_date}_new_hire_report.csv"
 
 dag = DAG(
     'ceridian_new_hires',
     default_args=default_args,
     schedule_interval='0 6 * * *',
-    start_date=datetime(2023, 2, 8),
+    start_date=datetime(2023, 8, 14),
     user_defined_filters={'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year,
                           'get_ds_day': get_ds_day}
 )
@@ -42,7 +43,17 @@ extract_new_hires = BigQueryOperator(
 new_hires_to_csv = BigQueryToCloudStorageOperator(
     task_id='new_hires_to_csv',
     source_project_dataset_table=f"{os.environ['GCLOUD_PROJECT']}.{dataset}.daily_{dir}",
-    destination_cloud_storage_uris=[f"gs://{os.environ['GCS_PREFIX']}_{dataset}/{dir}/{path}/{exec_date}_new_hire_report.csv"],
+    destination_cloud_storage_uris=[f"gs://{os.environ['GCS_PREFIX']}_{dataset}/{dir}/{csv_loc}"],
     bigquery_conn_id='google_cloud_default',
     dag=dag
 )
+
+new_hires_etl = BashOperator(
+    task_id='new_hires_etl',
+    bash_command=f"python {os.environ['PANDAS_ETL_PATH']}/ceridian_new_hires_etl.py "
+                 f"--gcs_input {dir}/{csv_loc} --sharepoint_output {csv_loc}",
+    dag=dag
+)
+
+
+extract_new_hires >> new_hires_to_csv >> new_hires_etl
