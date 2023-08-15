@@ -130,7 +130,7 @@ def gcs_to_df(bucket_name, file_name):
     bucket = storage_client.bucket(bucket_name)
     blob = bucket.blob(file_name)
     content = blob.download_as_string()
-    df = pd.read_csv(io.BytesIO(content))
+    df = pd.read_csv(io.BytesIO(content), encoding='utf-8')
     return df
 
 
