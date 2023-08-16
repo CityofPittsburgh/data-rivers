@@ -20,7 +20,7 @@ dataset = 'ceridian'
 dir = 'new_hires'
 exec_date = "{{ ds }}"
 path = "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}"
-csv_loc = f"{path}/{exec_date}_new_hire_report.csv"
+csv_loc = f"{exec_date}_new_hire_report.csv"
 
 dag = DAG(
     'ceridian_new_hires',
@@ -43,7 +43,7 @@ extract_new_hires = BigQueryOperator(
 new_hires_to_csv = BigQueryToCloudStorageOperator(
     task_id='new_hires_to_csv',
     source_project_dataset_table=f"{os.environ['GCLOUD_PROJECT']}.{dataset}.daily_{dir}",
-    destination_cloud_storage_uris=[f"gs://{os.environ['GCS_PREFIX']}_{dataset}/{dir}/{csv_loc}"],
+    destination_cloud_storage_uris=[f"gs://{os.environ['GCS_PREFIX']}_{dataset}/{dir}/{path}/{csv_loc}"],
     bigquery_conn_id='google_cloud_default',
     dag=dag
 )
@@ -51,7 +51,7 @@ new_hires_to_csv = BigQueryToCloudStorageOperator(
 new_hires_etl = BashOperator(
     task_id='new_hires_etl',
     bash_command=f"python {os.environ['PANDAS_ETL_PATH']}/ceridian_new_hires_etl.py "
-                 f"--gcs_input {dir}/{csv_loc} --sharepoint_output {csv_loc}",
+                 f"--gcs_input {dir}/{path}/{csv_loc} --sharepoint_subdir {path}/ --sharepoint_output {csv_loc}",
     dag=dag
 )
 
