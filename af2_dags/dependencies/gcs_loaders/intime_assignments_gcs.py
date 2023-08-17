@@ -30,21 +30,28 @@ start = f'<ns2:{request}Response xmlns:ns2="http://v3.{soap_url}.rise.intimesoft
 end = f'</ns2:{request}Response>'
 
 
-run_start_win, first_run = find_last_successful_run(bucket, "activity/successful_run_log/log.json", yesterday)
+run_start_win, first_run = find_last_successful_run(bucket, "assignments/successful_run_log/log.json", yesterday)
 from_time = run_start_win.split(' ')[0]
 
 # API call to get data
-response = post_xml(BASE_URL, envelope=generate_xml(soap_url, request, 'POLICE', from_time, today, prefix=prefix),
+response = post_xml(BASE_URL, envelope=generate_xml(soap_url, request, 'POLICE', '2023-08-16', today, prefix=prefix),
                     auth=auth, headers=headers,  res_start=start, res_stop=end)
 records = response['root']['return']
 
+# un-nest data to only extract assignment details
+unnested = [rec['assignmentPropertiesData'] if isinstance(rec['assignmentPropertiesData'], dict) else
+            rec['assignmentPropertiesData'] for rec in records]
+# sometimes one employee will have multiple assignments listed within the current time window
+# this code returns each assignment as a separate row of data
+unnested = [entry for sublist in unnested for entry in (sublist if isinstance(sublist, list) else [sublist])]
+
 # verify the API called returned data (if no new records, then type will be NONE)
-if records is not None:
+if unnested is not None:
     # write the successful run information (used by each successive DAG run to find the backfill date)
-    successful_run = [{"requests_retrieved": len(records),
+    successful_run = [{"requests_retrieved": len(unnested),
                        "since": run_start_win,
                        "current_run": today,
                        "note": "Data retrieved between the time points listed above"}]
-    json_to_gcs("activity/successful_run_log/log.json", successful_run, bucket)
+    json_to_gcs("assignments/successful_run_log/log.json", successful_run, bucket)
 
-json_to_gcs(f"{args['out_loc']}", records, bucket)
+json_to_gcs(f"{args['out_loc']}", unnested, bucket)
