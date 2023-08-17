@@ -108,7 +108,7 @@ def df_to_partitioned_bq_table(df, dataset, table, avro_schema, partition_type="
 
 def fill_leading_zeroes(df, field_name, digits):
     df[field_name] = df[field_name].astype(str)
-    df[field_name] = df[field_name].apply(lambda x: x.zfill(digits) if x != 'None' else None)
+    df[field_name] = df[field_name].apply(lambda x: x.zfill(digits) if not any(c.isalpha() for c in x) else None)
     return df
 
 
