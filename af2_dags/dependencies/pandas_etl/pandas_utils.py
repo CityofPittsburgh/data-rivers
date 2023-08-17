@@ -1,3 +1,4 @@
+import io
 import json
 import ndjson
 import logging
@@ -107,7 +108,7 @@ def df_to_partitioned_bq_table(df, dataset, table, avro_schema, partition_type="
 
 def fill_leading_zeroes(df, field_name, digits):
     df[field_name] = df[field_name].astype(str)
-    df[field_name] = df[field_name].apply(lambda x: x.zfill(digits) if x != 'None' else None)
+    df[field_name] = df[field_name].apply(lambda x: x.zfill(digits) if not any(c.isalpha() for c in x) else None)
     return df
 
 
@@ -123,6 +124,14 @@ def find_last_successful_run(bucket_name, good_run_path, look_back_date):
     else:
         first_run = True
         return str(look_back_date), first_run
+
+
+def gcs_to_df(bucket_name, file_name):
+    bucket = storage_client.bucket(bucket_name)
+    blob = bucket.blob(file_name)
+    content = blob.download_as_string()
+    df = pd.read_csv(io.BytesIO(content), encoding='utf-8')
+    return df
 
 
 def json_linter(ndjson: str):

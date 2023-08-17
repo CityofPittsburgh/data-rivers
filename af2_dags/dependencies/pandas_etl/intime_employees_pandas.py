@@ -56,7 +56,14 @@ for index, row in df.iterrows():
         elif type(contact_info) is list:
             for item in contact_info:
                 if item['type'] == 'EMAIL':
-                    email = item['infos']['info']
+                    try:
+                        email = item['infos']['info']
+                    except TypeError:
+                        if type(item['infos']) is list:
+                            for subitem in item['infos']:
+                                if subitem['info'].endswith('@pittsburghpa.gov'):
+                                    email = subitem['info']
+                                    break
         else:
             email = None
     df.loc[index, 'email'] = email
@@ -159,10 +166,13 @@ for id in secondary_ids:
 # leading 0s get mistakenly stripped from Ceridian ID values. this code adds 0s back until IDs are 6 digits
 df = fill_leading_zeroes(df, 'employee_id', 6)
 
-# create column from State/NCIC Username, which is built off of MPOETC Number
-df['ncic_username'] = df['mpoetc_number']
-df = fill_leading_zeroes(df, 'ncic_username', 6)
-df['ncic_username'] = np.where(df['ncic_username'].notnull(), '~ALCPP' +
+# create columms from State/NCIC and MPOETC Usernames, which is built off of MPOETC Number
+df['mpoetc_username'] = df['mpoetc_number']
+df = fill_leading_zeroes(df, 'mpoetc_username', 6)
+df['mpoetc_username'] = np.where(df['mpoetc_username'].notnull(), 'PP' +
+                                 df['mpoetc_username'].astype(str), df['mpoetc_username'])
+df['ncic_username'] = df['mpoetc_username']
+df['ncic_username'] = np.where(df['ncic_username'].notnull(), '~ALC' +
                                df['ncic_username'].astype(str), df['ncic_username'])
 
 # convert all different Null types to a single type (None)
@@ -176,9 +186,9 @@ for field in name_fields:
     df[field] = df[field].str.replace(' -', '')
 
 # drop all fields except those included in BQ schema
-keep_fields = ['employee_id', 'mpoetc_number', 'ncic_username', 'badge_number', 'first_name', 'middle_initial',
-               'last_name', 'display_name', 'email', 'birth_date', 'hire_date', 'rank', 'rank_valid_date', 'unit',
-               'unit_valid_date', 'race', 'gender', 'employee_type']
+keep_fields = ['employee_id', 'mpoetc_number', 'mpoetc_username', 'ncic_username', 'badge_number', 'first_name',
+               'middle_initial', 'last_name', 'display_name', 'email', 'birth_date', 'hire_date', 'rank',
+               'rank_valid_date', 'unit', 'unit_valid_date', 'race', 'gender', 'employee_type']
 
 df = df[keep_fields]
 df = df.reindex(columns=keep_fields)
