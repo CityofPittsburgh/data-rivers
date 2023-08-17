@@ -45,6 +45,7 @@ def upload_to_sharepoint(ctx, data, directory, file_name, subdirectory=None):
     stream = io.StringIO()
     data.to_csv(stream, index=False)
 
+    # if target subdirectory does not exist, create it and then upload the file
     try:
         target_folder.upload_file(file_name, stream.getvalue().encode()).execute_query()
     except ClientRequestException:

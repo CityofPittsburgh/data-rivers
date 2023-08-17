@@ -8,10 +8,12 @@ def extract_new_hires():
         IF(job_title LIKE '%Unpaid%', 'Unpaid', 'Paid') AS pay_status 
         FROM `{os.environ['GCLOUD_PROJECT']}.ceridian.all_employees`
         WHERE status = 'Active' AND
-        PARSE_DATETIME('%Y-%m-%d', hire_date) > PARSE_DATETIME('%Y-%m-%d', account_modified_date) AND
         (
-            DATE_DIFF(CURRENT_DATETIME(), PARSE_DATETIME('%Y-%m-%d', account_modified_date), DAY) <= 7
+            (PARSE_DATETIME('%Y-%m-%d', hire_date) > PARSE_DATETIME('%Y-%m-%d', account_modified_date) AND
+            DATE_DIFF(CURRENT_DATETIME(), PARSE_DATETIME('%Y-%m-%d', account_modified_date), DAY) <= 1)
             OR
-            DATE_DIFF(CURRENT_DATETIME(), PARSE_DATETIME('%Y-%m-%d', hire_date), DAY) <= 7
+            DATE_DIFF(CURRENT_DATETIME(), PARSE_DATETIME('%Y-%m-%d', hire_date), DAY) <= 1
+            OR
+            (DATE_DIFF(CURRENT_DATETIME(), PARSE_DATETIME('%Y-%m-%d', hire_date), DAY) <= 14 AND sso_login IS NULL)
         )
     """
