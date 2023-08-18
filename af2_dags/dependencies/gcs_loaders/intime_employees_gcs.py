@@ -1,9 +1,7 @@
 import os
-import time
 import argparse
 import pendulum
-from datetime import datetime, timedelta
-import requests
+from datetime import datetime
 from requests.auth import HTTPBasicAuth
 from google.cloud import storage
 
@@ -55,7 +53,7 @@ end = '</ns2:getEmployeeDataListResponse>'
 # find the last successful DAG run (needs to be specified in UTC YYYY-MM-DD HH:MM:SS) if there was no previous good
 # run default to the date of the first entry of InTime data (allows for complete backfill).
 # this is used to initialize the payload below
-run_start_win, first_run = find_last_successful_run(bucket, "successful_run_log/log.json", DEFAULT_RUN_START)
+run_start_win, first_run = find_last_successful_run(bucket, "employees/successful_run_log/log.json", DEFAULT_RUN_START)
 from_time = run_start_win.split(' ')[0]
 
 # API call to get data
@@ -70,7 +68,7 @@ if records is not None:
                        "since": run_start_win,
                        "current_run": today,
                        "note": "Data retrieved between the time points listed above"}]
-    json_to_gcs("successful_run_log/log.json", successful_run, bucket)
+    json_to_gcs("employees/successful_run_log/log.json", successful_run, bucket)
 
 
 json_to_gcs(f"{args['out_loc']}", records, bucket)
