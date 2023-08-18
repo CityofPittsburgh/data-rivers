@@ -170,7 +170,7 @@ update_address_types = BigQueryOperator(
 )
 
 query_geo_join = build_revgeo_time_bound_query('qalert', 'temp_backfill', 'backfill_enriched',
-                                               'create_date_utc', 'id', 'input_pii_lat', 'input_pii_long')
+                                               'create_date_utc', 'input_pii_lat', 'input_pii_long')
 geojoin = BigQueryOperator(
     task_id='geojoin',
     sql=query_geo_join,
