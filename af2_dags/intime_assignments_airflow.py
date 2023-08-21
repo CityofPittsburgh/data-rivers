@@ -121,4 +121,4 @@ beam_cleanup = BashOperator(
 )
 
 intime_assignments_gcs >> intime_assignments_dataflow >> intime_assignments_bq_load >> format_data_types >> \
-    write_append_data >> beam_cleanup
+    write_append_data >> merge_intime_data >> assignment_iapro_export >> beam_cleanup

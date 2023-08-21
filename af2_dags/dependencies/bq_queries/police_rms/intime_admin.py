@@ -3,7 +3,7 @@ import os
 
 def extract_current_intime_details():
     return F"""
-    CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.intime.pbp_current_assignments AS
+    CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.intime.pbp_current_assignments` AS
     SELECT * FROM (
         SELECT e.employee_id AS ceridian_id, e.mpoetc_number, e.mpoetc_username, e.ncic_username,
                e.first_name, e.last_name, e.display_name, e.email, e.hire_date, e.rank, a.permanent_rank, 
