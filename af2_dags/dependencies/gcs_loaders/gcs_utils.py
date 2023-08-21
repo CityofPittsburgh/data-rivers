@@ -80,8 +80,9 @@ def call_odata_api_error_handling(targ_url, pipeline, time_out = 3600, limit_res
     more_links = True
     call_attempt = 0
 
+    tz = pytz.timezone("US/Eastern")
     loc_utc = pytz.utc.localize(datetime.utcnow())
-    loc_est = datetime.now().strftime("%Y-%d-%m %H:%M:%S")
+    loc_est = datetime.now(tz).strftime("%Y-%d-%m %H:%M:%S")
     print(F"API call initiated at {loc_utc} UTC")
     print(F"API call initiated at {loc_est} EST")
 
