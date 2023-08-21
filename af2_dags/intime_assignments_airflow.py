@@ -16,7 +16,7 @@ from dependencies.airflow_utils import get_ds_month, get_ds_year, get_ds_day, de
 # to be merged into the Police Active Directory.
 
 
-COLS_IN_ORDER = """assignment_id, employee_id, display_name, rank, unit, court_assignment, location_group, 
+COLS_IN_ORDER = """assignment_id, employee_id, display_name, permanent_rank, unit, court_assignment, location_group, 
 section, activity_name, assignment_date, scheduled_start_time, scheduled_end_time, actual_start_time, actual_end_time, 
 hours_modifier_name, hours_modifier_type, hours_sched_min_hours, time_bank_name, time_bank_type, time_bank_hours"""
 
