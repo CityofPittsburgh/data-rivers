@@ -123,10 +123,10 @@ FIELDS = {"id": "id", "parcelNumber": "parc", "propertyAddress1": "address",
 
 json_bucket = f"{os.environ['GCS_PREFIX']}_eproperty"
 
-# parser = argparse.ArgumentParser()
-# parser.add_argument('--json_output_arg', dest='json_out_loc', required=True,
-#                     help='fully specified location to upload the processed json file for long-term storage')
-# args = vars(parser.parse_args())
+parser = argparse.ArgumentParser()
+parser.add_argument('--json_output_arg', dest='json_out_loc', required=True,
+                    help='fully specified location to upload the processed json file for long-term storage')
+args = vars(parser.parse_args())
 
 # Build the API request components
 URL_BASE = F"https://api.epropertyplus.com/landmgmt/api/property/"
@@ -182,13 +182,13 @@ df_records["id"] = df_records["id"].astype(str)
 df_records["address"] = df_records["address"].apply(lambda x: x.upper())
 
 # clean the parcel numbers
-df_records["parc"] = df_records["parc"].apply(lambda x: normalize_block_lot(x))
+df_records["normalized_parc"] = df_records["parc"].apply(lambda x: normalize_block_lot(x))
 
 
 
 # load into BQ
 schema = conv_avsc_to_bq_schema(F"{os.environ['GCS_PREFIX']}_avro_schemas", "eproperty_vacant_property.avsc")
-df_final.to_gbq("eproperty.vacant_properties", F"{os.environ['GCLOUD_PROJECT']}", if_exists="replace",
+df_records.to_gbq("eproperty.vacant_properties", F"{os.environ['GCLOUD_PROJECT']}", if_exists="replace",
                   table_schema=schema)
 
 # load API results as a json to GCS autoclass storage and avro to temporary hot storage bucket (deleted after load
