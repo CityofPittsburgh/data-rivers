@@ -37,6 +37,8 @@ odata_url_tail = F"&$expand={nested_table_1}" \
     F"($expand={nested_table_2}($select={fds_nt2})))"
 odata_url = F"{url}{base}?&{odata_url_base_fields}{odata_url_tail}"
 
+# basic url to count the total number of records in the outermost entity (useful for logging if the expected number
+# of results were ultimately returned) 
 expec_ct_url = F"{url}{base}/$count"
 
 # hit the api
