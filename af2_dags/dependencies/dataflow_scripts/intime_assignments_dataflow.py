@@ -9,7 +9,7 @@ from apache_beam.io.avroio import WriteToAvro
 
 from dataflow_utils import dataflow_utils
 from dataflow_utils.dataflow_utils import JsonCoder, SwapFieldNames, generate_args, ChangeDataTypes, FilterFields, \
-    StripBeforeDelim, ColumnsCamelToSnakeCase, StandardizeTimes
+    StripBeforeDelim, ColumnsCamelToSnakeCase
 
 DEFAULT_DATAFLOW_ARGS = [
     '--save_main_session',
@@ -18,6 +18,22 @@ DEFAULT_DATAFLOW_ARGS = [
     f"--region={os.environ['REGION']}",
     f"--subnetwork={os.environ['SUBNET']}"
 ]
+
+
+class ReplaceChar(beam.DoFn):
+    def __init__(self, fields, swap_chars):
+        """
+        :param field: lis of string field names that will have a character replaced
+        :param swap_chars: tuple that contains a character to replaced and a character that will replace it
+        """
+        self.fields = fields
+        self.swap_chars = swap_chars
+
+    def process(self, datum):
+        for field in self.fields:
+            if datum[field]:
+                datum[field] = datum[field].replace(self.swap_chars[0], self.swap_chars[1])
+        yield datum
 
 
 def run(argv=None):
@@ -35,20 +51,13 @@ def run(argv=None):
 
     with beam.Pipeline(options=pipeline_options) as p:
         date_fields = ['date']
-        times = [('scheduled_start_time', 'EST'), ('scheduled_end_time', 'EST'),
-                 ('actual_start_time', 'EST'),  ('actual_end_time', 'EST')]
+        swap_char_fields = ['scheduled_start_time', 'scheduled_end_time', 'actual_start_time', 'actual_end_time']
         field_name_swaps = [('employee_full_name', 'display_name'),
                             ('customer_name', 'court_assignment'),
                             ('location_name', 'location_group'),
-                            # ('activity_name', 'district'),
-                            # ('rank_name', 'permanent_rank'),
-                            ('rank_name', 'rank'),
+                            ('rank_name', 'permanent_rank'),
                             ('unit_name', 'unit'),
                             ('sub_location_name', 'section'),
-                            ('scheduled_start_time_UTC', 'scheduled_start'),
-                            ('scheduled_end_time_UTC', 'scheduled_end'),
-                            ('actual_start_time_UTC', 'actual_start'),
-                            ('actual_end_time_UTC', 'actual_end'),
                             ('time_bank_code', 'time_bank_type'),
                             ('date', 'assignment_date')]
         type_changes = [('assignment_id', 'str'), ('employee_id', 'str'),
@@ -57,11 +66,7 @@ def run(argv=None):
                        'activity_code', 'sub_location_reference', 'sub_location_code', 'note',
                        'hours_modifier_short_name', 'hours_modifier_reference', 'hours_modifier_code',
                        'hours_actual_minimum', 'time_bank_reference', 'rank_reference', 'unit_reference',
-                       'employee_assets', 'time_bank_short_name' 'branch_name', 'branch_reference', 'origin',
-                       'scheduled_start_time_EST', 'scheduled_start_time_UNIX',
-                       'scheduled_end_time', 'scheduled_end_time_EST', 'scheduled_end_time_UNIX',
-                       'actual_start_time', 'actual_start_time_EST', 'actual_start_time_UNIX',
-                       'actual_end_time', 'actual_end_time_EST', 'actual_end_time_UNIX']
+                       'employee_assets', 'time_bank_short_name' 'branch_name', 'branch_reference', 'origin']
 
         lines = p | ReadFromText(known_args.input, coder=JsonCoder())
 
@@ -69,7 +74,7 @@ def run(argv=None):
                 lines
                 | beam.ParDo(StripBeforeDelim(date_fields, delim='T'))
                 | beam.ParDo(ColumnsCamelToSnakeCase())
-                | beam.ParDo(StandardizeTimes(times, '%Y-%m-%dT%H:%M:%S%z'))
+                | beam.ParDo(ReplaceChar(swap_char_fields, ('T', ' ')))
                 | beam.ParDo(SwapFieldNames(field_name_swaps))
                 | beam.ParDo(ChangeDataTypes(type_changes))
                 | beam.ParDo(FilterFields(drop_fields, exclude_target_fields=True))
