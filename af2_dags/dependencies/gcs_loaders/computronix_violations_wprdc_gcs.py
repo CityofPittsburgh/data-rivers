@@ -2,7 +2,7 @@ import os
 import argparse
 from datetime import date
 
-from gcs_utils import json_to_gcs, call_odata_api_error_handling
+from gcs_utils import json_to_gcs, call_odata_api_error_handling, write_partial_api_request_results_for_inspection
 
 
 def unnest_violations(nested_data, name_swaps):
@@ -100,7 +100,8 @@ odata_url = F"{root}{base}?" \
             F"{unnested_table_3}($select={fds_unt3})"
 
 # get violations from API
-violations = call_odata_api_error_handling(odata_url ,F"{os.environ['GCLOUD_PROJECT']} computronix violations", time_out = 7200)
+violations, error_flag = call_odata_api_error_handling(odata_url ,F"{os.environ['GCLOUD_PROJECT']} computronix "
+                                                               F"violations", time_out = 7200)
 
 
 # names to swap for fields that are not nested in raw data
@@ -112,4 +113,7 @@ unnested_violations = unnest_violations(violations, swaps)
 
 # load data into GCS
 # out loc = <dataset>/<full date>/<run_id>_violations.json
-json_to_gcs(args["out_loc"], unnested_violations, bucket)
+if not error_flag:
+    json_to_gcs(args["out_loc"], unnested_violations, bucket)
+else:
+    write_partial_api_request_results_for_inspection(unnested_violations, "violations")

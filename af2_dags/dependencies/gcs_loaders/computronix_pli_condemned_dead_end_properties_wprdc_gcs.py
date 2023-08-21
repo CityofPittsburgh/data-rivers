@@ -1,7 +1,7 @@
 import os
 import argparse
 
-from gcs_utils import json_to_gcs, call_odata_api_error_handling
+from gcs_utils import json_to_gcs, call_odata_api_error_handling, write_partial_api_request_results_for_inspection
 
 
 parser = argparse.ArgumentParser()
@@ -39,10 +39,12 @@ odata_url = F"{url}{base}?&{odata_url_base_fields}{odata_url_tail}"
 
 
 # hit the api
-properties = call_odata_api_error_handling(odata_url,
+properties, error_flag = call_odata_api_error_handling(odata_url,
                                            F"{os.environ['GCLOUD_PROJECT']}  computronix condemned and dead end properties")
 
 # load data into GCS
 # out loc = <dataset>/<full date>/<run_id>_properties.json
-json_to_gcs(args["out_loc"], properties, bucket)
-
+if not error_flag:
+    json_to_gcs(args["out_loc"], properties, bucket)
+else:
+    write_partial_api_request_results_for_inspection(properties, "condemened_dead_end_properties")
