@@ -11,6 +11,8 @@ from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOper
 from dependencies import airflow_utils
 from dependencies.airflow_utils import get_ds_month, get_ds_year, get_ds_day, default_args, build_format_dedup_query
 
+from dependencies.bq_queries.police_rms import intime_admin as q
+
 # The goal of this DAG is to perform a complete pull of police unit assignment data from
 # the InTime API. This employee info will be stored in Data Rivers and extracted via PowerShell
 # to be merged into the Police Active Directory.
@@ -94,14 +96,23 @@ write_append_data = BigQueryOperator(
     dag=dag
 )
 
-# Export table to IAPro bucket as readable CSV
-# intime_iapro_export = BigQueryToCloudStorageOperator(
-#     task_id='intime_iapro_export',
-#     source_project_dataset_table=f"{os.environ['GCLOUD_PROJECT']}.{dataset}.employee_data",
-#     destination_cloud_storage_uris=[f"gs://{os.environ['GCS_PREFIX']}_iapro/schedule_report.csv"],
-#     bigquery_conn_id='google_cloud_default',
-#     dag=dag
-# )
+# union all up-to-date assignment info with the permanent employee information taken from InTime
+merge_intime_data = BigQueryOperator(
+    task_id='merge_intime_data',
+    sql=q.extract_current_intime_details(),
+    bigquery_conn_id='google_cloud_default',
+    use_legacy_sql=False,
+    dag=dag
+)
+
+# Export merged table to IAPro bucket as readable CSV
+assignment_iapro_export = BigQueryToCloudStorageOperator(
+    task_id='assignment_iapro_export',
+    source_project_dataset_table=f"{os.environ['GCLOUD_PROJECT']}.{dataset}.pbp_current_assignments",
+    destination_cloud_storage_uris=[f"gs://{os.environ['GCS_PREFIX']}_iapro/current_assignments_report.csv"],
+    bigquery_conn_id='google_cloud_default',
+    dag=dag
+)
 
 beam_cleanup = BashOperator(
     task_id='beam_cleanup',
