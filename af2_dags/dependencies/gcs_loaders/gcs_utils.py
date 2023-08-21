@@ -59,7 +59,7 @@ WPRDC_API_HARD_LIMIT = 500001  # A limit set by the CKAN instance.
 #     return records
 
 
-def call_odata_api_error_handling(targ_url, pipeline, time_out = 3600, limit_results = False):
+def call_odata_api_error_handling(targ_url, pipeline, time_out = 3600, limit_results = False, ct_url = None):
     """
     :param targ_url: string value of fully formed odata_query (needs to be constructed before passing in)
     :param pipeline: string of the pipeline name (e.g. computronix_shadow_jobs) for error notification
@@ -68,6 +68,14 @@ def call_odata_api_error_handling(targ_url, pipeline, time_out = 3600, limit_res
     :param limit_results: boolean to limit the func from hitting the API more than once (useful for testing)
     :return: list of dicts containing API results
     """
+
+    if ct_url:
+        print("counting expected number of records")
+        res = requests.get(ct_url)
+        ct_str = res.content.decode('UTF-8-SIG')
+        ct = int(ct_str)
+        print(F"expecting a total of {ct} records")
+
     records = []
     more_links = True
     call_attempt = 0
@@ -98,6 +106,7 @@ def call_odata_api_error_handling(targ_url, pipeline, time_out = 3600, limit_res
         try:
             print(F"executing call #{call_attempt}")
             res = requests.get(targ_url, timeout = 300)
+
 
         # exceptions for calls that are never executed or completed w/in time limit
         except requests.exceptions.Timeout:
@@ -150,6 +159,11 @@ def call_odata_api_error_handling(targ_url, pipeline, time_out = 3600, limit_res
     #  retrieved up until the API requests fail. This requires that old tables are not truncated when new ones are
     #  written. instead, a more complicated series of joins/unions are needed to combine the newly retrieved records
     #  and the older records which may not be present in the partial results.
+    print(F"A total of {len(records)} records were returned")
+
+    if ct_url:
+         print(F"{ct} records were expected")
+
     print("exiting the odata api request function")
 
     if error_flag:
