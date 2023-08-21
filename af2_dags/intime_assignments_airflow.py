@@ -9,11 +9,16 @@ from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 from airflow.contrib.operators.bigquery_to_gcs import BigQueryToCloudStorageOperator
 from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOperator
 from dependencies import airflow_utils
-from dependencies.airflow_utils import get_ds_month, get_ds_year, get_ds_day, default_args
+from dependencies.airflow_utils import get_ds_month, get_ds_year, get_ds_day, default_args, build_format_dedup_query
 
 # The goal of this DAG is to perform a complete pull of police unit assignment data from
 # the InTime API. This employee info will be stored in Data Rivers and extracted via PowerShell
 # to be merged into the Police Active Directory.
+
+
+COLS_IN_ORDER = """assignment_id, employee_id, display_name, rank, unit, court_assignment, location_group, 
+section, activity_name, assignment_date, scheduled_start_time, scheduled_end_time, actual_start_time, actual_end_time, 
+hours_modifier_name, hours_modifier_type, hours_sched_min_hours, time_bank_name, time_bank_type, time_bank_hours"""
 
 dag = DAG(
     'intime_assignments',
@@ -30,7 +35,11 @@ json_bucket = f"gs://{os.environ['GCS_PREFIX']}_{dataset}"
 hot_bucket = f"gs://{os.environ['GCS_PREFIX']}_hot_metal"
 path = "assignments/{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds|get_ds_day }}/{{ run_id }}"
 json_loc = f"{path}_assignments.json"
-avro_loc = "schedule_assignments"
+output_name = "schedule_assignments"
+date_fields = [{'field': 'scheduled_start_time', 'type': 'DATETIME'},
+               {'field': 'scheduled_end_time', 'type': 'DATETIME'},
+               {'field': 'actual_start_time', 'type': 'DATETIME'},
+               {'field': 'actual_end_time', 'type': 'DATETIME'}]
 
 intime_assignments_gcs = BashOperator(
     task_id='intime_assignments_gcs',
@@ -41,15 +50,17 @@ intime_assignments_gcs = BashOperator(
 
 intime_assignments_dataflow = BashOperator(
     task_id='intime_assignments_dataflow',
-    bash_command=f"python {os.environ['dataflow_ETL_PATH']}/intime_assignments_dataflow.py --input {json_loc}",
+    bash_command=f"python {os.environ['DATAFLOW_SCRIPT_PATH']}/intime_assignments_dataflow.py "
+                 f"--input {json_bucket}/{json_loc} "
+                 f"--avro_output {hot_bucket}/{output_name}",
     dag=dag
 )
 
 intime_assignments_bq_load = GoogleCloudStorageToBigQueryOperator(
     task_id='intime_assignments_bq_load',
-    destination_project_dataset_table=f"{os.environ['GCLOUD_PROJECT']}.intime.incoming_assignments",
+    destination_project_dataset_table=f"{os.environ['GCLOUD_PROJECT']}.{dataset}.incoming_assignments",
     bucket=f"{os.environ['GCS_PREFIX']}_hot_metal",
-    source_objects=[f"{avro_loc}*.avro"],
+    source_objects=[f"{output_name}*.avro"],
     write_disposition='WRITE_TRUNCATE',
     create_disposition='CREATE_IF_NEEDED',
     source_format='AVRO',
@@ -58,11 +69,22 @@ intime_assignments_bq_load = GoogleCloudStorageToBigQueryOperator(
     dag=dag
 )
 
+format_data_types_query = build_format_dedup_query(dataset, 'incoming_assignments',
+                                                   date_fields, COLS_IN_ORDER,
+                                                   datestring_fmt="%Y-%m-%d %H:%M:%S-04:00")
+format_data_types = BigQueryOperator(
+    task_id='format_data_types',
+    sql=format_data_types_query,
+    bigquery_conn_id='google_cloud_default',
+    use_legacy_sql=False,
+    dag=dag
+)
+
 write_append_query = F"""
-CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.intime.schedule_assignments` AS
-    SELECT DISTINCT * FROM `{os.environ['GCLOUD_PROJECT']}.intime.schedule_assignments`
+CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.{dataset}.schedule_assignments` AS
+    SELECT DISTINCT * FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{output_name}`
     UNION DISTINCT
-    SELECT DISTINCT * FROM `{os.environ['GCLOUD_PROJECT']}.intime.incoming_assignments`
+    SELECT DISTINCT * FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{output_name}`
 """
 write_append_data = BigQueryOperator(
     task_id='write_append_data',
@@ -81,4 +103,11 @@ write_append_data = BigQueryOperator(
 #     dag=dag
 # )
 
-intime_assignments_gcs >> intime_assignments_dataflow >> intime_assignments_bq_load >> write_append_data
+beam_cleanup = BashOperator(
+    task_id='beam_cleanup',
+    bash_command=airflow_utils.beam_cleanup_statement(f"{os.environ['GCS_PREFIX']}_{dataset}"),
+    dag=dag
+)
+
+intime_assignments_gcs >> intime_assignments_dataflow >> intime_assignments_bq_load >> format_data_types >> \
+    write_append_data >> beam_cleanup
