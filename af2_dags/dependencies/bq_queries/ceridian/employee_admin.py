@@ -1,11 +1,33 @@
 import os
 
 
+def build_percentage_table_query(new_table, pct_field, hardcoded_vals):
+    sql = f"""
+    CREATE OR REPLACE TABLE  `{os.environ['GCLOUD_PROJECT']}.ceridian.{new_table}` AS
+    SELECT {pct_field}, 
+           ({pct_field}_count / total) AS percentage, 
+           'City Employee' AS type
+    FROM (
+      SELECT {pct_field}, COUNT(DISTINCT(employee_num)) AS {pct_field}_count, SUM(COUNT(*)) OVER() AS total
+      FROM `{os.environ['GCLOUD_PROJECT']}.ceridian.all_employees` 
+      WHERE status = 'Active'
+      GROUP BY {pct_field}
+    )
+    """
+    for record in hardcoded_vals:
+        sql += f"""
+        UNION ALL
+        SELECT '{record[pct_field]}' AS {pct_field}, {record['percentage']} AS percentage, 'Overall City' AS type
+        """
+    sql += " ORDER BY type, percentage DESC "
+    return sql
+
+
 def extract_new_hires():
     return F"""
     CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.ceridian.daily_new_hires` AS
-        SELECT employee_num, display_name, dept_desc, hire_date, account_modified_date, pay_class, 
-        IF(job_title LIKE '%Unpaid%', 'Unpaid', 'Paid') AS pay_status 
+        SELECT employee_num, display_name, sso_login, job_title, manager_name, dept_desc, hire_date, 
+        account_modified_date, pay_class, IF(job_title LIKE '%Unpaid%', 'Unpaid', 'Paid') AS pay_status 
         FROM `{os.environ['GCLOUD_PROJECT']}.ceridian.all_employees`
         WHERE status = 'Active' AND
         (
