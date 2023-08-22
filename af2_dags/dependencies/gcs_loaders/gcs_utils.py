@@ -34,30 +34,6 @@ DEFAULT_PII_TYPES = [{"name": "PERSON_NAME"}, {"name": "EMAIL_ADDRESS"}, {"name"
 WPRDC_API_HARD_LIMIT = 500001  # A limit set by the CKAN instance.
 
 
-# # pipeline var is unused for now 6/23. This func will be removed w/in 30 days and this for compliance with incoming
-# # refactor
-# def call_odata_api(targ_url, pipeline, limit_results = False):
-#     """
-#     :param targ_url: string value of fully formed odata_query (needs to be constructed before passing in)
-#     :param limit_results: boolean to limit the func from hitting the API more than once (useful for testing)
-#     :return: list of dicts containing API results
-#     """
-#     records = []
-#     more_links = True
-#
-#     while more_links:
-#         res = requests.get(targ_url)
-#         records.extend(res.json()['value'])
-#
-#         if limit_results:
-#             more_links = False
-#         elif '@odata.nextLink' in res.json().keys():
-#             targ_url = res.json()['@odata.nextLink']
-#         else:
-#             more_links = False
-#
-#     return records
-
 
 def call_odata_api_error_handling(targ_url, pipeline, time_out = 3600, limit_results = False, ct_url = None):
     """
@@ -126,6 +102,7 @@ def call_odata_api_error_handling(targ_url, pipeline, time_out = 3600, limit_res
                     targ_url = res.json()['@odata.nextLink']
                 else:
                     more_links = False
+                    print("nextLink pagination key is not present. there are no more records to return")
 
             except requests.exceptions.KeyError:
                 print(F"API call failed on attempt #: {call_attempt}")
@@ -142,8 +119,8 @@ def call_odata_api_error_handling(targ_url, pipeline, time_out = 3600, limit_res
             # it is unclear what is causing these exceptions and we cannot use a more specific failure state.
             except Exception:
                 print(F"API call returned a 200 code with an exception on call attempt: {call_attempt}")
-                send_team_email_notification(F"{pipeline} ODATA API CALL", "produced a 200 code along with an "
-                                                                           "exception")
+                send_team_email_notification(F"{pipeline} ODATA API CALL",
+                                             "produced a 200 code along with an exception")
                 error_flag = True
                 break
 
