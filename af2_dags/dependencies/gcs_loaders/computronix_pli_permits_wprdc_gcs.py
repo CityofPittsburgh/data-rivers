@@ -84,7 +84,6 @@ pipe_name = F"{os.environ['GCLOUD_PROJECT']} computronix pli general permits"
 gen_permits, error_flag = call_odata_api_error_handling(targ_url = odata_url, pipeline = pipe_name,
                                                         ct_url = expect_ct_url)
 
-call_odata_api_error_handling(odata_url)
 
 # change field to 'permit_type' for consistency with other tables
 for g in gen_permits:
