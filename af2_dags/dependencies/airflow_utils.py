@@ -349,29 +349,6 @@ def build_piecemeal_revgeo_query(dataset, raw_table, new_table, create_date, id_
     """
 
 
-def build_percentage_table_query(dataset, raw_table, new_table, is_deduped, id_field, pct_field, categories,
-                                 hardcoded_vals):
-    sql = f"""
-    CREATE OR REPLACE TABLE  `{os.environ['GCLOUD_PROJECT']}.{dataset}.{new_table}` AS
-    SELECT {'DISTINCT' if is_deduped else ''} {pct_field}, 
-            ({pct_field}_count / total) AS percentage, 
-            '{categories[0]}' AS type
-    FROM (
-      SELECT {pct_field}, COUNT(DISTINCT({id_field})) AS {pct_field}_count, SUM(COUNT(*)) OVER() AS total
-      FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{raw_table}` 
-      WHERE status = 'Active'
-      GROUP BY {pct_field}
-    )
-    """
-    for record in hardcoded_vals:
-        sql += f"""
-        UNION ALL
-        SELECT '{record[pct_field]}' AS {pct_field}, {record['percentage']} AS percentage, '{categories[1]}' AS type
-        """
-    sql += " ORDER BY type, percentage DESC "
-    return sql
-
-
 def build_split_table_query(dataset, raw_table, start, stop, num_shards, date_field, cols_in_order):
     query = ""
     step = math.ceil((stop - start) / num_shards)

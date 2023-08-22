@@ -9,8 +9,7 @@ from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOperator
 from airflow.contrib.operators.bigquery_to_gcs import BigQueryToCloudStorageOperator
 from dependencies import airflow_utils
-from dependencies.airflow_utils import get_ds_month, get_ds_year, get_ds_day, \
-    default_args, build_percentage_table_query
+from dependencies.airflow_utils import get_ds_month, get_ds_year, get_ds_day, default_args
 
 from dependencies.bq_queries.ceridian import employee_admin as q
 
