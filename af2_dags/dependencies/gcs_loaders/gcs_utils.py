@@ -34,32 +34,8 @@ DEFAULT_PII_TYPES = [{"name": "PERSON_NAME"}, {"name": "EMAIL_ADDRESS"}, {"name"
 WPRDC_API_HARD_LIMIT = 500001  # A limit set by the CKAN instance.
 
 
-# # pipeline var is unused for now 6/23. This func will be removed w/in 30 days and this for compliance with incoming
-# # refactor
-# def call_odata_api(targ_url, pipeline, limit_results = False):
-#     """
-#     :param targ_url: string value of fully formed odata_query (needs to be constructed before passing in)
-#     :param limit_results: boolean to limit the func from hitting the API more than once (useful for testing)
-#     :return: list of dicts containing API results
-#     """
-#     records = []
-#     more_links = True
-#
-#     while more_links:
-#         res = requests.get(targ_url)
-#         records.extend(res.json()['value'])
-#
-#         if limit_results:
-#             more_links = False
-#         elif '@odata.nextLink' in res.json().keys():
-#             targ_url = res.json()['@odata.nextLink']
-#         else:
-#             more_links = False
-#
-#     return records
 
-
-def call_odata_api_error_handling(targ_url, pipeline, time_out = 3600, limit_results = False):
+def call_odata_api_error_handling(targ_url, pipeline, time_out = 3600, limit_results = False, ct_url = None):
     """
     :param targ_url: string value of fully formed odata_query (needs to be constructed before passing in)
     :param pipeline: string of the pipeline name (e.g. computronix_shadow_jobs) for error notification
@@ -68,12 +44,21 @@ def call_odata_api_error_handling(targ_url, pipeline, time_out = 3600, limit_res
     :param limit_results: boolean to limit the func from hitting the API more than once (useful for testing)
     :return: list of dicts containing API results
     """
+
+    if ct_url:
+        print("counting expected number of records")
+        res = requests.get(ct_url)
+        ct_str = res.content.decode('UTF-8-SIG')
+        ct = int(ct_str)
+        print(F"expecting a total of {ct} records")
+
     records = []
     more_links = True
     call_attempt = 0
 
+    tz = pytz.timezone("US/Eastern")
     loc_utc = pytz.utc.localize(datetime.utcnow())
-    loc_est = datetime.now().strftime("%Y-%d-%m %H:%M:%S")
+    loc_est = datetime.now(tz).strftime("%Y-%d-%m %H:%M:%S")
     print(F"API call initiated at {loc_utc} UTC")
     print(F"API call initiated at {loc_est} EST")
 
@@ -99,6 +84,7 @@ def call_odata_api_error_handling(targ_url, pipeline, time_out = 3600, limit_res
             print(F"executing call #{call_attempt}")
             res = requests.get(targ_url, timeout = 300)
 
+
         # exceptions for calls that are never executed or completed w/in time limit
         except requests.exceptions.Timeout:
             print(F"API call timed out during API request attempt #: {call_attempt}")
@@ -116,6 +102,7 @@ def call_odata_api_error_handling(targ_url, pipeline, time_out = 3600, limit_res
                     targ_url = res.json()['@odata.nextLink']
                 else:
                     more_links = False
+                    print("nextLink pagination key is not present. there are no more records to return")
 
             except requests.exceptions.KeyError:
                 print(F"API call failed on attempt #: {call_attempt}")
@@ -132,8 +119,8 @@ def call_odata_api_error_handling(targ_url, pipeline, time_out = 3600, limit_res
             # it is unclear what is causing these exceptions and we cannot use a more specific failure state.
             except Exception:
                 print(F"API call returned a 200 code with an exception on call attempt: {call_attempt}")
-                send_team_email_notification(F"{pipeline} ODATA API CALL", "produced a 200 code along with an "
-                                                                           "exception")
+                send_team_email_notification(F"{pipeline} ODATA API CALL",
+                                             "produced a 200 code along with an exception")
                 error_flag = True
                 break
 
@@ -150,6 +137,11 @@ def call_odata_api_error_handling(targ_url, pipeline, time_out = 3600, limit_res
     #  retrieved up until the API requests fail. This requires that old tables are not truncated when new ones are
     #  written. instead, a more complicated series of joins/unions are needed to combine the newly retrieved records
     #  and the older records which may not be present in the partial results.
+    print(F"A total of {len(records)} records were returned")
+
+    if ct_url:
+         print(F"{ct} records were expected")
+
     print("exiting the odata api request function")
 
     if error_flag:
@@ -585,7 +577,8 @@ def unnest_domi_street_seg(nested_data, name_swaps, old_nested_keys, new_unneste
 
     """
     data_with_segs = []
-    print("unnesting")
+    print("unnesting the data returned from the ODATA API in a helper gcs_util function called from the gcs loader "
+          "script")
     for row in nested_data:
         new_row_base = {}
         # extract (and rename) all the unnested fields

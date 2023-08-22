@@ -47,10 +47,17 @@ tb_nt2 = "STREETCLOSUREDOMISTREETSEGMENT"
 odata_url = F"{url}{tb_base}?$select={fds_base}," + F"&$expand={tb_nt1}" \
             + F"($select={fds_nt1},;" + F"$expand={tb_nt2}($select={fds_nt2})),"
 
-# extract the data from ODATA API
 
-nested_permits, error_flag = call_odata_api_error_handling(odata_url,
-                                               F"{os.environ['GCLOUD_PROJECT']} computronix gis street closures")
+# basic url to count the total number of records in the outermost entity (useful for logging if the expected number
+# of results were ultimately returned)
+expec_ct_url = F"{url}{tb_base}/$count"
+
+# extract the data from ODATA API
+pipe_name = F"{os.environ['GCLOUD_PROJECT']} computronix gis street closures"
+nested_permits, error_flag = call_odata_api_error_handling(targ_url = odata_url, pipeline = pipe_name,
+                                                           ct_url = expec_ct_url)
+
+
 unnested_data = unnest_domi_street_seg(nested_permits, SWAPS, OLD_KEYS, NEW_KEYS)
 
 # load data into GCS
