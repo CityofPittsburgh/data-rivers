@@ -600,7 +600,8 @@ def unnest_domi_street_seg(nested_data, name_swaps, old_nested_keys, new_unneste
 
     """
     data_with_segs = []
-    print("unnesting")
+    print("unnesting the data returned from the ODATA API in a helper gcs_util function called from the gcs loader "
+          "script")
     for row in nested_data:
         new_row_base = {}
         # extract (and rename) all the unnested fields
