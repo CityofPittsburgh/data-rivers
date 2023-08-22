@@ -65,7 +65,7 @@ for (b, i) in zip(bases, fds_id):
     expect_ct_url = F"{url}{b}/$count"
     pipe_name = F"{os.environ['GCLOUD_PROJECT']} computronix pli {b} permits"
     permits, error_flag = call_odata_api_error_handling(targ_url = odata_url, pipeline = pipe_name,
-                                                        ct_url = expect_ct_url)
+                                                        ct_url = None)
     for p in permits:
         p.update({"permit_type": b.split("PERMIT")[0]})
     if b == bases[0]:
@@ -82,7 +82,7 @@ odata_url = F"{url}GENERALPERMIT?{odata_url_date_filter}&{odata_url_base_fields}
 expect_ct_url = F"{url}GENERALPERMIT/$count"
 pipe_name = F"{os.environ['GCLOUD_PROJECT']} computronix pli general permits"
 gen_permits, error_flag = call_odata_api_error_handling(targ_url = odata_url, pipeline = pipe_name,
-                                                        ct_url = expect_ct_url)
+                                                        ct_url = None)
 
 
 # change field to 'permit_type' for consistency with other tables
