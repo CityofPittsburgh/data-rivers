@@ -77,7 +77,7 @@ PARSE_DATE ("%Y-%m-%d", status_date_utc) as partition_status_date_utc,
 PARSE_DATE ("%Y-%m-%d", acquisition_date) as acquisition_date_utc
 FROM 
   `{os.environ['GCLOUD_PROJECT']}.eproperty.vacant_properties_enriched`
-WHERE owner like "City of Pittsburgh";
+WHERE owner LIKE "City of Pittsburgh" AND current_status NOT LIKE "Sold";
 DROP TABLE `{os.environ['GCLOUD_PROJECT']}.eproperty.vacant_properties_enriched`;
 DROP TABLE `{os.environ['GCLOUD_PROJECT']}.eproperty.vacant_properties`;"""
 
