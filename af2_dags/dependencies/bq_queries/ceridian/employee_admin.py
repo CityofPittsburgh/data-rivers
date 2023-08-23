@@ -26,10 +26,12 @@ def build_percentage_table_query(new_table, pct_field, hardcoded_vals):
 def extract_new_hires():
     return F"""
     CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.ceridian.daily_new_hires` AS
-        SELECT employee_num, display_name, sso_login, job_title, manager_name, dept_desc, hire_date, 
-        account_modified_date, pay_class, IF(job_title LIKE '%Unpaid%', 'Unpaid', 'Paid') AS pay_status 
+        SELECT employee_num, display_name, sso_login, job_title, 
+        manager_name, dept_desc, hire_date, account_modified_date, pay_class, 
+        IF(job_title LIKE '%Unpaid%', 'Unpaid', 'Paid') AS pay_status, status AS employment_status
         FROM `{os.environ['GCLOUD_PROJECT']}.ceridian.all_employees`
-        WHERE status = 'Active' AND
+        WHERE status = 'Pre-Start'
+        OR status = 'Active' AND 
         (
             (PARSE_DATETIME('%Y-%m-%d', hire_date) > PARSE_DATETIME('%Y-%m-%d', account_modified_date) AND
             DATE_DIFF(CURRENT_DATETIME(), PARSE_DATETIME('%Y-%m-%d', account_modified_date), DAY) <= 1)
@@ -38,4 +40,5 @@ def extract_new_hires():
             OR
             (DATE_DIFF(CURRENT_DATETIME(), PARSE_DATETIME('%Y-%m-%d', hire_date), DAY) <= 14 AND sso_login IS NULL)
         )
+        ORDER BY employment_status DESC
     """
