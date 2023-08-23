@@ -30,7 +30,8 @@ def extract_new_hires():
         manager_name, dept_desc, hire_date, account_modified_date, pay_class, 
         IF(job_title LIKE '%Unpaid%', 'Unpaid', 'Paid') AS pay_status, status AS employment_status
         FROM `{os.environ['GCLOUD_PROJECT']}.ceridian.all_employees`
-        WHERE status IN ('Pre-Start', 'Active') AND
+        WHERE status = 'Pre-Start'
+        OR status = 'Active' AND 
         (
             (PARSE_DATETIME('%Y-%m-%d', hire_date) > PARSE_DATETIME('%Y-%m-%d', account_modified_date) AND
             DATE_DIFF(CURRENT_DATETIME(), PARSE_DATETIME('%Y-%m-%d', account_modified_date), DAY) <= 1)
