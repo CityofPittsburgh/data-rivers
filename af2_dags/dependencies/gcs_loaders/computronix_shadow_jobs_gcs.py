@@ -17,11 +17,16 @@ bucket = f"{os.environ['GCS_PREFIX']}_computronix"
 # other CX tables, the entire table will be pulled here and inner joined in BigQuery in a subsequent step
 # CX ODATA API URL base
 url = 'https://staff.onestoppgh.pittsburghpa.gov/pghprod/odata/odata/'
-shadow_url = F"{url}SHADOWJOB?"
-shadow_jobs, error_flag = call_odata_api_error_handling(shadow_url, F"{os.environ['GCLOUD_PROJECT']} computronix "
-                                                                    F"shadow "
-                                                              F"jobs", time_out = 7200)
+odata_url = F"{url}SHADOWJOB?"
 
+# basic url to count the total number of records in the outermost entity (useful for logging if the expected number
+# of results were ultimately returned)
+expec_ct_url = F"{url}SHADOWJOB/$count"
+
+# hit the api
+pipe_name =  F"{os.environ['GCLOUD_PROJECT']} computronix shadow jobs"
+shadow_jobs, error_flag = call_odata_api_error_handling(targ_url = odata_url, pipeline = pipe_name,
+                                                       ct_url = expec_ct_url, time_out = 7200)
 
 # load data into GCS
 # out loc = <dataset>/<full date>/<run_id>_shadow_jobs.json

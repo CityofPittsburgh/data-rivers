@@ -9,8 +9,9 @@ from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOperator
 from airflow.contrib.operators.bigquery_to_gcs import BigQueryToCloudStorageOperator
 from dependencies import airflow_utils
-from dependencies.airflow_utils import get_ds_month, get_ds_year, get_ds_day, \
-    default_args, build_percentage_table_query
+from dependencies.airflow_utils import get_ds_month, get_ds_year, get_ds_day, default_args
+
+from dependencies.bq_queries.ceridian import employee_admin as q
 
 # The goal of this DAG is to perform a daily pull of basic demographic information for each
 # City of Pittsburgh employee via the Ceridian Dayforce API. This  data will be stored securely
@@ -65,15 +66,11 @@ ceridian_employees_bq_load = GoogleCloudStorageToBigQueryOperator(
 
 gender_table = 'employee_vs_gen_pop_gender_comp'
 gender_pct_field = 'gender'
-categories = ['City Employee', 'Overall City']
 gender_hardcoded_vals = [{gender_pct_field: 'M', 'percentage': 00.49},
                          {gender_pct_field: 'F', 'percentage': 00.51}]
-query_gender_comp = build_percentage_table_query('ceridian', 'all_employees', gender_table,
-                                                 False, 'employee_num', gender_pct_field,
-                                                 categories, gender_hardcoded_vals)
 create_gender_comp_table = BigQueryOperator(
     task_id='create_gender_comp_table',
-    sql=query_gender_comp,
+    sql=q.build_percentage_table_query(gender_table, gender_pct_field, gender_hardcoded_vals),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
@@ -90,12 +87,9 @@ race_hardcoded_vals = [{race_pct_field: 'White (not Hispanic or Latino)', 'perce
                        {race_pct_field: 'Native Hawaiian or Other Pacific Islander (not Hispanic or Latino)',
                         'percentage': 00.001},
                        {race_pct_field: 'Two or More Races  (not Hispanic or Latino)', 'percentage': 00.036}]
-query_racial_comp = build_percentage_table_query('ceridian', 'all_employees', race_table,
-                                                 False, 'employee_num', race_pct_field,
-                                                 categories, race_hardcoded_vals)
 create_racial_comp_table = BigQueryOperator(
     task_id='create_racial_comp_table',
-    sql=query_racial_comp,
+    sql=q.build_percentage_table_query(race_table, race_pct_field, race_hardcoded_vals),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
