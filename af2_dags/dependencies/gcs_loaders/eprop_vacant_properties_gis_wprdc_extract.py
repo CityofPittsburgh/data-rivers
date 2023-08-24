@@ -98,7 +98,7 @@ def normalize_block_lot(x):
             # for each char in the selected part
             for c_num in parts[i]:
                 # check if the selected character is in a component allowing letters
-                if c_num.isalpha() != components["alpha_char"][i]:
+                if not components["alpha_char"][i] and c_num.isalpha():
                     return "invalid input"
 
             # verify component is not longer than allowed (if the string was 16 chars then this has to be correct,
