@@ -2,6 +2,7 @@ import os
 import argparse
 import pendulum
 import requests
+import time
 from datetime import datetime, timedelta
 from requests.auth import HTTPBasicAuth
 from google.cloud import storage
@@ -22,7 +23,7 @@ args = vars(parser.parse_args())
 def last_day_of_month(datestring):
     input_date = datetime.strptime(datestring, "%m/%d/%Y %H:%M:%S %p")
     if input_date.month == 12:
-        return input_date.replace(day=31)
+        return str(input_date.replace(day=31).strftime("%m/%d/%Y")) + " 11:59:59 PM"
     date_val = input_date.replace(month=input_date.month+1, day=1) - timedelta(days=1)
     return str(date_val.date().strftime("%m/%d/%Y")) + " 11:59:59 PM"
 
@@ -77,32 +78,38 @@ while more is True:
         redir_url = response.url
         # Retry API request with same parameters but new URL
         response = s.get(redir_url, auth=auth)
+    elif response.status_code == 429:
+        time.sleep(300)
+        response = s.get(url, auth=auth)
     curr_run = datetime.now(tz=pendulum.timezone('UTC')).strftime("%Y-%m-%d %H:%M:%S")
     print(f"Response for time range {month_first} through {month_last}: {str(response.status_code)}")
-
-    time_data = response.json()['Data']['Rows']
-    # continue looping through records until the API has a MoreFlag value of 0
-    if response.json()['Paging']['Next']:
-        url = response.json()['Paging']['Next']
-    # just because there is no MoreFlag value does not necessarily mean there is no more data
-    # continue looping by moving time window up ~15 days until we catch up to the current month
-    elif month_first != curr_month_first_str:
-        month_first = datetime.strptime(month_last, "%m/%d/%Y %H:%M:%S %p").date() + timedelta(days=1)
-        if '/15/' in month_last:
-            month_last = last_day_of_month(month_last)
-        else:
-            month_last = month_first.replace(day=15)
-            month_last = str(month_last.strftime("%m/%d/%Y")) + " 11:59:59 PM"
-        month_first = str(month_first.strftime("%m/%d/%Y %H:%M:%S %p"))
-        if month_first != curr_month_first_str:
-            url = set_url(month_first, month_last)
+    try:
+        time_data = response.json()['Data']['Rows']
+        # continue looping through records until the API has a MoreFlag value of 0
+        if response.json()['Paging']['Next']:
+            url = response.json()['Paging']['Next']
+        # just because there is no MoreFlag value does not necessarily mean there is no more data
+        # continue looping by moving time window up ~15 days until we catch up to the current month
+        elif month_first != curr_month_first_str:
+            month_first = datetime.strptime(month_last, "%m/%d/%Y %H:%M:%S %p").date() + timedelta(days=1)
+            if '/15/' in month_last:
+                month_last = last_day_of_month(month_last)
+            else:
+                month_last = month_first.replace(day=15)
+                month_last = str(month_last.strftime("%m/%d/%Y")) + " 11:59:59 PM"
+            month_first = str(month_first.strftime("%m/%d/%Y %H:%M:%S %p"))
+            if month_first != curr_month_first_str:
+                url = set_url(month_first, month_last)
+            else:
+                more = False
         else:
             more = False
-    else:
-        more = False
 
-    # append list of API results to growing all_records list (should require several loops)
-    all_records += time_data
+        # append list of API results to growing all_records list (should require several loops)
+        all_records += time_data
+    except KeyError:
+        print('429 response after 5 minute pause, trying again')
+        time.sleep(600)
 
 print(f"Total extract length: {len(all_records)}")
 json_to_gcs(f"{args['out_loc']}", all_records, bucket)
