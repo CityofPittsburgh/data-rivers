@@ -95,6 +95,22 @@ create_racial_comp_table = BigQueryOperator(
     dag=dag
 )
 
+create_pmo_export_table = BigQueryOperator(
+    task_id='create_pmo_export_table',
+    sql=q.pmo_export_query(),
+    bigquery_conn_id='google_cloud_default',
+    use_legacy_sql=False,
+    dag=dag
+)
+
+ceridian_pmo_export = BigQueryToCloudStorageOperator(
+    task_id='ceridian_pmo_export',
+    source_project_dataset_table=f"{os.environ['GCLOUD_PROJECT']}.ceridian.active_non_ps_employees",
+    destination_cloud_storage_uris=[f"gs://{os.environ['GCS_PREFIX']}_pmo/training/active_non_ps_employees.csv"],
+    bigquery_conn_id='google_cloud_default',
+    dag=dag
+)
+
 # Export employee table to IAPro bucket as readable CSV
 ceridian_iapro_export = BigQueryToCloudStorageOperator(
     task_id='ceridian_iapro_export',
@@ -111,4 +127,4 @@ beam_cleanup = BashOperator(
 )
 
 ceridian_employees_gcs >> ceridian_employees_dataflow >> ceridian_employees_bq_load >> create_gender_comp_table >> \
-    create_racial_comp_table >> ceridian_iapro_export >> beam_cleanup
+    create_racial_comp_table >> create_pmo_export_table >> ceridian_pmo_export >> ceridian_iapro_export >> beam_cleanup
