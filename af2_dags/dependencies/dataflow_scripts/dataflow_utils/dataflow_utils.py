@@ -738,8 +738,13 @@ def generate_args(job_name, bucket, argv, schema_name, default_arguments, limit_
 
     parser.add_argument('--input', dest = 'input', required = True)
     parser.add_argument('--avro_output', dest = 'avro_output', required = True)
+    parser.add_argument('--specify_runner', dest = 'spec_runner', required = False)
+    args = vars(parser.parse_args())
 
-    if use_df_runner:
+    if use_df_runner or args['spec_runner'] == 'DataflowRunner':
+        print('---------------------------------------------------')
+        print('Using DataflowRunner')
+        print('---------------------------------------------------')
         parser.add_argument('--runner', '-r', dest = 'runner', default = 'DataflowRunner', required = False)
     else:
         parser.add_argument('--runner', '-r', dest = 'runner', default = 'DirectRunner', required = False)
