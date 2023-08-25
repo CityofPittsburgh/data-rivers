@@ -823,6 +823,36 @@ def find_last_successful_run(bucket_name, good_run_path, look_back_date):
         return str(look_back_date), first_run
 
 
+def generate_xml(soap_url, request, branch, from_time, to_time, prefix='v3'):
+    """
+    :param prefix: prefix used by SOAP library for given request
+    :param soap_url: InTime uses different URLs to group different classes of requests
+    (e.g., Time & Attendance vs. Employee Details)
+    :param request: name of request made to the InTime API
+    :param branch: string to identify the department employee information will be pulled from
+    :param from_time: date string in %Y-%m-%d format that identifies the start window for when employee data
+    should start being pulled. This date is either the date of the first-ever entry of data into
+    the InTime system, or the date of the last successful run of this data pipeline
+    :param to_time: date string in %Y-%m-%d format that identifies the end window for when employee data
+    should stop being pulled. Should always be the current date
+    """
+    if prefix == 'v3':
+        branch_param = 'branchRef'
+    else:
+        branch_param = 'branchReference'
+    return F"""
+    <S:Envelope xmlns:S="http://schemas.xmlsoap.org/soap/envelope/" xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/" xmlns:{prefix}="http://v3.{soap_url}.rise.intimesoft.com/">
+        <S:Body>
+            <{prefix}:{request}>
+                <{branch_param}>{branch}</{branch_param}>
+                <startDate>{from_time}</startDate>
+                <endDate>{to_time}</endDate>
+            </{prefix}:{request}>
+        </S:Body>
+    </S:Envelope>
+    """
+
+
 def json_linter(ndjson: str):
     """
     :Author - Pranav Banthia
