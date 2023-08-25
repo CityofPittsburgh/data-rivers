@@ -35,8 +35,6 @@ end = '</ns2:getEmployeeDataListResponse>'
 run_start_win, first_run = find_last_successful_run(bucket, "employees/successful_run_log/log.json", DEFAULT_RUN_START)
 from_time = run_start_win.split(' ')[0]
 
-xml_test = generate_xml(soap_url, request, 'POLICE', from_time, today)
-
 # API call to get data
 response = post_xml(BASE_URL, envelope=generate_xml(soap_url, request, 'POLICE', from_time, today),
                     auth=auth, headers=headers,  res_start=start, res_stop=end)
