@@ -42,3 +42,14 @@ def extract_new_hires():
         )
         ORDER BY employment_status DESC
     """
+
+
+def pmo_export_query():
+    return F"""
+    CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.ceridian.active_non_ps_employees` AS
+        SELECT employee_num, first_name, last_name, sso_login, dept_desc, office, 
+               job_title, hire_date, `union`, manager_name, status
+        FROM `{os.environ['GCLOUD_PROJECT']}.ceridian.all_employees`
+        WHERE status IN ('Active', 'Pre-Start')
+        AND dept != 'Public Safety'
+    """
