@@ -2,7 +2,7 @@ import os
 import argparse
 from datetime import date
 
-from gcs_utils import json_to_gcs, call_odata_api_error_handling
+from gcs_utils import json_to_gcs, call_odata_api_error_handling, write_partial_api_request_results_for_inspection
 
 
 def unnest_violations(nested_data, name_swaps):
@@ -29,7 +29,7 @@ def unnest_violations(nested_data, name_swaps):
 
     """
     unnested = []
-    print("unnesting")
+    print("unnesting the data returned from the ODATA API in a function local to the gcs loader script")
 
     for row in nested_data:
         new_row_base = {}
@@ -69,7 +69,7 @@ args = vars(parser.parse_args())
 bucket = f"{os.environ['GCS_PREFIX']}_computronix"
 
 # CX ODATA API URL service root
-root = 'https://staff.onestoppgh.pittsburghpa.gov/pghprod/odata/odata/'
+url = 'https://staff.onestoppgh.pittsburghpa.gov/pghprod/odata/odata/'
 
 # PLI Entity
 base = "CASEFILE"
@@ -91,7 +91,7 @@ today = date.today()
 record_filter = F"$filter=DATECOMPLETED gt 2020-06-01T00:00:00Z and DATECOMPLETED lt {today}T00:00:00Z "
 
 # build url
-odata_url = F"{root}{base}?" \
+odata_url = F"{url}{base}?" \
             F"$select={fds_base}, " \
             "&" \
             F"$expand={unnested_table_1}" \
@@ -99,9 +99,15 @@ odata_url = F"{root}{base}?" \
             F"{unnested_table_2}($select={fds_unt2}), " \
             F"{unnested_table_3}($select={fds_unt3})"
 
-# get violations from API
-violations = call_odata_api_error_handling(odata_url ,F"{os.environ['GCLOUD_PROJECT']} computronix violations", time_out = 7200)
 
+# basic url to count the total number of records in the outermost entity (useful for logging if the expected number
+# of results were ultimately returned)
+expec_ct_url = F"{url}{base}/$count"
+
+# hit the api
+pipe_name = F"{os.environ['GCLOUD_PROJECT']} computronix violations"
+violations, error_flag = call_odata_api_error_handling(targ_url = odata_url, pipeline = pipe_name,
+                                                       ct_url = expec_ct_url, time_out = 7200)
 
 # names to swap for fields that are not nested in raw data
 swaps = [
@@ -112,4 +118,7 @@ unnested_violations = unnest_violations(violations, swaps)
 
 # load data into GCS
 # out loc = <dataset>/<full date>/<run_id>_violations.json
-json_to_gcs(args["out_loc"], unnested_violations, bucket)
+if not error_flag:
+    json_to_gcs(args["out_loc"], unnested_violations, bucket)
+else:
+    write_partial_api_request_results_for_inspection(unnested_violations, "violations")

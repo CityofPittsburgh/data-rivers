@@ -1,7 +1,8 @@
 import os
 import argparse
 
-from gcs_utils import json_to_gcs, unnest_domi_street_seg, call_odata_api_error_handling
+from gcs_utils import json_to_gcs, unnest_domi_street_seg, call_odata_api_error_handling, \
+    write_partial_api_request_results_for_inspection
 
 # names to swap for fields that are not nested in raw data
 SWAPS = [
@@ -46,12 +47,22 @@ tb_nt2 = "STREETCLOSUREDOMISTREETSEGMENT"
 odata_url = F"{url}{tb_base}?$select={fds_base}," + F"&$expand={tb_nt1}" \
             + F"($select={fds_nt1},;" + F"$expand={tb_nt2}($select={fds_nt2})),"
 
-# extract the data from ODATA API
 
-nested_permits = call_odata_api_error_handling(odata_url,
-                                               F"{os.environ['GCLOUD_PROJECT']} computronix gis street closures")
+# basic url to count the total number of records in the outermost entity (useful for logging if the expected number
+# of results were ultimately returned)
+expec_ct_url = F"{url}{tb_base}/$count"
+
+# extract the data from ODATA API
+pipe_name = F"{os.environ['GCLOUD_PROJECT']} computronix gis street closures"
+nested_permits, error_flag = call_odata_api_error_handling(targ_url = odata_url, pipeline = pipe_name,
+                                                           ct_url = expec_ct_url)
+
+
 unnested_data = unnest_domi_street_seg(nested_permits, SWAPS, OLD_KEYS, NEW_KEYS)
 
 # load data into GCS
 # out loc = <dataset>/<full date>/<run_id>_str_closures.json
-json_to_gcs(args["out_loc"], unnested_data, bucket)
+if not error_flag:
+    json_to_gcs(args["out_loc"], unnested_data, bucket)
+else:
+    write_partial_api_request_results_for_inspection(unnested_data, "gis_street_closures")
