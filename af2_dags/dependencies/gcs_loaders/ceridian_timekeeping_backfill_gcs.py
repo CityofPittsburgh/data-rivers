@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from requests.auth import HTTPBasicAuth
 from google.cloud import storage
 
-from gcs_utils import json_to_gcs
+from gcs_utils import json_to_gcs, get_last_day_of_month
 
 
 storage_client = storage.Client()
@@ -17,15 +17,6 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--output_arg', dest='out_loc', required=True,
                     help='fully specified location to upload the combined ndjson file')
 args = vars(parser.parse_args())
-
-
-# adapted from https://stackoverflow.com/a/43088
-def last_day_of_month(datestring):
-    input_date = datetime.strptime(datestring, "%m/%d/%Y %H:%M:%S %p")
-    if input_date.month == 12:
-        return str(input_date.replace(day=31).strftime("%m/%d/%Y")) + " 11:59:59 PM"
-    date_val = input_date.replace(month=input_date.month+1, day=1) - timedelta(days=1)
-    return str(date_val.date().strftime("%m/%d/%Y")) + " 11:59:59 PM"
 
 
 def set_url(first_of_month, last_of_month):
@@ -77,7 +68,7 @@ while more is True:
                 month_first = month_last.date() + timedelta(days=1)
                 month_last = str(month_last.strftime("%m/%d/%Y %H:%M:%S %p"))
             if '/15/' in month_last:
-                month_last = last_day_of_month(month_last)
+                month_last = get_last_day_of_month(month_last, "%m/%d/%Y %H:%M:%S %p", "%m/%d/%Y")
             else:
                 month_last = month_first.replace(day=15)
                 month_last = str(month_last.strftime("%m/%d/%Y")) + " 11:59:59 PM"

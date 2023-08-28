@@ -5,7 +5,7 @@ import os
 import logging
 import re
 import requests
-from datetime import datetime
+from datetime import datetime, timedelta
 import time
 
 import json
@@ -780,6 +780,15 @@ def get_wprdc_data(resource_id, select_fields = ['*'], where_clauses = None, gro
         records = remove_fields(records, fields_to_remove)
 
     return records
+
+
+def get_last_day_of_month(datestring, input_date_fmt="%Y-%m-%d %H:%M:%S", output_date_fmt="%Y-%m-%d"):
+    # adapted from https://stackoverflow.com/a/43088
+    input_date = datetime.strptime(datestring, input_date_fmt)
+    if input_date.month == 12:
+        return str(input_date.replace(day=31).strftime(output_date_fmt)) + " 23:59:59"
+    date_val = input_date.replace(month=input_date.month+1, day=1) - timedelta(days=1)
+    return str(date_val.date().strftime(output_date_fmt)) + " 23:59:59"
 
 
 def rmsprod_setup():
