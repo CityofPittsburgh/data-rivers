@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from requests.auth import HTTPBasicAuth
 from google.cloud import storage
 
-from gcs_utils import json_to_gcs, find_last_successful_run
+from gcs_utils import json_to_gcs
 
 
 storage_client = storage.Client()
@@ -34,28 +34,8 @@ def set_url(first_of_month, last_of_month):
                 f"bb93e411-2928-463d-b048-03460269d416={last_of_month}"
 
 
-# adapted from https://pynative.com/python-get-last-day-of-month/#h-get-last-day-of-a-previous-month
-input_dt = datetime.today()
-curr_month_first = input_dt.replace(day=1)
-# store the initial first day of the previous month in a variable so the backfill knows when to stop
-curr_month_first_str = str(curr_month_first.date().strftime("%m/%d/%Y %H:%M:%S %p"))
-month_last = curr_month_first - timedelta(days=1)
-month_first = month_last.replace(day=1)
-
-run_start_win, first_run = find_last_successful_run(bucket, "timekeeping/successful_run_log/log.json",
-                                                    "01/01/2023 00:00:00 AM")
-
-# if this is the first time the DAG has ran, start pulling data from the beginning of the year
-# otherwise, only get the previous month's data
-if first_run:
-    month_first = run_start_win
-else:
-    month_first = str(month_first.date().strftime("%m/%d/%Y %H:%M:%S %p"))
-
-# The Ceridian API can only return up to 100K records per request, and each month of data contains about
-# 120K rows. This code splits the month in half so all the data can be retrrieved
-month_last = (datetime.strptime(month_first, "%m/%d/%Y %H:%M:%S %p")).replace(day=15)
-month_last = str(month_last.strftime("%m/%d/%Y")) + " 11:59:59 PM"
+month_first = "01/01/2022 00:00:00 AM"
+month_last = "01/15/2022 11:59:59 PM"
 
 # (DAG should never pull data from the current month)
 print(f'Initial request date range: {month_first}-{month_last}')
@@ -90,15 +70,19 @@ while more is True:
             url = response.json()['Paging']['Next']
         # just because there is no MoreFlag value does not necessarily mean there is no more data
         # continue looping by moving time window up ~15 days until we catch up to the current month
-        elif month_first != curr_month_first_str:
-            month_first = datetime.strptime(month_last, "%m/%d/%Y %H:%M:%S %p").date() + timedelta(days=1)
+        elif '2023' not in month_first:
+            try:
+                month_first = datetime.strptime(month_last, "%m/%d/%Y %H:%M:%S %p").date() + timedelta(days=1)
+            except TypeError:
+                month_first = month_last.date() + timedelta(days=1)
+                month_last = str(month_last.strftime("%m/%d/%Y %H:%M:%S %p"))
             if '/15/' in month_last:
                 month_last = last_day_of_month(month_last)
             else:
                 month_last = month_first.replace(day=15)
                 month_last = str(month_last.strftime("%m/%d/%Y")) + " 11:59:59 PM"
             month_first = str(month_first.strftime("%m/%d/%Y %H:%M:%S %p"))
-            if month_first != curr_month_first_str:
+            if '2023' not in month_first:
                 url = set_url(month_first, month_last)
             else:
                 more = False
@@ -109,12 +93,6 @@ while more is True:
         all_records += time_data
     except KeyError:
         print('429 response after 5 minute pause, trying again')
-        time.sleep(600)
 
 print(f"Total extract length: {len(all_records)}")
 json_to_gcs(f"{args['out_loc']}", all_records, bucket)
-
-successful_run = [{"since": month_first,
-                   "current_run": month_last,
-                   "note": "Timekeeping data retrieved between the time points listed above"}]
-json_to_gcs("timekeeping/successful_run_log/log.json", successful_run, bucket)
