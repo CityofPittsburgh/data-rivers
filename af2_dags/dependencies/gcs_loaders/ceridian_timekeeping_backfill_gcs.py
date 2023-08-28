@@ -68,7 +68,7 @@ while more is True:
                 month_first = month_last.date() + timedelta(days=1)
                 month_last = str(month_last.strftime("%m/%d/%Y %H:%M:%S %p"))
             if '/15/' in month_last:
-                month_last = get_last_day_of_month(month_last, "%m/%d/%Y %H:%M:%S %p", "%m/%d/%Y")
+                month_last = get_last_day_of_month(month_last, "%m/%d/%Y %H:%M:%S %p", "%m/%d/%Y", " 11:59:59 PM")
             else:
                 month_last = month_first.replace(day=15)
                 month_last = str(month_last.strftime("%m/%d/%Y")) + " 11:59:59 PM"
