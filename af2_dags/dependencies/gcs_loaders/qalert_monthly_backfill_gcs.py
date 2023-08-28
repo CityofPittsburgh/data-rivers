@@ -53,7 +53,8 @@ if run_start_win != curr_month_first:
     json_to_gcs("requests/backfill/backfill_log/log.json", successful_run, bucket)
 
     # load to gcs
-    json_to_gcs(args["out_loc"], full_requests, bucket)
+    out_file = f"{args['out_loc']}/{run_start_win[:7]}_requests.json"
+    json_to_gcs(out_file, full_requests, bucket)
 
 else:
     print("No new backfill to perform")
