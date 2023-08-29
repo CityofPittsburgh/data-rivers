@@ -192,6 +192,9 @@ df_records = df_records[FIELDS.values()]
 df_records["id"] = df_records["id"].astype(str)
 df_records["address"] = df_records["address"].apply(lambda x: x.upper())
 
+# remove records where class isn't vacant
+df_records = df_records[df_records["class"] == "Vacant Land"]
+
 # clean the parcel numbers
 df_records["normalized_parc"] = df_records["parc"].apply(lambda x: normalize_block_lot(x))
 
