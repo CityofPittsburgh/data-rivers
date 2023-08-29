@@ -62,7 +62,7 @@ gcs_loader = BashOperator(
 )
 
 # Run dataflow_script
-py_cmd = f"python {os.environ['DAGS_PATH']}/dependencies/dataflow_scripts/qalert_comments_backfill_dataflow.py"
+py_cmd = f"python {os.environ['DAGS_PATH']}/dependencies/dataflow_scripts/qalert_backfill_dataflow.py"
 in_cmd = \
     f" --input gs://{os.environ['GCS_PREFIX']}_qalert/requests/backfill/{path}/backfilled_requests.json"
 out_cmd = f" --avro_output gs://{os.environ['GCS_PREFIX']}_qalert/requests/backfill/{path}/avro_output/"
