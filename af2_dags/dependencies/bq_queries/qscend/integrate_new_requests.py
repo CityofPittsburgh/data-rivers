@@ -15,8 +15,12 @@ def append_to_text_field(incoming_table, field_name, delim):
     """
 
 
-def build_child_ticket_table(new_table, incoming_table):
-    return f"""
+def build_child_ticket_table(new_table, incoming_table, combined_children=True):
+    if combined_children:
+        alias = 'combined_children'
+    else:
+        alias = 'new_children'
+    sql = f"""
     CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.{new_table}` AS
     (
         -- children never seen before and without a false parent
@@ -26,9 +30,23 @@ def build_child_ticket_table(new_table, incoming_table):
             id, parent_ticket_id, anon_comments, pii_private_notes
         FROM
             `{os.environ['GCLOUD_PROJECT']}.qalert.{incoming_table}` new_c
-        WHERE new_c.child_ticket = TRUE
-        ),
+        WHERE new_c.child_ticket = TRUE """
+    if combined_children:
+        sql += f"""
+        AND new_c.id NOT IN (SELECT id FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`)),
+        -- children above plus the children of false parent tickets
+        combined_children AS
+        (
+        SELECT *
+        FROM new_children
     
+        UNION ALL
+    
+        SELECT fp_id AS id, parent_ticket_id, anon_comments, pii_private_notes
+        FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_prev_parent_now_child`
+        """
+
+    sql += f"""),
         -- from ALL children tickets, concatenate the necessary string data
         concat_fields AS
         (
@@ -37,7 +55,7 @@ def build_child_ticket_table(new_table, incoming_table):
             STRING_AGG(id, ", ") AS child_ids,
             STRING_AGG(anon_comments, " <BREAK> ") AS child_anon_comments,
             STRING_AGG(pii_private_notes, " <BREAK> ") AS child_pii_notes
-        FROM new_children
+        FROM {alias}
         GROUP BY concat_p_id
         ),
     
@@ -47,7 +65,7 @@ def build_child_ticket_table(new_table, incoming_table):
             SELECT
                 parent_ticket_id AS p_id,
                 COUNT(id) AS cts
-            FROM new_children
+            FROM {alias}
             GROUP BY p_id
         )
     
@@ -60,6 +78,7 @@ def build_child_ticket_table(new_table, incoming_table):
         child_count.p_id = concat_fields.concat_p_id
     )
     """
+    return sql
 
 
 def delete_old_insert_new(cols, incoming_table):
@@ -177,9 +196,3 @@ def replace_last_update(incoming_table, cols):
 
     return sql
 
-
-cols = ['closed_date_est', 'closed_date_utc', 'closed_date_unix',
-        'last_action_est', 'last_action_utc', 'last_action_unix',
-        'status_name', 'status_code', 'request_type_name', 'request_type_id']
-update_query = replace_last_update('temp_update', cols)
-print(update_query)
