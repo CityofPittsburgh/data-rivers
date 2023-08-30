@@ -43,7 +43,7 @@ google_anon_lat, google_anon_long, input_pii_lat, input_pii_long, input_anon_lat
 dag = DAG(
     'qalert_monthly_backfill',
     default_args=default_args,
-    schedule_interval='@daily',
+    schedule_interval=None,  # '@daily',
     user_defined_filters={'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year,
                           'get_ds_day': get_ds_day}
 )
