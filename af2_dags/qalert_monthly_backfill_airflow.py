@@ -16,8 +16,8 @@ request_type_id, origin, pii_comments, anon_comments, pii_private_notes, create_
 create_date_unix, last_action_est, last_action_utc, last_action_unix, closed_date_est, closed_date_utc, 
 closed_date_unix, pii_street_num, street, cross_street, street_id, cross_street_id, city, pii_input_address, 
 pii_input_address AS pii_google_formatted_address, anon_input_address AS anon_google_formatted_address, address_type, 
-neighborhood_name, council_district, ward, police_zone, fire_zone, dpw_streets, dpw_enviro, dpw_parks, google_pii_lat, 
-google_pii_long, google_anon_lat, google_anon_long, input_pii_lat, input_pii_long, input_anon_lat, input_anon_long"""
+google_pii_lat, google_pii_long, google_anon_lat, google_anon_long, input_pii_lat, input_pii_long, input_anon_lat, 
+input_anon_long"""
 
 LINKED_COLS_IN_ORDER = """status_name, status_code, dept, 
 request_type_name, request_type_id, origin, pii_comments, anon_comments, pii_private_notes, create_date_est, 
