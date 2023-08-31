@@ -11,6 +11,8 @@ from dependencies import airflow_utils
 from dependencies.airflow_utils import get_ds_year, get_ds_month, get_ds_day, default_args, build_city_limits_query, \
     build_revgeo_time_bound_query, build_insert_new_records_query
 
+from dependencies.bq_queries.qscend import integrate_new_requests as q
+
 COLS_IN_ORDER = """id, parent_ticket_id, child_ticket, dept, status_name, status_code, request_type_name, 
 request_type_id, origin, pii_comments, anon_comments, pii_private_notes, create_date_est, create_date_utc, 
 create_date_unix, last_action_est, last_action_utc, last_action_unix, closed_date_est, closed_date_utc, 
@@ -137,56 +139,15 @@ geojoin = BigQueryOperator(
     dag=dag
 )
 
-query_insert_new_parent = f"""
-/*
-This query check that a ticket has never been seen before (checks all_tix_current_status) AND
-that the ticket is a parent. Satisfying both conditions means that the ticket needs to be placed in all_linked_requests
-There is one catch that is caused by the way tickets are manually linked: This newly recorded request is
-labeled as a parent. However, in the future the 311 operators may  linke this ticket with another
-existing parent and it will change into a child ticket. This means the original ticket was actually a "false_parent"
-ticket. Future steps in the DAG will handle that possibility, and for this query the only feasible option is to assume
-the ticket is correctly labeled.*/
-
-INSERT INTO `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests`
-(
-SELECT
-    id as group_id,
-    "" as child_ids,
-    1 as num_requests,
-    IF(status_name = "closed", TRUE, FALSE) as parent_closed,
-    {LINKED_COLS_IN_ORDER}
-
-FROM
-    `{os.environ['GCLOUD_PROJECT']}.qalert.backfill_enriched`
-WHERE id NOT IN (SELECT id FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`)
-AND child_ticket = False
-);
-"""
 insert_new_parent = BigQueryOperator(
     task_id='insert_new_parent',
-    sql=query_insert_new_parent,
+    sql=q.insert_new_parent('backfill_enriched', LINKED_COLS_IN_ORDER),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
 )
 
 query_integrate_children = f"""
-/*
-In query_remove_false_parents: false parent tix were found and eliminated.
-
-This query will combine together all the relevant information for each child ticket (within its linkage family).
-
-One complication of the workflow is the false parent tickets that were identified and eliminated in
-query_remove_false_parents.
-The incoming information from the child ticket (not the information from the false_parent entry into
-all_linked_requests) was extracted in that query. Identification and deletion of false parents, and extraction of
-the corresponding child's information, occurs at the earliest instance that the false parent is discovered. Thus,
-the information from the child ticket's processed in query_remove_false_parents can be considered a child that has
-never been observed before. This ultimately means that the newly observed child's data needs to be combined into
-the other newly identified children (those which were never associated with a false parent).
-Thus, the need to combine ALL OF THE CHILD TICKETS (both those associated with a false parent and those never being
-misrepresented) is handled by this query
-*/
 CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.backfill_temp_child_combined` AS
 (
     -- children never seen before and without a false parent
@@ -196,20 +157,7 @@ CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.backfill_temp_chi
         id, parent_ticket_id, anon_comments, pii_private_notes
     FROM
         `{os.environ['GCLOUD_PROJECT']}.qalert.backfill_enriched` new_c
-    WHERE new_c.id NOT IN (SELECT id FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`)
-    AND new_c.child_ticket = TRUE
-    ),
-
-    -- children above plus the children of false parent tickets
-    combined_children AS
-    (
-    SELECT *
-    FROM new_children
-
-    UNION ALL
-
-    SELECT fp_id AS id, parent_ticket_id, anon_comments, pii_private_notes
-    FROM `{os.environ['GCLOUD_PROJECT']}.qalert.backfill_temp_prev_parent_now_child`
+    WHERE new_c.child_ticket = TRUE
     ),
 
     -- from ALL children tickets, concatenate the necessary string data
@@ -220,7 +168,7 @@ CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.backfill_temp_chi
         STRING_AGG(id, ", ") AS child_ids,
         STRING_AGG(anon_comments, " <BREAK> ") AS child_anon_comments,
         STRING_AGG(pii_private_notes, " <BREAK> ") AS child_pii_notes
-    FROM combined_children
+    FROM new_children
     GROUP BY concat_p_id
     ),
 
@@ -230,7 +178,7 @@ CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.backfill_temp_chi
         SELECT
             parent_ticket_id AS p_id,
             COUNT(id) AS cts
-        FROM combined_children
+        FROM new_children
         GROUP BY p_id
     )
 
@@ -284,9 +232,31 @@ WHERE alr.group_id = tcc.p_id AND
     AND alr.child_ids != tcc.child_ids
 );
 """
+build_child_ticket_table = BigQueryOperator(
+    task_id='build_child_ticket_table',
+    sql=q.build_child_ticket_table('backfill_temp_child_combined', 'backfill_enriched', combined_children=False),
+    bigquery_conn_id='google_cloud_default',
+    use_legacy_sql=False,
+    dag=dag
+)
+
+increment_ticket_count = BigQueryOperator(
+    task_id='increment_ticket_count',
+    sql=q.increment_ticket_counts('backfill_temp_child_combined'),
+    bigquery_conn_id='google_cloud_default',
+    use_legacy_sql=False,
+    dag=dag
+)
+
+append_fields = [{'fname': 'child_ids', 'delim': ', '},
+                 {'fname': 'anon_comments', 'delim': ' <BREAK> '},
+                 {'fname': 'pii_private_notes', 'delim': ' <BREAK> '}]
+append_query = ''
+for field in append_fields:
+    append_query += q.append_to_text_field('backfill_temp_child_combined', field['fname'], field['delim']) + ';'
 integrate_children = BigQueryOperator(
     task_id='integrate_children',
-    sql=query_integrate_children,
+    sql=append_query,
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
@@ -310,4 +280,7 @@ beam_cleanup = BashOperator(
 
 # DAG execution:
 gcs_loader >> dataflow >> gcs_to_bq >> format_subset >> city_limits >> geojoin >> insert_new_parent >> \
-    integrate_children >> insert_missed_requests >> beam_cleanup
+    insert_missed_requests >> beam_cleanup
+
+gcs_loader >> dataflow >> gcs_to_bq >> format_subset >> city_limits >> geojoin >> build_child_ticket_table >>\
+    increment_ticket_count >> integrate_children >> insert_missed_requests >> beam_cleanup
