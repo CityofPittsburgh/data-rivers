@@ -53,8 +53,8 @@ def build_child_ticket_table(new_table, incoming_table, combined_children=True):
         SELECT
             parent_ticket_id AS concat_p_id,
             STRING_AGG(id, ", ") AS child_ids,
-            STRING_AGG(anon_comments, " <BREAK> ") AS child_anon_comments,
-            STRING_AGG(pii_private_notes, " <BREAK> ") AS child_pii_notes
+            STRING_AGG(anon_comments, " <BREAK> ") AS anon_comments,
+            STRING_AGG(pii_private_notes, " <BREAK> ") AS pii_private_notes
         FROM {alias}
         GROUP BY concat_p_id
         ),
