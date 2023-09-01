@@ -9,7 +9,7 @@ from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 
 from dependencies import airflow_utils
 from dependencies.airflow_utils import get_ds_year, get_ds_month, get_ds_day, default_args, build_city_limits_query, \
-    build_revgeo_time_bound_query, build_insert_new_records_query
+    build_revgeo_time_bound_query, build_insert_new_records_query, build_format_dedup_query
 
 from dependencies.bq_queries.qscend import integrate_new_requests as q
 
@@ -86,30 +86,12 @@ gcs_to_bq = GoogleCloudStorageToBigQueryOperator(
     dag=dag
 )
 
-query_format_subset = f"""
-CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.temp_backfill_subset` AS
-WITH formatted  AS
-    (
-    SELECT
-        DISTINCT * EXCEPT (pii_lat, pii_long, anon_lat, anon_long),
-        CAST(pii_lat AS FLOAT64) AS input_pii_lat,
-        CAST(pii_long AS FLOAT64) AS input_pii_long,
-        CAST(pii_lat AS FLOAT64) AS google_pii_lat,
-        CAST(pii_long AS FLOAT64) AS google_pii_long,
-        CAST(anon_lat AS FLOAT64) AS input_anon_lat,
-        CAST(anon_long AS FLOAT64) AS input_anon_long,
-        CAST(anon_lat AS FLOAT64) AS google_anon_lat,
-        CAST(anon_long AS FLOAT64) AS google_anon_long,
-    FROM
-        {os.environ['GCLOUD_PROJECT']}.qalert.temp_backfill
-    )
--- drop the final column through slicing the string. final column is added in next query
-SELECT
-    {COLS_IN_ORDER}
-FROM
-    formatted
-WHERE id NOT IN (SELECT id FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`)
-"""
+cast_fields = [{'field': 'pii_lat', 'type': 'FLOAT64'},
+               {'field': 'pii_long', 'type': 'FLOAT64'},
+               {'field': 'anon_lat', 'type': 'FLOAT64'},
+               {'field': 'anon_long', 'type': 'FLOAT64'}]
+query_format_subset = build_format_dedup_query('qalert', 'temp_backfill_subset', cast_fields, COLS_IN_ORDER)
+query_format_subset += f"WHERE id NOT IN (SELECT id FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`)"
 format_subset = BigQueryOperator(
     task_id='format_subset',
     sql=query_format_subset,
@@ -147,91 +129,6 @@ insert_new_parent = BigQueryOperator(
     dag=dag
 )
 
-query_integrate_children = f"""
-CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.backfill_temp_child_combined` AS
-(
-    -- children never seen before and without a false parent
-    WITH new_children AS
-    (
-    SELECT
-        id, parent_ticket_id, anon_comments, pii_private_notes
-    FROM
-        `{os.environ['GCLOUD_PROJECT']}.qalert.backfill_enriched` new_c
-    WHERE new_c.child_ticket = TRUE
-    ),
-
-    -- from ALL children tickets, concatenate the necessary string data
-    concat_fields AS
-    (
-    SELECT
-        parent_ticket_id AS concat_p_id,
-        STRING_AGG(id, ", ") AS child_ids,
-        STRING_AGG(anon_comments, " <BREAK> ") AS child_anon_comments,
-        STRING_AGG(pii_private_notes, " <BREAK> ") AS child_pii_notes
-    FROM new_children
-    GROUP BY concat_p_id
-    ),
-
-    -- Sum all children within the linkage family
-    child_count AS
-    (
-        SELECT
-            parent_ticket_id AS p_id,
-            COUNT(id) AS cts
-        FROM new_children
-        GROUP BY p_id
-    )
-
-    -- Selection of all above processing into a temp table
-    SELECT
-        child_count.*,
-        concat_fields.* EXCEPT (concat_p_id)
-    FROM child_count
-    JOIN concat_fields ON
-    child_count.p_id = concat_fields.concat_p_id
-);
-
--- update existing entries inside all_linked_requests
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
-SET alr.num_requests = tcc.cts + alr.num_requests
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.backfill_temp_child_combined` tcc
-WHERE alr.group_id = tcc.p_id AND
-(
-    (alr.child_ids NOT LIKE CONCAT('%, ', tcc.child_ids, '%')
-    OR alr.child_ids NOT LIKE CONCAT('%', tcc.child_ids, ', %'))
-    AND alr.child_ids != tcc.child_ids
-);
-
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
-SET alr.child_ids = CONCAT(IFNULL(CONCAT(alr.child_ids, ', '), ''),tcc.child_ids)
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.backfill_temp_child_combined` tcc
-WHERE alr.group_id = tcc.p_id AND
-(
-    (alr.child_ids NOT LIKE CONCAT('%, ', tcc.child_ids, '%')
-    OR alr.child_ids NOT LIKE CONCAT('%', tcc.child_ids, ', %'))
-    AND alr.child_ids != tcc.child_ids
-);
-
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
-SET alr.anon_comments = CONCAT(IFNULL(CONCAT(alr.anon_comments, ' <BREAK> '), ''),tcc.child_anon_comments)
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.backfill_temp_child_combined` tcc
-WHERE alr.group_id = tcc.p_id AND
-(
-    (alr.child_ids NOT LIKE CONCAT('%, ', tcc.child_ids, '%')
-    OR alr.child_ids NOT LIKE CONCAT('%', tcc.child_ids, ', %'))
-    AND alr.child_ids != tcc.child_ids
-);
-
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
-SET alr.pii_private_notes = CONCAT(IFNULL(CONCAT(alr.pii_private_notes, ' <BREAK> '), ''),tcc.child_pii_notes)
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.backfill_temp_child_combined` tcc
-WHERE alr.group_id = tcc.p_id AND
-(
-    (alr.child_ids NOT LIKE CONCAT('%, ', tcc.child_ids, '%')
-    OR alr.child_ids NOT LIKE CONCAT('%', tcc.child_ids, ', %'))
-    AND alr.child_ids != tcc.child_ids
-);
-"""
 build_child_ticket_table = BigQueryOperator(
     task_id='build_child_ticket_table',
     sql=q.build_child_ticket_table('backfill_temp_child_combined', 'backfill_enriched', combined_children=False),
