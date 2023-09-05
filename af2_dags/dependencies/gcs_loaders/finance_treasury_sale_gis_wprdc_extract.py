@@ -1,4 +1,3 @@
-
 import argparse
 import os
 
@@ -6,7 +5,6 @@ import re
 import jaydebeapi
 
 from gcs_utils import json_to_gcs, sql_to_df, conv_avsc_to_bq_schema
-
 
 # Note: we recently (5/23) learned that this pipeline is end of life with 6 months of creation (11/23). While more
 # data enrichment and work would normally be completed, this is sufficient, given this situation.
@@ -28,26 +26,22 @@ conn = jaydebeapi.connect("oracle.jdbc.OracleDriver", os.environ['REALESTATE_DB'
 
 # build query
 query = """
-SELECT DISTINCT
-TREAS_SALE_DELINQUENT_SEQ,
-MASTER_SEQ,  
-ACCT_NO, 
-PROP_LOCATION_1 || ' ' || PROP_LOCATION_2 LOC,
-ADDRESS_1 || ' ' || ADDRESS_2 ADDRESS,
-
-
-
-  city_county_accounts.cnty_acct PIN,
-  master.prop_low_house_no || ' ' || master.prop_street_name || ', ' || MASTER.PROP_CITY || ', ' || MASTER.PROP_STATE || ' ' || MASTER.PROP_ZIP  ADDRESS, 
-  master.block_lot,
-  master.last_sale_date last_sale_dt,
-  master.treas_sale_date treas_sale_dt,
-  master.date_last_paid last_paid_dt,
-  master.gentrification_date gentrification_dt,
-  master.sale_price
-FROM
-  master, 
-  city_county_accounts
+SELECT 
+	m.TREAS_SALE_DATE,
+	jt.CITY_JORDAN_DUE,
+	jt.SCHOOL_JORDAN_DUE,
+	jt.COUNTY_JORDAN_DUE,
+	jt.LIBRARY_JORDAN_DUE,
+	jt.PWSA_JORDAN_DUE,
+	m.BLOCK_LOT,
+  	m.prop_low_house_no || ' ' || m.prop_street_name || ', ' || m.PROP_CITY || ', ' || m.PROP_STATE || ' ' || m.PROP_ZIP AS ADDRESS
+FROM 
+	 JORDAN_TSALE jt
+LEFT OUTER JOIN TREAS_SALE_DELINQUENT tsd ON
+jt.ACCT_NO = tsd.ACCT_NO 
+INNER JOIN MASTER m ON
+jt.ACCT_NO  = m.ACCT_NO
+WHERE tsd.ACCT_NO IS NOT NULL
 """
 
 # execute query
@@ -67,16 +61,15 @@ cols_list = []
 for c in cols_conv:
     k = list(c.keys())[0]
     v = list(c.values())[0]
-    data[v] = data[k].apply(lambda x:  str(x[:10]) if x is not None else None)
+    data[v] = data[k].apply(lambda x: str(x[:10]) if x is not None else None)
     cols_list.append(k)
 data.drop(cols_list, inplace = True, axis = 1)
 
-
 # load into BQ via the avsc file in schemas direc
 schema = conv_avsc_to_bq_schema(F"{os.environ['GCS_PREFIX']}_avro_schemas", "city_owned_properties.avsc")
-data.to_gbq("finance.incoming_city_owned_properties", project_id=f"{os.environ['GCLOUD_PROJECT']}",
-            if_exists="replace", table_schema=schema)
+data.to_gbq("finance.incoming_city_owned_properties", project_id = f"{os.environ['GCLOUD_PROJECT']}",
+            if_exists = "replace", table_schema = schema)
 
 # load query results as a json to GCS autoclass storag for archival
-list_of_dict_recs = data.to_dict(orient='records')
+list_of_dict_recs = data.to_dict(orient = 'records')
 json_to_gcs(f"{args['out_loc']}", list_of_dict_recs, F"{os.environ['GCS_PREFIX']}_finance")
