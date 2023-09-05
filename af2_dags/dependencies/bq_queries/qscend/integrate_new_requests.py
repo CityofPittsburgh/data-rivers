@@ -39,9 +39,9 @@ def build_child_ticket_table(new_table, incoming_table, combined_children=True):
         (
         SELECT *
         FROM new_children
-    
+
         UNION ALL
-    
+
         SELECT fp_id AS id, parent_ticket_id, anon_comments, pii_private_notes
         FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_prev_parent_now_child`
         """
@@ -53,12 +53,12 @@ def build_child_ticket_table(new_table, incoming_table, combined_children=True):
         SELECT
             parent_ticket_id AS concat_p_id,
             STRING_AGG(id, ", ") AS child_ids,
-            STRING_AGG(anon_comments, " <BREAK> ") AS child_anon_comments,
-            STRING_AGG(pii_private_notes, " <BREAK> ") AS child_pii_notes
+            STRING_AGG(anon_comments, " <BREAK> ") AS anon_comments,
+            STRING_AGG(pii_private_notes, " <BREAK> ") AS pii_private_notes
         FROM {alias}
         GROUP BY concat_p_id
         ),
-    
+
         -- Sum all children within the linkage family
         child_count AS
         (
@@ -68,7 +68,7 @@ def build_child_ticket_table(new_table, incoming_table, combined_children=True):
             FROM {alias}
             GROUP BY p_id
         )
-    
+
         -- Selection of all above processing into a temp table
         SELECT
             child_count.*,
@@ -92,11 +92,11 @@ def delete_old_insert_new(cols, incoming_table):
     updated
     multiple times between DAG runs, only the final status is recorded. While the FULL HISTORY has obvious value, this is
     not available and it less confusing to simply store a current snapshot of the ticket's history.
-    
+
     all_tickets_current_status is currently (01/22) maintained for historical purposes.  This table has less value for
     analysis as the linkages between tickets are not taken into account.
     */
-    
+
     DELETE FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`
     WHERE id IN (SELECT id FROM `{os.environ['GCLOUD_PROJECT']}.qalert.{incoming_table}`);
     INSERT INTO `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`
@@ -131,7 +131,7 @@ def insert_new_parent(incoming_table, cols):
     existing parent and it will change into a child ticket. This means the original ticket was actually a "false_parent"
     ticket. Future steps in the DAG will handle that possibility, and for this query the only feasible option is to assume
     the ticket is correctly labeled.*/
-    
+
     INSERT INTO `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests`
     (
     SELECT
@@ -140,7 +140,7 @@ def insert_new_parent(incoming_table, cols):
         1 as num_requests,
         IF(status_name = "closed", TRUE, FALSE) as parent_closed,
         {cols}
-    
+
     FROM
         `{os.environ['GCLOUD_PROJECT']}.qalert.{incoming_table}`
     WHERE id NOT IN (SELECT id FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`)
@@ -157,7 +157,7 @@ def replace_last_update(incoming_table, cols):
     multiple
     DAG runs. ONLY THE CURRENT STATUS of each ticket, which been updated since the last DAG run, is returned in the
     current DAG run. Thus, a ticket appears multiple times in our DAG.
-    
+
     The only consequential information that consecutive updates contain are changes to the status, the time of the last
     update of the status, and the closure time (if applicable). The fact that child and parent tickets refer to the
     same underlying request creates the possibility that only a child OR parent could theoretically be updated. This
@@ -176,7 +176,7 @@ def replace_last_update(incoming_table, cols):
     sql += ", ".join(str(col) for col in cols)
     sql += f"""
     FROM  `{os.environ['GCLOUD_PROJECT']}.qalert.{incoming_table}`
-    
+
     WHERE id IN (SELECT id FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`)
     AND child_ticket = FALSE
 
