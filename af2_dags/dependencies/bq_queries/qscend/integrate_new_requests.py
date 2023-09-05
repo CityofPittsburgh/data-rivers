@@ -93,7 +93,7 @@ def delete_old_insert_new(cols, incoming_table):
     multiple times between DAG runs, only the final status is recorded. While the FULL HISTORY has obvious value, this is
     not available and it less confusing to simply store a current snapshot of the ticket's history.
 
-    all_tickets_current_status is currently (01/22) maintained for historical purposes.  This table has less value for
+    all_tickets_current_status is currently (09/23) maintained for historical purposes.  This table has less value for
     analysis as the linkages between tickets are not taken into account.
     */
 
@@ -124,10 +124,10 @@ def increment_ticket_counts(incoming_table):
 def insert_new_parent(incoming_table, cols):
     return f"""
     /*
-    This query check that a ticket has never been seen before (checks all_tix_current_status) AND
+    This query check that a ticket has never been seen before (checks all_tickets_current_status) AND
     that the ticket is a parent. Satisfying both conditions means that the ticket needs to be placed in all_linked_requests
     There is one catch that is caused by the way tickets are manually linked: This newly recorded request is
-    labeled as a parent. However, in the future the 311 operators may  linke this ticket with another
+    labeled as a parent. However, in the future the 311 operators may link this ticket with another
     existing parent and it will change into a child ticket. This means the original ticket was actually a "false_parent"
     ticket. Future steps in the DAG will handle that possibility, and for this query the only feasible option is to assume
     the ticket is correctly labeled.*/
