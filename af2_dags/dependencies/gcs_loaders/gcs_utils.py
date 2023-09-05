@@ -53,7 +53,7 @@ def call_odata_api_error_handling(targ_url, pipeline, time_out = 3600, limit_res
             ct = int(ct_str)
             print(F"expecting a total of {ct} records")
         except ValueError:
-            print("an expected number of records could not be determined. an error was generate")
+            print("an expected number of records could not be determined. an error was generated")
 
     records = []
     more_links = True
