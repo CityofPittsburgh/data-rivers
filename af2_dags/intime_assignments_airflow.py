@@ -13,7 +13,7 @@ from dependencies.airflow_utils import get_ds_month, get_ds_year, get_ds_day, de
 
 from dependencies.bq_queries.police_rms import intime_admin as q
 
-# The goal of this DAG is to perform a complete pull of police unit assignment data from
+# The goal of this DAG is to perform a complete pull of police rank assignment data from
 # the InTime API. This employee info will be stored in Data Rivers and extracted via PowerShell
 # to be merged into the Police Active Directory.
 
@@ -84,7 +84,7 @@ format_data_types = BigQueryOperator(
 
 write_append_query = F"""
 CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.{dataset}.schedule_assignments` AS
-    SELECT DISTINCT * FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{output_name}`
+    SELECT DISTINCT * FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.incoming_assignments`
     UNION DISTINCT
     SELECT DISTINCT * FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{output_name}`
 """
