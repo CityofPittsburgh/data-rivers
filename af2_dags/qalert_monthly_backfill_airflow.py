@@ -8,7 +8,7 @@ from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOper
 from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 
 from dependencies import airflow_utils
-from dependencies.airflow_utils import get_ds_year, get_ds_month, get_ds_day, default_args, build_city_limits_query, \
+from dependencies.airflow_utils import get_ds_year, get_ds_month, get_ds_day, default_args, \
     build_revgeo_time_bound_query, build_insert_new_records_query, build_format_dedup_query
 
 from dependencies.bq_queries.qscend import integrate_new_requests as q
@@ -37,11 +37,7 @@ pii_google_formatted_address, anon_google_formatted_address, address_type, neigh
 council_district, ward, police_zone, fire_zone, dpw_streets, dpw_enviro, dpw_parks, google_pii_lat, google_pii_long, 
 google_anon_lat, google_anon_long, input_pii_lat, input_pii_long, input_anon_lat, input_anon_long"""
 
-# STEPS TO TAKE BEFORE EXECUTING DAG:
-# 1.) Make backups of all_linked_requests and all_tickets_current_status in case something goes wrong
-# 2.) Make note of total ticket count present in Qscend application and compare it to the results of this backfill
-
-# This DAG schedule interval set to None because it will only ever be triggered manually
+# Backfill DAG will run daily, but will only actually extract/update data if it is the first day of the month
 dag = DAG(
     'qalert_monthly_backfill',
     default_args=default_args,
@@ -101,10 +97,9 @@ format_subset = BigQueryOperator(
 )
 
 # Query new tickets to determine if they are in the city limits
-query_city_lim = build_city_limits_query('qalert', 'temp_backfill_subset', 'input_pii_lat', 'input_pii_long')
 city_limits = BigQueryOperator(
     task_id='city_limits',
-    sql=query_city_lim,
+    sql=q.transform_enrich_requests.build_city_limits_query('temp_backfill_subset', 'input_pii_lat', 'input_pii_long'),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
@@ -123,7 +118,7 @@ geojoin = BigQueryOperator(
 
 insert_new_parent = BigQueryOperator(
     task_id='insert_new_parent',
-    sql=q.insert_new_parent('backfill_enriched', LINKED_COLS_IN_ORDER),
+    sql=q.integrate_new_requests.insert_new_parent('backfill_enriched', LINKED_COLS_IN_ORDER),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
@@ -131,7 +126,8 @@ insert_new_parent = BigQueryOperator(
 
 build_child_ticket_table = BigQueryOperator(
     task_id='build_child_ticket_table',
-    sql=q.build_child_ticket_table('backfill_temp_child_combined', 'backfill_enriched', combined_children=False),
+    sql=q.integrate_new_requests.build_child_ticket_table('backfill_temp_child_combined', 'backfill_enriched',
+                                                          combined_children=False),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
@@ -139,7 +135,7 @@ build_child_ticket_table = BigQueryOperator(
 
 increment_ticket_count = BigQueryOperator(
     task_id='increment_ticket_count',
-    sql=q.increment_ticket_counts('backfill_temp_child_combined'),
+    sql=q.integrate_new_requests.increment_ticket_counts('backfill_temp_child_combined'),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
@@ -150,7 +146,8 @@ append_fields = [{'fname': 'child_ids', 'delim': ', '},
                  {'fname': 'pii_private_notes', 'delim': ' <BREAK> '}]
 append_query = ''
 for field in append_fields:
-    append_query += q.append_to_text_field('backfill_temp_child_combined', field['fname'], field['delim']) + ';'
+    append_query += q.integrate_new_requests.append_to_text_field('backfill_temp_child_combined',
+                                                                  field['fname'], field['delim']) + ';'
 integrate_children = BigQueryOperator(
     task_id='integrate_children',
     sql=append_query,
