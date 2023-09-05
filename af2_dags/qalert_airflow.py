@@ -17,6 +17,9 @@ from dependencies import airflow_utils
 from dependencies.airflow_utils import get_ds_year, get_ds_month, get_ds_day, default_args, build_city_limits_query, \
     build_revgeo_time_bound_query
 
+from dependencies.bq_queries.qscend import transform_enrich_requests as t_q
+from dependencies.bq_queries.qscend import integrate_new_requests as i_q
+
 INCOMING_COLS = """id, parent_ticket_id, child_ticket, dept, status_name, status_code, request_type_name, 
 request_type_id, origin, pii_comments, anon_comments, pii_private_notes, create_date_est, create_date_utc, 
 create_date_unix, last_action_est, last_action_utc, last_action_unix, closed_date_est, closed_date_utc, 
@@ -137,10 +140,9 @@ format_dedupe = BigQueryOperator(
 )
 
 # Query new tickets to determine if they are in the city limits
-query_city_lim = build_city_limits_query('qalert', 'incoming_actions', 'input_pii_lat', 'input_pii_long')
 city_limits = BigQueryOperator(
     task_id='city_limits',
-    sql=query_city_lim,
+    sql=t_q.build_city_limits_query('incoming_actions', 'input_pii_lat', 'input_pii_long'),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
@@ -459,22 +461,9 @@ delete_old_insert_new_records = BigQueryOperator(
 # Create a table from all_linked_requests that has all columns EXCEPT those that have potential PII. This table is
 # subsequently exported to WPRDC. BQ will not currently (2021-10-01) allow data to be pushed from a query and it must
 # be stored in a table prior to the push. Thus, this is a 2 step process also involving the operator below.
-query_drop_pii = f"""
-CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.data_export_scrubbed` AS
-SELECT
-    group_id,
-    child_ids,
-    num_requests,
-    parent_closed,
-    {SAFE_FIELDS}
-FROM
-    `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests`
-WHERE 
-    request_type_name NOT IN ({PRIVATE_TYPES})
-"""
 drop_pii_for_export = BigQueryOperator(
     task_id='drop_pii_for_export',
-    sql=query_drop_pii,
+    sql=t_q.drop_pii(SAFE_FIELDS, PRIVATE_TYPES),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
