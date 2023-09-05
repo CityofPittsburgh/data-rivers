@@ -54,6 +54,9 @@ def call_odata_api_error_handling(targ_url, pipeline, time_out = 3600, limit_res
             print(F"expecting a total of {ct} records")
         except ValueError:
             print("an expected number of records could not be determined. an error was generated")
+            send_team_email_notification(F"{pipeline} ODATA API CALL",
+                                         "failed when trying to calculate expected records")
+
 
     records = []
     more_links = True
