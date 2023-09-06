@@ -43,7 +43,8 @@ extract_new_hires = BigQueryOperator(
 new_hires_to_csv = BigQueryToCloudStorageOperator(
     task_id='new_hires_to_csv',
     source_project_dataset_table=f"{os.environ['GCLOUD_PROJECT']}.{dataset}.daily_{dir}",
-    destination_cloud_storage_uris=[f"gs://{os.environ['GCS_PREFIX']}_{dataset}/{dir}/{path}/{csv_loc}"],
+    destination_cloud_storage_uris=[f"gs://{os.environ['GCS_PREFIX']}_{dataset}/{dir}/{path}/{csv_loc}",
+                                    f"gs://{os.environ['GCS_PREFIX']}_iapro/new_hire_report.csv"],
     bigquery_conn_id='google_cloud_default',
     dag=dag
 )
