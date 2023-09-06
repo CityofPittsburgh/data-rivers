@@ -11,7 +11,7 @@ from dependencies import airflow_utils
 from dependencies.airflow_utils import get_ds_year, get_ds_month, get_ds_day, default_args, \
     build_revgeo_time_bound_query, build_insert_new_records_query, build_format_dedup_query
 
-from dependencies.bq_queries import qscend as q
+from dependencies.bq_queries.qscend import integrate_new_requests, transform_enrich_requests
 
 COLS_IN_ORDER = """id, parent_ticket_id, child_ticket, dept, status_name, status_code, request_type_name, 
 request_type_id, origin, pii_comments, anon_comments, pii_private_notes, create_date_est, create_date_utc, 
@@ -99,7 +99,7 @@ format_subset = BigQueryOperator(
 # Query new tickets to determine if they are in the city limits
 city_limits = BigQueryOperator(
     task_id='city_limits',
-    sql=q.transform_enrich_requests.build_city_limits_query('temp_backfill_subset', 'input_pii_lat', 'input_pii_long'),
+    sql=transform_enrich_requests.build_city_limits_query('temp_backfill_subset', 'input_pii_lat', 'input_pii_long'),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
@@ -118,7 +118,7 @@ geojoin = BigQueryOperator(
 
 insert_new_parent = BigQueryOperator(
     task_id='insert_new_parent',
-    sql=q.integrate_new_requests.insert_new_parent('backfill_enriched', LINKED_COLS_IN_ORDER),
+    sql=integrate_new_requests.insert_new_parent('backfill_enriched', LINKED_COLS_IN_ORDER),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
@@ -126,8 +126,8 @@ insert_new_parent = BigQueryOperator(
 
 build_child_ticket_table = BigQueryOperator(
     task_id='build_child_ticket_table',
-    sql=q.integrate_new_requests.build_child_ticket_table('backfill_temp_child_combined', 'backfill_enriched',
-                                                          combined_children=False),
+    sql=integrate_new_requests.build_child_ticket_table('backfill_temp_child_combined', 'backfill_enriched',
+                                                        combined_children=False),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
@@ -135,7 +135,7 @@ build_child_ticket_table = BigQueryOperator(
 
 increment_ticket_count = BigQueryOperator(
     task_id='increment_ticket_count',
-    sql=q.integrate_new_requests.increment_ticket_counts('backfill_temp_child_combined'),
+    sql=integrate_new_requests.increment_ticket_counts('backfill_temp_child_combined'),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
@@ -146,8 +146,8 @@ append_fields = [{'fname': 'child_ids', 'delim': ', '},
                  {'fname': 'pii_private_notes', 'delim': ' <BREAK> '}]
 append_query = ''
 for field in append_fields:
-    append_query += q.integrate_new_requests.append_to_text_field('backfill_temp_child_combined',
-                                                                  field['fname'], field['delim']) + ';'
+    append_query += integrate_new_requests.append_to_text_field('backfill_temp_child_combined', field['fname'],
+                                                                field['delim']) + ';'
 integrate_children = BigQueryOperator(
     task_id='integrate_children',
     sql=append_query,
