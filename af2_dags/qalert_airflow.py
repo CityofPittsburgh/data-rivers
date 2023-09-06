@@ -14,8 +14,10 @@ from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 from airflow.contrib.operators.bigquery_to_gcs import BigQueryToCloudStorageOperator
 
 from dependencies import airflow_utils
-from dependencies.airflow_utils import get_ds_year, get_ds_month, get_ds_day, default_args, build_city_limits_query, \
+from dependencies.airflow_utils import get_ds_year, get_ds_month, get_ds_day, default_args, \
     build_revgeo_time_bound_query
+
+from dependencies.bq_queries.qscend import integrate_new_requests, transform_enrich_requests
 
 INCOMING_COLS = """id, parent_ticket_id, child_ticket, dept, status_name, status_code, request_type_name, 
 request_type_id, origin, pii_comments, anon_comments, pii_private_notes, create_date_est, create_date_utc, 
@@ -137,10 +139,9 @@ format_dedupe = BigQueryOperator(
 )
 
 # Query new tickets to determine if they are in the city limits
-query_city_lim = build_city_limits_query('qalert', 'incoming_actions', 'input_pii_lat', 'input_pii_long')
 city_limits = BigQueryOperator(
     task_id='city_limits',
-    sql=query_city_lim,
+    sql=transform_enrich_requests.build_city_limits_query('incoming_actions', 'input_pii_lat', 'input_pii_long'),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
@@ -426,31 +427,10 @@ replace_last_update = BigQueryOperator(
     dag=dag
 )
 
-query_delete_old_insert_new_records = f"""
-/*
-All tickets that ever receive an update (or are simply created) should be stored with their current status
-for historical purposes. This query does just that. The data are simply inserted into all_tickets_current_status. If
-the ticket has been seen before, it is already in all_tickets_current_status. Rather than simply add the newest ticket,
-this query also deletes the prior entry for that ticket. The key to understanding this is: The API does not return the
-FULL HISTORY of each ticket, but rather a snapshot of the ticket's current status. This means that if the status is
-updated
-multiple times between DAG runs, only the final status is recorded. While the FULL HISTORY has obvious value, this is
-not available and it less confusing to simply store a current snapshot of the ticket's history.
 
-all_tickets_current_status is currently (01/22) maintained for historical purposes.  This table has less value for
-analysis as the linkages between tickets are not taken into account.
-*/
-
-DELETE FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`
-WHERE id IN (SELECT id FROM `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_enriched`);
-INSERT INTO `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`
-SELECT 
-    {COLS_IN_ORDER}
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_enriched`;
-"""
 delete_old_insert_new_records = BigQueryOperator(
     task_id='delete_old_insert_new_records',
-    sql=query_delete_old_insert_new_records,
+    sql=integrate_new_requests.delete_old_insert_new(COLS_IN_ORDER, 'incoming_enriched'),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
@@ -459,22 +439,9 @@ delete_old_insert_new_records = BigQueryOperator(
 # Create a table from all_linked_requests that has all columns EXCEPT those that have potential PII. This table is
 # subsequently exported to WPRDC. BQ will not currently (2021-10-01) allow data to be pushed from a query and it must
 # be stored in a table prior to the push. Thus, this is a 2 step process also involving the operator below.
-query_drop_pii = f"""
-CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.data_export_scrubbed` AS
-SELECT
-    group_id,
-    child_ids,
-    num_requests,
-    parent_closed,
-    {SAFE_FIELDS}
-FROM
-    `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests`
-WHERE 
-    request_type_name NOT IN ({PRIVATE_TYPES})
-"""
 drop_pii_for_export = BigQueryOperator(
     task_id='drop_pii_for_export',
-    sql=query_drop_pii,
+    sql=transform_enrich_requests.drop_pii(SAFE_FIELDS, PRIVATE_TYPES),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
