@@ -44,10 +44,22 @@ def delete_table_group(char_pattern):
         ORDER BY table_name DESC
     ) DO
     EXECUTE IMMEDIATE
-      FORMAT(%s, record.del_statement);
+      FORMAT('''
+          %s
+      ''', record.del_statement);
     END
       FOR
     """
+
+
+def document_missed_requests(backfill_table):
+    return f"""
+    CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.missed_requests` AS
+        SELECT DISTINCT * FROM `{os.environ['GCLOUD_PROJECT']}.qalert.{backfill_table}`
+        UNION DISTINCT
+        SELECT DISTINCT * FROM `{os.environ['GCLOUD_PROJECT']}.qalert.missed_requests`
+    """
+
 
 def drop_pii(safe_fields, private_types):
     return f"""
