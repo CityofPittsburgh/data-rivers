@@ -71,9 +71,8 @@ intime_assignments_bq_load = GoogleCloudStorageToBigQueryOperator(
     dag=dag
 )
 
-format_data_types_query = build_format_dedup_query(dataset, 'incoming_assignments',
-                                                   date_fields, COLS_IN_ORDER,
-                                                   datestring_fmt="%Y-%m-%d %H:%M:%S-04:00")
+format_data_types_query = build_format_dedup_query(dataset, 'incoming_assignments', 'incoming_assignments',
+                                                   date_fields, COLS_IN_ORDER, datestring_fmt="%Y-%m-%d %H:%M:%S-04:00")
 format_data_types = BigQueryOperator(
     task_id='format_data_types',
     sql=format_data_types_query,
