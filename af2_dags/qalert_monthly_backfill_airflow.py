@@ -11,16 +11,15 @@ from dependencies import airflow_utils
 from dependencies.airflow_utils import get_ds_year, get_ds_month, get_ds_day, default_args, \
     build_revgeo_time_bound_query, build_insert_new_records_query, build_format_dedup_query
 
-from dependencies.bq_queries.qscend import transform_enrich_requests as t_q
-from dependencies.bq_queries.qscend import integrate_new_requests as i_q
+from dependencies.bq_queries.qscend import integrate_new_requests, transform_enrich_requests
 
 COLS_IN_ORDER = """id, parent_ticket_id, child_ticket, dept, status_name, status_code, request_type_name, 
 request_type_id, origin, pii_comments, anon_comments, pii_private_notes, create_date_est, create_date_utc, 
 create_date_unix, last_action_est, last_action_utc, last_action_unix, closed_date_est, closed_date_utc, 
 closed_date_unix, pii_street_num, street, cross_street, street_id, cross_street_id, city, pii_input_address, 
 pii_input_address AS pii_google_formatted_address, anon_input_address AS anon_google_formatted_address, address_type, 
-google_pii_lat, google_pii_long, google_anon_lat, google_anon_long, input_pii_lat, input_pii_long, input_anon_lat, 
-input_anon_long"""
+pii_lat AS google_pii_lat, pii_long AS google_pii_long, anon_lat AS google_anon_lat, anon_long AS google_anon_long, 
+pii_lat AS input_pii_lat, pii_long AS input_pii_long, anon_lat AS input_anon_lat, anon_long AS input_anon_long"""
 
 ENRICHED_COLS_IN_ORDER = """id, parent_ticket_id, child_ticket, dept, status_name, status_code, request_type_name,
 request_type_id, origin, pii_comments, anon_comments, pii_private_notes, create_date_est, create_date_utc,
@@ -87,7 +86,8 @@ cast_fields = [{'field': 'pii_lat', 'type': 'FLOAT64'},
                {'field': 'pii_long', 'type': 'FLOAT64'},
                {'field': 'anon_lat', 'type': 'FLOAT64'},
                {'field': 'anon_long', 'type': 'FLOAT64'}]
-query_format_subset = build_format_dedup_query('qalert', 'temp_backfill_subset', cast_fields, COLS_IN_ORDER)
+query_format_subset = build_format_dedup_query('qalert', 'temp_backfill_subset', 'temp_backfill',
+                                               cast_fields, COLS_IN_ORDER)
 query_format_subset += f"WHERE id NOT IN (SELECT id FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`)"
 format_subset = BigQueryOperator(
     task_id='format_subset',
@@ -100,7 +100,7 @@ format_subset = BigQueryOperator(
 # Query new tickets to determine if they are in the city limits
 city_limits = BigQueryOperator(
     task_id='city_limits',
-    sql=t_q.build_city_limits_query('temp_backfill_subset', 'input_pii_lat', 'input_pii_long'),
+    sql=transform_enrich_requests.build_city_limits_query('temp_backfill_subset', 'input_pii_lat', 'input_pii_long'),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
@@ -119,7 +119,7 @@ geojoin = BigQueryOperator(
 
 insert_new_parent = BigQueryOperator(
     task_id='insert_new_parent',
-    sql=i_q.insert_new_parent('backfill_enriched', LINKED_COLS_IN_ORDER),
+    sql=integrate_new_requests.insert_new_parent('backfill_enriched', LINKED_COLS_IN_ORDER),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
@@ -127,7 +127,8 @@ insert_new_parent = BigQueryOperator(
 
 build_child_ticket_table = BigQueryOperator(
     task_id='build_child_ticket_table',
-    sql=i_q.build_child_ticket_table('backfill_temp_child_combined', 'backfill_enriched',  combined_children=False),
+    sql=integrate_new_requests.build_child_ticket_table('backfill_temp_child_combined', 'backfill_enriched',
+                                                        combined_children=False),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
@@ -135,7 +136,7 @@ build_child_ticket_table = BigQueryOperator(
 
 increment_ticket_count = BigQueryOperator(
     task_id='increment_ticket_count',
-    sql=i_q.increment_ticket_counts('backfill_temp_child_combined'),
+    sql=integrate_new_requests.increment_ticket_counts('backfill_temp_child_combined'),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
@@ -146,7 +147,8 @@ append_fields = [{'fname': 'child_ids', 'delim': ', '},
                  {'fname': 'pii_private_notes', 'delim': ' <BREAK> '}]
 append_query = ''
 for field in append_fields:
-    append_query += i_q.append_to_text_field('backfill_temp_child_combined', field['fname'], field['delim']) + ';'
+    append_query += integrate_new_requests.append_to_text_field('backfill_temp_child_combined', field['fname'],
+                                                                field['delim']) + ';'
 integrate_children = BigQueryOperator(
     task_id='integrate_children',
     sql=append_query,
@@ -164,6 +166,22 @@ insert_missed_requests = BigQueryOperator(
     dag=dag
 )
 
+document_missed_requests = BigQueryOperator(
+    task_id='document_missed_requests',
+    sql=transform_enrich_requests.document_missed_requests('backfill_enriched'),
+    bigquery_conn_id='google_cloud_default',
+    use_legacy_sql=False,
+    dag=dag
+)
+
+delete_temp_backfill_tables = BigQueryOperator(
+    task_id='delete_temp_backfill_tables',
+    sql=transform_enrich_requests.delete_table_group('%backfill%'),
+    bigquery_conn_id='google_cloud_default',
+    use_legacy_sql=False,
+    dag=dag
+)
+
 # Clean up
 beam_cleanup = BashOperator(
     task_id='qalert_beam_cleanup',
@@ -173,7 +191,8 @@ beam_cleanup = BashOperator(
 
 # DAG execution:
 gcs_loader >> dataflow >> gcs_to_bq >> format_subset >> city_limits >> geojoin >> insert_new_parent >> \
-    insert_missed_requests >> beam_cleanup
+    insert_missed_requests >> document_missed_requests >> delete_temp_backfill_tables >> beam_cleanup
 
 gcs_loader >> dataflow >> gcs_to_bq >> format_subset >> city_limits >> geojoin >> build_child_ticket_table >>\
-    increment_ticket_count >> integrate_children >> insert_missed_requests >> beam_cleanup
+    increment_ticket_count >> integrate_children >> insert_missed_requests >> document_missed_requests >> \
+    delete_temp_backfill_tables >> beam_cleanup
