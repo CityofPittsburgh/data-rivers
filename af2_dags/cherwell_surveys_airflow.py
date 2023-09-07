@@ -61,7 +61,8 @@ cherwell_surveys_pandas = BashOperator(
     dag=dag
 )
 
-format_column_query = build_format_dedup_query(source, table, cast_fields, COLS, datestring_fmt="%Y-%m-%d %H:%M:%S")
+format_column_query = build_format_dedup_query(source, table, table, cast_fields, COLS,
+                                               datestring_fmt="%Y-%m-%d %H:%M:%S")
 format_column_types = BigQueryOperator(
     task_id='format_column_types',
     sql=format_column_query,

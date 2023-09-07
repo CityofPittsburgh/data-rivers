@@ -86,7 +86,8 @@ cast_fields = [{'field': 'pii_lat', 'type': 'FLOAT64'},
                {'field': 'pii_long', 'type': 'FLOAT64'},
                {'field': 'anon_lat', 'type': 'FLOAT64'},
                {'field': 'anon_long', 'type': 'FLOAT64'}]
-query_format_subset = build_format_dedup_query('qalert', 'temp_backfill_subset', cast_fields, COLS_IN_ORDER)
+query_format_subset = build_format_dedup_query('qalert', 'temp_backfill_subset', 'temp_backfill',
+                                               cast_fields, COLS_IN_ORDER)
 query_format_subset += f"WHERE id NOT IN (SELECT id FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`)"
 format_subset = BigQueryOperator(
     task_id='format_subset',

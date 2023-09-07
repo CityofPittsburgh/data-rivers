@@ -94,7 +94,7 @@ cherwell_incidents_bq_load = GoogleCloudStorageToBigQueryOperator(
     dag=dag
 )
 
-format_data_types_query = build_format_dedup_query(source, new_table, date_fields,
+format_data_types_query = build_format_dedup_query(source, new_table, new_table, date_fields,
                                                    # Preserve name of person initially assigned to ticket
                                                    f"{COLS_IN_ORDER} assigned_to AS initial_assigned_to",
                                                    datestring_fmt="%m/%d/%Y %I:%M:%S %p")
