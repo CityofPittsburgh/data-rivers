@@ -426,9 +426,9 @@ def build_sync_update_query(dataset, upd_table, src_table, id_field, upd_fields)
     return sql
 
 
-def build_format_dedup_query(dataset, table, cast_fields, cols_in_order, datestring_fmt=""):
+def build_format_dedup_query(dataset, fmt_table, src_table, cast_fields, cols_in_order, datestring_fmt=""):
     sql = f"""
-    CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.{dataset}.{table}` AS
+    CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.{dataset}.{fmt_table}` AS
     WITH formatted  AS 
         (
         SELECT DISTINCT * EXCEPT ("""
@@ -443,7 +443,7 @@ def build_format_dedup_query(dataset, table, cast_fields, cols_in_order, datestr
     sql += ", ".join(str(cast) for cast in cast_str_list)
     sql += f"""
     FROM 
-        {os.environ['GCLOUD_PROJECT']}.{dataset}.{table}
+        {os.environ['GCLOUD_PROJECT']}.{dataset}.{src_table}
     )
     SELECT 
         {cols_in_order} 
