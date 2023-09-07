@@ -18,8 +18,8 @@ request_type_id, origin, pii_comments, anon_comments, pii_private_notes, create_
 create_date_unix, last_action_est, last_action_utc, last_action_unix, closed_date_est, closed_date_utc, 
 closed_date_unix, pii_street_num, street, cross_street, street_id, cross_street_id, city, pii_input_address, 
 pii_input_address AS pii_google_formatted_address, anon_input_address AS anon_google_formatted_address, address_type, 
-google_pii_lat, google_pii_long, google_anon_lat, google_anon_long, input_pii_lat, input_pii_long, input_anon_lat, 
-input_anon_long"""
+pii_lat AS google_pii_lat, pii_long AS google_pii_long, anon_lat AS google_anon_lat, anon_long AS google_anon_long, 
+pii_lat AS input_pii_lat, pii_long AS input_pii_long, anon_lat AS input_anon_lat, anon_long AS input_anon_long"""
 
 ENRICHED_COLS_IN_ORDER = """id, parent_ticket_id, child_ticket, dept, status_name, status_code, request_type_name,
 request_type_id, origin, pii_comments, anon_comments, pii_private_notes, create_date_est, create_date_utc,
@@ -86,7 +86,8 @@ cast_fields = [{'field': 'pii_lat', 'type': 'FLOAT64'},
                {'field': 'pii_long', 'type': 'FLOAT64'},
                {'field': 'anon_lat', 'type': 'FLOAT64'},
                {'field': 'anon_long', 'type': 'FLOAT64'}]
-query_format_subset = build_format_dedup_query('qalert', 'temp_backfill_subset', cast_fields, COLS_IN_ORDER)
+query_format_subset = build_format_dedup_query('qalert', 'temp_backfill_subset', 'temp_backfill',
+                                               cast_fields, COLS_IN_ORDER)
 query_format_subset += f"WHERE id NOT IN (SELECT id FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`)"
 format_subset = BigQueryOperator(
     task_id='format_subset',
