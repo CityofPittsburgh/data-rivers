@@ -166,6 +166,22 @@ insert_missed_requests = BigQueryOperator(
     dag=dag
 )
 
+document_missed_requests = BigQueryOperator(
+    task_id='document_missed_requests',
+    sql=transform_enrich_requests.document_missed_requests('backfill_enriched'),
+    bigquery_conn_id='google_cloud_default',
+    use_legacy_sql=False,
+    dag=dag
+)
+
+delete_temp_backfill_tables = BigQueryOperator(
+    task_id='delete_temp_backfill_tables',
+    sql=transform_enrich_requests.delete_table_group('%backfill%'),
+    bigquery_conn_id='google_cloud_default',
+    use_legacy_sql=False,
+    dag=dag
+)
+
 # Clean up
 beam_cleanup = BashOperator(
     task_id='qalert_beam_cleanup',
@@ -175,7 +191,8 @@ beam_cleanup = BashOperator(
 
 # DAG execution:
 gcs_loader >> dataflow >> gcs_to_bq >> format_subset >> city_limits >> geojoin >> insert_new_parent >> \
-    insert_missed_requests >> beam_cleanup
+    insert_missed_requests >> document_missed_requests >> delete_temp_backfill_tables >> beam_cleanup
 
 gcs_loader >> dataflow >> gcs_to_bq >> format_subset >> city_limits >> geojoin >> build_child_ticket_table >>\
-    increment_ticket_count >> integrate_children >> insert_missed_requests >> beam_cleanup
+    increment_ticket_count >> integrate_children >> insert_missed_requests >> document_missed_requests >> \
+    delete_temp_backfill_tables >> beam_cleanup
