@@ -35,6 +35,20 @@ def build_city_limits_query(raw_table, lat_field='lat', long_field='long'):
     """
 
 
+def delete_table_group(char_pattern):
+    return f"""
+    FOR record IN (
+        SELECT CONCAT("DROP TABLE ", table_schema, ".", table_name, ";") AS del_statement
+        FROM {os.environ['GCLOUD_PROJECT']}.qalert.INFORMATION_SCHEMA.TABLES
+        WHERE table_name LIKE "{char_pattern}"
+        ORDER BY table_name DESC
+    ) DO
+    EXECUTE IMMEDIATE
+      FORMAT(%s, record.del_statement);
+    END
+      FOR
+    """
+
 def drop_pii(safe_fields, private_types):
     return f"""
     CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.data_export_scrubbed` AS
