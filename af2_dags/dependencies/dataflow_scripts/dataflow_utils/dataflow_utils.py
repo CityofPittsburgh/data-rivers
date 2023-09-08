@@ -639,8 +639,11 @@ class StripBeforeDelim(beam.DoFn, ABC):
 
     def process(self, datum):
         for date_field in self.date_fields:
-            if datum[date_field]:
-                datum[date_field] = datum[date_field].split(self.delim)[0]
+            try:
+                if datum[date_field]:
+                    datum[date_field] = datum[date_field].split(self.delim)[0]
+            except KeyError:
+                print(f"Field {date_field} not found in datum")
         yield datum
 
 
