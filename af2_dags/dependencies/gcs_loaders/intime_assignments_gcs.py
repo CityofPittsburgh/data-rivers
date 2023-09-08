@@ -1,6 +1,9 @@
 import os
 import argparse
+
+import pandas
 import pendulum
+import pandas as pd
 from datetime import datetime, timedelta
 from requests.auth import HTTPBasicAuth
 from google.cloud import storage
@@ -43,10 +46,21 @@ unnested = [rec['assignmentPropertiesData'] if isinstance(rec['assignmentPropert
             rec['assignmentPropertiesData'] for rec in records]
 # sometimes one employee will have multiple assignments listed within the current time window
 # this code returns each assignment as a separate row of data
-unnested = [entry for sublist in unnested for entry in (sublist if isinstance(sublist, list) else [sublist])]
+unnested = [{**sl, 'sub_assignment': False, 'parent_assignment_id': None}
+            for sublist in unnested
+            for sl in (sublist if isinstance(sublist, list) else [sublist])]
 
 # verify the API called returned data (if no new records, then type will be NONE)
 if unnested is not None:
+    sub_activities_list = [
+        {'employeeId': item['employeeId'], 'employeeFullName': item['employeeFullName'], **block,
+         'sub_assignment': True, 'parent_assignment_id':  item['assignmentId']}
+        for item in unnested
+        if 'blocks' in item
+        for block in (item['blocks'] if isinstance(item['blocks'], list) else [item['blocks']])
+    ]
+    unnested.extend(sub_activities_list)
+
     # write the successful run information (used by each successive DAG run to find the backfill date)
     successful_run = [{"requests_retrieved": len(unnested),
                        "since": run_start_win,
