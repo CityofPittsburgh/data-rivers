@@ -1,9 +1,6 @@
 import os
 import argparse
-
-import pandas
 import pendulum
-import pandas as pd
 from datetime import datetime, timedelta
 from requests.auth import HTTPBasicAuth
 from google.cloud import storage
