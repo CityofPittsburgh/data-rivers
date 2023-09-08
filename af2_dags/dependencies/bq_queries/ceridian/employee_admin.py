@@ -26,7 +26,7 @@ def build_percentage_table_query(new_table, pct_field, hardcoded_vals):
 def extract_new_hires():
     return F"""
     CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.ceridian.daily_new_hires` AS
-        SELECT employee_num, display_name, sso_login, job_title, 
+        SELECT employee_num, first_name, last_name, display_name, sso_login, job_title, 
         manager_name, dept_desc, hire_date, account_modified_date, pay_class, 
         IF(job_title LIKE '%Unpaid%', 'Unpaid', 'Paid') AS pay_status, status AS employment_status
         FROM `{os.environ['GCLOUD_PROJECT']}.ceridian.all_employees`
