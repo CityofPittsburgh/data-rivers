@@ -1224,7 +1224,17 @@ def replace_pii(datum, input_field, retain_location, info_types, gcloud_project,
 
     # run until results are retrieved from API or exponential backoff reaches limit
     while curr_delay <= max_delay:
-        response = dlp_client.deidentify_content(parent,deidentify_config, inspect_config, item)
+        try:
+            response = dlp_client.deidentify_content(parent, deidentify_config, inspect_config, item)
+        except TypeError:
+            response = dlp_client.deidentify_content(
+                request={
+                    "parent": parent,
+                    "deidentify_config": deidentify_config,
+                    "inspect_config": inspect_config,
+                    "item": item,
+                }
+            )
         if response.item.value:
             break
         # elif not response and curr_delay < max_delay:
