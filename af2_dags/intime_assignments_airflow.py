@@ -18,9 +18,10 @@ from dependencies.bq_queries.police_rms import intime_admin as q
 # to be merged into the Police Active Directory.
 
 
-COLS_IN_ORDER = """assignment_id, employee_id, display_name, permanent_rank, unit, court_assignment, location_group, 
-section, activity_name, assignment_date, scheduled_start_time, scheduled_end_time, actual_start_time, actual_end_time, 
-hours_modifier_name, hours_modifier_type, hours_sched_min_hours, time_bank_name, time_bank_type, time_bank_hours"""
+COLS_IN_ORDER = """assignment_id, employee_id, display_name, sub_assignment, parent_assignment_id, permanent_rank, unit, 
+court_assignment, location_group, sub_location_name, activity_name, assignment_date, scheduled_start_time, 
+scheduled_end_time, actual_start_time, actual_end_time, hours_modifier_name, hours_modifier_type, hours_sched_min_hours,
+time_bank_name, time_bank_type, time_bank_hours"""
 
 dag = DAG(
     'intime_assignments',

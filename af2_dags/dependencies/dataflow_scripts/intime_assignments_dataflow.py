@@ -31,8 +31,11 @@ class ReplaceChar(beam.DoFn):
 
     def process(self, datum):
         for field in self.fields:
-            if datum[field]:
-                datum[field] = datum[field].replace(self.swap_chars[0], self.swap_chars[1])
+            try:
+                if datum[field]:
+                    datum[field] = datum[field].replace(self.swap_chars[0], self.swap_chars[1])
+            except KeyError:
+                print(f"Field {field} not found in datum")
         yield datum
 
 
@@ -57,11 +60,11 @@ def run(argv=None):
                             ('location_name', 'location_group'),
                             ('rank_name', 'permanent_rank'),
                             ('unit_name', 'unit'),
-                            ('sub_location_name', 'section'),
                             ('time_bank_code', 'time_bank_type'),
                             ('date', 'assignment_date')]
-        type_changes = [('assignment_id', 'str'), ('employee_id', 'str'),
-                        ('hours_sched_min_hours', 'float'), ('time_bank_hours', 'float')]
+        type_changes = [('assignment_id', 'str'), ('employee_id', 'str'), ('parent_assignment_id', 'bool'),
+                        ('parent_assignment_id', 'str'), ('hours_sched_min_hours', 'float'),
+                        ('time_bank_hours', 'float')]
         drop_fields = ['customer_code', 'location_reference', 'location_code', 'activity_reference',
                        'activity_code', 'sub_location_reference', 'sub_location_code', 'note',
                        'hours_modifier_short_name', 'hours_modifier_reference', 'hours_modifier_code',
