@@ -97,4 +97,4 @@ month = args['sharepoint_subdir'].split('/')[1]
 export_bucket.blob('new_hire_report.csv').upload_from_string(df.to_csv(), 'text/csv')
 
 shrpt_df = df.drop(columns=['first_name', 'last_name', 'middle_initial'])
-# upload_to_sharepoint(auth_ctx, shrpt_df, f"{os.environ['SHAREPOINT_URL']}{year}", args['sharepoint_output'], month)
+upload_to_sharepoint(auth_ctx, shrpt_df, f"{os.environ['SHAREPOINT_URL']}{year}", args['sharepoint_output'], month)
