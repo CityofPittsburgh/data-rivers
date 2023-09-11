@@ -30,15 +30,19 @@ def extract_middle_initial(full_name):
 
     if len(parts) < 2:
         return None
-    first_middle_parts = parts[1].split(" ")
-    # Check if there are at least 2 parts in the first_name part
-    if len(first_middle_parts) < 2:
-        return None
-    middle_initial = first_middle_parts[1]
-    # Check if the middle_initial is exactly one character long
-    if len(middle_initial) == 1:
-        return middle_initial
-    else:
+
+    try:
+        first_middle_parts = parts[1].split(" ")
+        # Check if there are at least 2 parts in the first_name part
+        if len(first_middle_parts) < 2:
+            return None
+        middle_initial = first_middle_parts[1]
+        # Check if the middle_initial is exactly one character long
+        if len(middle_initial) == 1:
+            return middle_initial
+        else:
+            return None
+    except IndexError:
         return None
 
 
@@ -93,4 +97,4 @@ month = args['sharepoint_subdir'].split('/')[1]
 export_bucket.blob('new_hire_report.csv').upload_from_string(df.to_csv(), 'text/csv')
 
 shrpt_df = df.drop(columns=['first_name', 'last_name', 'middle_initial'])
-upload_to_sharepoint(auth_ctx, shrpt_df, f"{os.environ['SHAREPOINT_URL']}{year}", args['sharepoint_output'], month)
+# upload_to_sharepoint(auth_ctx, shrpt_df, f"{os.environ['SHAREPOINT_URL']}{year}", args['sharepoint_output'], month)
