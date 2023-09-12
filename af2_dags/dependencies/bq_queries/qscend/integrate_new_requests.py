@@ -35,7 +35,7 @@ def build_child_ticket_table(new_table, incoming_table, combined_children=True):
         sql += f"""
         AND new_c.id NOT IN (SELECT id FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`)),
         -- children above plus the children of false parent tickets
-        combined_children AS
+        {alias} AS
         (
         SELECT *
         FROM new_children
