@@ -1,7 +1,8 @@
 from __future__ import absolute_import
 
 import os
-from datetime import datetime
+import pendulum
+import pytz
 
 from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
@@ -26,7 +27,7 @@ dag = DAG(
     'ceridian_new_hires',
     default_args=default_args,
     schedule_interval='0 6 * * *',
-    start_date=datetime(2023, 8, 14),
+    start_date=pendulum.datetime(2023, 8, 14, 0, 6, tz=pytz.timezone('US/Eastern')),
     user_defined_filters={'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year,
                           'get_ds_day': get_ds_day}
 )
@@ -48,14 +49,6 @@ new_hires_to_csv = BigQueryToCloudStorageOperator(
     dag=dag
 )
 
-new_hires_to_iapro = BigQueryToCloudStorageOperator(
-    task_id='new_hires_to_iapro',
-    source_project_dataset_table=f"{os.environ['GCLOUD_PROJECT']}.{dataset}.daily_{dir}",
-    destination_cloud_storage_uris=[f"gs://{os.environ['GCS_PREFIX']}_iapro/new_hire_report.csv"],
-    bigquery_conn_id='google_cloud_default',
-    dag=dag
-)
-
 new_hires_etl = BashOperator(
     task_id='new_hires_etl',
     bash_command=f"python {os.environ['PANDAS_ETL_PATH']}/ceridian_new_hires_etl.py "
@@ -64,4 +57,4 @@ new_hires_etl = BashOperator(
 )
 
 
-extract_new_hires >> new_hires_to_csv >> new_hires_to_iapro >> new_hires_etl
+extract_new_hires >> new_hires_to_csv >> new_hires_etl
