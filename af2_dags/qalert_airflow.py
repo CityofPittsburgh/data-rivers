@@ -230,100 +230,17 @@ remove_false_parents = BigQueryOperator(
     dag=dag
 )
 
-query_integrate_children = f"""
-/*
-In query_remove_false_parents: false parent tix were found and eliminated.
 
-This query will combine together all the relevant information for each child ticket (within its linkage family).
-
-One complication of the workflow is the false parent tickets that were identified and eliminated in
-query_remove_false_parents.
-The incoming information from the child ticket (not the information from the false_parent entry into
-all_linked_requests) was extracted in that query. Identification and deletion of false parents, and extraction of
-the corresponding child's information, occurs at the earliest instance that the false parent is discovered. Thus,
-the information from the child ticket's processed in query_remove_false_parents can be considered a child that has
-never been observed before. This ultimately means that the newly observed child's data needs to be combined into
-the other newly identified children (those which were never associated with a false parent).
-Thus, the need to combine ALL OF THE CHILD TICKETS (both those associated with a false parent and those never being
-misrepresented) is handled by this query
-*/
-CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.temp_child_combined` AS
-(
-    -- children never seen before and without a false parent
-    WITH new_children AS
-    (
-    SELECT
-        id, parent_ticket_id, anon_comments, pii_private_notes
-    FROM
-        `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_enriched` new_c
-    WHERE new_c.id NOT IN (SELECT id FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`)
-    AND new_c.child_ticket = TRUE
-    ),
-
-    -- children above plus the children of false parent tickets
-    combined_children AS
-    (
-    SELECT *
-    FROM new_children
-
-    UNION ALL
-
-    SELECT fp_id AS id, parent_ticket_id, anon_comments, pii_private_notes
-    FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_prev_parent_now_child`
-    ),
-
-    -- from ALL children tickets, concatenate the necessary string data
-    concat_fields AS
-    (
-    SELECT
-        parent_ticket_id AS concat_p_id,
-        STRING_AGG(id, ", ") AS child_ids,
-        STRING_AGG(anon_comments, " <BREAK> ") AS child_anon_comments,
-        STRING_AGG(pii_private_notes, " <BREAK> ") AS child_pii_notes
-    FROM combined_children
-    GROUP BY concat_p_id
-    ),
-
-    -- Sum all children within the linkage family
-    child_count AS
-    (
-        SELECT
-            parent_ticket_id AS p_id,
-            COUNT(id) AS cts
-        FROM combined_children
-        GROUP BY p_id
-    )
-
-    -- Selection of all above processing into a temp table
-    SELECT
-        child_count.*,
-        concat_fields.* EXCEPT (concat_p_id)
-    FROM child_count
-    JOIN concat_fields ON
-    child_count.p_id = concat_fields.concat_p_id
-);
-
--- update existing entries inside all_linked_requests
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
-SET alr.num_requests = tcc.cts + alr.num_requests
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_child_combined` tcc
-WHERE alr.group_id = tcc.p_id;
-
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
-SET alr.child_ids =  CONCAT(alr.child_ids,tcc.child_ids)
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_child_combined` tcc
-WHERE alr.group_id = tcc.p_id;
-
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
-SET alr.anon_comments =  CONCAT(alr.anon_comments,tcc.child_anon_comments)
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_child_combined` tcc
-WHERE alr.group_id = tcc.p_id;
-
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
-SET alr.pii_private_notes =  CONCAT(alr.pii_private_notes,tcc.child_pii_notes)
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_child_combined` tcc
-WHERE alr.group_id = tcc.p_id;
+append_fields = [{'fname': 'child_ids', 'delim': ', '},
+                 {'fname': 'anon_comments', 'delim': ' <BREAK> '},
+                 {'fname': 'pii_private_notes', 'delim': ' <BREAK> '}]
+query_integrate_children = F"""
+{integrate_new_requests.build_child_ticket_table('temp_child_combined', 'incoming_enriched')};
+{integrate_new_requests.increment_ticket_counts('temp_child_combined')};
 """
+for field in append_fields:
+    query_integrate_children += integrate_new_requests.append_to_text_field('temp_child_combined',
+                                                                            field['fname'], field['delim']) + ';'
 integrate_children = BigQueryOperator(
     task_id='integrate_children',
     sql=query_integrate_children,
