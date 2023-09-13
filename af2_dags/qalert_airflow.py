@@ -332,96 +332,13 @@ integrate_children = BigQueryOperator(
     dag=dag
 )
 
-query_replace_last_update = f"""
-/*
-Tickets are continually updated throughout their life. In the vast majority of cases a ticket will be created and
-then further processed (creating status changes) over a timeline which causes the ticket's lifespan to encompass
-multiple
-DAG runs. ONLY THE CURRENT STATUS of each ticket, which been updated since the last DAG run, is returned in the
-current DAG run. Thus, a ticket appears multiple times in our DAG.
 
-The only consequential information that consecutive updates contain are changes to the status, the time of the last
-update of the status, and the closure time (if applicable). The fact that child and parent tickets refer to the
-same underlying request creates the possibility that only a child OR parent could theoretically be updated. This
-occurred prior to 08/21 and it is currently (01/22) unclear if this will continue to happen (the API was updated to
-account for this). Most likely all relevant updates will by synchronized with the parent ticket. The most feasible
-solution to extracting update status/times is to take this information ONLY from the parent ticket and disregard
-changes to the child ticket. This query selects parent tickets which have been previously recorded in the system and
-simply extracts and updates the status timestamp data from those tickets. This data is then updated in
-all_linked_requests.
-*/
-CREATE OR REPLACE TABLE  `{os.environ['GCLOUD_PROJECT']}.qalert.temp_update` AS
-(
-SELECT
-    id,
-    IF (status_name = "closed", TRUE, FALSE) AS p_closed,
-    closed_date_est, closed_date_utc,closed_date_unix,
-    last_action_est, last_action_utc,last_action_unix,
-    status_name, status_code, request_type_name, request_type_id
-FROM  `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_enriched`
-
-WHERE id IN (SELECT id FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`)
-AND child_ticket = FALSE
-);
-
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
-SET alr.parent_closed = tu.p_closed
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_update` tu
-WHERE alr.group_id = tu.id;
-
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
-SET alr.status_name = tu.status_name
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_update` tu
-WHERE alr.group_id = tu.id;
-
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
-SET alr.status_code = tu.status_code
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_update` tu
-WHERE alr.group_id = tu.id;
-
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
-SET alr.request_type_name = tu.request_type_name
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_update` tu
-WHERE alr.group_id = tu.id;
-
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
-SET alr.request_type_id = tu.request_type_id
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_update` tu
-WHERE alr.group_id = tu.id;
-
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
-SET alr.closed_date_est = tu.closed_date_est
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_update` tu
-WHERE alr.group_id = tu.id;
-
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
-SET alr.closed_date_utc = tu.closed_date_utc
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_update` tu
-WHERE alr.group_id = tu.id;
-
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
-SET alr.closed_date_unix = tu.closed_date_unix
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_update` tu
-WHERE alr.group_id = tu.id;
-
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
-SET alr.last_action_est = tu.last_action_est
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_update` tu
-WHERE alr.group_id = tu.id;
-
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
-SET alr.last_action_utc = tu.last_action_utc
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_update` tu
-WHERE alr.group_id = tu.id;
-
-UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
-SET alr.last_action_unix = tu.last_action_unix
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.temp_update` tu
-WHERE alr.group_id = tu.id;
-"""
+update_cols = ['status_name', 'status_code', 'request_type_name', 'request_type_id',
+               'closed_date_est', 'closed_date_utc', 'closed_date_unix',
+               'last_action_est', 'last_action_utc', 'last_action_unix']
 replace_last_update = BigQueryOperator(
     task_id='replace_last_update',
-    sql=query_replace_last_update,
+    sql=integrate_new_requests.replace_last_update('incoming_enriched', update_cols),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag

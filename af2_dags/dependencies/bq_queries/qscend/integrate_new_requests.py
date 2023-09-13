@@ -176,9 +176,9 @@ def replace_last_update(incoming_table, cols):
     sql += ", ".join(str(col) for col in cols)
     sql += f"""
     FROM  `{os.environ['GCLOUD_PROJECT']}.qalert.{incoming_table}`
-
     WHERE id IN (SELECT id FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`)
     AND child_ticket = FALSE
+    );
 
     UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` alr
     SET alr.parent_closed = tu.p_closed
