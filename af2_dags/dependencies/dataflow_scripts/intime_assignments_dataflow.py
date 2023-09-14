@@ -62,9 +62,8 @@ def run(argv=None):
                             ('unit_name', 'unit'),
                             ('time_bank_code', 'time_bank_type'),
                             ('date', 'assignment_date')]
-        type_changes = [('assignment_id', 'str'), ('employee_id', 'str'), ('parent_assignment_id', 'bool'),
-                        ('parent_assignment_id', 'str'), ('hours_sched_min_hours', 'float'),
-                        ('time_bank_hours', 'float')]
+        type_changes = [('assignment_id', 'str'), ('employee_id', 'str'), ('sub_assignment', 'bool'),
+                        ('hours_sched_min_hours', 'float'), ('time_bank_hours', 'float')]
         drop_fields = ['customer_code', 'location_reference', 'location_code', 'activity_reference',
                        'activity_code', 'sub_location_reference', 'sub_location_code', 'note',
                        'hours_modifier_short_name', 'hours_modifier_reference', 'hours_modifier_code',
