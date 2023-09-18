@@ -10,6 +10,7 @@ def extract_current_intime_details():
                CASE 
                     WHEN a.activity_name LIKE 'Acting%' THEN a.activity_name
                     WHEN a.activity_name = 'Desk Officer' THEN a.activity_name
+                    WHEN IFNULL(a.activity_name, '') != sub.activity_name AND sub.activity_name LIKE 'Acting%' THEN sub.activity_name
                     ELSE permanent_rank
                END AS current_rank, a.activity_name AS current_activity,
                a.scheduled_start_time, a.scheduled_end_time,
@@ -24,7 +25,7 @@ def extract_current_intime_details():
                          FROM `{os.environ['GCLOUD_PROJECT']}.intime.incoming_assignments` sub
                          WHERE sub_assignment = True) sub
         ON a.assignment_id = sub.parent_assignment_id)
-    WHERE current_activity IS NOT NULL
+    WHERE (current_activity IS NOT NULL OR sub_activity IS NOT NULL)
     AND (CURRENT_DATETIME('America/New_York')
         BETWEEN scheduled_start_time AND scheduled_end_time)
     """
