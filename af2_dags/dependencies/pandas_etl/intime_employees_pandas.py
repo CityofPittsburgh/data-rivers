@@ -193,7 +193,7 @@ for field in name_fields:
 # drop all fields except those included in BQ schema
 keep_fields = ['employee_id', 'mpoetc_number', 'mpoetc_username', 'ncic_username', 'badge_number', 'first_name',
                'middle_initial', 'last_name', 'display_name', 'email', 'birth_date', 'hire_date', 'rank',
-               'rank_valid_date', 'unit', 'unit_valid_date', 'race', 'gender', 'employee_type']
+               'rank_valid_date', 'unit', 'unit_valid_date', 'race', 'gender', 'employee_type', 'web_rms_dropdown']
 
 df = df[keep_fields]
 df = df.reindex(columns=keep_fields)
