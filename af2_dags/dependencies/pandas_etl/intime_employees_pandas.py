@@ -175,6 +175,11 @@ df['ncic_username'] = df['mpoetc_username']
 df['ncic_username'] = np.where(df['ncic_username'].notnull(), '~ALC' +
                                df['ncic_username'].astype(str), df['ncic_username'])
 
+# create column for Web RMS Dropdown, which gets its value based on the employee_type, rank, and unit values
+df['web_rms_dropdown'] = (df['employee_type'] == 'Sworn Work Group') | (
+                            (df['unit'] == 'Supp Services Civilians') & (df['rank'] == 'Specialist, Administrative')
+                         )
+
 # convert all different Null types to a single type (None)
 df = df.where(df.notnull(), None)
 
