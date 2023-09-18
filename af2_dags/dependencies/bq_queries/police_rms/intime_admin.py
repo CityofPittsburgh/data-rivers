@@ -25,7 +25,7 @@ def extract_current_intime_details():
                          FROM `{os.environ['GCLOUD_PROJECT']}.intime.incoming_assignments` sub
                          WHERE sub_assignment = True) sub
         ON a.assignment_id = sub.parent_assignment_id)
-    WHERE  (current_activity IS NOT NULL OR sub_activity IS NOT NULL)
+    WHERE (current_activity IS NOT NULL OR sub_activity IS NOT NULL)
     AND (CURRENT_DATETIME('America/New_York')
         BETWEEN scheduled_start_time AND scheduled_end_time)
     """
