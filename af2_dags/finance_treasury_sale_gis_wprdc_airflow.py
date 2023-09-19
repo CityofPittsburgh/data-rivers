@@ -34,25 +34,29 @@ json_loc = f"{data_name}/{path}_treasury_sale_properties.json"
 
 extract = BashOperator(
     task_id='extract',
-    bash_command=f"python {os.environ['GCS_LOADER_PATH']}/finance_treasury_sale_properties_gis_wprdc_extract.py "
+    bash_command=f"python {os.environ['GCS_LOADER_PATH']}/finance_treasury_sale_gis_wprdc_extract.py "
                  f"--output_arg {json_loc}",
     dag=dag
 )
 
 
-# the primary key of city owned properties is parcel ID (pin); parcel data is also stored in the timebound_geography
+# the primary key of city owned properties is parcel ID; parcel data is also stored in the timebound_geography
 # dataset with corresponding geographical boundaries. this query uses the ST_CENTROID geographic function to obtain
-# lat/longs for each parcel
-query_geo = F"""
-WITH get_coords AS
-(
-{build_geo_coords_from_parcel_query(raw_table = F"{os.environ['GCLOUD_PROJECT']}.finance.incoming_treas_sale",
-                                                  parc_field = "parc_num")}
-)
+# lat/longs for each parcel. The output of that operation is stored as lat/long and then the geocoords are used to
+# reverse geocode various zonal boundariese. This is all packaged together into 1 query/operator. 
 
-{build_revgeo_time_bound_query('finance', 'get_coords','geo_enriched_treas_sale_properties', 
-                               'treas_sale_date', 'latitude', 'longitude')}
-"""
+sub_query_coords_from_parc = F"""(
+
+{build_geo_coords_from_parcel_query(
+        raw_table = F"{os.environ['GCLOUD_PROJECT']}.finance.incoming_treas_sale", parc_field = "parc_num")}
+        
+)"""
+
+query_geo =  build_revgeo_time_bound_query('finance', F"{sub_query_coords_from_parc}",
+                                           'geo_enriched_treas_sale_properties',
+                                           'treas_sale_date', 'latitude', 'longitude',
+                                           source_is_table = False)
+
 geo_operations = BigQueryOperator(
         task_id = 'geo_operations',
         sql = query_geo,
