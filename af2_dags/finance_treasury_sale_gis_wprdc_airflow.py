@@ -11,18 +11,16 @@ from airflow.contrib.operators.bigquery_to_gcs import BigQueryToCloudStorageOper
 from dependencies.airflow_utils import get_ds_month, get_ds_year, default_args, \
     build_revgeo_time_bound_query, build_geo_coords_from_parcel_query
 
-# This DAG will perform an extract and transformation of City Owned Properties from the Real Estate Oracle
+# This DAG will perform an extract and transformation of treasury saLe properties from the Real Estate Oracle
 # database. Once the data is extracted, it will be uploaded to BigQuery and geocoded by matching on parcel number.
 # The final output will be stored as a JSON file in GCS and made available to WPRDC for public display.
-
-# COLS = "pin, modify_date, address, billing_city, current_delq, prior_years, state_description, neighborhood"
 
 
 dag = DAG(
     'finance_treasury_sale_properties',
     default_args=default_args,
     schedule_interval='@daily',
-    start_date=datetime(2023, 9, 10),
+    start_date=datetime(2023, 9, 18),
     catchup=False,
     user_defined_filters={'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year},
     max_active_runs=1
@@ -36,58 +34,36 @@ json_loc = f"{data_name}/{path}_treasury_sale_properties.json"
 
 extract = BashOperator(
     task_id='extract',
-    bash_command=f"python {os.environ['GCS_LOADER_PATH']}/finance_treasury_sale_properties_gis_wprdc_extract.py "
+    bash_command=f"python {os.environ['GCS_LOADER_PATH']}/finance_treasury_sale_gis_wprdc_extract.py "
                  f"--output_arg {json_loc}",
     dag=dag
 )
 
 
-# the primary key of city owned properties is parcel ID (pin); parcel data is also stored in the timebound_geography
+# the primary key of city owned properties is parcel ID; parcel data is also stored in the timebound_geography
 # dataset with corresponding geographical boundaries. this query uses the ST_CENTROID geographic function to obtain
-# lat/longs for each parcel
-query_coords = build_geo_coords_from_parcel_query(raw_table = F"{os.environ['GCLOUD_PROJECT']}.finance.incoming_treas_sales",
-                                                  parc_field = "pin")
-query_coords = F""" CREATE OR REPLACE TABLE {os.environ['GCLOUD_PROJECT']}.finance.incoming_treas_sales AS
-{query_coords}"""
-get_coords = BigQueryOperator(
-    task_id='get_coords',
-    sql=query_coords,
-    bigquery_conn_id='google_cloud_default',
-    use_legacy_sql=False,
-    dag=dag
-)
+# lat/longs for each parcel. The output of that operation is stored as lat/long and then the geocoords are used to
+# reverse geocode various zonal boundariese. This is all packaged together into 1 query/operator. 
 
+sub_query_coords_from_parc = F"""(
 
-# ToDo: get a date field
-query_geo_join = build_revgeo_time_bound_query('finance', 'incoming_treas_sales',
-                                               'geo_enriched_treas_sales_properties',
-                                               't_sale_date', 'latitude', 'longitude')
-geojoin = BigQueryOperator(
-        task_id = 'geojoin',
-        sql = query_geo_join,
+{build_geo_coords_from_parcel_query(
+        raw_table = F"{os.environ['GCLOUD_PROJECT']}.finance.incoming_treas_sale", parc_field = "parc_num")}
+        
+)"""
+
+query_geo =  build_revgeo_time_bound_query('finance', F"{sub_query_coords_from_parc}",
+                                           'geo_enriched_treas_sale_properties',
+                                           'treas_sale_date', 'latitude', 'longitude',
+                                           source_is_table = False)
+
+geo_operations = BigQueryOperator(
+        task_id = 'geo_operations',
+        sql = query_geo,
         bigquery_conn_id='google_cloud_default',
         use_legacy_sql = False,
         dag = dag
 )
-
-# This truncate DDL is temp. We need to update. This is a little problematic. Ul3timaately no problem but i need to
-# go thru a             
-query_create_partition = F"""CREATE OR REPLACE TABLE
-`{os.environ['GCLOUD_PROJECT']}.finance.treas_sale_properties_partitioned`
-partition by DATE_TRUNC(partition_latest_sale_date, YEAR) AS
-SELECT 
-* EXCEPT(t_sale_date),
-PARSE_DATE ("%Y-%m-%d", t_sale_date) as partition_t_sale_date
-FROM 
-  `{os.environ['GCLOUD_PROJECT']}.finance.geo_enriched_treas_sale_properties`;"""
-create_partition = BigQueryOperator(
-        task_id = 'create_partition',
-        sql = query_create_partition,
-        bigquery_conn_id = 'google_cloud_default',
-        use_legacy_sql = False,
-        dag = dag
-)
-
 
 # Export table as CSV to WPRDC bucket
 # file name is the date. path contains the date info
@@ -95,18 +71,18 @@ csv_file_name = f"{path}"
 dest_bucket = f"gs://{os.environ['GCS_PREFIX']}_wprdc/finance/treasury_sale_properties/"
 wprdc_export = BigQueryToCloudStorageOperator(
         task_id = 'wprdc_export',
-        source_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}.finance.treas_sale_properties_partitioned",
-        destination_cloud_storage_uris = [f"{dest_bucket}{csv_file_name}.csv"],
+        source_project_dataset_table = F"{os.environ['GCLOUD_PROJECT']}.finance.geo_enriched_treas_sale_properties",
+        destination_cloud_storage_uris = [F"{dest_bucket}{csv_file_name}.csv"],
         dag = dag
 )
 
 # push table to data-bridGIS BQ
 query_push_gis = F"""
-CREATE OR REPLACE TABLE `data-bridgis.finance.treas_sale_partitioned` AS
+CREATE OR REPLACE TABLE `data-bridgis.finance.treas_sale_properties` AS
 SELECT 
 * 
 FROM 
-  `{os.environ['GCLOUD_PROJECT']}.finance.treas_sale_properties_partitioned`;
+  `{os.environ['GCLOUD_PROJECT']}.finance.geo_enriched_treas_sale_properties`;
 """
 push_gis = BigQueryOperator(
         task_id = 'push_gis',
@@ -117,6 +93,6 @@ push_gis = BigQueryOperator(
 )
 
 
-extract >> get_coords >> geojoin >> create_partition
-create_partition >> wprdc_export
-create_partition >> push_gis
+extract >> geo_operations
+geo_operations >> wprdc_export
+geo_operations >> push_gis
