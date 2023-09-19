@@ -984,7 +984,7 @@ def regularize_and_geocode_address(datum, self, f_name, del_org_input):
     max_delay = 10
     attempt_ct = 1
 
-    if datum['address_type'] != 'Coordinates Only':
+    if datum['address_type'] != 'Coordinates Only' and 'test' not in os.environ['GCLOUD_PROJECT']:
         # run until results are retrieved from API or exponential backoff reaches limit
         while curr_delay <= max_delay:
             res = requests.get(f"{base_url}?address={address}&key={self.api_key}")
