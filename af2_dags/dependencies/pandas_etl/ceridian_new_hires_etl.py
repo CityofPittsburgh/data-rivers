@@ -94,7 +94,8 @@ auth_ctx = sharepoint_auth(url_shrpt, os.environ['OFFICE365_UN'], os.environ['OF
 year = args['sharepoint_subdir'].split('/')[0]
 month = args['sharepoint_subdir'].split('/')[1]
 
-export_bucket.blob('new_hire_report.csv').upload_from_string(df.to_csv(), 'text/csv')
+export_bucket.blob('new_hire_report.csv').upload_from_string(df.to_csv(index=False), 'text/csv')
 
-shrpt_df = df.drop(columns=['first_name', 'last_name', 'middle_initial'])
-upload_to_sharepoint(auth_ctx, shrpt_df, f"{os.environ['SHAREPOINT_URL']}{year}", args['sharepoint_output'], month)
+if 'test' not in os.environ['GCLOUD_PROJECT']:
+    shrpt_df = df.drop(columns=['first_name', 'last_name', 'middle_initial'])
+    upload_to_sharepoint(auth_ctx, shrpt_df, f"{os.environ['SHAREPOINT_URL']}{year}", args['sharepoint_output'], month)
