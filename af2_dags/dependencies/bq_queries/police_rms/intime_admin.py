@@ -16,7 +16,7 @@ def extract_current_intime_details():
                a.scheduled_start_time, a.scheduled_end_time,
                sub.assignment_id AS sub_assignment_id, sub.activity_name AS sub_activity,
                sub.scheduled_start_time AS sub_activity_start_time, sub.scheduled_end_time AS sub_activity_end_time, 
-               e.unit AS permanent_unit, a.unit AS current_unit, a.sub_location_name
+               e.unit AS permanent_unit, a.unit AS current_unit, a.sub_location_name, e.web_rms_dropdown
         FROM `{os.environ['GCLOUD_PROJECT']}.intime.employee_data` e 
         LEFT OUTER JOIN `{os.environ['GCLOUD_PROJECT']}.intime.incoming_assignments` a
         ON e.employee_id = a.employee_id
