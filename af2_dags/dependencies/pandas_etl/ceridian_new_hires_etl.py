@@ -3,6 +3,7 @@ from __future__ import absolute_import
 import argparse
 import io
 import os
+import json
 
 from google.cloud import storage
 from office365.sharepoint.client_context import ClientContext
@@ -94,7 +95,10 @@ auth_ctx = sharepoint_auth(url_shrpt, os.environ['OFFICE365_UN'], os.environ['OF
 year = args['sharepoint_subdir'].split('/')[0]
 month = args['sharepoint_subdir'].split('/')[1]
 
-export_bucket.blob('new_hire_report.csv').upload_from_string(df.to_csv(), 'text/csv')
+export_bucket.blob('new_hire_report.csv').upload_from_string(df.to_csv(index=False), 'text/csv')
 
-shrpt_df = df.drop(columns=['first_name', 'last_name', 'middle_initial'])
-upload_to_sharepoint(auth_ctx, shrpt_df, f"{os.environ['SHAREPOINT_URL']}{year}", args['sharepoint_output'], month)
+if json.loads(os.environ['USE_PROD_RESOURCES'].lower()):
+    shrpt_df = df.drop(columns=['first_name', 'last_name', 'middle_initial'])
+    upload_to_sharepoint(auth_ctx, shrpt_df, f"{os.environ['SHAREPOINT_URL']}{year}", args['sharepoint_output'], month)
+else:
+    print("Data exported to GCS bucket")
