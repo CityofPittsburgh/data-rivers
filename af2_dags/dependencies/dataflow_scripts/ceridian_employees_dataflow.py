@@ -71,7 +71,7 @@ def run(argv=None):
                 lines
                 | beam.ParDo(StripBeforeDelim(date_fields, delim='T'))
                 | beam.ParDo(SwapFieldNames(field_name_swaps))
-                | beam.ParDo(CrosswalkDeptNames('Department_ShortName', os.environ['CERIDIAN_DEPT_FILE']))
+                | beam.ParDo(CrosswalkDeptNames('OrgUnit_ShortName', os.environ['CERIDIAN_DEPT_FILE']))
                 | beam.ParDo(ChangeDataTypes(type_changes))
                 | beam.ParDo(FilterFields(drop_fields, exclude_target_fields=True))
                 | WriteToAvro(known_args.avro_output, schema=avro_schema, file_name_suffix='.avro',
