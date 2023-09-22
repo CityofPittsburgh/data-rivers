@@ -286,6 +286,36 @@ class TestDataflowUtils(unittest.TestCase):
             results.append(result)
         self.assertEqual(results, expected)
 
+    def test_strip_before_delim(self):
+        strip_fields = ['Employee_HireDate', 'Employee_TerminationDate',
+                        'EmployeeEmploymentStatus_CreatedTimestamp', 'Department_ShortName']
+        datum = [{"Employee_HireDate": "1999-01-25T00:00:00.0000000",
+                  "Employee_TerminationDate": None,
+                  "EmployeeEmploymentStatus_CreatedTimestamp": "2022-12-27T15:09:20.0000000",
+                  "Department_ShortName": "Bureau of School Crossing Guards"},
+                 {"Employee_HireDate": "2015-01-01T00:00:00.0000000",
+                  "Employee_TerminationDate": "2016-03-14T23:59:00.0000000",
+                  "EmployeeEmploymentStatus_CreatedTimestamp": "2019-11-06T15:25:47.0000000",
+                  "Department_ShortName": "Department of Public Works-ES Co Driver"},
+                 {"Employee_HireDate": "09/20/2023", "Department_ShortName": None}]
+        delims = ["T", "T", "T", "-"]
+        b_a = [0, 0, 0, 1]
+        expected = [{"Employee_HireDate": "1999-01-25",
+                     "Employee_TerminationDate": None,
+                     "EmployeeEmploymentStatus_CreatedTimestamp": "2022-12-27",
+                     "Department_ShortName": None},
+                    {"Employee_HireDate": "2015-01-01",
+                     "Employee_TerminationDate": "2016-03-14",
+                     "EmployeeEmploymentStatus_CreatedTimestamp": "2019-11-06",
+                     "Department_ShortName": "ES Co Driver"},
+                    {"Employee_HireDate": "09/20/2023", "Department_ShortName": None}]
+        sbd = dataflow_utils.StripBeforeDelim(strip_fields, delims, b_a)
+        results = []
+        for val in datum:
+            result = next(sbd.process(val))
+            results.append(result)
+        self.assertEqual(results, expected)
+
     def test_standardize_times(self):
         """
         Author : Jason Ficorilli
