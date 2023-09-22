@@ -51,5 +51,5 @@ def pmo_export_query():
                job_title, hire_date, `union`, manager_name, status
         FROM `{os.environ['GCLOUD_PROJECT']}.ceridian.all_employees`
         WHERE status IN ('Active', 'Pre-Start')
-        AND dept != 'Public Safety'
+        AND `union` NOT IN ('Police', 'Fire', 'Paramedics')
     """
