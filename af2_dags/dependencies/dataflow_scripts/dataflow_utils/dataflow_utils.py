@@ -628,22 +628,27 @@ class StandardizeTimes(beam.DoFn, ABC):
 
 
 class StripBeforeDelim(beam.DoFn, ABC):
-    def __init__(self, date_fields, delim='-'):
+    def __init__(self, strip_fields, delim, before_or_after):
         """
-        :param date_fields: list of date field names; each val describes a datestring field that has unwanted data
-        after the delimiter
-        :param delim: character that appears in date_field, after which all text should be ignored
+        :param strip_fields: list of field names; each val describes a string field that has unwanted data
+        on one side of the delimiter
+        :param delim: list of characters that splits the provided field in two
+        :param before_or_after: list of binary integers that indicates which side of the delimiter should be retained
         """
-        self.date_fields = date_fields
+        self.strip_fields = strip_fields
         self.delim = delim
+        self.before_or_after = before_or_after
 
     def process(self, datum):
-        for date_field in self.date_fields:
+        for i in range(0, len(self.strip_fields)):
             try:
-                if datum[date_field]:
-                    datum[date_field] = datum[date_field].split(self.delim)[0]
+                if datum[self.strip_fields[i]]:
+                    datum[self.strip_fields[i]] = datum[self.strip_fields[i]].split(self.delim[i])[self.before_or_after[i]]
             except KeyError:
-                print(f"Field {date_field} not found in datum")
+                print(f"Field {self.strip_fields[i]} not found in datum")
+            except IndexError as i_e:
+                print(i_e)
+                datum[self.strip_fields[i]] = None
         yield datum
 
 

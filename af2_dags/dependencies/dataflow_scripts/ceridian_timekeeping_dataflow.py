@@ -39,6 +39,7 @@ def run(argv=None):
         times = [(date_fields[0], 'EST')]
         field_name_swaps = [('EmployeeEmploymentStatus_EmployeeNumber', 'employee_num'),
                             ('Employee_DisplayName', 'display_name'),
+                            ('Department_LongName', 'dept_desc'),
                             ('Job_ShortName', 'job_title'),
                             ('EmployeePaySummary_BusinessDate_EST', 'work_period'),
                             ('PayAdjCode_ShortName', 'pay_code'),
@@ -55,10 +56,9 @@ def run(argv=None):
 
         load = (
                 lines
-                | beam.ParDo(StripBeforeDelim(date_fields, delim='T'))
+                | beam.ParDo(StripBeforeDelim(date_fields, delim=['T'], before_or_after=[0]))
                 | beam.ParDo(StandardizeTimes(times, "%m/%d/%Y"))
                 | beam.ParDo(SwapFieldNames(field_name_swaps))
-                | beam.ParDo(CrosswalkDeptNames('Department_LongName', os.environ['CERIDIAN_DEPT_FILE']))
                 | beam.ParDo(ChangeDataTypes(type_changes))
                 | beam.ParDo(FilterFields(drop_fields, exclude_target_fields=True))
                 | WriteToAvro(known_args.avro_output, schema=avro_schema, file_name_suffix='.avro',
