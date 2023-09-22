@@ -74,7 +74,7 @@ def run(argv=None):
 
         load = (
                 lines
-                | beam.ParDo(StripBeforeDelim(date_fields, delim='T'))
+                | beam.ParDo(StripBeforeDelim(date_fields, delim=['T'], before_or_after=[0]))
                 | beam.ParDo(ColumnsCamelToSnakeCase())
                 | beam.ParDo(ReplaceChar(swap_char_fields, ('T', ' ')))
                 | beam.ParDo(SwapFieldNames(field_name_swaps))
