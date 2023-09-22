@@ -44,11 +44,16 @@ def run(argv=None):
     )
 
     with beam.Pipeline(options=pipeline_options) as p:
-        date_fields = ['Employee_HireDate', 'Employee_TerminationDate', 'EmployeeEmploymentStatus_CreatedTimestamp']
+        strip_fields = ['Employee_HireDate', 'Employee_TerminationDate',
+                        'EmployeeEmploymentStatus_CreatedTimestamp', 'Department_ShortName']
+        delims = ['T', 'T', 'T', '-']
+        before_or_afters = [0, 0, 0, 1]
         field_name_swaps = [('EmployeeEmploymentStatus_EmployeeNumber', 'employee_num'),
                             ('Employee_FirstName', 'first_name'),
                             ('Employee_LastName', 'last_name'),
                             ('Employee_DisplayName', 'display_name'),
+                            ('Department_LongName', 'dept_desc'),
+                            ('Department_ShortName', 'office'),
                             ('Job_ShortName', 'job_title'),
                             ('Employee_HireDate', 'hire_date'),
                             ('Employee_TerminationDate', 'termination_date'),
@@ -61,7 +66,7 @@ def run(argv=None):
                             ('Employee_Gender', 'gender'),
                             ('SSOLogin', 'sso_login')]
         type_changes = [('employee_num', 'str')]
-        drop_fields = ['EmploymentStatus_ShortName', 'DeptJob_ShortName', 'Department_LongName',
+        drop_fields = ['EmploymentStatus_ShortName', 'DeptJob_ShortName',
                        'Employee_PreferredLastName', 'DenormEmployeeContact_BusinessPhone',
                        'DenormEmployeeContact_HomePhone', 'DenormEmployeeContact_MobilePhone']
 
@@ -69,9 +74,8 @@ def run(argv=None):
 
         load = (
                 lines
-                | beam.ParDo(StripBeforeDelim(date_fields, delim='T'))
+                | beam.ParDo(StripBeforeDelim(strip_fields, delims, before_or_afters))
                 | beam.ParDo(SwapFieldNames(field_name_swaps))
-                | beam.ParDo(CrosswalkDeptNames('OrgUnit_ShortName', os.environ['CERIDIAN_DEPT_FILE']))
                 | beam.ParDo(ChangeDataTypes(type_changes))
                 | beam.ParDo(FilterFields(drop_fields, exclude_target_fields=True))
                 | WriteToAvro(known_args.avro_output, schema=avro_schema, file_name_suffix='.avro',
