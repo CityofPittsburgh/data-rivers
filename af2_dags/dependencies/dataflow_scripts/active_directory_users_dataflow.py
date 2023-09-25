@@ -52,7 +52,7 @@ def run(argv=None):
     )
 
     with beam.Pipeline(options=pipeline_options) as p:
-        field_name_swaps = [('givenName', 'first_name'), ('sn', 'last_name'),
+        field_name_swaps = [('givenName', 'first_name'), ('sn', 'last_name'), ('sAMAccountName', 'sam_account_name'),
                             ('description', 'department'), ('mail', 'email')]
         type_changes = [('employee_id', 'str')]
         drop_fields = ['userAccountControl']
