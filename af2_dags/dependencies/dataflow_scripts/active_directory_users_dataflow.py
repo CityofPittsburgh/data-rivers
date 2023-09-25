@@ -9,7 +9,7 @@ from apache_beam.io.avroio import WriteToAvro
 
 from dataflow_utils import dataflow_utils
 from dataflow_utils.dataflow_utils import JsonCoder, SwapFieldNames, generate_args, FilterFields, \
-    ColumnsCamelToSnakeCase, ChangeDataTypes
+    ColumnsCamelToSnakeCase, ChangeDataTypes, PrependCharacters
 
 DEFAULT_DATAFLOW_ARGS = [
     '--save_main_session',
@@ -65,6 +65,7 @@ def run(argv=None):
                 | beam.ParDo(SwapFieldNames(field_name_swaps))
                 | beam.ParDo(ColumnsCamelToSnakeCase())
                 | beam.ParDo(ChangeDataTypes(type_changes))
+                | beam.ParDo(PrependCharacters('employee_id', 6, char='0', check_numeric=True))
                 | beam.ParDo(FilterFields(drop_fields))
                 | WriteToAvro(known_args.avro_output, schema=avro_schema, file_name_suffix='.avro',
                               use_fastavro=True)
