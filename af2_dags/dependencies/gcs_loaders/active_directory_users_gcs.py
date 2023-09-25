@@ -30,7 +30,8 @@ conn = Connection(s, user=rf"{os.environ['WINDOWS_VM_DOMAIN']}\{os.environ['WIND
 if not conn.bind():
     print('Error in bind', conn.result)
 else:
-    ldap_filter = '(&(objectClass=user)(mail=*))'
+    # filter out users with blank emails, test users, and non-user shared accounts (plus one specific test account)
+    ldap_filter = '(&(objectClass=user)(mail=*)(!(mail=test*))(!(employeeID=Shared*))(!(sAMAccountName=mousem)))'
     ldap_attributes = ['employeeID', 'givenName', 'sn', 'mail', 'sAMAccountName',
                        'title', 'description', 'userAccountControl']
 
