@@ -162,7 +162,8 @@ class ChangeDataTypes(beam.DoFn, ABC):
                         else:
                             datum[type_change[0]] = int(abs(datum[type_change[0]]))
                     elif type_change[1] == "str":
-                        datum[type_change[0]] = str(datum[type_change[0]])
+                        if str(datum[type_change[0]]) != 'None':
+                            datum[type_change[0]] = str(datum[type_change[0]])
                     elif type_change[1] == "bool":
                         try:
                             datum[type_change[0]] = json.loads(datum[type_change[0]].lower())
@@ -518,17 +519,23 @@ class GeocodeAddress(beam.DoFn, ABC):
 
 
 class PrependCharacters(beam.DoFn, ABC):
-    def __init__(self, input_field, length, char='0'):
+    def __init__(self, input_field, length, char='0', check_numeric=False):
         self.input_field = input_field
         self.length = length
         self.char = char
+        self.check_numeric = check_numeric
 
     def process(self, datum):
         if datum[self.input_field]:
             id_str = str(datum[self.input_field])
             if id_str not in ('nan', 'None', 'null'):
-                while len(id_str) < self.length:
-                    id_str = self.char + id_str
+                if self.check_numeric:
+                    if id_str.isnumeric():
+                        while len(id_str) < self.length:
+                            id_str = self.char + id_str
+                else:
+                    while len(id_str) < self.length:
+                        id_str = self.char + id_str
             datum[self.input_field] = id_str
 
         yield datum
