@@ -11,7 +11,7 @@ from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOper
 from dependencies import airflow_utils
 from dependencies.airflow_utils import get_ds_month, get_ds_year, get_ds_day, default_args, build_format_dedup_query
 
-from dependencies.bq_queries.police_rms import intime_admin as q
+from dependencies.bq_queries.employee_admin import intime_admin as q
 
 # The goal of this DAG is to perform a complete pull of police rank assignment data from
 # the InTime API. This employee info will be stored in Data Rivers and extracted via PowerShell
