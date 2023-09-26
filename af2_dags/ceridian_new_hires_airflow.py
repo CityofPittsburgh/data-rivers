@@ -11,7 +11,7 @@ from airflow.contrib.operators.bigquery_to_gcs import BigQueryToCloudStorageOper
 from dependencies import airflow_utils
 from dependencies.airflow_utils import get_ds_month, get_ds_year, get_ds_day, default_args
 
-from dependencies.bq_queries.ceridian import employee_admin as q
+from dependencies.bq_queries.employee_admin import ceridian_admin as q
 
 # This is a small DAG that will run every morning and extract a subset of the ceridian.all_employees table
 # that includes all employees that were hired within the past day and store the query results in a CSV in Cloud
