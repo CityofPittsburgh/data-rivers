@@ -33,7 +33,7 @@ else:
     # filter out users with blank emails, test users, and non-user shared accounts (plus one specific test account)
     ldap_filter = '(&(objectClass=user)(mail=*)(!(mail=test*))(!(employeeID=Shared*))(!(sAMAccountName=mousem)))'
     ldap_attributes = ['employeeID', 'givenName', 'sn', 'mail', 'sAMAccountName',
-                       'title', 'description', 'userAccountControl']
+                       'title', 'department', 'description', 'userAccountControl']
 
     # LDAP query responses are limited to 1000 rows at a time - this breaks the responses up by department
     # and allows smaller sets of results that do not break the query
