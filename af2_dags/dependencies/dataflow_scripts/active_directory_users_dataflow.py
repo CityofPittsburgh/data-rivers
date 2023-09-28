@@ -2,6 +2,7 @@ from __future__ import absolute_import
 
 import logging
 import os
+import json
 
 import apache_beam as beam
 from apache_beam.io import ReadFromText
@@ -10,6 +11,7 @@ from apache_beam.io.avroio import WriteToAvro
 from dataflow_utils import dataflow_utils
 from dataflow_utils.dataflow_utils import JsonCoder, SwapFieldNames, generate_args, FilterFields, \
     ColumnsCamelToSnakeCase, ChangeDataTypes, PrependCharacters
+from google.cloud import storage
 
 DEFAULT_DATAFLOW_ARGS = [
     '--save_main_session',
@@ -38,6 +40,29 @@ class AccountCodeConversion(beam.DoFn):
         yield datum
 
 
+class DepartmentNameConversion(beam.DoFn):
+    def __init__(self):
+        storage_client = storage.Client()
+        cw_bucket = storage_client.get_bucket("user_defined_data")
+        cw_blob = cw_bucket.get_blob("ad_department_mapping.json")
+        cw = cw_blob.download_as_string()
+        self.crosswalk_dict = json.loads(cw.decode('utf-8'))
+
+    def process(self, datum):
+        if datum['department'] in self.crosswalk_dict:
+            try:
+                datum['department'] = self.crosswalk_dict[datum['department']]
+            except Exception as e:
+                print(e)
+        elif not datum['department']:
+            datum['department'] = datum['description']
+        else:
+            # Sometimes new departments are added to AD and will not be tracked by the crosswalk file
+            # until manually added - this debug statement prints to the console in case this happens
+            print(f"Untracked department name found: {datum['department']}")
+        yield datum
+
+
 def run(argv=None):
     # assign the name for the job and specify the AVRO upload location (GCS bucket), arg parser object,
     # and avro schema to validate data with. Return the arg parser values, PipelineOptions, and avro_schemas (dict)
@@ -62,6 +87,7 @@ def run(argv=None):
         load = (
                 lines
                 | beam.ParDo(AccountCodeConversion())
+                | beam.ParDo(DepartmentNameConversion())
                 | beam.ParDo(SwapFieldNames(field_name_swaps))
                 | beam.ParDo(ColumnsCamelToSnakeCase())
                 | beam.ParDo(ChangeDataTypes(type_changes))
