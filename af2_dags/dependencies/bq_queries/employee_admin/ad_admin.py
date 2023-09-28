@@ -28,13 +28,12 @@ def update_ids_from_ceridian(new_table, where_clause=''):
                  id_fix.sam_account_name, id_fix.title, id_fix.department,
                  CASE 
                     WHEN c.status IN ('Active', 'Pre-Start') THEN true
-                    WHEN c.status IN ('Terminated', 'Pre-NONEEBEN') THEN false
+                    WHEN c.status IN ('Terminated', 'NONEEBEN') THEN false
                     ELSE id_fix.enabled
                  END AS enabled
           FROM id_fix
           LEFT JOIN `{os.environ['GCLOUD_PROJECT']}.ceridian.all_employees` c
           ON LOWER(id_fix.email) = LOWER(c.sso_login)
-          WHERE employee_num IS NOT NULL
         )
         SELECT DISTINCT 
                CASE WHEN sso_match.employee_num IS NOT NULL THEN sso_match.employee_num 
