@@ -11,6 +11,8 @@ from airflow.contrib.operators.bigquery_to_gcs import BigQueryToCloudStorageOper
 from dependencies import airflow_utils
 from dependencies.airflow_utils import get_ds_month, get_ds_year, get_ds_day, default_args
 
+from dependencies.bq_queries.employee_admin import ad_admin as q
+
 # This DAG performs a daily extract of users from the City's Active Directory domain and fills in/corrects malformed
 # or missing data using data taken in from the Ceridian and InTime data pipelines. The end goal is to ensure that
 # all City employees have accounts that are set up with the proper credentials to access the City network as close
@@ -59,4 +61,23 @@ active_directory_users_bq_load = GoogleCloudStorageToBigQueryOperator(
     dag=dag
 )
 
-active_directory_users_gcs >> active_directory_users_dataflow >> active_directory_users_bq_load
+match_users_to_ceridian = BigQueryOperator(
+    task_id='match_users_to_ceridian',
+    sql=q.update_ids_from_ceridian('ad_ceridian_matches', 'NOT'),
+    bigquery_conn_id='google_cloud_default',
+    use_legacy_sql=False,
+    dag=dag
+)
+
+find_ceridian_mismatches = BigQueryOperator(
+    task_id='find_ceridian_mismatches',
+    sql=q.update_ids_from_ceridian('ad_null_ids'),
+    bigquery_conn_id='google_cloud_default',
+    use_legacy_sql=False,
+    dag=dag
+)
+
+active_directory_users_gcs >> active_directory_users_dataflow >> active_directory_users_bq_load >> \
+    match_users_to_ceridian
+active_directory_users_gcs >> active_directory_users_dataflow >> active_directory_users_bq_load >> \
+    find_ceridian_mismatches
