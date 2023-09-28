@@ -15,6 +15,19 @@ def build_ad_personas_table():
     """
 
 
+def enhance_ad_table():
+    return F"""
+    CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.active_directory.ad_users` AS
+    SELECT * FROM (
+        SELECT * FROM `{os.environ['GCLOUD_PROJECT']}.active_directory.ad_users_raw`
+        WHERE email NOT IN (SELECT email FROM `{os.environ['GCLOUD_PROJECT']}.active_directory.ad_ceridian_matches`)
+        UNION ALL
+        SELECT employee_num, first_name, last_name, email, sam_account_name title, department, enabled
+        FROM `{os.environ['GCLOUD_PROJECT']}.active_directory.ad_ceridian_matches`
+    ) ORDER BY last_name ASC
+    """
+
+
 def update_ids_from_ceridian(new_table, where_clause=''):
     return F"""
     CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.active_directory.{new_table}` AS
@@ -27,10 +40,9 @@ def update_ids_from_ceridian(new_table, where_clause=''):
           SELECT DISTINCT c.employee_num, id_fix.first_name, id_fix.last_name, id_fix.email, 
                  id_fix.sam_account_name, id_fix.title, id_fix.department,
                  CASE 
-                    WHEN c.status IN ('Active', 'Pre-Start') THEN true
-                    WHEN c.status IN ('Terminated', 'NONEEBEN') THEN false
-                    ELSE id_fix.enabled
-                 END AS enabled
+                    WHEN c.employee_num IS NOT NULL THEN c.office
+                    ELSE id_fix.description
+                 END AS description, id_fix.enabled, c.status AS ceridian_status
           FROM id_fix
           LEFT JOIN `{os.environ['GCLOUD_PROJECT']}.ceridian.all_employees` c
           ON LOWER(id_fix.email) = LOWER(c.sso_login)
@@ -41,10 +53,9 @@ def update_ids_from_ceridian(new_table, where_clause=''):
                sso_match.first_name, sso_match.last_name, sso_match.email, 
                sso_match.sam_account_name, sso_match.title, sso_match.department,
                CASE 
-                 WHEN sso_match.employee_num IS NOT NULL THEN sso_match.enabled
-                 WHEN c.status IN ('Active', 'Pre-Start') THEN true
-                 ELSE sso_match.enabled
-               END AS enabled
+                 WHEN sso_match.employee_num IS NULL AND c.employee_num IS NOT NULL THEN c.office
+                 ELSE sso_match.description
+               END AS description, sso_match.enabled, IFNULL(sso_match.ceridian_status, c.status) AS ceridian_status
         FROM sso_match
         LEFT JOIN `{os.environ['GCLOUD_PROJECT']}.ceridian.all_employees` c
         ON LOWER(sso_match.first_name) = LOWER(c.first_name)
