@@ -79,7 +79,7 @@ sort_data = BigQueryOperator(
 
 
 query_export_data_bridgis = F"""
-CREATE OR REPLACE TABLE `data-bridgis.computronix.violations` AS `{os.environ['GCLOUD_PROJECT']}.computronix.violations`
+CREATE OR REPLACE TABLE `data-bridgis.computronix.violations` AS 
 SELECT DISTINCT * FROM `{os.environ['GCLOUD_PROJECT']}.computronix.violations`
 """
 export_data_bridgis = BigQueryOperator(
