@@ -67,9 +67,8 @@ gcs_to_bq = GoogleCloudStorageToBigQueryOperator(
 query_sort_data = F"""
 CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.computronix.violations` AS
 SELECT DISTINCT * FROM `{os.environ['GCLOUD_PROJECT']}.computronix.violations`
-ORDER BY investigation_date_EST DESC, casefile_number DESC
+ORDER BY investigation_date_EST DESC, casefile_number DESC;
 """
-
 sort_data = BigQueryOperator(
         task_id = 'sort_date',
         sql = query_sort_data,
@@ -78,6 +77,18 @@ sort_data = BigQueryOperator(
         dag = dag
 )
 
+
+query_export_data_bridgis = F"""
+CREATE OR REPLACE TABLE `data-bridgis.computronix.violations` AS `{os.environ['GCLOUD_PROJECT']}.computronix.violations`
+SELECT DISTINCT * FROM `{os.environ['GCLOUD_PROJECT']}.computronix.violations`
+"""
+export_data_bridgis = BigQueryOperator(
+        task_id = 'export_data_bridgis',
+        sql = query_export_data_bridgis,
+        bigquery_conn_id='google_cloud_default',
+        use_legacy_sql = False,
+        dag = dag
+)
 
 # Export table as CSV to WPRDC bucket
 # file name is the date. path contains the date info
@@ -93,7 +104,7 @@ wprdc_export = BigQueryToCloudStorageOperator(
 
 # Export table as CSV to PLI bucket
 # file name is the date. path contains the date info
-csv_file_name = f"{path}"
+# csv_file_name = f"{path}"
 dest_bucket = f"gs://{os.environ['GCS_PREFIX']}_pli/computronix_violations/"
 pli_export = BigQueryToCloudStorageOperator(
         task_id = 'pli_export',
@@ -105,7 +116,7 @@ pli_export = BigQueryToCloudStorageOperator(
 
 # Export table as CSV to DOMI bucket
 # file name is the date. path contains the date info
-csv_file_name = f"{path}"
+# csv_file_name = f"{path}"
 dest_bucket = f"gs://{os.environ['GCS_PREFIX']}_domi/computronix_violations/"
 domi_export = BigQueryToCloudStorageOperator(
         task_id = 'domi_export',
@@ -125,5 +136,6 @@ beam_cleanup = BashOperator(
 # branching DAG splits after the gcs_to_bq stage and converges back at beam_cleanup
 gcs_loader >> dataflow >> gcs_to_bq >> sort_data
 sort_data >> wprdc_export >> beam_cleanup
+sort_data >> export_data_bridgis >> beam_cleanup
 sort_data >> domi_export >> beam_cleanup
 sort_data >> pli_export >> beam_cleanup
