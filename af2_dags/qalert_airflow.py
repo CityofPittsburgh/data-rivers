@@ -46,12 +46,15 @@ PRIVATE_TYPES = """'Hold - 311', 'Graffiti, Owner Refused DPW Removal', 'Medical
 'Snow Angel Volunteer', 'Claim form (Law)','Snow Angel Intake', 'Application Request', 'Reject to 311', 'Referral', 
 'Question'"""
 
-SAFE_FIELDS = """status_name, status_code, dept, 
-request_type_name, request_type_id, origin, create_date_est, create_date_utc, 
-create_date_unix, last_action_est, last_action_unix, last_action_utc, closed_date_est, closed_date_utc,  
-closed_date_unix, street, cross_street, street_id, cross_street_id, city, anon_google_formatted_address, 
-address_type, neighborhood_name, council_district, ward, police_zone, fire_zone, dpw_streets, 
-dpw_enviro, dpw_parks, input_anon_lat, input_anon_long, google_anon_lat, google_anon_long"""
+SAFE_FIELDS = """status_name, status_code, dept, request_type_name, request_type_id, origin, create_date_est, 
+create_date_utc, create_date_unix, last_action_est, last_action_unix, last_action_utc, closed_date_est, 
+closed_date_utc, closed_date_unix, street, cross_street, street_id, cross_street_id, city, 
+anon_google_formatted_address, address_type, neighborhood_name, council_district, ward, police_zone, fire_zone, 
+dpw_streets, dpw_enviro, dpw_parks"""
+
+PII_COORDS = "google_pii_lat, google_pii_long, input_pii_lat, input_pii_long"
+
+ANON_COORDS = " input_anon_lat, input_anon_long, google_anon_lat, google_anon_long"
 
 dag = DAG(
     'qalert_requests',
@@ -275,7 +278,7 @@ delete_old_insert_new_records = BigQueryOperator(
 # be stored in a table prior to the push. Thus, this is a 2 step process also involving the operator below.
 drop_pii_for_export = BigQueryOperator(
     task_id='drop_pii_for_export',
-    sql=transform_enrich_requests.drop_pii(SAFE_FIELDS, PRIVATE_TYPES),
+    sql=transform_enrich_requests.drop_pii((F"{SAFE_FIELDS}, {PII_COORDS}"), PRIVATE_TYPES),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
