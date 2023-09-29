@@ -28,11 +28,12 @@ dag = DAG(
 )
 
 # initialize gcs locations
-json_bucket = f"gs://{os.environ['GCS_PREFIX']}_active_directory"
-dataset = "users"
+dataset = "active_directory"
+json_bucket = f"gs://{os.environ['GCS_PREFIX']}_{dataset}"
+object = "users"
 exec_date = "{{ ds }}"
 path = "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}"
-json_loc = f"{dataset}/{path}/{exec_date}_users.json"
+json_loc = f"{object}/{path}/{exec_date}_users.json"
 hot_bucket = f"gs://{os.environ['GCS_PREFIX']}_hot_metal"
 
 active_directory_users_gcs = BashOperator(
@@ -44,15 +45,15 @@ active_directory_users_gcs = BashOperator(
 active_directory_users_dataflow = BashOperator(
     task_id='active_directory_users_dataflow',
     bash_command=f"python {os.environ['DATAFLOW_SCRIPT_PATH']}/active_directory_users_dataflow.py "
-                 f"--input {json_bucket}/{json_loc} --avro_output {hot_bucket}/ad_{dataset}",
+                 f"--input {json_bucket}/{json_loc} --avro_output {hot_bucket}/ad_{object}",
     dag=dag
 )
 
 active_directory_users_bq_load = GoogleCloudStorageToBigQueryOperator(
     task_id='active_directory_users_bq_load',
-    destination_project_dataset_table=f"{os.environ['GCLOUD_PROJECT']}.active_directory.ad_users_raw",
+    destination_project_dataset_table=f"{os.environ['GCLOUD_PROJECT']}.{dataset}.ad_users_raw",
     bucket=f"{os.environ['GCS_PREFIX']}_hot_metal",
-    source_objects=[f"ad_{dataset}*.avro"],
+    source_objects=[f"ad_{object}*.avro"],
     write_disposition='WRITE_TRUNCATE',
     create_disposition='CREATE_IF_NEEDED',
     source_format='AVRO',
@@ -77,7 +78,23 @@ find_ceridian_mismatches = BigQueryOperator(
     dag=dag
 )
 
+ceridian_match_to_gcs = BigQueryToCloudStorageOperator(
+    task_id='ceridian_match_to_gcs',
+    source_project_dataset_table=f"{os.environ['GCLOUD_PROJECT']}.{dataset}.ad_ceridian_matches",
+    destination_cloud_storage_uris=[f"gs://{os.environ['GCS_PREFIX']}_iapro/ad_ceridian_matches.csv"],
+    bigquery_conn_id='google_cloud_default',
+    dag=dag
+)
+
+ceridian_mismatch_to_gcs = BigQueryToCloudStorageOperator(
+    task_id='ceridian_mismatch_to_gcs',
+    source_project_dataset_table=f"{os.environ['GCLOUD_PROJECT']}.{dataset}.ad_null_ids",
+    destination_cloud_storage_uris=[f"gs://{os.environ['GCS_PREFIX']}_iapro/ad_null_ids.csv"],
+    bigquery_conn_id='google_cloud_default',
+    dag=dag
+)
+
 active_directory_users_gcs >> active_directory_users_dataflow >> active_directory_users_bq_load >> \
-    match_users_to_ceridian
+    match_users_to_ceridian >> ceridian_match_to_gcs
 active_directory_users_gcs >> active_directory_users_dataflow >> active_directory_users_bq_load >> \
-    find_ceridian_mismatches
+    find_ceridian_mismatches >> ceridian_mismatch_to_gcs
