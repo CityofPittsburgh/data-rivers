@@ -16,7 +16,8 @@ from dependencies.bq_queries.employee_admin import ad_admin as q
 # This DAG performs a daily extract of users from the City's Active Directory domain and fills in/corrects malformed
 # or missing data using data taken in from the Ceridian and InTime data pipelines. The end goal is to ensure that
 # all City employees have accounts that are set up with the proper credentials to access the City network as close
-# to account creation as possible.
+# to account creation as possible. AD data also has potential for future integration with setting credentials for
+# officers within the Police RMS system.
 
 dag = DAG(
     'active_directory_users',
@@ -94,7 +95,31 @@ ceridian_mismatch_to_gcs = BigQueryToCloudStorageOperator(
     dag=dag
 )
 
+enhance_ad_users = BigQueryOperator(
+    task_id='enhance_ad_users',
+    sql=q.enhance_ad_table(),
+    bigquery_conn_id='google_cloud_default',
+    use_legacy_sql=False,
+    dag=dag
+)
+
+build_ad_personas = BigQueryOperator(
+    task_id='build_ad_personas',
+    sql=q.build_ad_personas_table(),
+    bigquery_conn_id='google_cloud_default',
+    use_legacy_sql=False,
+    dag=dag
+)
+
+personas_to_gcs = BigQueryToCloudStorageOperator(
+    task_id='personas_to_gcs',
+    source_project_dataset_table=f"{os.environ['GCLOUD_PROJECT']}.{dataset}.active_directory_personas",
+    destination_cloud_storage_uris=[f"gs://{os.environ['GCS_PREFIX']}_iapro/active_directory_personas.csv"],
+    bigquery_conn_id='google_cloud_default',
+    dag=dag
+)
+
 active_directory_users_gcs >> active_directory_users_dataflow >> active_directory_users_bq_load >> \
-    match_users_to_ceridian >> ceridian_match_to_gcs
+    match_users_to_ceridian >> ceridian_match_to_gcs >> enhance_ad_users >> build_ad_personas >> personas_to_gcs
 active_directory_users_gcs >> active_directory_users_dataflow >> active_directory_users_bq_load >> \
-    find_ceridian_mismatches >> ceridian_mismatch_to_gcs
+    find_ceridian_mismatches >> ceridian_mismatch_to_gcs >> enhance_ad_users >> build_ad_personas >> personas_to_gcs
