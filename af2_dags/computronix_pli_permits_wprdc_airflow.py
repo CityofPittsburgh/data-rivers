@@ -7,6 +7,8 @@ from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
 from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOperator
 from airflow.contrib.operators.bigquery_to_gcs import BigQueryToCloudStorageOperator
+from airflow.contrib.operators.bigquery_operator import BigQueryOperator
+
 
 from dependencies import airflow_utils
 from dependencies.airflow_utils import get_ds_year, get_ds_month, get_ds_day, default_args
@@ -63,6 +65,20 @@ gcs_to_bq = GoogleCloudStorageToBigQueryOperator(
 )
 
 
+# Export table to data-bridGIS
+query_export_data_bridgis = F"""
+CREATE OR REPLACE TABLE `data-bridgis.computronix.pli_permits` AS
+SELECT DISTINCT * FROM `{os.environ['GCLOUD_PROJECT']}.computronix.pli_permits`
+"""
+export_data_bridgis = BigQueryOperator(
+        task_id = 'export_data_bridgis',
+        sql = query_export_data_bridgis,
+        bigquery_conn_id='google_cloud_default',
+        use_legacy_sql = False,
+        dag = dag
+)
+
+
 # Export table as CSV to WPRDC bucket
 # file name is the date. path contains the date info
 csv_file_name = f"{path}"
@@ -96,6 +112,6 @@ beam_cleanup = BashOperator(
 
 # branching DAG splits after the gcs_to_bq stage and converges back at beam_cleanup
 gcs_loader >> dataflow >> gcs_to_bq
+gcs_to_bq >> export_data_bridgis >> beam_cleanup
 gcs_to_bq >> wprdc_export >> beam_cleanup
 gcs_to_bq >> pli_export >> beam_cleanup
-
