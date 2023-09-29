@@ -22,7 +22,7 @@ from dependencies.bq_queries.employee_admin import ad_admin as q
 dag = DAG(
     'active_directory_users',
     default_args=default_args,
-    schedule_interval=None,  # '@daily',
+    schedule_interval='@daily',
     start_date=datetime(2023, 9, 25),
     user_defined_filters={'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year,
                           'get_ds_day': get_ds_day}
