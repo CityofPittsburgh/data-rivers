@@ -25,8 +25,8 @@ def set_url(first_of_month, last_of_month):
                 f"bb93e411-2928-463d-b048-03460269d416={last_of_month}"
 
 
-month_first = "01/01/2022 00:00:00 AM"
-month_last = "01/15/2022 11:59:59 PM"
+month_first = "01/01/2021 00:00:00 AM"
+month_last = "01/15/2021 11:59:59 PM"
 
 # (DAG should never pull data from the current month)
 print(f'Initial request date range: {month_first}-{month_last}')
@@ -61,7 +61,7 @@ while more is True:
             url = response.json()['Paging']['Next']
         # just because there is no MoreFlag value does not necessarily mean there is no more data
         # continue looping by moving time window up ~15 days until we catch up to the current month
-        elif '2023' not in month_first:
+        elif '2022' not in month_first:
             try:
                 month_first = datetime.strptime(month_last, "%m/%d/%Y %H:%M:%S %p").date() + timedelta(days=1)
             except TypeError:
@@ -73,7 +73,7 @@ while more is True:
                 month_last = month_first.replace(day=15)
                 month_last = str(month_last.strftime("%m/%d/%Y")) + " 11:59:59 PM"
             month_first = str(month_first.strftime("%m/%d/%Y %H:%M:%S %p"))
-            if '2023' not in month_first:
+            if '2022' not in month_first:
                 url = set_url(month_first, month_last)
             else:
                 more = False
