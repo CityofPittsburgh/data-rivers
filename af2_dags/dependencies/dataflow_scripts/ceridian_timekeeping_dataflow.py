@@ -36,7 +36,7 @@ def run(argv=None):
 
     with beam.Pipeline(options=pipeline_options) as p:
         date_fields = ['EmployeePaySummary_BusinessDate']
-        times = [(date_fields[0], 'EST')]
+        times = [(date_fields[0], 'US/Eastern')]
         field_name_swaps = [('EmployeeEmploymentStatus_EmployeeNumber', 'employee_num'),
                             ('Employee_DisplayName', 'display_name'),
                             ('Department_LongName', 'dept_desc'),

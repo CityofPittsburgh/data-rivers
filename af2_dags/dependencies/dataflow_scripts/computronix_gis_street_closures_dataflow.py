@@ -36,7 +36,7 @@ def run(argv = None):
     )
 
     with beam.Pipeline(options = pipeline_options) as p:
-        times = [("from_date", "EST"), ("to_date", "EST")]
+        times = [("from_date", "US/Eastern"), ("to_date", "US/Eastern")]
 
         bool_convs = [("full_closure", "Y", "N", False), ("travel_lane", "Y", "N", False),
                       ("parking_lane", "Y", "N", False), ("metered_parking", "Y", "N", False),

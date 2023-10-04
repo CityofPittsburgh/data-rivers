@@ -43,7 +43,7 @@ def run(argv = None):
                             ('labor_hours_actual', 'labor_hours'), ('cg_asset_id', 'asset_id'),
                             ('cg_asset_type', 'asset_type'), ('notes', 'task_notes')]
         drop_fields = ['CgShape']
-        times = [('entry_date', 'EST'), ('actual_start_date', 'EST'), ('actual_stop_date', 'EST')]
+        times = [('entry_date', 'US/Eastern'), ('actual_start_date', 'US/Eastern'), ('actual_stop_date', 'US/Eastern')]
         type_changes = [('id', 'str'), ('labor_cost', 'float'), ('equipment_cost', 'float'), ('material_cost', 'float'),
                         ('labor_hours', 'float'), ('actual_start_date_UNIX', 'posint'),
                         ('actual_stop_date_UNIX', 'posint'), ('entry_date_UNIX', 'posint')]

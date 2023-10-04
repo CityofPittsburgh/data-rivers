@@ -40,7 +40,7 @@ def run(argv = None):
                      ("violation_code_title", "upper"), ("violation_code_sec", "upper"),
                      ("violation_spec_instructions", "upper"), ("parcel_num", "upper"), ("address", "upper")]
 
-        times = [("investigation_date", "EST")]
+        times = [("investigation_date", "US/Eastern")]
 
         lines = p | ReadFromText(known_args.input, coder = JsonCoder())
 
