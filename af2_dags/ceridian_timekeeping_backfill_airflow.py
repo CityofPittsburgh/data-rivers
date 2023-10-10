@@ -26,7 +26,7 @@ bucket = f"gs://{os.environ['GCS_PREFIX']}_ceridian"
 hot_bucket = f"gs://{os.environ['GCS_PREFIX']}_hot_metal"
 dataset = "timekeeping"
 
-json_loc = f"{dataset}/2022/2022_timekeeping_backfill.json"
+json_loc = f"{dataset}/2021/2021_timekeeping_backfill.json"
 avro_loc = "timekeeping_backfill"
 
 ceridian_timekeeping_backfill_gcs = BashOperator(
@@ -44,7 +44,7 @@ ceridian_timekeeping_backfill_dataflow = BashOperator(
 
 ceridian_timekeeping_backfill_bq_load = GoogleCloudStorageToBigQueryOperator(
     task_id='ceridian_timekeeping_backfill_bq_load',
-    destination_project_dataset_table=f"{os.environ['GCLOUD_PROJECT']}.ceridian.2022_timesheet_report",
+    destination_project_dataset_table=f"{os.environ['GCLOUD_PROJECT']}.ceridian.2021_timesheet_report",
     bucket=f"{os.environ['GCS_PREFIX']}_hot_metal",
     source_objects=[f"{avro_loc}*.avro"],
     write_disposition='WRITE_TRUNCATE',
@@ -59,7 +59,7 @@ write_append_query = F"""
 CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.ceridian.historic_timekeeping` AS
     SELECT DISTINCT * FROM `{os.environ['GCLOUD_PROJECT']}.ceridian.historic_timekeeping`
     UNION DISTINCT
-    SELECT DISTINCT * FROM `{os.environ['GCLOUD_PROJECT']}.ceridian.2022_timesheet_report`
+    SELECT DISTINCT * FROM `{os.environ['GCLOUD_PROJECT']}.ceridian.2021_timesheet_report`
 """
 insert_backfill_data = BigQueryOperator(
     task_id='insert_backfill_data',
