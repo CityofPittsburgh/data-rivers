@@ -80,8 +80,7 @@ export_data_bridgis = BigQueryOperator(
 
 
 # Export table as CSV to WPRDC bucket
-# file name is the date. path contains the date info
-csv_file_name = f"{path}"
+csv_file_name = f"current_version"
 dest_bucket = f"gs://{os.environ['GCS_PREFIX']}_wprdc/pli/permits/"
 wprdc_export = BigQueryToCloudStorageOperator(
         task_id = 'wprdc_export',
