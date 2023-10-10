@@ -84,7 +84,7 @@ def run(argv = None):
                      ("contractor_name", "upper"), ("type_work", "upper"), ("commercial_or_residential", "upper"),
                      ("work_desc", "upper"), ("parcel_num", "upper"), ("obj_address", "upper")]
 
-        times = [("issue_date", "EST")]
+        times = [("issue_date", "US/Eastern")]
 
         lines = p | ReadFromText(known_args.input, coder = JsonCoder())
 
