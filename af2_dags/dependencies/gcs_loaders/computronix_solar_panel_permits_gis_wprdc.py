@@ -43,9 +43,6 @@ F"($expand={nested_table_1}(${odata_record_filter}))" \
 F"&$expand={xref_2};" \
 F"($expand={nested_table_2}($select{fds_nt2}))"
 
-
-
-
 # call the API
 pipe_name = F"{os.environ['GCLOUD_PROJECT']} computronix pli solar panel permits"
 permits, error_flag = call_odata_api_error_handling(targ_url = odata_url, pipeline = pipe_name, ct_url = None)
