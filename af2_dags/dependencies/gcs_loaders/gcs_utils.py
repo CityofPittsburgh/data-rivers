@@ -88,7 +88,7 @@ def call_odata_api_error_handling(targ_url, pipeline, time_out = 3600, limit_res
         # try the call
         try:
             print(F"executing call #{call_attempt}")
-            res = requests.get(targ_url, timeout = 300)
+            res = requests.get(targ_url, timeout = time_out)
 
 
         # exceptions for calls that are never executed or completed w/in time limit
