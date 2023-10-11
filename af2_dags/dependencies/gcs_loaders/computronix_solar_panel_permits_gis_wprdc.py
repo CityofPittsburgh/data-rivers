@@ -9,10 +9,10 @@ The permits for solar panels are ingested here.
 These data will be used by GIS for mapping a product that fire (etc.) will use. They will also be published to WPRDC
 """
 
-parser = argparse.ArgumentParser()
-parser.add_argument('--output_arg', dest = 'out_loc', required = True,
-                    help = 'fully specified location to upload the ndjson file')
-args = vars(parser.parse_args())
+# parser = argparse.ArgumentParser()
+# parser.add_argument('--output_arg', dest = 'out_loc', required = True,
+#                     help = 'fully specified location to upload the ndjson file')
+# args = vars(parser.parse_args())
 
 bucket = f"{os.environ['GCS_PREFIX']}_computronix"
 
@@ -37,11 +37,13 @@ odata_record_filter = F"$filter=DESCRIPTION like %SOLAR%"
 
 
 # build url
-odata_url = F"""{url}{base}?$select={fds_base}
-&$expand={xref_1};
-($expand={nested_table_1}(${odata_record_filter}))
-&$expand={xref_2};
-($expand={nested_table_2}($select{fds_nt2}))"""
+odata_url = F"{url}{base}?$select={fds_base}" \ 
+F"&$expand={xref_1};" \
+F"($expand={nested_table_1}(${odata_record_filter}))" \
+F"&$expand={xref_2};" \
+F"($expand={nested_table_2}($select{fds_nt2}))"
+
+
 
 
 # call the API
