@@ -66,7 +66,7 @@ upd_fields = ['status', 'priority', 'last_modified_date_EST', 'last_modified_dat
               'resolved_date_EST', 'resolved_date_UTC', 'resolved_date_UNIX', 'respond_by_deadline_EST',
               'respond_by_deadline_UTC', 'respond_by_deadline_UNIX', 'resolve_by_deadline_EST',
               'resolve_by_deadline_UTC', 'resolve_by_deadline_UNIX', 'number_of_touches', 'number_of_escalations',
-              'incident_reopened']
+              'requester_department', 'requester', 'incident_reopened']
 
 cherwell_incidents_gcs = BashOperator(
     task_id='cherwell_incidents_gcs',
