@@ -83,7 +83,7 @@ def run(argv = None):
                       ("PARCELNUMBER", "parc_num"), ("ADDRESSABLEOBJEFORMATTEDADDRES", "address"),
                       ("OWNERNAME", "owner")]
 
-        times = [("create_date", "EST")]
+        times = [("create_date", "US/Eastern")]
 
         drops = ["create_date"]
 

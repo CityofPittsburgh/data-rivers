@@ -54,9 +54,10 @@ def run(argv=None):
                          {'name': 'Stat_NumberOfEscalations'}, {'name': 'RequesterDepartment'}, {'name': 'Requester'},
                          {'name': 'OnBehalfOf'}, {'name': 'InitialAssignedTeam'}]
         add_search_vals = [''] * FIELD_COUNT
-        times = [('created_date', 'EST'), ('last_modified_date', 'EST'), ('closed_date', 'EST'),
-                 ('responded_date', 'EST'), ('resolved_date', 'EST'),
-                 ('respond_by_deadline', 'EST'), ('resolve_by_deadline', 'EST')]
+        times = [('created_date', 'US/Eastern'), ('last_modified_date', 'US/Eastern'),
+                 ('closed_date', 'US/Eastern'), ('responded_date', 'US/Eastern'),
+                 ('resolved_date', 'US/Eastern'), ('respond_by_deadline', 'US/Eastern'),
+                 ('resolve_by_deadline', 'US/Eastern')]
 
         lines = p | ReadFromText(known_args.input, coder=JsonCoder())
 
