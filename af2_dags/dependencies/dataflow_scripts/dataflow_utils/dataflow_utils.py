@@ -379,17 +379,10 @@ class DataQualityCheck(beam.DoFn, ABC):
 
     def process(self, datum):
         if datum[self.check_field] and datum[self.check_field] not in self.comp_list:
-            message_contents = F"""Possible data quality issue detected: value '{datum[self.check_field]}' not found in reference file {self.file_name}
-                                ...check the airflow log and reference file in GCS for more info.
+            message_contents = F"""Possible data quality issue detected: value '{datum[self.check_field]}' not found in reference file {self.file_name}...
+                                Check the airflow log and reference file in GCS for more info.
                                 """
-            message = Mail(
-                from_email=os.environ['EMAIL'],
-                to_emails=os.environ['EMAIL'],
-                subject="Data Quality Notification",
-                html_content=message_contents
-            )
-            sg = SendGridAPIClient(os.environ['SENDGRID_API_KEY'])
-            response = sg.send(message)
+            send_team_email_notification("Data Quality Notification", message_contents)
 
         yield datum
 
@@ -1310,6 +1303,17 @@ def replace_pii(datum, input_field, retain_location, info_types, gcloud_project,
             attempt_ct += 1
 
     return response.item.value
+
+
+def send_team_email_notification(subject, message_contents):
+    message = Mail(
+        from_email=os.environ['EMAIL'],
+        to_emails=os.environ['EMAIL'],
+        subject=subject,
+        html_content=message_contents
+    )
+    sg = SendGridAPIClient(os.environ['SENDGRID_API_KEY'])
+    response = sg.send(message)
 
 
 def snake_case_place_names(input, place_id_bucket):
