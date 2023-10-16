@@ -5,7 +5,10 @@ import logging
 import re
 import json
 import os
+import io
 from json import JSONDecodeError
+from sendgrid import SendGridAPIClient
+from sendgrid.helpers.mail import Mail
 
 import pytz
 import math
@@ -45,12 +48,20 @@ class JsonCoder(object):
                 splits.append(split_2)
                 for dict in splits:
                     return JsonCoder.decode(self, dict)
+            elif ":," in str(x):
+                str_x = x.decode('utf-8')
+                str_x = io.StringIO(str_x).getvalue()
+                fixed = str_x.replace(':,', ': null,')
+                return JsonCoder.decode(self, bytes(fixed, 'utf-8'))
             elif "\\'" or '\\"' in str(x):
-                if "\\'" in str(x):
-                    fixed = str(x).replace("\\'", "'")
-                elif '\\"' in str(x):
-                    fixed = str(x).replace('\\"', '\"')
-                return JsonCoder.decode(self, fixed)
+                fixed = x
+                str_x = x.decode('utf-8')
+                str_x = io.StringIO(str_x).getvalue()
+                if "\\'" in str_x:
+                    fixed = str_x.replace("\\'", "'")
+                elif '\\"' in str_x:
+                    fixed = str_x.replace('\\"', '\"')
+                return JsonCoder.decode(self, bytes(fixed, 'utf-8'))
             else:
                 pass
     
@@ -347,6 +358,39 @@ class CrosswalkDeptNames(beam.DoFn, ABC):
                     pass
             except:
                 datum['dept_desc'] = split_dept[0]
+        yield datum
+
+
+class DataQualityCheck(beam.DoFn, ABC):
+    def __init__(self, check_field, file_name):
+        """
+        :param check_field - Name of field within datum that should be compared to list of expected values
+        :param file_name - Name of TXT file that contains list of expected values
+        """
+        self.check_field = check_field
+        self.file_name = file_name
+        bucket = storage_client.get_bucket(f"{os.environ['GCS_PREFIX']}_data_quality_check")
+        blob = bucket.get_blob(self.file_name)
+        txt = blob.download_as_string()
+        txt = txt.decode('utf-8')
+        txt = io.StringIO(txt).getvalue()
+        comp_list = txt.split('|')
+        self.comp_list = comp_list
+
+    def process(self, datum):
+        if datum[self.check_field] and datum[self.check_field] not in self.comp_list:
+            message_contents = F"""Possible data quality issue detected: value '{datum[self.check_field]}' not found in reference file {self.file_name}
+                                ...check the airflow log and reference file in GCS for more info.
+                                """
+            message = Mail(
+                from_email=os.environ['EMAIL'],
+                to_emails=os.environ['EMAIL'],
+                subject="Data Quality Notification",
+                html_content=message_contents
+            )
+            sg = SendGridAPIClient(os.environ['SENDGRID_API_KEY'])
+            response = sg.send(message)
+
         yield datum
 
 
