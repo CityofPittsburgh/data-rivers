@@ -55,6 +55,21 @@ class TestDataflowUtils(unittest.TestCase):
         cb = dataflow_utils.ConvertBooleans(bool_changes, include_defaults = False)
         self.assertEqual(next(cb.process(datum)), expected)
 
+    def test_data_quality_check(self):
+        datum = [{'full_name': 'John Doe', 'dept': 'Bureau of Fire'},
+                 {'full_name': 'Jane Doe', 'dept': 'Department of Public Works-ES Co Driver Xtra'},
+                 {'full_name': 'Mickey Mouse', 'dept': None},
+                 {'full_name': 'Minnie Mouse', 'dept': 'Terminated'},
+                 {'full_name': 'Galactic Engineer', 'dept': 'I&P'}]
+        check_field = 'dept'
+        file_name = 'ceridian_departments.txt'
+        dqc = dataflow_utils.DataQualityCheck(check_field, file_name)
+        results = []
+        for val in datum:
+            result = next(dqc.process(val))
+            results.append(result)
+        self.assertEqual(results, datum)
+
     def test_format_and_classify_address(self):
         datum = [{'pii_street_num': '', 'street': None, 'cross_street': '', 'city': 'Pittsburgh',
                   'pii_lat': 40.4366963, 'pii_long': -79.944755399999991},
