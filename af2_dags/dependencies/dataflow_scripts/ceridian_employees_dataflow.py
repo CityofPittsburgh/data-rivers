@@ -2,7 +2,6 @@ from __future__ import absolute_import
 
 import logging
 import os
-import json
 
 import apache_beam as beam
 from apache_beam.io import ReadFromText
@@ -10,7 +9,7 @@ from apache_beam.io.avroio import WriteToAvro
 
 from dataflow_utils import dataflow_utils
 from dataflow_utils.dataflow_utils import JsonCoder, SwapFieldNames, generate_args, ChangeDataTypes, FilterFields, \
-    CrosswalkDeptNames, StripBeforeDelim
+    DataQualityCheck, StripBeforeDelim
 
 DEFAULT_DATAFLOW_ARGS = [
     '--save_main_session',
@@ -44,6 +43,8 @@ def run(argv=None):
     )
 
     with beam.Pipeline(options=pipeline_options) as p:
+        check_field = 'Department_LongName'
+        data_quality_file = 'ceridian_departments.txt'
         strip_fields = ['Employee_HireDate', 'Employee_TerminationDate',
                         'EmployeeEmploymentStatus_CreatedTimestamp', 'Department_ShortName']
         delims = ['T', 'T', 'T', '-']
@@ -74,6 +75,7 @@ def run(argv=None):
 
         load = (
                 lines
+                | beam.ParDo(DataQualityCheck(check_field, data_quality_file))
                 | beam.ParDo(StripBeforeDelim(strip_fields, delims, before_or_afters))
                 | beam.ParDo(SwapFieldNames(field_name_swaps))
                 | beam.ParDo(ChangeDataTypes(type_changes))
