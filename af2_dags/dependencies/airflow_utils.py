@@ -668,31 +668,39 @@ def build_geo_coords_from_parcel_query(raw_table, parc_field, lat_field = "latit
 def perform_data_quality_check(file_name, **kwargs):
     try:
         bucket = storage_client.get_bucket(f"{os.environ['GCS_PREFIX']}_data_quality_check")
-        old_blob = bucket.blob(file_name)
-        old_content = old_blob.download_as_string()
-        old_dq = ndjson.loads(old_content)
-
         new_blob = bucket.blob(f"TEMP_{file_name}")
         new_content = new_blob.download_as_string()
         new_dq = ndjson.loads(new_content)
 
-        message_contents = "Possible data quality issue detected: the following value(s): <br /><br />"
-        uncaught = []
-        for item in new_dq:
-            val = next(iter(item.items()))[1]
-            if item not in old_dq and val:
-                print(f"Untracked value: {item}")
-                message_contents += f"{val}<br />"
-                uncaught.append(val)
+        try:
+            old_blob = bucket.blob(file_name)
+            old_content = old_blob.download_as_string()
+            old_dq = ndjson.loads(old_content)
 
-        if uncaught:
-            message_contents += f"<br />were not found in reference file {file_name}.<br />Check the airflow logs " \
-                                f"and reference file in GCS for more info."
-            send_team_email_notification("Data Quality Notification", message_contents)
+            message_contents = "Possible data quality issue detected: the following value(s): <br /><br />"
+            uncaught = []
+            for item in new_dq:
+                val = next(iter(item.items()))[1]
+                if item not in old_dq and val:
+                    print(f"Untracked value: {item}")
+                    message_contents += f"{val}<br />"
+                    uncaught.append(val)
 
-        old_blob.delete()
-        bucket.copy_blob(new_blob, bucket, file_name)
-        bucket.delete_blob(f"TEMP_{file_name}")
+            if uncaught:
+                message_contents += f"<br />were not found in reference file {file_name}.<br />Check the airflow logs " \
+                                    f"and reference file in GCS for more info."
+                send_team_email_notification("Data Quality Notification", message_contents)
+
+            old_blob.delete()
+            bucket.copy_blob(new_blob, bucket, file_name)
+            bucket.delete_blob(f"TEMP_{file_name}")
+
+        except NotFound as nf:
+            print(nf)
+            print('First DAG run with data quality checking - generating reference file now')
+            bucket.copy_blob(new_blob, bucket, file_name)
+            bucket.delete_blob(f"TEMP_{file_name}")
+
     except NotFound as nf:
         print(nf)
         print('Data quality reference file not found in GCS')
