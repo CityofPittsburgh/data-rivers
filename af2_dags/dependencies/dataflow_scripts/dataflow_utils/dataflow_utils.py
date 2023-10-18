@@ -362,19 +362,20 @@ class CrosswalkDeptNames(beam.DoFn, ABC):
 
 
 class DataQualityCheck(beam.DoFn, ABC):
-    def __init__(self, check_field, file_name):
+    def __init__(self, check_field, file_name, delim='|'):
         """
         :param check_field - Name of field within datum that should be compared to list of expected values
         :param file_name - Name of TXT file that contains list of expected values
         """
         self.check_field = check_field
         self.file_name = file_name
+        self.delim = delim
         bucket = storage_client.get_bucket(f"{os.environ['GCS_PREFIX']}_data_quality_check")
         blob = bucket.get_blob(self.file_name)
         txt = blob.download_as_string()
         txt = txt.decode('utf-8')
         txt = io.StringIO(txt).getvalue()
-        comp_list = txt.split('|')
+        comp_list = txt.split(self.delim)
         self.comp_list = comp_list
 
     def process(self, datum):

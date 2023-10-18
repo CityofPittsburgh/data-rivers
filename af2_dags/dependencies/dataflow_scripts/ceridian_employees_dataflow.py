@@ -9,7 +9,7 @@ from apache_beam.io.avroio import WriteToAvro
 
 from dataflow_utils import dataflow_utils
 from dataflow_utils.dataflow_utils import JsonCoder, SwapFieldNames, generate_args, ChangeDataTypes, FilterFields, \
-    DataQualityCheck, StripBeforeDelim
+    StripBeforeDelim
 
 DEFAULT_DATAFLOW_ARGS = [
     '--save_main_session',
@@ -75,7 +75,6 @@ def run(argv=None):
 
         load = (
                 lines
-                | beam.ParDo(DataQualityCheck(check_field, data_quality_file))
                 | beam.ParDo(StripBeforeDelim(strip_fields, delims, before_or_afters))
                 | beam.ParDo(SwapFieldNames(field_name_swaps))
                 | beam.ParDo(ChangeDataTypes(type_changes))
