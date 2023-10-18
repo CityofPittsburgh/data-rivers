@@ -5,13 +5,15 @@ from datetime import datetime
 
 from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
+from airflow.operators.python_operator import PythonOperator
 from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOperator
 from airflow.contrib.operators.bigquery_to_gcs import BigQueryToCloudStorageOperator
 from dependencies import airflow_utils
-from dependencies.airflow_utils import get_ds_month, get_ds_year, get_ds_day, default_args
+from dependencies.airflow_utils import get_ds_month, get_ds_year, get_ds_day, default_args, perform_data_quality_check
 
-from dependencies.bq_queries.employee_admin import ceridian_admin as q
+from dependencies.bq_queries.employee_admin import ceridian_admin as c_q
+from dependencies.bq_queries import general_queries as g_q
 
 # The goal of this DAG is to perform a daily pull of basic demographic information for each
 # City of Pittsburgh employee via the Ceridian Dayforce API. This  data will be stored securely
@@ -37,6 +39,7 @@ exec_date = "{{ ds }}"
 path = "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}"
 json_loc = f"{dataset}/{path}/{exec_date}_employees.json"
 avro_loc = f"{dataset}/avro_output/{path}/" + "{{ run_id }}"
+dq_checker = "ceridian_departments"
 
 ceridian_employees_gcs = BashOperator(
     task_id='ceridian_employees_gcs',
@@ -64,13 +67,37 @@ ceridian_employees_bq_load = GoogleCloudStorageToBigQueryOperator(
     dag=dag
 )
 
+create_data_quality_table = BigQueryOperator(
+    task_id='create_data_quality_table',
+    sql=g_q.build_data_quality_table('ceridian', dq_checker, 'all_employees', 'dept_desc'),
+    bigquery_conn_id='google_cloud_default',
+    use_legacy_sql=False,
+    dag=dag
+)
+
+export_data_quality = BigQueryToCloudStorageOperator(
+    task_id='export_data_quality',
+    source_project_dataset_table=f"{os.environ['GCLOUD_PROJECT']}.data_quality_check.{dq_checker}",
+    destination_cloud_storage_uris=[f"gs://{os.environ['GCS_PREFIX']}_data_quality_check/TEMP_{dq_checker}.json"],
+    export_format='NEWLINE_DELIMITED_JSON',
+    bigquery_conn_id='google_cloud_default',
+    dag=dag
+)
+
+data_quality_check = PythonOperator(
+    task_id='data_quality_check',
+    python_callable=perform_data_quality_check,
+    op_kwargs={"file_name": f"{dq_checker}.json"},
+    dag=dag
+)
+
 gender_table = 'employee_vs_gen_pop_gender_comp'
 gender_pct_field = 'gender'
 gender_hardcoded_vals = [{gender_pct_field: 'M', 'percentage': 00.49},
                          {gender_pct_field: 'F', 'percentage': 00.51}]
 create_gender_comp_table = BigQueryOperator(
     task_id='create_gender_comp_table',
-    sql=q.build_percentage_table_query(gender_table, gender_pct_field, gender_hardcoded_vals),
+    sql=c_q.build_percentage_table_query(gender_table, gender_pct_field, gender_hardcoded_vals),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
@@ -89,7 +116,7 @@ race_hardcoded_vals = [{race_pct_field: 'White (not Hispanic or Latino)', 'perce
                        {race_pct_field: 'Two or More Races  (not Hispanic or Latino)', 'percentage': 00.036}]
 create_racial_comp_table = BigQueryOperator(
     task_id='create_racial_comp_table',
-    sql=q.build_percentage_table_query(race_table, race_pct_field, race_hardcoded_vals),
+    sql=c_q.build_percentage_table_query(race_table, race_pct_field, race_hardcoded_vals),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
@@ -97,7 +124,7 @@ create_racial_comp_table = BigQueryOperator(
 
 create_pmo_export_table = BigQueryOperator(
     task_id='create_pmo_export_table',
-    sql=q.pmo_export_query(),
+    sql=c_q.pmo_export_query(),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
@@ -126,5 +153,9 @@ beam_cleanup = BashOperator(
     dag=dag
 )
 
+ceridian_employees_gcs >> ceridian_employees_dataflow >> ceridian_employees_bq_load >> create_data_quality_table >> \
+    export_data_quality >> data_quality_check >> ceridian_iapro_export >> beam_cleanup
+ceridian_employees_gcs >> ceridian_employees_dataflow >> ceridian_employees_bq_load >> create_pmo_export_table >> \
+    ceridian_pmo_export >> ceridian_iapro_export >> beam_cleanup
 ceridian_employees_gcs >> ceridian_employees_dataflow >> ceridian_employees_bq_load >> create_gender_comp_table >> \
-    create_racial_comp_table >> create_pmo_export_table >> ceridian_pmo_export >> ceridian_iapro_export >> beam_cleanup
+    create_racial_comp_table >> ceridian_iapro_export >> beam_cleanup
