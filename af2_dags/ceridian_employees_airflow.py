@@ -5,11 +5,12 @@ from datetime import datetime
 
 from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
+from airflow.operators.python_operator import PythonOperator
 from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOperator
 from airflow.contrib.operators.bigquery_to_gcs import BigQueryToCloudStorageOperator
 from dependencies import airflow_utils
-from dependencies.airflow_utils import get_ds_month, get_ds_year, get_ds_day, default_args, build_data_quality_table
+from dependencies.airflow_utils import get_ds_month, get_ds_year, get_ds_day, default_args, perform_data_quality_check
 
 from dependencies.bq_queries.employee_admin import ceridian_admin as c_q
 from dependencies.bq_queries import general_queries as g_q
@@ -83,6 +84,13 @@ export_data_quality = BigQueryToCloudStorageOperator(
     dag=dag
 )
 
+data_quality_check = PythonOperator(
+    task_id='data_quality_check',
+    python_callable=perform_data_quality_check,
+    op_kwargs={"file_name": f"{dq_checker}.json"},
+    dag=dag
+)
+
 gender_table = 'employee_vs_gen_pop_gender_comp'
 gender_pct_field = 'gender'
 gender_hardcoded_vals = [{gender_pct_field: 'M', 'percentage': 00.49},
@@ -146,7 +154,7 @@ beam_cleanup = BashOperator(
 )
 
 ceridian_employees_gcs >> ceridian_employees_dataflow >> ceridian_employees_bq_load >> create_data_quality_table >> \
-    export_data_quality >> ceridian_iapro_export >> beam_cleanup
+    export_data_quality >> data_quality_check >> ceridian_iapro_export >> beam_cleanup
 ceridian_employees_gcs >> ceridian_employees_dataflow >> ceridian_employees_bq_load >> create_pmo_export_table >> \
     ceridian_pmo_export >> ceridian_iapro_export >> beam_cleanup
 ceridian_employees_gcs >> ceridian_employees_dataflow >> ceridian_employees_bq_load >> create_gender_comp_table >> \
