@@ -125,15 +125,6 @@ def build_dashburgh_street_tix_query(dataset, raw_table, new_table, is_deduped, 
     return sql
 
 
-def build_data_quality_table(dataset, new_table, source_table, field):
-    return F"""
-    CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.data_quality_check.{new_table}` AS 
-    SELECT DISTINCT {field}
-    FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{source_table}`
-    ORDER BY {field} ASC
-    """
-
-
 def build_dedup_old_updates(dataset, table, id_field, last_upd_field):
     sql = F"""
     CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.{dataset}.{table}` AS
