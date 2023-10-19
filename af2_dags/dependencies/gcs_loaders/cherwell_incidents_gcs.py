@@ -61,7 +61,7 @@ payload = {
         "9450a00ccdb69786a573374a7ba1b43d74e18a80bb",  # "Requester"
         "9450a01dde5721fb08fef04257b82d73d320191342",  # "OnBehalfOf"
         "94518efdef63fec0cc82874c0ebb786a01f3c51a6f",  # "InitialAssignedTeam"
-        "93db0f16a49b1f0232b5ee498ebfee566d48788088",  # "Comments
+        "93db0f16a49b1f0232b5ee498ebfee566d48788088",  # "Comments"
         "93408334d3c89b364bf3b14933a74db085d0b47824"   # "CloseDescription"
     ],
     "sorting": [
