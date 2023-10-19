@@ -8,10 +8,13 @@ from airflow.operators.bash_operator import BashOperator
 from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 from airflow.contrib.operators.bigquery_to_gcs import BigQueryToCloudStorageOperator
 from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOperator
+from airflow.operators.python_operator import PythonOperator
 from dependencies import airflow_utils
-from dependencies.airflow_utils import get_ds_month, get_ds_year, get_ds_day, default_args, build_format_dedup_query
+from dependencies.airflow_utils import get_ds_month, get_ds_year, get_ds_day, default_args, build_format_dedup_query, \
+    perform_data_quality_check
 
-from dependencies.bq_queries.employee_admin import intime_admin as q
+from dependencies.bq_queries.employee_admin import intime_admin as i_q
+from dependencies.bq_queries import general_queries as g_q
 
 # The goal of this DAG is to perform a complete pull of police rank assignment data from
 # the InTime API. This employee info will be stored in Data Rivers and extracted via PowerShell
@@ -39,6 +42,7 @@ hot_bucket = f"gs://{os.environ['GCS_PREFIX']}_hot_metal"
 path = "assignments/{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds|get_ds_day }}/{{ run_id }}"
 json_loc = f"{path}_assignments.json"
 output_name = "schedule_assignments"
+dq_checker = 'intime_sub_locations'
 date_fields = [{'field': 'scheduled_start_time', 'type': 'DATETIME'},
                {'field': 'scheduled_end_time', 'type': 'DATETIME'},
                {'field': 'actual_start_time', 'type': 'DATETIME'},
@@ -96,10 +100,34 @@ write_append_data = BigQueryOperator(
     dag=dag
 )
 
+create_data_quality_table = BigQueryOperator(
+    task_id='create_data_quality_table',
+    sql=g_q.build_data_quality_table(dataset, dq_checker, 'schedule_assignments', 'sub_location_name'),
+    bigquery_conn_id='google_cloud_default',
+    use_legacy_sql=False,
+    dag=dag
+)
+
+export_data_quality = BigQueryToCloudStorageOperator(
+    task_id='export_data_quality',
+    source_project_dataset_table=f"{os.environ['GCLOUD_PROJECT']}.data_quality_check.{dq_checker}",
+    destination_cloud_storage_uris=[f"gs://{os.environ['GCS_PREFIX']}_data_quality_check/TEMP_{dq_checker}.json"],
+    export_format='NEWLINE_DELIMITED_JSON',
+    bigquery_conn_id='google_cloud_default',
+    dag=dag
+)
+
+data_quality_check = PythonOperator(
+    task_id='data_quality_check',
+    python_callable=perform_data_quality_check,
+    op_kwargs={"file_name": f"{dq_checker}.json"},
+    dag=dag
+)
+
 # union all up-to-date assignment info with the permanent employee information taken from InTime
 merge_intime_data = BigQueryOperator(
     task_id='merge_intime_data',
-    sql=q.extract_current_intime_details(),
+    sql=i_q.extract_current_intime_details(),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
@@ -121,4 +149,6 @@ beam_cleanup = BashOperator(
 )
 
 intime_assignments_gcs >> intime_assignments_dataflow >> intime_assignments_bq_load >> format_data_types >> \
-    write_append_data >> merge_intime_data >> assignment_iapro_export >> beam_cleanup
+    write_append_data >> create_data_quality_table >> export_data_quality >> data_quality_check >> beam_cleanup
+intime_assignments_gcs >> intime_assignments_dataflow >> intime_assignments_bq_load >> format_data_types >> \
+    merge_intime_data >> assignment_iapro_export >> beam_cleanup
