@@ -18,7 +18,7 @@ DEFAULT_DATAFLOW_ARGS = [
     f"--subnetwork={os.environ['SUBNET']}"
 ]
 
-FIELD_COUNT = 26
+FIELD_COUNT = 28
 
 
 def run(argv=None):
@@ -42,7 +42,7 @@ def run(argv=None):
                            'assigned_to_manager', 'incident_type', 'respond_by_deadline', 'resolve_by_deadline',
                            'call_source', 'incident_reopened', 'responded_date', 'resolved_date', 'number_of_touches',
                            'number_of_escalations', 'requester_department', 'requester', 'on_behalf_of',
-                           'initial_assigned_team']
+                           'initial_assigned_team', 'comments', 'close_description']
         add_nested_fields = [''] * FIELD_COUNT
         search_fields = [{'name': 'IncidentID'}, {'name': 'CreatedDateTime'}, {'name': 'Status'}, {'name': 'Service'},
                          {'name': 'Category'}, {'name': 'Subcategory'}, {'name': 'Description'}, {'name': 'Priority'},
@@ -51,8 +51,9 @@ def run(argv=None):
                          {'name': 'SLARespondByDeadline'}, {'name': 'SLAResolveByDeadline'}, {'name': 'CallSource'},
                          {'name': 'Stat_IncidentReopened'}, {'name': 'Stat_DateTimeResponded'},
                          {'name': 'Stat_DateTimeResolved'}, {'name': 'Stat_NumberOfTouches'},
-                         {'name': 'Stat_NumberOfEscalations'}, {'name': 'RequesterDepartment'}, {'name': 'Requester'},
-                         {'name': 'OnBehalfOf'}, {'name': 'InitialAssignedTeam'}]
+                         {'name': 'Stat_NumberOfEscalations'}, {'name': 'RequesterDepartment'},
+                         {'name': 'Requester'}, {'name': 'OnBehalfOf'}, {'name': 'InitialAssignedTeam'},
+                         {'name': 'Comments'}, {'name': 'CloseDescription'}]
         add_search_vals = [''] * FIELD_COUNT
         times = [('created_date', 'US/Eastern'), ('last_modified_date', 'US/Eastern'),
                  ('closed_date', 'US/Eastern'), ('responded_date', 'US/Eastern'),

@@ -21,7 +21,7 @@ closed_date_UTC, closed_date_UNIX, assigned_team, assigned_to, assigned_to_manag
 respond_by_deadline_EST, respond_by_deadline_UTC, respond_by_deadline_UNIX, resolve_by_deadline_EST, 
 resolve_by_deadline_UTC, resolve_by_deadline_UNIX, call_source, incident_reopened, responded_date_EST, 
 responded_date_UTC, responded_date_UNIX, resolved_date_EST, resolved_date_UTC, resolved_date_UNIX, number_of_touches,
-number_of_escalations, requester_department, requester, on_behalf_of,
+number_of_escalations, requester_department, requester, on_behalf_of, comments, close_description,
 initial_assigned_team, """
 
 dag = DAG(
@@ -66,7 +66,7 @@ upd_fields = ['status', 'service', 'priority', 'last_modified_date_EST', 'last_m
               'resolved_date_EST', 'resolved_date_UTC', 'resolved_date_UNIX', 'respond_by_deadline_EST',
               'respond_by_deadline_UTC', 'respond_by_deadline_UNIX', 'resolve_by_deadline_EST',
               'resolve_by_deadline_UTC', 'resolve_by_deadline_UNIX', 'number_of_touches', 'number_of_escalations',
-              'requester_department', 'requester', 'incident_reopened']
+              'requester_department', 'requester', 'incident_reopened', 'comments', 'close_description']
 
 cherwell_incidents_gcs = BashOperator(
     task_id='cherwell_incidents_gcs',
