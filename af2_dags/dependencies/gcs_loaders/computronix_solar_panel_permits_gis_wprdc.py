@@ -3,14 +3,25 @@ import argparse
 
 import pandas as pd
 
-
-from gcs_utils import json_to_gcs, call_odata_api_error_handling, \
-    write_partial_api_request_results_for_inspection
+from gcs_utils import call_odata_api_error_handling, conv_avsc_to_bq_schema
 
 """
 The permits for solar panels are ingested here. 
 These data will be used by GIS for mapping a product that fire (etc.) will use. They will also be published to WPRDC
 """
+
+# CX ODATA API URL base
+URL = 'https://staff.onestoppgh.pittsburghpa.gov/pghprod/odata/odata/'
+
+# rename columns
+NEW_NAMES = {"JOBID"                  : "job_id",
+             "STATUSDESCRIPTION": "status",
+             "COMMERCIALORRESIDENTIAL": "commercial_residential",
+             "COMPLETEDDATE"          : "completed_date",
+             "ISSUEDATE"              : "issue_date",
+             "EXTERNALFILENUM": "ext_file_num",
+             "PERMITWORKSCOPEXREF": "work_scope"
+             }
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--output_arg', dest = 'out_loc', required = True,
@@ -18,9 +29,6 @@ parser.add_argument('--output_arg', dest = 'out_loc', required = True,
 args = vars(parser.parse_args())
 
 bucket = f"{os.environ['GCS_PREFIX']}_computronix"
-
-# CX ODATA API URL base
-url = 'https://staff.onestoppgh.pittsburghpa.gov/pghprod/odata/odata/'
 
 # build url
 # map of table relationships, with a left and right branch to a base table:
@@ -48,39 +56,52 @@ fds = {
 }
 
 # form the url
-odata_url_base = F"{url}{tables['bt']}?"
-odata_url_left = F"&$select={fds['bt']}" \
-                 F"&$expand={tables['left_xref']}" \
-                 F"(" \
-                 F"$select={fds['left_xref']},;" \
-                 F"$expand={tables['left_nt']}" \
-                 F"($select={fds['left_nt']})" \
-                 "),"
+query_url_components = {
+        "base" : F"{URL}{tables['bt']}?",
 
-odata_url_right = F"{tables['right_xref']}" \
-                  F"(" \
-                  F"$select={fds['right_xref']},;" \
-                  F"$expand={tables['right_nt']}" \
-                  F"($select={fds['right_nt']})" \
-                  F")"
+        "left" : F"&$select={fds['bt']}"
+                 F"&$expand={tables['left_xref']}"
+                 F"("
+                 F"$select={fds['left_xref']},;"
+                 F"$expand={tables['left_nt']}"
+                 F"($select={fds['left_nt']})"
+                 "),",
 
-odata_url = odata_url_base + odata_url_left + odata_url_right
+        "right": F"{tables['right_xref']}"
+                 F"("
+                 F"$select={fds['right_xref']},;"
+                 F"$expand={tables['right_nt']}"
+                 F"($select={fds['right_nt']})"
+                 F")",
+}
+odata_url = query_url_components["base"] + query_url_components["left"] + query_url_components["right"]
 
 # call the API
 pipe_name = F"{os.environ['GCLOUD_PROJECT']} computronix pli solar panel permits"
 permits, error_flag = call_odata_api_error_handling(targ_url = odata_url, pipeline = pipe_name, ct_url = None)
 
-# expand the nested PERMITWORKSCOPEXREF column (there can be more than 1 entry here, though no other fields can have
-# more than 1 entry) (this is significantly more concise than a dataflow operation to accomplish this unnesting. this
-# type of transformation could be done in dataflow in the future, and a BEAM embedded dataframe may be implemented in
-# place of this.
-permit_unnest = pd.DataFrame(permits).explode("PERMITWORKSCOPEXREF")
-permit_unnest["work_desc"] = pd.json_normalize(permit_unnest["PERMITWORKSCOPEXREF"])["WORKSCOPE.DESCRIPTION"]
 
+# filter the unnecessary records. the table needed to filter these records isn't accessible through this api
+# currently (10/23) and the filtering must be done here
+permit_df = pd.DataFrame(permits)
+strs = permit_df["PERMITWORKSCOPEXREF"].astype(str).to_list()
+strs_clean = [s.lower().__contains__("solar") for s in strs]
+solar_permits = permit_df[strs_clean].copy()
 
-# load data into GCS
-# out loc = <dataset>/<full date>/<run_id>_solar_panel_permits.json
-if not error_flag:
-    json_to_gcs(args["out_loc"], permits, bucket)
-else:
-    write_partial_api_request_results_for_inspection(permits, "pli_solar_panel_permits")
+solar_permits.rename(columns = NEW_NAMES, inplace = True)
+
+# extract nest address and parc number. list comprehension was tested to be the fastest method 10/23 given the
+# current size of data and it's projected size for several years to come.
+info = pd.json_normalize(solar_permits["JOBPARCELXREF"])[0].to_list()
+parc_num = ["None" if i is None else i["PARCEL.PARCELNUMBER"] for i in info]
+address = ["None" if i is None else i['PARCEL.ADDRESSABLEOBJEFORMATTEDADDRES'] for i in info]
+solar_permits["parc_num"] = parc_num
+solar_permits["address"] = address
+solar_permits.drop("JOBPARCELXREF", axis = 1, inplace = True)
+
+solar_permits["job_id"] = solar_permits["job_id"].astype(str)
+
+# load into BQ via the avsc file in schemas direc
+schema = conv_avsc_to_bq_schema(F"{os.environ['GCS_PREFIX']}_avro_schemas", "computronix_solar_permits.avsc")
+solar_permits.to_gbq("computronix.solar_permits", project_id = f"{os.environ['GCLOUD_PROJECT']}",
+                     if_exists = "replace", table_schema = schema)
