@@ -7,8 +7,6 @@ import json
 import os
 import io
 from json import JSONDecodeError
-from sendgrid import SendGridAPIClient
-from sendgrid.helpers.mail import Mail
 
 import pytz
 import math
@@ -358,32 +356,6 @@ class CrosswalkDeptNames(beam.DoFn, ABC):
                     pass
             except:
                 datum['dept_desc'] = split_dept[0]
-        yield datum
-
-
-class DataQualityCheck(beam.DoFn, ABC):
-    def __init__(self, check_field, file_name):
-        """
-        :param check_field - Name of field within datum that should be compared to list of expected values
-        :param file_name - Name of TXT file that contains list of expected values
-        """
-        self.check_field = check_field
-        self.file_name = file_name
-        bucket = storage_client.get_bucket(f"{os.environ['GCS_PREFIX']}_data_quality_check")
-        blob = bucket.get_blob(self.file_name)
-        txt = blob.download_as_string()
-        txt = txt.decode('utf-8')
-        txt = io.StringIO(txt).getvalue()
-        comp_list = txt.split('|')
-        self.comp_list = comp_list
-
-    def process(self, datum):
-        if datum[self.check_field] and datum[self.check_field] not in self.comp_list:
-            message_contents = F"""Possible data quality issue detected: value '{datum[self.check_field]}' not found in reference file {self.file_name}...
-                                Check the airflow log and reference file in GCS for more info.
-                                """
-            send_team_email_notification("Data Quality Notification", message_contents)
-
         yield datum
 
 
@@ -1303,17 +1275,6 @@ def replace_pii(datum, input_field, retain_location, info_types, gcloud_project,
             attempt_ct += 1
 
     return response.item.value
-
-
-def send_team_email_notification(subject, message_contents):
-    message = Mail(
-        from_email=os.environ['EMAIL'],
-        to_emails=os.environ['EMAIL'],
-        subject=subject,
-        html_content=message_contents
-    )
-    sg = SendGridAPIClient(os.environ['SENDGRID_API_KEY'])
-    response = sg.send(message)
 
 
 def snake_case_place_names(input, place_id_bucket):

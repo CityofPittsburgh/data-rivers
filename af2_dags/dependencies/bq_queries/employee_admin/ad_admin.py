@@ -18,6 +18,24 @@ def build_ad_personas_table():
     """
 
 
+def ceridian_diff_comparison():
+    return F"""
+    CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.active_directory.ad_ceridian_comparison` AS
+    SELECT adu.employee_id, adu.first_name AS ad_fname, cae.first_name AS ceridian_fname, 
+           adu.last_name AS ad_lname, cae.last_name AS ceridian_lname, adu.email AS ad_email, 
+           cae.sso_login AS ceridian_email, adu.title AS ad_title, cae.job_title AS ceridian_title, 
+           adu.department AS ad_dept, cae.dept_desc AS ceridian_dept
+    FROM `{os.environ['GCLOUD_PROJECT']}.active_directory.ad_users` adu
+    LEFT OUTER JOIN `{os.environ['GCLOUD_PROJECT']}.ceridian.all_employees` cae
+    ON adu.employee_id = cae.employee_num 
+    WHERE (IFNULL(LOWER(adu.email), '') != IFNULL(LOWER(cae.sso_login), '') OR 
+           LOWER(adu.first_name) != LOWER(cae.first_name) OR LOWER(adu.last_name) != LOWER(cae.last_name) OR 
+           adu.department != cae.dept_desc)
+    AND cae.employee_num IS NOT NULL
+    ORDER BY adu.last_name ASC
+    """
+
+
 def enhance_ad_table():
     return F"""
     CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.active_directory.ad_users` AS

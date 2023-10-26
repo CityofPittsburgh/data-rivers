@@ -3,12 +3,16 @@ from __future__ import absolute_import
 import logging
 import os
 import urllib
+import json
 import ndjson
 import math
-
 import pendulum
+
+from sendgrid import SendGridAPIClient
+from sendgrid.helpers.mail import Mail
 from datetime import datetime, timedelta
 from google.cloud import bigquery, storage
+from google.api_core.exceptions import NotFound
 
 # TODO:  Fix this import path 
 # https://www.astronomer.io/guides/airflow-importing-custom-hooks-operators
@@ -659,6 +663,60 @@ def build_geo_coords_from_parcel_query(raw_table, parc_field, lat_field = "latit
     LEFT OUTER JOIN `{os.environ['GCLOUD_PROJECT']}.timebound_geography.parcels` p ON 
     {parc_field} = p.zone
     """
+
+
+def perform_data_quality_check(file_name, **kwargs):
+    try:
+        bucket = storage_client.get_bucket(f"{os.environ['GCS_PREFIX']}_data_quality_check")
+        new_blob = bucket.blob(f"TEMP_{file_name}")
+        new_content = new_blob.download_as_string()
+        new_dq = ndjson.loads(new_content)
+
+        try:
+            old_blob = bucket.blob(file_name)
+            old_content = old_blob.download_as_string()
+            old_dq = ndjson.loads(old_content)
+
+            message_contents = "Possible data quality issue detected: the following value(s): <br /><br />"
+            uncaught = []
+            for item in new_dq:
+                val = next(iter(item.items()))[1]
+                if item not in old_dq and val:
+                    print(f"Untracked value: {item}")
+                    message_contents += f"{val}<br />"
+                    uncaught.append(val)
+
+            if uncaught:
+                message_contents += f"<br />were not found in reference file {file_name}.<br />Check the airflow logs " \
+                                    f"and reference file in GCS for more info."
+                send_team_email_notification("Data Quality Notification", message_contents)
+
+            old_blob.delete()
+            bucket.copy_blob(new_blob, bucket, file_name)
+            bucket.delete_blob(f"TEMP_{file_name}")
+
+        except NotFound as nf:
+            print(nf)
+            print('First DAG run with data quality checking - generating reference file now')
+            bucket.copy_blob(new_blob, bucket, file_name)
+            bucket.delete_blob(f"TEMP_{file_name}")
+
+    except NotFound as nf:
+        print(nf)
+        print('Data quality reference file not found in GCS')
+
+
+def send_team_email_notification(subject, message_contents):
+    message = Mail(
+        from_email=os.environ['EMAIL'],
+        to_emails=os.environ['EMAIL'],
+        subject=subject,
+        html_content=message_contents
+    )
+    sg = SendGridAPIClient(os.environ['SENDGRID_API_KEY'])
+    response = sg.send(message)
+
+
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.INFO)
     run()

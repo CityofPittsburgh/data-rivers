@@ -103,6 +103,22 @@ enhance_ad_users = BigQueryOperator(
     dag=dag
 )
 
+ceridian_diff_comparison = BigQueryOperator(
+    task_id='ceridian_diff_comparison',
+    sql=q.ceridian_diff_comparison(),
+    bigquery_conn_id='google_cloud_default',
+    use_legacy_sql=False,
+    dag=dag
+)
+
+ceridian_diff_to_gcs = BigQueryToCloudStorageOperator(
+    task_id='ceridian_diff_to_gcs',
+    source_project_dataset_table=f"{os.environ['GCLOUD_PROJECT']}.{dataset}.ad_ceridian_comparison",
+    destination_cloud_storage_uris=[f"gs://{os.environ['GCS_PREFIX']}_iapro/ad_ceridian_comparison.csv"],
+    bigquery_conn_id='google_cloud_default',
+    dag=dag
+)
+
 build_ad_personas = BigQueryOperator(
     task_id='build_ad_personas',
     sql=q.build_ad_personas_table(),
@@ -120,6 +136,8 @@ personas_to_gcs = BigQueryToCloudStorageOperator(
 )
 
 active_directory_users_gcs >> active_directory_users_dataflow >> active_directory_users_bq_load >> \
-    match_users_to_ceridian >> ceridian_match_to_gcs >> enhance_ad_users >> build_ad_personas >> personas_to_gcs
+    match_users_to_ceridian >> ceridian_match_to_gcs >> enhance_ad_users >> ceridian_diff_comparison >> \
+    ceridian_diff_to_gcs >> build_ad_personas >> personas_to_gcs
 active_directory_users_gcs >> active_directory_users_dataflow >> active_directory_users_bq_load >> \
-    find_ceridian_mismatches >> ceridian_mismatch_to_gcs >> enhance_ad_users >> build_ad_personas >> personas_to_gcs
+    find_ceridian_mismatches >> ceridian_mismatch_to_gcs >> enhance_ad_users >> ceridian_diff_comparison >> \
+    ceridian_diff_to_gcs >> build_ad_personas >> personas_to_gcs
