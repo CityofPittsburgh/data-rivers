@@ -1,9 +1,7 @@
 import os
 import argparse
 
-import pandas as pd
-
-from gcs_utils import call_odata_api_error_handling, conv_avsc_to_bq_schema
+from gcs_utils import json_to_gcs, call_odata_api_error_handling, write_partial_api_request_results_for_inspection
 
 """
 The permits for solar panels are ingested here. 
@@ -13,15 +11,6 @@ These data will be used by GIS for mapping a product that fire (etc.) will use. 
 # CX ODATA API URL base
 URL = 'https://staff.onestoppgh.pittsburghpa.gov/pghprod/odata/odata/'
 
-# rename columns
-NEW_NAMES = {"JOBID"                  : "job_id",
-             "STATUSDESCRIPTION": "status",
-             "COMMERCIALORRESIDENTIAL": "commercial_residential",
-             "COMPLETEDDATE"          : "completed_date",
-             "ISSUEDATE"              : "issue_date",
-             "EXTERNALFILENUM": "ext_file_num",
-             "PERMITWORKSCOPEXREF": "work_scope"
-             }
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--output_arg', dest = 'out_loc', required = True,
@@ -77,31 +66,19 @@ query_url_components = {
 odata_url = query_url_components["base"] + query_url_components["left"] + query_url_components["right"]
 
 # call the API
+# basic url to count the total number of records in the outermost entity (useful for logging if the expected number
+# of results were ultimately returned)
+expec_ct_url = F"{URL}{tables['bt']}/$count"
 pipe_name = F"{os.environ['GCLOUD_PROJECT']} computronix pli solar panel permits"
 permits, error_flag = call_odata_api_error_handling(targ_url = odata_url, pipeline = pipe_name, ct_url = None)
 
 
-# filter the unnecessary records. the table needed to filter these records isn't accessible through this api
-# currently (10/23) and the filtering must be done here
-permit_df = pd.DataFrame(permits)
-strs = permit_df["PERMITWORKSCOPEXREF"].astype(str).to_list()
-strs_clean = [s.lower().__contains__("solar") for s in strs]
-solar_permits = permit_df[strs_clean].copy()
+# load data into GCS
+# out loc = <dataset>/<full date>/<run_id>_solar_panel_permits.json
+if not error_flag:
+    json_to_gcs(args["out_loc"], permits, bucket)
+else:
+    write_partial_api_request_results_for_inspection(permits, "cx_solar_panel_permits_corrupted")
 
-solar_permits.rename(columns = NEW_NAMES, inplace = True)
 
-# extract nest address and parc number. list comprehension was tested to be the fastest method 10/23 given the
-# current size of data and it's projected size for several years to come.
-info = pd.json_normalize(solar_permits["JOBPARCELXREF"])[0].to_list()
-parc_num = ["None" if i is None else i["PARCEL.PARCELNUMBER"] for i in info]
-address = ["None" if i is None else i['PARCEL.ADDRESSABLEOBJEFORMATTEDADDRES'] for i in info]
-solar_permits["parc_num"] = parc_num
-solar_permits["address"] = address
-solar_permits.drop("JOBPARCELXREF", axis = 1, inplace = True)
 
-solar_permits["job_id"] = solar_permits["job_id"].astype(str)
-
-# load into BQ via the avsc file in schemas direc
-schema = conv_avsc_to_bq_schema(F"{os.environ['GCS_PREFIX']}_avro_schemas", "computronix_solar_permits.avsc")
-solar_permits.to_gbq("computronix.solar_permits", project_id = f"{os.environ['GCLOUD_PROJECT']}",
-                     if_exists = "replace", table_schema = schema)
