@@ -5,6 +5,7 @@ import argparse
 import requests
 import pendulum
 from datetime import datetime, timedelta
+from json.decoder import JSONDecodeError
 
 from gcs_utils import json_to_gcs, find_last_successful_run
 
@@ -41,22 +42,27 @@ while data_retrieved is False:
     curr_run = datetime.now(tz = pendulum.timezone('UTC')).strftime("%Y-%m-%d %H:%M:%S")
     print("Response at " + str(curr_run) + ": " + str(response.status_code))
 
-    # convert the utf-8 encoded string to json
-    full_requests = response.json()['request']
+    try:
+        # convert the utf-8 encoded string to json
+        full_requests = response.json()['request']
 
-    # verify the API called returned data (if no new tickets, then type will be NONE)
-    if full_requests is not None:
-        data_retrieved = True
+        # verify the API called returned data (if no new tickets, then type will be NONE)
+        if full_requests is not None:
+            data_retrieved = True
 
-    else:
-        print("No new requests. Sleeping with retry scheduled.")
-        time.sleep(300)
+        else:
+            print("No new requests. Sleeping with retry scheduled.")
+            time.sleep(300)
+    except JSONDecodeError:
+        print('Too many requests made in a short amount of time. Sleeping for 1 minute')
+        time.sleep(60)
 
 
 # write the successful run information (used by each successive DAG run to find the backfill date)
 successful_run = [{"requests_retrieved": len(full_requests),
                    "since": run_start_win,
                    "current_run": curr_run,
+                   "destination_file": args["out_loc"],
                    "note": "Data retrieved between the time points listed above"}]
 json_to_gcs("requests/successful_run_log/log.json", successful_run,
             bucket)
