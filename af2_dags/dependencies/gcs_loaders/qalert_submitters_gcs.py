@@ -28,6 +28,7 @@ data = []
 headers = {'User-Agent': 'City of Pittsburgh ETL'}
 payload = {'key': os.environ['QALERT_KEY'], 'stats': True}
 for request in last_upload:
+    # Only capture requests that have submitters attached to them
     if request['submitter'] != 0:
         payload.update({'id': request['submitter']})
         # API requests need to be made one at a time, which can easily overwhelm the request limit
@@ -47,18 +48,7 @@ for request in last_upload:
             except JSONDecodeError:
                 print('Too many requests made in a short amount of time. Sleeping for 1 minute')
                 time.sleep(60)
-    else:
-        # Give all rows the same keys to give Dataflow a consistent schema to work from
-        placeholder = {"firstName": None, "lastName": None, "middleInitial": None, "address": None, "address2": None,
-                       "city": None, "state": None, "zip": None, "email": None, "phone": None, "phoneExt": None,
-                       "altPhone": None, "altPhoneExt": None, "password": None, "verified": None, "banned": None,
-                       "twitterId": None, "twitterScreenName": None, "notifyEmail": None, "notifyPhone": None,
-                       "notifyAltPhone": None, "notifyMail": None, "notifyPush": None, "notifyPhoneSms": None,
-                       "notifyAltPhoneSms": None, "lastRequest": None, "lastRequestUnix": None, "satisfaction": None,
-                       "totalClosed": None, "totalRequests": None, "text": None, "lastModified": None,
-                       "hasAccount": None}
-        request.update(placeholder)
-    # Append combined ticket/submitter data to a growing list
-    data.append(request)
+        # Append combined ticket/submitter data to a growing list
+        data.append(request)
 
-json_to_gcs(f"{args['out_loc']}_submitters.json", data, bucket)
+json_to_gcs(args['out_loc'], data, bucket)
