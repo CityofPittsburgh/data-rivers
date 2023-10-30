@@ -2,6 +2,7 @@ from __future__ import print_function
 
 import argparse
 import os
+import io
 import logging
 import re
 import requests
@@ -837,6 +838,23 @@ def find_last_successful_run(bucket_name, good_run_path, look_back_date):
     else:
         first_run = True
         return str(look_back_date), first_run
+
+
+def get_last_upload(bucket_name, good_run_path, known_path):
+    bucket = storage_client.bucket(bucket_name)
+    blob = bucket.get_blob(good_run_path)
+
+    if blob is not None:
+        run_info = blob.download_as_string()
+        upload_path = ndjson.loads(run_info.decode('utf-8'))[0]["destination_file"]
+    else:
+        print('File not found from successful run log')
+        upload_path = known_path
+    upload_blob = bucket.get_blob(upload_path)
+    upload_str = io.StringIO(upload_blob.download_as_string().decode('utf-8')).getvalue()
+    upload_str = json_linter(upload_str)
+    data = [json.loads(str(item)) for item in upload_str.strip().split('\n')]
+    return data
 
 
 def generate_xml(soap_url, request, branch, from_time, to_time, prefix='v3'):
