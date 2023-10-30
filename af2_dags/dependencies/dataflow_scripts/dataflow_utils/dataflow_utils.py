@@ -173,6 +173,12 @@ class ChangeDataTypes(beam.DoFn, ABC):
                     elif type_change[1] == "str":
                         if str(datum[type_change[0]]) != 'None':
                             datum[type_change[0]] = str(datum[type_change[0]])
+                    elif type_change[1] == "nullstr":
+                        if str(datum[type_change[0]]) != 'None':
+                            if str(datum[type_change[0]]) == '':
+                                datum[type_change[0]] = None
+                            else:
+                                datum[type_change[0]] = str(datum[type_change[0]])
                     elif type_change[1] == "bool":
                         try:
                             datum[type_change[0]] = json.loads(datum[type_change[0]].lower())
