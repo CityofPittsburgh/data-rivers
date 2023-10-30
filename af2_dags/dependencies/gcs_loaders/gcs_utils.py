@@ -857,8 +857,6 @@ def get_last_upload(bucket_name, good_run_path, known_path):
     return data
 
 
-
-
 def generate_xml(soap_url, request, branch, from_time, to_time, prefix='v3'):
     """
     :param prefix: prefix used by SOAP library for given request
