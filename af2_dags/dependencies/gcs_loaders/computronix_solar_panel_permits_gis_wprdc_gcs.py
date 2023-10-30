@@ -70,8 +70,9 @@ odata_url = query_url_components["base"] + query_url_components["left"] + query_
 # of results were ultimately returned)
 expec_ct_url = F"{URL}{tables['bt']}/$count"
 pipe_name = F"{os.environ['GCLOUD_PROJECT']} computronix pli solar panel permits"
+print("executing api calling function call in util file")
 permits, error_flag = call_odata_api_error_handling(targ_url = odata_url, pipeline = pipe_name, ct_url = None)
-
+print("completed api calling function")
 
 # load data into GCS
 # out loc = <dataset>/<full date>/<run_id>_solar_panel_permits.json
