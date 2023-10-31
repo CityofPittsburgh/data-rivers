@@ -1,6 +1,7 @@
 from __future__ import absolute_import
 
 import os
+from datetime import datetime
 
 from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
@@ -11,10 +12,15 @@ from dependencies import airflow_utils
 from dependencies.airflow_utils import get_ds_year, get_ds_month, get_ds_day, default_args
 import dependencies.bq_queries.qscend.transform_enrich_requests as q
 
+# The goal of this DAG is to extract details about the submitters of recent 311 requests and store them
+# alongside ticket details in our BigQuery data warehouse so that our analyst team can display information
+# about high service utilizers on a Looker Studio dashboard.
+
 dag = DAG(
     'qalert_submitters',
     default_args=default_args,
     schedule_interval='@hourly',
+    start_date=datetime(2023, 10, 31),
     user_defined_filters={'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year, 'get_ds_day': get_ds_day},
     max_active_runs=1,
     catchup=False
