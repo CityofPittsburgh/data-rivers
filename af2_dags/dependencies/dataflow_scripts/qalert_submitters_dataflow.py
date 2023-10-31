@@ -36,6 +36,10 @@ def run(argv=None):
     )
 
     with beam.Pipeline(options=pipeline_options) as p:
+        keep_fields = ['id', 'submitter', 'firstName', 'lastName', 'address', 'address2', 'city',
+                       'state', 'zip', 'email', 'phone', 'twitterScreenName', 'lastRequest', 'lastModified',
+                       'totalClosed', 'totalRequests', 'text']
+        
         field_name_swaps = [('id', 'request_id'),
                             ('submitter', 'submitter_id'),
                             ('firstName', 'first_name'),
@@ -48,10 +52,6 @@ def run(argv=None):
                             ('totalRequests', 'curr_total_requests_made'),
                             ('text', 'satisfaction_level')]
 
-        keep_fields = ['request_id', 'submitter_id', 'first_name', 'last_name', 'address', 'address_2', 'city',
-                       'state', 'zip', 'email', 'phone', 'twitter_name', 'last_request_date', 'last_modified_date',
-                       'curr_total_requests_closed', 'curr_total_requests_made', 'satisfaction_level']
-
         type_changes = [("request_id", "str"), ("submitter_id", "str"), ("first_name", "nullstr"),
                         ("last_name", "nullstr"), ("address", "nullstr"), ("address_2", "nullstr"), ("city", "nullstr"),
                         ("state", "nullstr"), ("zip", "nullstr"), ("email", "nullstr"), ("phone", "nullstr"),
@@ -61,8 +61,8 @@ def run(argv=None):
 
         load = (
                 lines
-                | beam.ParDo(SwapFieldNames(field_name_swaps))
                 | beam.ParDo(FilterFields(keep_fields, exclude_target_fields=False))
+                | beam.ParDo(SwapFieldNames(field_name_swaps))
                 | beam.ParDo(ChangeDataTypes(type_changes))
                 | WriteToAvro(known_args.avro_output, schema=avro_schema, file_name_suffix='.avro',
                               use_fastavro=True)
