@@ -10,7 +10,7 @@ from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOper
 
 from dependencies import airflow_utils
 from dependencies.airflow_utils import get_ds_year, get_ds_month, get_ds_day, default_args
-import dependencies.bq_queries.qscend.transform_enrich_requests as q
+import dependencies.bq_queries.qscend.submitter_admin as q
 
 # The goal of this DAG is to extract details about the submitters of recent 311 requests and store them
 # alongside ticket details in our BigQuery data warehouse so that our analyst team can display information
@@ -62,9 +62,9 @@ submitters_gcs_to_bq = GoogleCloudStorageToBigQueryOperator(
     dag=dag
 )
 
-join_submitter_to_request = BigQueryOperator(
-    task_id='join_submitter_to_request',
-    sql=q.join_submitter_to_request(),
+update_submitter_table = BigQueryOperator(
+    task_id='update_submitter_table',
+    sql=q.update_submitter_table(),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
@@ -82,5 +82,5 @@ submitters_beam_cleanup = BashOperator(
     dag=dag
 )
 
-submitters_gcs_loader >> submitters_dataflow >> submitters_gcs_to_bq >> join_submitter_to_request >> \
+submitters_gcs_loader >> submitters_dataflow >> submitters_gcs_to_bq >> update_submitter_table >> \
     delete_submitter_avro >> submitters_beam_cleanup
