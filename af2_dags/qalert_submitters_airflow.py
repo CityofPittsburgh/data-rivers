@@ -19,7 +19,7 @@ import dependencies.bq_queries.qscend.transform_enrich_requests as q
 dag = DAG(
     'qalert_submitters',
     default_args=default_args,
-    schedule_interval='@hourly',
+    schedule_interval='20 * * * *',
     start_date=datetime(2023, 10, 31),
     user_defined_filters={'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year, 'get_ds_day': get_ds_day},
     max_active_runs=1,
