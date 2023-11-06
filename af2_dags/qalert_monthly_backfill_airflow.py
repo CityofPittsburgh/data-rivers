@@ -9,9 +9,10 @@ from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 
 from dependencies import airflow_utils
 from dependencies.airflow_utils import get_ds_year, get_ds_month, get_ds_day, default_args, \
-    build_revgeo_time_bound_query, build_insert_new_records_query, build_format_dedup_query
+    build_revgeo_time_bound_query
 
 from dependencies.bq_queries.qscend import integrate_new_requests, transform_enrich_requests
+from dependencies.bq_queries import general_queries
 
 COLS_IN_ORDER = """id, parent_ticket_id, child_ticket, dept, status_name, status_code, request_type_name, 
 request_type_id, origin, pii_comments, anon_comments, pii_private_notes, create_date_est, create_date_utc, 
@@ -86,8 +87,8 @@ cast_fields = [{'field': 'pii_lat', 'type': 'FLOAT64'},
                {'field': 'pii_long', 'type': 'FLOAT64'},
                {'field': 'anon_lat', 'type': 'FLOAT64'},
                {'field': 'anon_long', 'type': 'FLOAT64'}]
-query_format_subset = build_format_dedup_query('qalert', 'temp_backfill_subset', 'temp_backfill',
-                                               cast_fields, COLS_IN_ORDER)
+query_format_subset = general_queries.build_format_dedup_query('qalert', 'temp_backfill_subset', 'temp_backfill',
+                                                               cast_fields, COLS_IN_ORDER)
 query_format_subset += f"WHERE id NOT IN (SELECT id FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`)"
 format_subset = BigQueryOperator(
     task_id='format_subset',
@@ -159,8 +160,8 @@ integrate_children = BigQueryOperator(
 
 insert_missed_requests = BigQueryOperator(
     task_id='insert_missed_requests',
-    sql=build_insert_new_records_query('qalert', 'backfill_enriched', 'all_tickets_current_status', 'id',
-                                       ENRICHED_COLS_IN_ORDER),
+    sql=general_queries.build_insert_new_records_query('qalert', 'backfill_enriched', 'all_tickets_current_status',
+                                                       'id', ENRICHED_COLS_IN_ORDER),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
