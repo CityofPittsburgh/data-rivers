@@ -13,7 +13,7 @@ import apache_beam as beam
 from apache_beam.io import ReadFromText
 from apache_beam.dataframe.convert import to_dataframe
 from apache_beam.dataframe.convert import to_pcollection
-from apache_beam.io.avroio import WriteToAvro
+# from apache_beam.io.avroio import WriteToAvro
 
 # import util modules.
 # util modules located one level down in directory (./dataflow_util_modules/datflow_utils.py)
@@ -65,6 +65,15 @@ def run(argv = None):
                         'completed_date', 'issue_date', 'ext_file_num', 'work_scope']
         type_changes = [('job_id', 'str')]
 
+
+
+
+
+        print("starting df pipe")
+
+
+
+
         lines = p | ReadFromText(known_args.input, coder = JsonCoder())
         load = (
                 lines
@@ -73,6 +82,13 @@ def run(argv = None):
                 | beam.ParDo(ChangeDataTypes(type_changes))
 
         )
+
+
+
+
+        print("moving to pd df")
+
+
         # load the beam dataset into a pandas dataframe. use dask if memory load is too extreme. dask df maintains
         # the same name but becomes delayed df
         permit_df = to_dataframe(load)
@@ -120,7 +136,7 @@ def run(argv = None):
 
         # convert back to PCollection and write to AVRO
         processed_pc = to_pcollection(processed_records_df, include_indexes=True)
-        | WriteToAvro(known_args.avro_output, schema = avro_schema, file_name_suffix = '.avro', use_fastavro = True)
+        # | WriteToAvro(known_args.avro_output, schema = avro_schema, file_name_suffix = '.avro', use_fastavro = True)
 
 
 if __name__ == '__main__':
