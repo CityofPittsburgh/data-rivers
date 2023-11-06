@@ -6,11 +6,12 @@ from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
 from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOperator
 from airflow.contrib.operators.bigquery_operator import BigQueryOperator
-from airflow.contrib.operators.bigquery_to_gcs import BigQueryToCloudStorageOperator
 
 from dependencies import airflow_utils
 from dependencies.airflow_utils import get_ds_year, get_ds_month, get_ds_day, default_args, build_city_limits_query, \
-    build_sync_update_query, build_revgeo_time_bound_query, build_dedup_old_updates
+    build_revgeo_time_bound_query
+from dependencies.bq_queries import general_queries as g_q
+from dependencies.bq_queries.qscend import integrate_new_requests as i_q
 
 COLS_IN_ORDER = """id, parent_ticket_id, child_ticket, dept, status_name, status_code, request_type_name, 
 request_type_id, origin, pii_comments, anon_comments, pii_private_notes, create_date_est, create_date_utc, 
@@ -81,33 +82,17 @@ gcs_to_bq = GoogleCloudStorageToBigQueryOperator(
     dag=dag
 )
 
-query_format_table = f"""
-CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.temp_backfill` AS
-WITH formatted  AS 
-    (
-    SELECT 
-        DISTINCT * EXCEPT (input_pii_lat, input_pii_long, google_pii_lat, google_pii_long, 
-                           input_anon_lat, input_anon_long, google_anon_lat, google_anon_long),
-        CAST(input_pii_lat AS FLOAT64) AS input_pii_lat,
-        CAST(input_pii_long AS FLOAT64) AS input_pii_long,
-        CAST(google_pii_lat AS FLOAT64) AS google_pii_lat,
-        CAST(google_pii_long AS FLOAT64) AS google_pii_long,
-        CAST(input_anon_lat AS FLOAT64) AS input_anon_lat,
-        CAST(input_anon_long AS FLOAT64) AS input_anon_long,
-        CAST(google_anon_lat AS FLOAT64) AS google_anon_lat,
-        CAST(google_anon_long AS FLOAT64) AS google_anon_long,
-    FROM 
-        {os.environ['GCLOUD_PROJECT']}.qalert.temp_backfill
-    )
--- drop the final column through slicing the string. final column is added in next query     
-SELECT 
-    {COLS_IN_ORDER} 
-FROM 
-    formatted
-"""
+cast_fields = [{'field': 'input_pii_lat', 'type': 'FLOAT64'},
+               {'field': 'input_pii_long', 'type': 'FLOAT64'},
+               {'field': 'google_pii_lat', 'type': 'FLOAT64'},
+               {'field': 'google_pii_long', 'type': 'FLOAT64'},
+               {'field': 'input_anon_lat', 'type': 'FLOAT64'},
+               {'field': 'input_anon_long', 'type': 'FLOAT64'},
+               {'field': 'google_anon_lat', 'type': 'FLOAT64'},
+               {'field': 'google_anon_long', 'type': 'FLOAT64'}]
 format_table = BigQueryOperator(
     task_id='format_table',
-    sql=query_format_table,
+    sql=g_q.build_format_dedup_query('qalert', 'temp_backfill', 'temp_backfill', cast_fields),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
@@ -141,29 +126,26 @@ city_limits = BigQueryOperator(
     dag=dag
 )
 
-dedup_src_query = build_dedup_old_updates('qalert', 'temp_backfill', 'id', 'last_action_unix')
 dedup_src_table = BigQueryOperator(
     task_id='dedup_src_table',
-    sql=dedup_src_query,
+    sql=g_q.build_dedup_old_updates('qalert', 'temp_backfill', 'id', 'last_action_unix'),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
 )
 
-dedup_sub_query = build_dedup_old_updates('qalert', 'temp_backfill_subset', 'id', 'last_action_unix')
 dedup_sub_table = BigQueryOperator(
     task_id='dedup_sub_table',
-    sql=dedup_sub_query,
+    sql=g_q.build_dedup_old_updates('qalert', 'temp_backfill_subset', 'id', 'last_action_unix'),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
 )
 
 upd_fields = ['address_type']
-query_sync_update = build_sync_update_query('qalert', 'temp_backfill', 'temp_backfill_subset', 'id', upd_fields)
 update_address_types = BigQueryOperator(
     task_id='update_address_types',
-    sql=query_sync_update,
+    sql=g_q.build_sync_update_query('qalert', 'temp_backfill', 'temp_backfill_subset', 'id', upd_fields),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
@@ -179,34 +161,9 @@ geojoin = BigQueryOperator(
     dag=dag
 )
 
-query_insert_new_parent = f"""
-/*
-This query check that a ticket has never been seen before (checks all_tix_current_status) AND
-that the ticket is a parent. Satisfying both conditions means that the ticket needs to be placed in all_linked_requests
-There is one catch that is caused by the way tickets are manually linked: This newly recorded request is
-labeled as a parent. However, in the future the 311 operators may  linke this ticket with another
-existing parent and it will change into a child ticket. This means the original ticket was actually a "false_parent"
-ticket. Future steps in the DAG will handle that possibility, and for this query the only feasible option is to assume
-the ticket is correctly labeled.*/
-
-INSERT INTO `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests`
-(
-SELECT
-    id as group_id,
-    "" as child_ids,
-    1 as num_requests,
-    IF(status_name = "closed", TRUE, FALSE) as parent_closed,
-    {LINKED_COLS_IN_ORDER}
-
-FROM
-    `{os.environ['GCLOUD_PROJECT']}.qalert.backfill_enriched`
-WHERE id NOT IN (SELECT id FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`)
-AND child_ticket = False
-);
-"""
 insert_new_parent = BigQueryOperator(
     task_id='insert_new_parent',
-    sql=query_insert_new_parent,
+    sql=i_q.insert_new_parent('backfill_enriched', LINKED_COLS_IN_ORDER),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
@@ -513,31 +470,9 @@ replace_last_update = BigQueryOperator(
     dag=dag
 )
 
-query_delete_old_insert_new_records = f"""
-/*
-All tickets that ever receive an update (or are simply created) should be stored with their current status
-for historical purposes. This query does just that. The data are simply inserted into all_tickets_current_status. If
-the ticket has been seen before, it is already in all_tickets_current_status. Rather than simply add the newest ticket,
-this query also deletes the prior entry for that ticket. The key to understanding this is: The API does not return the
-FULL HISTORY of each ticket, but rather a snapshot of the ticket's current status. This means that if the status is
-updated
-multiple times between DAG runs, only the final status is recorded. While the FULL HISTORY has obvious value, this is
-not available and it less confusing to simply store a current snapshot of the ticket's history.
-
-all_tickets_current_status is currently (01/22) maintained for historical purposes.  This table has less value for
-analysis as the linkages between tickets are not taken into account.
-*/
-
-DELETE FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`
-WHERE id IN (SELECT id FROM `{os.environ['GCLOUD_PROJECT']}.qalert.backfill_enriched`);
-INSERT INTO `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`
-SELECT 
-    {COLS_IN_ORDER}
-FROM `{os.environ['GCLOUD_PROJECT']}.qalert.backfill_enriched`;
-"""
 delete_old_insert_new_records = BigQueryOperator(
     task_id='delete_old_insert_new_records',
-    sql=query_delete_old_insert_new_records,
+    sql=i_q.delete_old_insert_new(COLS_IN_ORDER, 'backfill_enriched'),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
