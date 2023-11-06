@@ -6,8 +6,8 @@ from datetime import datetime
 from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
 from airflow.contrib.operators.bigquery_operator import BigQueryOperator
-from dependencies.airflow_utils import get_ds_month, get_ds_year, get_ds_day, default_args, \
-    build_insert_new_records_query
+from dependencies.airflow_utils import get_ds_month, get_ds_year, get_ds_day, default_args
+from dependencies.bq_queries import general_queries as q
 
 # This DAG will perform an extract and transformation of phone conversation data obtained from a custom Flex Insights
 # via the Twilio API. The extracted data will be aggregated and displayed on the Cherwell Dashboard to provide
@@ -36,8 +36,8 @@ twilio_pandas_etl = BashOperator(
 
 insert_new_convos = BigQueryOperator(
     task_id='insert_new_convos',
-    sql=build_insert_new_records_query('twilio', 'incoming_conversations', 'flex_insights_conversations', 'id',
-                                       COLS_IN_ORDER),
+    sql=q.build_insert_new_records_query('twilio', 'incoming_conversations', 'flex_insights_conversations', 'id',
+                                         COLS_IN_ORDER),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
