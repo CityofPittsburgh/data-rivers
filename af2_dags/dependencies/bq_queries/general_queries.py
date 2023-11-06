@@ -26,7 +26,7 @@ def build_dedup_old_updates(dataset, table, id_field, last_upd_field):
     return sql
 
 
-def build_format_dedup_query(dataset, fmt_table, src_table, cast_fields, cols_in_order, datestring_fmt=""):
+def build_format_dedup_query(dataset, fmt_table, src_table, cast_fields, cols_in_order, datestring_fmt="", tz=""):
     sql = f"""
     CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.{dataset}.{fmt_table}` AS
     WITH formatted  AS 
@@ -38,6 +38,8 @@ def build_format_dedup_query(dataset, fmt_table, src_table, cast_fields, cols_in
     for conv in cast_fields:
         if conv['type'] == 'DATETIME':
             cast_str_list.append(f'PARSE_DATETIME("{datestring_fmt}", {conv["field"]}) AS {conv["field"]}')
+        elif conv['type'] == 'TIMESTAMP':
+            cast_str_list.append(f'PARSE_TIMESTAMP("{datestring_fmt}", {conv["field"]}, "{tz}") AS {conv["field"]}')
         else:
             cast_str_list.append(f'CAST({conv["field"]} AS {conv["type"]}) AS {conv["field"]}')
     sql += ", ".join(str(cast) for cast in cast_str_list)
