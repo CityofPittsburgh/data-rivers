@@ -75,3 +75,23 @@ def drop_pii(safe_fields, private_types):
     WHERE 
         request_type_name NOT IN ({private_types})
     """
+
+
+def sync_311_updates(dataset, upd_table, upd_id_field, new_table):
+    return F"""
+    SELECT * FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{upd_table}` base
+    WHERE base.{upd_id_field} NOT IN 
+        (SELECT DISTINCT {upd_id_field} FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{new_table}`)
+    UNION ALL
+    SELECT m.{upd_id_field}, alr.child_ids, alr.num_requests, alr.parent_closed, alr.status_name, alr.status_code, alr.dept, 
+           m.request_type_name, m.request_type_id, m.origin, alr.pii_comments, alr.anon_comments, alr.pii_private_notes, 
+           alr.create_date_est, alr.create_date_utc, alr.create_date_unix, alr.last_action_est, alr.last_action_utc, 
+           alr.last_action_unix, alr.closed_date_est, alr.closed_date_utc, alr.closed_date_unix, m.pii_street_num, m.street, 
+           m.cross_street, m.street_id, m.cross_street_id, m.city, m.pii_input_address, m.pii_google_formatted_address, 
+           m.anon_google_formatted_address, m.address_type, m.neighborhood_name, m.council_district, m.ward, m.police_zone, 
+           m.fire_zone, m.dpw_streets, m.dpw_enviro, m.dpw_parks, m.input_pii_lat, m.input_pii_long, m.google_pii_lat, 
+           m.google_pii_long, m.input_anon_lat, m.input_anon_long, m.google_anon_lat, m.google_anon_long
+    FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{new_table}` m, 
+         `{os.environ['GCLOUD_PROJECT']}.{dataset}.{upd_table}` alr 
+    WHERE m.{upd_id_field} = alr.{upd_id_field}
+    """
