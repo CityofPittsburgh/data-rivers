@@ -443,33 +443,6 @@ def build_sync_update_query(dataset, upd_table, src_table, id_field, upd_fields)
     return sql
 
 
-def build_format_dedup_query(dataset, fmt_table, src_table, cast_fields, cols_in_order, datestring_fmt=""):
-    sql = f"""
-    CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.{dataset}.{fmt_table}` AS
-    WITH formatted  AS 
-        (
-        SELECT DISTINCT * EXCEPT ("""
-    sql += ", ".join(str(field['field']) for field in cast_fields)
-    sql += "), "
-    cast_str_list = []
-    for conv in cast_fields:
-        if conv['type'] == 'DATETIME':
-            cast_str_list.append(f'PARSE_DATETIME("{datestring_fmt}", {conv["field"]}) AS {conv["field"]}')
-        else:
-            cast_str_list.append(f'CAST({conv["field"]} AS {conv["type"]}) AS {conv["field"]}')
-    sql += ", ".join(str(cast) for cast in cast_str_list)
-    sql += f"""
-    FROM 
-        {os.environ['GCLOUD_PROJECT']}.{dataset}.{src_table}
-    )
-    SELECT 
-        {cols_in_order} 
-    FROM 
-        formatted
-    """
-    return sql
-
-
 def create_partitioned_bq_table(avro_bucket, schema_name, table_id, partition):
     # bigquery schemas that are used to upload directly from pandas are not formatted identically as an avsc filie.
     # this func makes the necessary conversions. this allows a single schema to serve both purposes
