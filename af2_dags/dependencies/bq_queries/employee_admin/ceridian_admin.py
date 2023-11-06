@@ -44,6 +44,16 @@ def extract_new_hires():
     """
 
 
+def extract_recent_terminations():
+    return F"""
+    CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.ceridian.past_month_terminations` AS
+        SELECT employee_num, first_name, last_name, dept_desc, status, termination_date, pay_class
+        FROM `{os.environ['GCLOUD_PROJECT']}.ceridian.all_employees`
+        WHERE status = 'Terminated' AND 
+        DATE_DIFF(CURRENT_DATETIME(), PARSE_DATETIME('%Y-%m-%d', termination_date), DAY) <= 30
+    """
+
+
 def pmo_export_query():
     return F"""
     CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.ceridian.active_non_ps_employees` AS
