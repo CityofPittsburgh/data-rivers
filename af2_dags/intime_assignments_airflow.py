@@ -10,8 +10,7 @@ from airflow.contrib.operators.bigquery_to_gcs import BigQueryToCloudStorageOper
 from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOperator
 from airflow.operators.python_operator import PythonOperator
 from dependencies import airflow_utils
-from dependencies.airflow_utils import get_ds_month, get_ds_year, get_ds_day, default_args, build_format_dedup_query, \
-    perform_data_quality_check
+from dependencies.airflow_utils import get_ds_month, get_ds_year, get_ds_day, default_args, perform_data_quality_check
 
 from dependencies.bq_queries.employee_admin import intime_admin as i_q
 from dependencies.bq_queries import general_queries as g_q
@@ -43,10 +42,10 @@ path = "assignments/{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds|get_ds_day 
 json_loc = f"{path}_assignments.json"
 output_name = "schedule_assignments"
 dq_checker = 'intime_sub_locations'
-date_fields = [{'field': 'scheduled_start_time', 'type': 'DATETIME'},
-               {'field': 'scheduled_end_time', 'type': 'DATETIME'},
-               {'field': 'actual_start_time', 'type': 'DATETIME'},
-               {'field': 'actual_end_time', 'type': 'DATETIME'}]
+date_fields = [{'field': 'scheduled_start_time', 'type': 'TIMESTAMP'},
+               {'field': 'scheduled_end_time', 'type': 'TIMESTAMP'},
+               {'field': 'actual_start_time', 'type': 'TIMESTAMP'},
+               {'field': 'actual_end_time', 'type': 'TIMESTAMP'}]
 
 intime_assignments_gcs = BashOperator(
     task_id='intime_assignments_gcs',
@@ -76,8 +75,9 @@ intime_assignments_bq_load = GoogleCloudStorageToBigQueryOperator(
     dag=dag
 )
 
-format_data_types_query = build_format_dedup_query(dataset, 'incoming_assignments', 'incoming_assignments',
-                                                   date_fields, COLS_IN_ORDER, datestring_fmt="%Y-%m-%d %H:%M:%S-04:00")
+format_data_types_query = g_q.build_format_dedup_query(dataset, 'incoming_assignments', 'incoming_assignments',
+                                                       date_fields, COLS_IN_ORDER,
+                                                       datestring_fmt="%Y-%m-%d %H:%M:%S %Z", tz="America/New_York")
 format_data_types = BigQueryOperator(
     task_id='format_data_types',
     sql=format_data_types_query,
