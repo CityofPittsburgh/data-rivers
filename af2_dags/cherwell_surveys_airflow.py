@@ -8,8 +8,8 @@ from airflow.operators.bash_operator import BashOperator
 from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOperator
 from dependencies import airflow_utils
-from dependencies.airflow_utils import get_ds_month, get_ds_year, get_ds_day, default_args, \
-    build_dedup_old_updates, build_format_dedup_query
+from dependencies.airflow_utils import get_ds_month, get_ds_year, get_ds_day, default_args
+from dependencies.bq_queries import general_queries as q
 
 # This DAG will perform a daily pull of incoming Cherwell Customer Satisfaction Survey results.
 # Ticket information will be displayed on a Google Looker Studio dashboard for use by team managers
@@ -61,8 +61,8 @@ cherwell_surveys_pandas = BashOperator(
     dag=dag
 )
 
-format_column_query = build_format_dedup_query(source, table, table, cast_fields, COLS,
-                                               datestring_fmt="%Y-%m-%d %H:%M:%S")
+format_column_query = q.build_format_dedup_query(source, table, table, cast_fields, COLS,
+                                                 datestring_fmt="%Y-%m-%d %H:%M:%S")
 format_column_types = BigQueryOperator(
     task_id='format_column_types',
     sql=format_column_query,
@@ -73,7 +73,7 @@ format_column_types = BigQueryOperator(
 
 dedup_table = BigQueryOperator(
     task_id='dedup_table',
-    sql=build_dedup_old_updates(source, table, id_col, 'last_modified_date_UNIX'),
+    sql=q.build_dedup_old_updates(source, table, id_col, 'last_modified_date_UNIX'),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
