@@ -92,7 +92,7 @@ cast_fields = [{'field': 'input_pii_lat', 'type': 'FLOAT64'},
                {'field': 'google_anon_long', 'type': 'FLOAT64'}]
 format_table = BigQueryOperator(
     task_id='format_table',
-    sql=g_q.build_format_dedup_query('qalert', 'temp_backfill', 'temp_backfill', cast_fields),
+    sql=g_q.build_format_dedup_query('qalert', 'temp_backfill', 'temp_backfill', cast_fields, COLS_IN_ORDER),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
