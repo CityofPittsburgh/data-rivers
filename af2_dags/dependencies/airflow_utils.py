@@ -385,50 +385,6 @@ def build_split_table_query(dataset, raw_table, start, stop, num_shards, date_fi
     return query
 
 
-def build_sync_staging_table_query(dataset, new_table, upd_table, src_table, is_deduped, upd_id_field, join_id_field,
-                                   field_groups, comp_fields):
-    sql = F"""
-    CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.{dataset}.{new_table}` AS 
-    SELECT {'DISTINCT' if is_deduped else ''} {upd_id_field}, """
-    field_list = []
-    for group in field_groups:
-        for alias, fields in group.items():
-            for field in fields:
-                field_list.append(f"{alias}.{field}")
-    sql += ", ".join(str(field) for field in field_list)
-    sql += f" FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{upd_table}` upd"
-    for group in field_groups:
-        for alias, fields in group.items():
-            join_list = []
-            sql += f" INNER JOIN (SELECT {'DISTINCT' if is_deduped else ''} {join_id_field}, "
-            for field in fields:
-                join_list.append(f"{field}")
-            sql += ", ".join(str(field) for field in join_list)
-            sql += f""" FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{src_table}`) {alias}
-            ON upd.{upd_id_field} = {alias}.{join_id_field}"""
-    sql += " WHERE "
-    comparison_list = []
-    for group in comp_fields:
-        for alias, fields in group.items():
-            for field in fields:
-                comparison_list.append(f'IFNULL(upd.{field}, "") != IFNULL({alias}.{field}, "") ')
-    sql += "OR ".join(str(field) for field in comparison_list)
-    return sql
-
-
-def build_sync_update_query(dataset, upd_table, src_table, id_field, upd_fields):
-    sql = f"UPDATE `{os.environ['GCLOUD_PROJECT']}.{dataset}.{upd_table}` upd SET "
-    upd_str_list = []
-    for field in upd_fields:
-        upd_str_list.append(f"upd.{field} = temp.{field}")
-    sql += ", ".join(str(upd) for upd in upd_str_list)
-    sql += f"""
-    FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{src_table}` temp
-    WHERE upd.{id_field} = temp.{id_field}
-    """
-    return sql
-
-
 def create_partitioned_bq_table(avro_bucket, schema_name, table_id, partition):
     # bigquery schemas that are used to upload directly from pandas are not formatted identically as an avsc filie.
     # this func makes the necessary conversions. this allows a single schema to serve both purposes
