@@ -122,6 +122,22 @@ create_racial_comp_table = BigQueryOperator(
     dag=dag
 )
 
+create_recent_terminations_table = BigQueryOperator(
+    task_id='create_recent_terminations_table',
+    sql=c_q.extract_recent_terminations(),
+    bigquery_conn_id='google_cloud_default',
+    use_legacy_sql=False,
+    dag=dag
+)
+
+recent_terminations_to_gcs = BigQueryToCloudStorageOperator(
+    task_id='recent_terminations_to_gcs',
+    source_project_dataset_table=f"{os.environ['GCLOUD_PROJECT']}.ceridian.past_month_terminations",
+    destination_cloud_storage_uris=[f"gs://{os.environ['GCS_PREFIX']}_iapro/past_month_terminations.csv"],
+    bigquery_conn_id='google_cloud_default',
+    dag=dag
+)
+
 create_pmo_export_table = BigQueryOperator(
     task_id='create_pmo_export_table',
     sql=c_q.pmo_export_query(),
@@ -155,6 +171,8 @@ beam_cleanup = BashOperator(
 
 ceridian_employees_gcs >> ceridian_employees_dataflow >> ceridian_employees_bq_load >> create_data_quality_table >> \
     export_data_quality >> data_quality_check >> ceridian_iapro_export >> beam_cleanup
+ceridian_employees_gcs >> ceridian_employees_dataflow >> ceridian_employees_bq_load >> \
+    create_recent_terminations_table >> recent_terminations_to_gcs >> ceridian_iapro_export >> beam_cleanup
 ceridian_employees_gcs >> ceridian_employees_dataflow >> ceridian_employees_bq_load >> create_pmo_export_table >> \
     ceridian_pmo_export >> ceridian_iapro_export >> beam_cleanup
 ceridian_employees_gcs >> ceridian_employees_dataflow >> ceridian_employees_bq_load >> create_gender_comp_table >> \
