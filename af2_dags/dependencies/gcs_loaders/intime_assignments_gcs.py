@@ -21,11 +21,10 @@ yesterday = datetime.combine(dt - timedelta(1), datetime.min.time()).strftime("%
 
 BASE_URL = 'https://intime2.intimesoft.com/ise/attendance/v3/ScheduleData'
 prefix = 'tns'
-soap_url = 'export.attendance.bo'
+soap_url = 'v3.export.attendance.bo'
 request = 'getAssignmentProperties'
 auth = HTTPBasicAuth(os.environ['INTIME_USER'], os.environ['INTIME_PW'])
 headers = {'Content-Type': 'application/xml'}
-
 start = f'<ns2:{request}Response xmlns:ns2="http://v3.{soap_url}.rise.intimesoft.com/">'
 end = f'</ns2:{request}Response>'
 
@@ -33,8 +32,12 @@ end = f'</ns2:{request}Response>'
 run_start_win, first_run = find_last_successful_run(bucket, "assignments/successful_run_log/log.json", yesterday)
 from_time = run_start_win.split(' ')[0]
 
+params = [{'tag': 'branchReference', 'content': 'POLICE'},
+          {'tag': 'startDate', 'content': from_time},
+          {'tag': 'endDate', 'content': today}]
+
 # API call to get data
-response = post_xml(BASE_URL, envelope=generate_xml(soap_url, request, 'POLICE', '2023-08-16', today, prefix=prefix),
+response = post_xml(BASE_URL, envelope=generate_xml(soap_url, request, params, prefix=prefix),
                     auth=auth, headers=headers,  res_start=start, res_stop=end)
 records = response['root']['return']
 

@@ -22,7 +22,7 @@ today = datetime.now(tz=pendulum.timezone("utc")).strftime("%Y-%m-%d")
 
 BASE_URL = 'https://intime2.intimesoft.com/ise/employee/v3/EmployeeAccess'
 auth = HTTPBasicAuth(os.environ['INTIME_USER'], os.environ['INTIME_PW'])
-soap_url = 'employeeaccess'
+soap_url = 'v3.employeeaccess'
 request = 'getEmployeeDataList'
 headers = {'Content-Type': 'application/xml'}
 # these variables allow us to parse the record information from the XML text returned by the API
@@ -35,8 +35,12 @@ end = '</ns2:getEmployeeDataListResponse>'
 run_start_win, first_run = find_last_successful_run(bucket, "employees/successful_run_log/log.json", DEFAULT_RUN_START)
 from_time = run_start_win.split(' ')[0]
 
+params = [{'tag': 'branchRef', 'content': 'POLICE'},
+          {'tag': 'startDate', 'content': from_time},
+          {'tag': 'endDate', 'content': today}]
+
 # API call to get data
-response = post_xml(BASE_URL, envelope=generate_xml(soap_url, request, 'POLICE', from_time, today),
+response = post_xml(BASE_URL, envelope=generate_xml(soap_url, request, params),
                     auth=auth, headers=headers,  res_start=start, res_stop=end)
 records = response['root']['return']
 
@@ -46,6 +50,7 @@ if records is not None:
     successful_run = [{"requests_retrieved": len(records),
                        "since": run_start_win,
                        "current_run": today,
+                       "destination_file": args["out_loc"],
                        "note": "Data retrieved between the time points listed above"}]
     json_to_gcs("employees/successful_run_log/log.json", successful_run, bucket)
 
