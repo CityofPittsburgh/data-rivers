@@ -27,16 +27,16 @@ def run(argv=None):
         job_name='ceridian-accruals-dataflow',
         bucket=f"{os.environ['GCS_PREFIX']}_ceridian",
         argv=argv,
-        schema_name='ceridian_accruals',
+        schema_name='timebank_accruals',
         default_arguments=DEFAULT_DATAFLOW_ARGS,
         limit_workers=[False, None]
     )
 
     with beam.Pipeline(options=pipeline_options) as p:
-        field_name_swaps = [('Employee_XRefCode', 'employee_num'),
+        field_name_swaps = [('Employee_XRefCode', 'employee_id'),
                             ('Balance_ShortName', 'time_bank'),
                             ('EntitlementBalance_CurrentValue', 'balance')]
-        type_changes = [('employee_num', 'str'), ('balance', 'float')]
+        type_changes = [('employee_id', 'str'), ('balance', 'float')]
         drop_fields = ['Employee_NameNumber', 'EmployeeEmploymentStatus_BaseRate',
                        'EntitlementPolicy_LongName', 'DeptJob_LongName']
 
