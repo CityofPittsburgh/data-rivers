@@ -36,24 +36,25 @@ log_path = 'employees/successful_run_log/log.json'
 known_path = 'employees/2023/08/17/scheduled__2023-08-17T19:00:00+00:00_records.json'
 last_upload = get_last_upload(bucket_name, log_path, known_path)
 
-ref_codes = ['COVAC', 'COMP', 'Military', 'Personal', 'VAC', 'DH', 'PPL', 'SICK']
+ref_codes = [('COVAC', 'Vacation Carried Over - Hours'), ('COMP', 'Comp Time - Hours'),
+             ('Military', 'Military - Hours'), ('Personal', 'Personal - Hours'), ('VAC', 'Vacation - Hours'),
+             ('DH', 'Deferred Holiday - Hours'), ('PPL', 'Parental Leave - Hours'), ('SICK', 'Sick Legacy - Hours')]
 data = []
 for row in last_upload:
-    record = {'employee_id': row['employeeId'], 'date': today}
     for code in ref_codes:
         params = [{'tag': 'employeeId', 'content': row['employeeId']},
-                  {'tag': 'timeBankRef', 'content': code},
+                  {'tag': 'timeBankRef', 'content': code[0]},
                   {'tag': 'date', 'content': today}]
 
-        # API requests need to be made one at a time, which can easily overwhelm the request limit.
-        # Within the post_xml util, the request attempts in a loop until a 200 response is obtained
-        response = post_xml(BASE_URL,
-                            envelope=generate_xml(soap_url, request, params, prefix=prefix),
+        # API requests need to be made one at a time, which may overwhelm the request limit.
+        # Within the post_xml util, the request attempts in a loop until a 200/500 response is obtained
+        response = post_xml(BASE_URL, envelope=generate_xml(soap_url, request, params, prefix=prefix),
                             auth=auth, headers=headers, res_start=start, res_stop=end)
         balance = response['root']['return']
-        record.update({code: balance})
-
-    # Append combined employee/balance data to a growing list
-    data.append(record)
+        if balance:
+            record = {'employee_id': row['employeeId'], 'date': today, 'time_bank': code[1], 'balance': balance}
+            data.append(record)
+        else:
+            print(f'No balance for employee #{row["employeeId"]} in time bank {code[1]}')
 
 json_to_gcs(args['out_loc'], data, bucket)
