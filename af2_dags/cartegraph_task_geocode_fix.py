@@ -7,8 +7,8 @@ from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
 from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 from dependencies import airflow_utils
-from dependencies.airflow_utils import get_ds_month, get_ds_year, default_args, \
-    build_piecemeal_revgeo_query, build_dedup_old_updates
+from dependencies.airflow_utils import get_ds_month, get_ds_year, default_args, build_piecemeal_revgeo_query
+from dependencies.bq_queries import general_queries as q
 
 COLS_IN_ORDER = """id, activity, department, status, entry_date_UTC, entry_date_EST, entry_date_UNIX, 
 actual_start_date_UTC, actual_start_date_EST, actual_start_date_UNIX, actual_stop_date_UTC, actual_stop_date_EST, 
@@ -135,25 +135,11 @@ build_temp_geo_table_parks = BigQueryOperator(
     dag=dag
 )
 
-query_format_table = f"""
-CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.{dataset}.{new_table}` AS
-WITH formatted  AS 
-    (
-    SELECT 
-        DISTINCT * EXCEPT (lat, long),
-        CAST(lat AS FLOAT64) AS lat,
-        CAST(long AS FLOAT64) AS long,
-    FROM 
-        {os.environ['GCLOUD_PROJECT']}.cartegraph.{new_table}
-    )
-SELECT 
-    {COLS_IN_ORDER} 
-FROM 
-    formatted
-"""
+cast_fields = [{'field': 'lat', 'type': 'FLOAT64'},
+               {'field': 'long', 'type': 'FLOAT64'}]
 format_table = BigQueryOperator(
     task_id='format_table',
-    sql=query_format_table,
+    sql=q.build_format_dedup_query(dataset, new_table, new_table, cast_fields, COLS_IN_ORDER),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
@@ -175,10 +161,9 @@ replace_table = BigQueryOperator(
     dag=dag
 )
 
-query_dedup = build_dedup_old_updates(dataset, raw_table, id_col, create_date)
 dedup_table = BigQueryOperator(
     task_id='dedup_table',
-    sql=query_dedup,
+    sql=q.build_dedup_old_updates(dataset, raw_table, id_col, create_date),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
