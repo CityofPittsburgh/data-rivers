@@ -28,3 +28,20 @@ def extract_current_intime_details():
     WHERE (current_activity IS NOT NULL OR sub_activity IS NOT NULL)
     AND (CURRENT_TIMESTAMP() BETWEEN scheduled_start_time AND scheduled_end_time)
     """
+
+
+def update_timebank_table():
+    return F"""
+    CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.intime.timebank_balances` AS
+    SELECT DISTINCT employee_id, PARSE_DATE('%Y-%m-%d', `date`) AS retrieval_date, comp_time, deferred_holiday_hours, 
+           military_hours, parental_leave_hours, personal_time, sick_legacy_hours, vacation_carried_over, vacation_hours
+    FROM `{os.environ['GCLOUD_PROJECT']}.intime.weekly_time_balances`
+    UNION ALL
+    SELECT DISTINCT employee_id, retrieval_date, comp_time, deferred_holiday_hours, military_hours, 
+                    parental_leave_hours, personal_time, sick_legacy_hours, vacation_carried_over, vacation_hours
+    FROM `{os.environ['GCLOUD_PROJECT']}.intime.timebank_balances`
+    WHERE CONCAT(employee_id, ':', CAST(retrieval_date AS STRING)) NOT IN (
+        SELECT CONCAT(employee_id, ':', CAST(retrieval_date AS STRING))
+        FROM `{os.environ['GCLOUD_PROJECT']}.intime.weekly_time_balances`
+    )
+    """
