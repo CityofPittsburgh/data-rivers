@@ -41,7 +41,7 @@ def update_timebank_table():
                     parental_leave_hours, personal_time, sick_legacy_hours, vacation_carried_over, vacation_hours
     FROM `{os.environ['GCLOUD_PROJECT']}.intime.timebank_balances`
     WHERE CONCAT(employee_id, ':', CAST(retrieval_date AS STRING)) NOT IN (
-        SELECT CONCAT(employee_id, ':', CAST(retrieval_date AS STRING))
+        SELECT CONCAT(employee_id, ':', `date`)
         FROM `{os.environ['GCLOUD_PROJECT']}.intime.weekly_time_balances`
     )
     """
