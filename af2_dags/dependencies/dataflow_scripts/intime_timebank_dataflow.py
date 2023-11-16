@@ -8,8 +8,7 @@ from apache_beam.io import ReadFromText
 from apache_beam.io.avroio import WriteToAvro
 
 from dataflow_utils import dataflow_utils
-from dataflow_utils.dataflow_utils import JsonCoder, SwapFieldNames, generate_args, ChangeDataTypes, FilterFields, \
-    StripBeforeDelim, ColumnsCamelToSnakeCase
+from dataflow_utils.dataflow_utils import JsonCoder, generate_args, ChangeDataTypes, PrependCharacters
 
 DEFAULT_DATAFLOW_ARGS = [
     '--save_main_session',
@@ -28,29 +27,20 @@ def run(argv=None):
         job_name='intime-timebank-dataflow',
         bucket=f"{os.environ['GCS_PREFIX']}_intime",
         argv=argv,
-        schema_name='intime_timebank',
+        schema_name='timebank_accruals',
         default_arguments=DEFAULT_DATAFLOW_ARGS,
         limit_workers=[False, None]
     )
 
     with beam.Pipeline(options=pipeline_options) as p:
-        type_changes = [('COVAC', 'float'), ('COMP', 'float'), ('Military', 'float'), ('Personal', 'float'),
-                        ('VAC', 'float'), ('DH', 'float'), ('PPL', 'float'), ('SICK', 'float')]
-        field_name_swaps = [('COVAC', 'vacation_carried_over'),
-                            ('COMP', 'comp_time'),
-                            ('Military', 'military_hours'),
-                            ('Personal', 'personal_time'),
-                            ('VAC', 'vacation_hours'),
-                            ('DH', 'deferred_holiday_hours'),
-                            ('PPL', 'parental_leave_hours'),
-                            ('SICK', 'sick_legacy_hours')]
+        type_changes = [('employee_id', 'str'), ('balance', 'float')]
 
         lines = p | ReadFromText(known_args.input, coder=JsonCoder())
 
         load = (
                 lines
                 | beam.ParDo(ChangeDataTypes(type_changes))
-                | beam.ParDo(SwapFieldNames(field_name_swaps))
+                | beam.ParDo(PrependCharacters('employee_id', 6, char='0', check_numeric=True))
                 | WriteToAvro(known_args.avro_output, schema=avro_schema, file_name_suffix='.avro',
                               use_fastavro=True)
         )
