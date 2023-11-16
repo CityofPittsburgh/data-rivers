@@ -1,5 +1,6 @@
 import os
 import argparse
+import json
 import pendulum
 
 from datetime import datetime
@@ -36,14 +37,15 @@ log_path = 'employees/successful_run_log/log.json'
 known_path = 'employees/2023/08/17/scheduled__2023-08-17T19:00:00+00:00_records.json'
 last_upload = get_last_upload(bucket_name, log_path, known_path)
 
-ref_codes = [('COVAC', 'Vacation Carried Over - Hours'), ('COMP', 'Comp Time - Hours'),
-             ('Military', 'Military - Hours'), ('Personal', 'Personal - Hours'), ('VAC', 'Vacation - Hours'),
-             ('DH', 'Deferred Holiday - Hours'), ('PPL', 'Parental Leave - Hours'), ('SICK', 'Sick Legacy - Hours')]
+cw_bucket = client.get_bucket("user_defined_data")
+cw_blob = cw_bucket.get_blob("timebank_codes.json")
+cw = cw_blob.download_as_string()
+ref_codes = json.loads(cw.decode('utf-8'))
 data = []
 for row in last_upload:
     for code in ref_codes:
         params = [{'tag': 'employeeId', 'content': row['employeeId']},
-                  {'tag': 'timeBankRef', 'content': code[0]},
+                  {'tag': 'timeBankRef', 'content': code},
                   {'tag': 'date', 'content': today}]
 
         # API requests need to be made one at a time, which may overwhelm the request limit.
@@ -52,9 +54,10 @@ for row in last_upload:
                             auth=auth, headers=headers, res_start=start, res_stop=end)
         balance = response['root']['return']
         if balance:
-            record = {'employee_id': row['employeeId'], 'date': today, 'time_bank': code[1], 'balance': balance}
+            record = {'employee_id': row['employeeId'], 'date': today, 'time_bank': ref_codes[code],
+                      'code': code, 'balance': balance}
             data.append(record)
         else:
-            print(f'No balance for employee #{row["employeeId"]} in time bank {code[1]}')
+            print(f'No balance for employee #{row["employeeId"]} in time bank {ref_codes[code]}')
 
 json_to_gcs(args['out_loc'], data, bucket)
