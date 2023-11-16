@@ -37,7 +37,7 @@ def run(argv=None):
         field_name_swaps = [('Employee_XRefCode', 'employee_id'),
                             ('Balance_ShortName', 'time_bank'),
                             ('EntitlementBalance_CurrentValue', 'balance')]
-        code_params = ['codes_timebank.json', 'time_bank', 'code']
+        time_code_params = ['timebank_codes.json', 'time_bank', 'code']
         type_changes = [('employee_id', 'str'), ('balance', 'float')]
         drop_fields = ['Employee_NameNumber', 'EmployeeEmploymentStatus_BaseRate',
                        'EntitlementPolicy_LongName', 'DeptJob_LongName']
@@ -47,7 +47,7 @@ def run(argv=None):
         load = (
                 lines
                 | beam.ParDo(SwapFieldNames(field_name_swaps))
-                | beam.ParDo(GetValsFromExternalFile(code_params[0], code_params[1], code_params[2]))
+                | beam.ParDo(GetValsFromExternalFile(time_code_params[0], time_code_params[1], time_code_params[2]))
                 | beam.ParDo(ChangeDataTypes(type_changes))
                 | beam.ParDo(FilterFields(drop_fields, exclude_target_fields=True))
                 | WriteToAvro(known_args.avro_output, schema=avro_schema, file_name_suffix='.avro',
