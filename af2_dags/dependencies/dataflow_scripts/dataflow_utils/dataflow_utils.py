@@ -490,6 +490,35 @@ class FormatAndClassifyAddress(beam.DoFn, ABC):
         yield datum
 
 
+class GetValsFromExternalFile(beam.DoFn, ABC):
+    def __init__(self, file_name, source_field, update_field):
+        self.file_name = file_name
+        self.source_field = source_field
+        self.update_field = update_field
+        client = storage.Client()
+        cw_bucket = client.get_bucket("user_defined_data")
+        cw_blob = cw_bucket.get_blob(self.file_name)
+        cw = cw_blob.download_as_string()
+        self.crosswalk_dict = json.loads(cw.decode('utf-8'))
+
+    def process(self, datum):
+        try:
+            datum[self.update_field]
+        except KeyError:
+            datum[self.update_field] = None
+
+        if datum[self.source_field] in self.crosswalk_dict:
+            try:
+                datum[self.update_field] = self.crosswalk_dict[datum[self.source_field]]
+            except Exception as e:
+                print(e)
+        elif not datum[self.source_field]:
+            datum[self.update_field] = datum[self.source_field]
+        else:
+            print(f"Untracked value found in {self.source_field}: {datum[self.source_field]}")
+        yield datum
+
+
 class GoogleMapsGeocodeAddress(beam.DoFn, ABC):
     def __init__(self, key, loc_field_names, del_org_input):
         """
