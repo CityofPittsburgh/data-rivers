@@ -8,7 +8,8 @@ from apache_beam.io import ReadFromText
 from apache_beam.io.avroio import WriteToAvro
 
 from dataflow_utils import dataflow_utils
-from dataflow_utils.dataflow_utils import JsonCoder, SwapFieldNames, generate_args, ChangeDataTypes, FilterFields
+from dataflow_utils.dataflow_utils import JsonCoder, SwapFieldNames, generate_args, ChangeDataTypes, FilterFields, \
+    GetValsFromExternalFile
 
 DEFAULT_DATAFLOW_ARGS = [
     '--save_main_session',
@@ -36,6 +37,7 @@ def run(argv=None):
         field_name_swaps = [('Employee_XRefCode', 'employee_id'),
                             ('Balance_ShortName', 'time_bank'),
                             ('EntitlementBalance_CurrentValue', 'balance')]
+        time_code_params = ['timebank_codes.json', 'time_bank', 'code']
         type_changes = [('employee_id', 'str'), ('balance', 'float')]
         drop_fields = ['Employee_NameNumber', 'EmployeeEmploymentStatus_BaseRate',
                        'EntitlementPolicy_LongName', 'DeptJob_LongName']
@@ -45,6 +47,7 @@ def run(argv=None):
         load = (
                 lines
                 | beam.ParDo(SwapFieldNames(field_name_swaps))
+                | beam.ParDo(GetValsFromExternalFile(time_code_params[0], time_code_params[1], time_code_params[2]))
                 | beam.ParDo(ChangeDataTypes(type_changes))
                 | beam.ParDo(FilterFields(drop_fields, exclude_target_fields=True))
                 | WriteToAvro(known_args.avro_output, schema=avro_schema, file_name_suffix='.avro',
