@@ -45,7 +45,7 @@ while more is True:
     else:
         more = False
     # append list of API results to growing all_records list (should not need more than initial API call)
-    all_records += accruals
+    all_records.extend(accruals)
 
 all_records = [{**rec, 'date': datetime.now(tz=pendulum.timezone("utc")).strftime("%Y-%m-%d")} for rec in all_records]
 print(len(all_records))
