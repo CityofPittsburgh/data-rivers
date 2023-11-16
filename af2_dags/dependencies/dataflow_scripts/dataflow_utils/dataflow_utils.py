@@ -505,7 +505,7 @@ class GetValsFromExternalFile(beam.DoFn, ABC):
         try:
             datum[self.update_field]
         except KeyError:
-            datum[self.update_field] = None
+            datum[self.update_field] = datum[self.source_field]
 
         if datum[self.source_field] in self.crosswalk_dict:
             try:
@@ -513,9 +513,11 @@ class GetValsFromExternalFile(beam.DoFn, ABC):
             except Exception as e:
                 print(e)
         elif not datum[self.source_field]:
-            datum[self.update_field] = datum[self.source_field]
+            datum[self.source_field] = datum[self.update_field]
         else:
-            print(f"Untracked value found in {self.source_field}: {datum[self.source_field]}")
+            if datum[self.source_field] not in str(self.crosswalk_dict):
+                print(f"Untracked value found in {self.source_field}: {datum[self.source_field]}")
+
         yield datum
 
 
