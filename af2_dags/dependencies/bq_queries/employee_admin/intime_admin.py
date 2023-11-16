@@ -33,10 +33,12 @@ def extract_current_intime_details():
 def update_timebank_table():
     return F"""
     CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.intime.timebank_balances` AS
-    SELECT DISTINCT employee_id, PARSE_DATE('%Y-%m-%d', `date`) AS retrieval_date, time_bank, balance
+    SELECT DISTINCT employee_id, PARSE_DATE('%Y-%m-%d', `date`) AS retrieval_date, comp_time, deferred_holiday_hours, 
+           military_hours, parental_leave_hours, personal_time, sick_legacy_hours, vacation_carried_over, vacation_hours
     FROM `{os.environ['GCLOUD_PROJECT']}.intime.weekly_time_balances`
     UNION ALL
-    SELECT DISTINCT employee_id, retrieval_date, time_bank, balance
+    SELECT DISTINCT employee_id, retrieval_date, comp_time, deferred_holiday_hours, military_hours, 
+                    parental_leave_hours, personal_time, sick_legacy_hours, vacation_carried_over, vacation_hours
     FROM `{os.environ['GCLOUD_PROJECT']}.intime.timebank_balances`
     WHERE CONCAT(employee_id, ':', CAST(retrieval_date AS STRING)) NOT IN (
         SELECT CONCAT(employee_id, ':', `date`)
