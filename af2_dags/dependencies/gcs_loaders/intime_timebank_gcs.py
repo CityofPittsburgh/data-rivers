@@ -45,7 +45,7 @@ data = []
 for row in last_upload:
     for code in ref_codes:
         params = [{'tag': 'employeeId', 'content': row['employeeId']},
-                  {'tag': 'timeBankRef', 'content': code},
+                  {'tag': 'timeBankRef', 'content': ref_codes[code]},
                   {'tag': 'date', 'content': today}]
 
         # API requests need to be made one at a time, which may overwhelm the request limit.
@@ -54,8 +54,8 @@ for row in last_upload:
                             auth=auth, headers=headers, res_start=start, res_stop=end)
         balance = response['root']['return']
         if balance:
-            record = {'employee_id': row['employeeId'], 'date': today, 'time_bank': ref_codes[code],
-                      'code': code, 'balance': balance}
+            record = {'employee_id': row['employeeId'], 'date': today, 'time_bank': code,
+                      'code': ref_codes[code], 'balance': balance}
             data.append(record)
         else:
             print(f'No balance for employee #{row["employeeId"]} in time bank {ref_codes[code]}')
