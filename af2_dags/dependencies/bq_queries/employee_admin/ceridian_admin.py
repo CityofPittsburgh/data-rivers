@@ -25,8 +25,9 @@ def build_percentage_table_query(new_table, pct_field, hardcoded_vals):
 
 def compare_timebank_balances():
     return F"""
+    CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.ceridian.intime_balance_comparison` AS
     SELECT c.employee_id, i.code, c.balance AS ceridian_balance, i.balance AS intime_balance
-    FROM `{os.environ['GCLOUD_PROJECT']}.ceridian.accruals_report` c, 
+    FROM `{os.environ['GCLOUD_PROJECT']}.ceridian.time_accruals_report` c, 
          `{os.environ['GCLOUD_PROJECT']}.intime.weekly_time_balances` i
     WHERE c.employee_id = i.employee_id 
     AND c.`date` = i.`date`
@@ -82,12 +83,12 @@ def update_time_accruals_table():
     return F"""
     CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.ceridian.historic_accrual_balances` AS
     SELECT DISTINCT employee_id, PARSE_DATE('%Y-%m-%d', `date`) AS retrieval_date, time_bank, code, balance
-    FROM `{os.environ['GCLOUD_PROJECT']}.ceridian.accruals_report`
+    FROM `{os.environ['GCLOUD_PROJECT']}.ceridian.time_accruals_report`
     UNION ALL
     SELECT DISTINCT employee_id, retrieval_date, time_bank, code, balance
     FROM `{os.environ['GCLOUD_PROJECT']}.ceridian.historic_accrual_balances`
     WHERE CONCAT(employee_id, ':', CAST(retrieval_date AS STRING)) NOT IN (
         SELECT CONCAT(employee_id, ':', `date`)
-        FROM `{os.environ['GCLOUD_PROJECT']}.ceridian.accruals_report`
+        FROM `{os.environ['GCLOUD_PROJECT']}.ceridian.time_accruals_report`
     )
     """
