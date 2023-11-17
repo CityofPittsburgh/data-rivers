@@ -23,6 +23,18 @@ def build_percentage_table_query(new_table, pct_field, hardcoded_vals):
     return sql
 
 
+def compare_timebank_balances():
+    return F"""
+    SELECT c.employee_id, i.code, c.balance AS ceridian_balance, i.balance AS intime_balance
+    FROM `{os.environ['GCLOUD_PROJECT']}.ceridian.accruals_report` c, 
+         `{os.environ['GCLOUD_PROJECT']}.intime.weekly_time_balances` i
+    WHERE c.employee_id = i.employee_id 
+    AND c.`date` = i.`date`
+    AND c.time_bank = i.time_bank
+    AND c.balance != i.balance
+    """
+
+
 def extract_new_hires():
     return F"""
     CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.ceridian.daily_new_hires` AS
