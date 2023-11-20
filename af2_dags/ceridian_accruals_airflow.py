@@ -7,12 +7,13 @@ from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
 from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOperator
+from airflow.contrib.operators.bigquery_to_gcs import BigQueryToCloudStorageOperator
 
 from dependencies import airflow_utils
 from dependencies.airflow_utils import get_ds_year, get_ds_month, get_ds_day, default_args
 import dependencies.bq_queries.employee_admin.ceridian_admin as q
 
-# The goal of this DAG is to extract Time Bank accruals from all officers present in the ceridian system for comparison
+# The goal of this DAG is to extract Time Bank accruals from all officers present in the Ceridian system for comparison
 # with the time balances found in InTime. The Ceridian figures should be written to InTime in cases where they differ,
 # as Dayforce serves as the system of record for accrual balances.
 
@@ -70,6 +71,14 @@ compare_timebank_balances = BigQueryOperator(
     dag=dag
 )
 
+comparison_gcs_export = BigQueryToCloudStorageOperator(
+    task_id='comparison_gcs_export',
+    source_project_dataset_table=f"{os.environ['GCLOUD_PROJECT']}.ceridian.intime_balance_comparison",
+    destination_cloud_storage_uris=[f"gs://{os.environ['GCS_PREFIX']}_pbp/data_sharing/time_balance_mismatches.csv"],
+    bigquery_conn_id='google_cloud_default',
+    dag=dag
+)
+
 update_accruals_table = BigQueryOperator(
     task_id='update_accruals_table',
     sql=q.update_time_accruals_table(),
@@ -90,7 +99,7 @@ accruals_beam_cleanup = BashOperator(
     dag=dag
 )
 
-accruals_gcs_loader >> accruals_dataflow >> accruals_gcs_to_bq >> compare_timebank_balances >> delete_accruals_avro >> \
-    accruals_beam_cleanup
+accruals_gcs_loader >> accruals_dataflow >> accruals_gcs_to_bq >> compare_timebank_balances >> comparison_gcs_export >>\
+    delete_accruals_avro >> accruals_beam_cleanup
 accruals_gcs_loader >> accruals_dataflow >> accruals_gcs_to_bq >> update_accruals_table >> delete_accruals_avro >> \
     accruals_beam_cleanup
