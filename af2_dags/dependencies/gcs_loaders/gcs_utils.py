@@ -3,6 +3,7 @@ from __future__ import print_function
 import argparse
 import os
 import io
+import base64
 import logging
 import re
 import requests
@@ -17,7 +18,7 @@ import xmltodict
 import pandas as pd
 import jaydebeapi
 from sendgrid import SendGridAPIClient
-from sendgrid.helpers.mail import Mail
+from sendgrid.helpers.mail import Mail, Attachment, FileContent, FileName, FileType, Disposition
 import avro.schema
 from avro.datafile import DataFileWriter
 from avro.io import DatumWriter
@@ -153,6 +154,32 @@ def call_odata_api_error_handling(targ_url, pipeline, time_out=3600, limit_resul
         print(F"API failed...returned reason was {res.reason}")
 
     return records, error_flag
+
+
+def send_alert_email_with_csv(recipient, subject, message, data, attachment_name):
+    csv_df = pd.DataFrame(data)
+    stream = io.BytesIO()
+    csv_df.to_csv(stream, index=False)
+    message = Mail(
+        from_email='ip.analytics@pittsburghpa.gov',
+        to_emails=recipient,
+        subject=subject,
+        html_content=F"""
+                    {message}
+                    """
+    )
+    encoded_file = base64.b64encode(stream.getvalue()).decode()
+
+    attached_file = Attachment(
+        FileContent(encoded_file),
+        FileName(attachment_name),
+        FileType('application/csv'),
+        Disposition('attachment')
+    )
+    message.attachment = attached_file
+
+    sg = SendGridAPIClient(os.environ['SENDGRID_API_KEY'])
+    response = sg.send(message)
 
 
 def send_team_email_notification(failed_process, message):
@@ -953,7 +980,7 @@ def post_xml(base_url, envelope, auth, headers, res_start, res_stop):
         attempt += 1
         # Print API status code for debugging purposes
         res_code = str(response.status_code)
-        print(f"API response code: {res_code}")
+        # print(f"API response code: {res_code}")
         if res_code == '200':
             vals = response.text[response.text.find(res_start) + len(res_start):response.text.rfind(res_stop)]
             vals = '<root>' + vals + '</root>'
