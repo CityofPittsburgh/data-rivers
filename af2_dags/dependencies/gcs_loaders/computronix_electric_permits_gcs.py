@@ -22,7 +22,6 @@ args = vars(parser.parse_args())
 
 
 
-make hot bucket
 bucket = f"{os.environ['GCS_PREFIX']}_computronix"
 
 # build url
