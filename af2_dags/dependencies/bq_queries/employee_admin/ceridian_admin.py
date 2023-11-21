@@ -32,7 +32,7 @@ def compare_timebank_balances():
     WHERE c.employee_id = i.employee_id 
     AND c.`date` = i.`date`
     AND c.time_bank = i.time_bank
-    AND c.balance != i.balance
+    AND ROUND(c.balance, 1) != ROUND(i.balance, 1)
     """
 
 
