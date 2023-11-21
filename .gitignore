@@ -128,4 +128,4 @@ composer_kube_config
 .vscode/*
 list/
 
-*dask
+*dask*
