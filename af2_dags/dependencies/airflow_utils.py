@@ -7,14 +7,15 @@ import json
 import ndjson
 import math
 import pendulum
+import base64
 
 from sendgrid import SendGridAPIClient
-from sendgrid.helpers.mail import Mail
+from sendgrid.helpers.mail import Mail, Attachment, FileContent, FileName, FileType, Disposition
 from datetime import datetime, timedelta
 from google.cloud import bigquery, storage
 from google.api_core.exceptions import NotFound
 
-# TODO:  Fix this import path 
+# TODO:  Fix this import path
 # https://www.astronomer.io/guides/airflow-importing-custom-hooks-operators
 # from ms_teams_webhook_operator import MSTeamsWebhookOperator
 
@@ -470,6 +471,33 @@ def filter_old_values(dataset, temp_table, final_table, join_field):
     DELETE FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{final_table}` final
     WHERE final.{join_field} IN (SELECT {join_field} FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{temp_table}`)
     """
+
+
+def gcs_to_email(bucket, file_path, recipient, subject, message, attachment_name, file_type, **kwargs):
+    bucket = storage_client.get_bucket(bucket)
+    blob = bucket.blob(file_path)
+    content = blob.download_as_string()
+
+    message = Mail(
+        from_email='ip.analytics@pittsburghpa.gov',
+        to_emails=recipient,
+        subject=subject,
+        html_content=F"""
+                    {message}
+                    """
+    )
+    encoded_file = base64.b64encode(content).decode()
+
+    attached_file = Attachment(
+        FileContent(encoded_file),
+        FileName(f"{attachment_name}.csv"),
+        FileType(f'application/{file_type}'),
+        Disposition('attachment')
+    )
+    message.attachment = attached_file
+
+    sg = SendGridAPIClient(os.environ['SENDGRID_API_KEY'])
+    response = sg.send(message)
 
 
 def beam_cleanup_statement(bucket):
