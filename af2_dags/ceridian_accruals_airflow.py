@@ -5,12 +5,13 @@ from datetime import datetime
 
 from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
+from airflow.operators.python_operator import PythonOperator
 from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOperator
 from airflow.contrib.operators.bigquery_to_gcs import BigQueryToCloudStorageOperator
 
 from dependencies import airflow_utils
-from dependencies.airflow_utils import get_ds_year, get_ds_month, get_ds_day, default_args
+from dependencies.airflow_utils import get_ds_year, get_ds_month, get_ds_day, default_args, gcs_to_email
 import dependencies.bq_queries.employee_admin.ceridian_admin as q
 
 # The goal of this DAG is to extract Time Bank accruals from all officers present in the Ceridian system for comparison
@@ -74,8 +75,19 @@ compare_timebank_balances = BigQueryOperator(
 comparison_gcs_export = BigQueryToCloudStorageOperator(
     task_id='comparison_gcs_export',
     source_project_dataset_table=f"{os.environ['GCLOUD_PROJECT']}.ceridian.intime_balance_comparison",
-    destination_cloud_storage_uris=[f"gs://{os.environ['GCS_PREFIX']}_pbp/data_sharing/time_balance_mismatches.csv"],
+    destination_cloud_storage_uris=[f"gs://{os.environ['GCS_PREFIX']}_ceridian/data_sharing/time_balance_mismatches.csv"],
     bigquery_conn_id='google_cloud_default',
+    dag=dag
+)
+
+email_comparison = PythonOperator(
+    task_id='email_comparison',
+    python_callable=gcs_to_email,
+    op_kwargs={"bucket": f"{os.environ['GCS_PREFIX']}_ceridian",
+               "file_path": "data_sharing/time_balance_mismatches.csv",
+               "recipient": "jason.ficorilli@pittsburghpa.gov", "subject": "ALERT: Time Bank Mismatches",
+               "message": "Attached is an extract of all time bank balances that differ between the Ceridian and InTime source systems.",
+               "attachment_name": "time_balance_mismatches"},
     dag=dag
 )
 
@@ -100,6 +112,6 @@ accruals_beam_cleanup = BashOperator(
 )
 
 accruals_gcs_loader >> accruals_dataflow >> accruals_gcs_to_bq >> compare_timebank_balances >> comparison_gcs_export >>\
-    delete_accruals_avro >> accruals_beam_cleanup
+    email_comparison >> delete_accruals_avro >> accruals_beam_cleanup
 accruals_gcs_loader >> accruals_dataflow >> accruals_gcs_to_bq >> update_accruals_table >> delete_accruals_avro >> \
     accruals_beam_cleanup
