@@ -2,26 +2,10 @@ from __future__ import absolute_import
 
 import logging
 import os
-import collections
-import typing
-import ndjson
-import psutil as ps
 
 import apache_beam as beam
 from apache_beam.io import ReadFromText
-# from apache_beam.dataframe.convert import to_dataframe
-from apache_beam.dataframe.convert import to_pcollection
-from apache_beam.dataframe.transforms import DataframeTransform
 from apache_beam.io.avroio import WriteToAvro
-
-from google.cloud import storage
-
-import pandas as pd
-
-import dask
-from dask import distributed
-from dask.distributed import Client
-from dask import dataframe as dd
 
 # import util modules.
 # util modules located one level down in directory (./dataflow_util_modules/datflow_utils.py)
@@ -67,6 +51,7 @@ class ExtractLocData(beam.DoFn):
             datum["address"] = None
         yield datum
 
+
 def run(argv = None):
     print("starting df pipe")
 
@@ -77,6 +62,7 @@ def run(argv = None):
             schema_name = 'computronix_solar_permits',
             default_arguments = DEFAULT_DATAFLOW_ARGS
     )
+
 
     with beam.Pipeline(options = pipeline_options) as p:
         name_swaps = [
@@ -103,6 +89,7 @@ def run(argv = None):
                 | beam.ParDo(ChangeDataTypes(type_changes))
                 | WriteToAvro(known_args.avro_output, schema = avro_schema, file_name_suffix = '.avro', use_fastavro = True)
         )
+
 
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.INFO)
