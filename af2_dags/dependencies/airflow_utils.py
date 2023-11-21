@@ -473,31 +473,37 @@ def filter_old_values(dataset, temp_table, final_table, join_field):
     """
 
 
-def gcs_to_email(bucket, file_path, recipient, subject, message, attachment_name, file_type, **kwargs):
-    bucket = storage_client.get_bucket(bucket)
-    blob = bucket.blob(file_path)
-    content = blob.download_as_string()
+def gcs_to_email(bucket, file_path, recipient, subject, message, attachment_name,
+                 file_type='csv', min_length=50, **kwargs):
+    try:
+        bucket = storage_client.get_bucket(bucket)
+        blob = bucket.blob(file_path)
+        content = blob.download_as_string()
+        if len(content) >= min_length:
+            message = Mail(
+                from_email='ip.analytics@pittsburghpa.gov',
+                to_emails=recipient,
+                subject=subject,
+                html_content=F"""
+                            {message}
+                            """
+            )
+            encoded_file = base64.b64encode(content).decode()
 
-    message = Mail(
-        from_email='ip.analytics@pittsburghpa.gov',
-        to_emails=recipient,
-        subject=subject,
-        html_content=F"""
-                    {message}
-                    """
-    )
-    encoded_file = base64.b64encode(content).decode()
+            attached_file = Attachment(
+                FileContent(encoded_file),
+                FileName(f"{attachment_name}.{file_type}"),
+                FileType(f'application/{file_type}'),
+                Disposition('attachment')
+            )
+            message.attachment = attached_file
 
-    attached_file = Attachment(
-        FileContent(encoded_file),
-        FileName(f"{attachment_name}.csv"),
-        FileType(f'application/{file_type}'),
-        Disposition('attachment')
-    )
-    message.attachment = attached_file
-
-    sg = SendGridAPIClient(os.environ['SENDGRID_API_KEY'])
-    response = sg.send(message)
+            sg = SendGridAPIClient(os.environ['SENDGRID_API_KEY'])
+            response = sg.send(message)
+        else:
+            print('Requested file is empty, no email sent')
+    except NotFound:
+        print('Requested file not found')
 
 
 def beam_cleanup_statement(bucket):
