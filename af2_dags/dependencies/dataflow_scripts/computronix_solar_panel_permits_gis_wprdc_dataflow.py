@@ -72,7 +72,8 @@ def run(argv = None):
                 ("COMPLETEDDATE", "completed_date"),
                 ("ISSUEDATE", "issue_date"),
                 ("EXTERNALFILENUM", "ext_file_num"),
-                ("PERMITWORKSCOPEXREF", "work_scope")
+                ("PERMITWORKSCOPEXREF", "work_scope"),
+                ("WORKDESCRIPTION", "work_desc")
         ]
         keep_cols = ['job_id', 'status', 'commercial_residential', 'completed_date', 'issue_date', 'ext_file_num',
                      'work_scope', "parc_num", "address"]
