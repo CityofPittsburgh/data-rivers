@@ -10,7 +10,7 @@ import pendulum
 import base64
 
 from sendgrid import SendGridAPIClient
-from sendgrid.helpers.mail import Mail, Attachment, FileContent, FileName, FileType, Disposition
+from sendgrid.helpers.mail import Mail, Attachment, FileContent, FileName, FileType, Disposition, Personalization, Cc, To
 from datetime import datetime, timedelta
 from google.cloud import bigquery, storage
 from google.api_core.exceptions import NotFound
@@ -488,6 +488,46 @@ def gcs_to_email(bucket, file_path, recipient, subject, message, attachment_name
                             {message}
                             """
             )
+            encoded_file = base64.b64encode(content).decode()
+
+            attached_file = Attachment(
+                FileContent(encoded_file),
+                FileName(f"{attachment_name}.{file_type}"),
+                FileType(f'application/{file_type}'),
+                Disposition('attachment')
+            )
+            message.attachment = attached_file
+
+            sg = SendGridAPIClient(os.environ['SENDGRID_API_KEY'])
+            response = sg.send(message)
+        else:
+            print('Requested file is empty, no email sent')
+    except NotFound:
+        print('Requested file not found')
+
+
+def gcs_to_email_multiple_recipients(bucket, file_path, recipients, cc, subject, message, attachment_name,
+                                     file_type='csv', min_length=50, **kwargs):
+    try:
+        bucket = storage_client.get_bucket(bucket)
+        blob = bucket.blob(file_path)
+        content = blob.download_as_string()
+        if len(content) >= min_length:
+            message = Mail(
+                from_email='ip.analytics@pittsburghpa.gov',
+                subject=subject,
+                html_content=F"""
+                            {message}
+                            """
+            )
+            recips = Personalization()
+            for addr in recipients:
+                recips.add_to(To(addr))
+            if cc:
+                for addr in cc:
+                    recips.add_cc(Cc(addr))
+            message.add_personalization(recips)
+
             encoded_file = base64.b64encode(content).decode()
 
             attached_file = Attachment(
