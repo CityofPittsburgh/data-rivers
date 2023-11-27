@@ -31,7 +31,8 @@ bucket = f"gs://{os.environ['GCS_PREFIX']}_computronix"
 dataset = "solar_panel_permits"
 path = "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds|get_ds_day }}/{{ run_id }}"
 json_loc = f"{path}_solar_panel_permits.json"
-hot_bucket = f"gs://{os.environ['GCS_PREFIX']}_hot_metal"
+avro_loc = f"avro_output/{path}/"
+
 
 # Run gcs_loader
 exec_gcs = f"python {os.environ['GCS_LOADER_PATH']}/computronix_solar_panel_permits_gis_wprdc_gcs.py"
@@ -46,7 +47,7 @@ gcs_loader = BashOperator(
 exec_df = f"python {os.environ['DATAFLOW_SCRIPT_PATH']}/computronix_solar_panel_permits_gis_wprdc_dataflow.py"
 dataflow = BashOperator(
         task_id = 'dataflow',
-        bash_command = f"{exec_df} --input {bucket}/{dataset}/{json_loc} --avro_output {hot_bucket}",
+        bash_command = f"{exec_df} --input {bucket}/{dataset}/{json_loc} --avro_output {bucket}/{dataset}/{avro_loc}",
         dag = dag
 )
 
