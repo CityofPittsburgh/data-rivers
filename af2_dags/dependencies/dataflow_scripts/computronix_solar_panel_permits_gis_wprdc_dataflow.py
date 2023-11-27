@@ -9,8 +9,8 @@ from apache_beam.io.avroio import WriteToAvro
 
 # import util modules.
 # util modules located one level down in directory (./dataflow_util_modules/datflow_utils.py)
-from dataflow_utils.dataflow_utils import JsonCoder, SwapFieldNames, ChangeDataTypes, FilterFields, generate_args, get_schema
-
+from dataflow_utils.dataflow_utils import JsonCoder, SwapFieldNames, ChangeDataTypes, FilterFields, generate_args, \
+    StandardizeTimes
 
 DEFAULT_DATAFLOW_ARGS = [
         '--save_main_session',
@@ -33,6 +33,14 @@ def mask_comp_solar(datum):
     wk_scope = str(datum["PERMITWORKSCOPEXREF"])
     mask = datum['STATUSDESCRIPTION'] == 'Completed' and (wk_scope.lower().__contains__("solar"))
     return mask
+
+
+def mask_loc_data_present(datum):
+    # create mask to drop records where both address and parc_num are missing
+    # these values are not dropped when extracted in the ParDo below (and constitute a very small number of records)
+    mask = datum['address'] is not None and datum["parc_num"] is not None
+    return mask
+
 
 class ExtractLocData(beam.DoFn):
     def __init__(self, loc_field):
@@ -63,20 +71,20 @@ def run(argv = None):
             default_arguments = DEFAULT_DATAFLOW_ARGS
     )
 
-
     with beam.Pipeline(options = pipeline_options) as p:
         name_swaps = [
                 ("JOBID", "job_id"),
                 ("STATUSDESCRIPTION", "status"),
                 ("COMMERCIALORRESIDENTIAL", "commercial_residential"),
-                ("COMPLETEDDATE", "completed_date"),
-                ("ISSUEDATE", "issue_date"),
+                ("COMPLETEDDATE", "completed_date_EST"),
+                ("ISSUEDATE", "issue_date_EST"),
                 ("EXTERNALFILENUM", "ext_file_num"),
                 ("PERMITWORKSCOPEXREF", "work_scope")
         ]
         keep_cols = ['job_id', 'status', 'commercial_residential', 'completed_date', 'issue_date', 'ext_file_num',
                      'work_scope', "parc_num", "address"]
         type_changes = [('job_id', 'str'), ('work_scope', 'str')]
+        times = [('completed_date', 'US/Eastern'), ('issue_date', 'US/Eastern')]
 
         lines = p | ReadFromText(known_args.input, coder=JsonCoder())
 
@@ -84,9 +92,11 @@ def run(argv = None):
                 lines
                 | beam.Filter(mask_comp_solar)
                 | beam.ParDo(ExtractLocData("JOBPARCELXREF"))
+                | beam.Filter(mask_loc_data_present)
                 | beam.ParDo(SwapFieldNames(name_swaps))
                 | beam.ParDo(FilterFields(keep_cols, exclude_target_fields = False))
                 | beam.ParDo(ChangeDataTypes(type_changes))
+                | beam.ParDo(StandardizeTimes(times, "%Y-%m-%d %H:%M:%S%z"))
                 | WriteToAvro(known_args.avro_output, schema = avro_schema, file_name_suffix = '.avro', use_fastavro = True)
         )
 
@@ -94,5 +104,3 @@ def run(argv = None):
 if __name__ == '__main__':
     logging.getLogger().setLevel(logging.INFO)
     run()
-
-
