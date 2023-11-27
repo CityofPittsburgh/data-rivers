@@ -11,8 +11,7 @@ from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOper
 from airflow.contrib.operators.bigquery_to_gcs import BigQueryToCloudStorageOperator
 
 from dependencies import airflow_utils
-from dependencies.airflow_utils import get_ds_year, get_ds_month, get_ds_day, default_args, \
-    gcs_to_email_multiple_recipients
+from dependencies.airflow_utils import get_ds_year, get_ds_month, get_ds_day, default_args, gcs_to_email
 import dependencies.bq_queries.employee_admin.ceridian_admin as q
 
 # The goal of this DAG is to extract Time Bank accruals from all officers present in the Ceridian system for comparison
@@ -83,7 +82,7 @@ comparison_gcs_export = BigQueryToCloudStorageOperator(
 
 email_comparison = PythonOperator(
     task_id='email_comparison',
-    python_callable=gcs_to_email_multiple_recipients,
+    python_callable=gcs_to_email,
     op_kwargs={"bucket": f"{os.environ['GCS_PREFIX']}_ceridian",
                "file_path": "data_sharing/time_balance_mismatches.csv",
                "recipients": ["osar@pittsburghpa.gov"], "cc": [os.environ["EMAIL"]],
