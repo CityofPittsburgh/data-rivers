@@ -34,7 +34,7 @@ json_loc = f"{path}_solar_panel_permits.json"
 hot_bucket = f"gs://{os.environ['GCS_PREFIX']}_hot_metal"
 
 # Run gcs_loader
-exec_gcs = f"python {os.environ['GCS_LOADER_PATH']}/computronix_electric_permits.py"
+exec_gcs = f"python {os.environ['GCS_LOADER_PATH']}/computronix_electric_permits_gcs.py"
 gcs_loader = BashOperator(
         task_id = 'gcs_loader',
         bash_command = f"{exec_gcs} --output_arg {dataset}/{json_loc}",
