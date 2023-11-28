@@ -82,8 +82,8 @@ def run(argv = None):
                 ("PERMITWORKSCOPEXREF", "work_scope"),
                 ("WORKDESCRIPTION", "work_desc")
         ]
-        keep_cols = ['job_id', 'status', 'commercial_residential', 'completed_date', 'issue_date', 'ext_file_num',
-                     'work_scope', "parc_num", "address"]
+        keep_cols = ['job_id', 'status', 'commercial_residential', 'completed_date_EST', 'issue_date_EST',
+                     'ext_file_num','work_scope', 'parc_num', 'address', 'work_desc']
         type_changes = [('job_id', 'str'), ('work_scope', 'str')]
         times = [('completed_date_EST', 'US/Eastern'), ('issue_date_EST', 'US/Eastern')]
 
