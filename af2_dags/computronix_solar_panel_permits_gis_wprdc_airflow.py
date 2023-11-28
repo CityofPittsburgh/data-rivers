@@ -46,11 +46,7 @@ gcs_loader = BashOperator(
 exec_df = f"python {os.environ['DATAFLOW_SCRIPT_PATH']}/computronix_solar_panel_permits_gis_wprdc_dataflow.py"
 dataflow = BashOperator(
         task_id = 'dataflow',
-<<<<<<< HEAD
-        bash_command = f"{exec_df} --input {bucket}/{dataset}/{json_loc} --avro_output {hot_bucket}",
-=======
         bash_command = f"{exec_df} --input {bucket}/{dataset}/{json_loc} --avro_output {hot_bucket}/solar_avro/",
->>>>>>> 33b51a9f28b9db28ec3401800dec82afddd74f81
         dag = dag
 )
 
