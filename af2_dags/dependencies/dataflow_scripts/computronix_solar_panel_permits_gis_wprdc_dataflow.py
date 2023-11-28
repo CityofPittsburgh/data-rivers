@@ -85,7 +85,7 @@ def run(argv = None):
         keep_cols = ['job_id', 'status', 'commercial_residential', 'completed_date', 'issue_date', 'ext_file_num',
                      'work_scope', "parc_num", "address"]
         type_changes = [('job_id', 'str'), ('work_scope', 'str')]
-        times = [('completed_date', 'US/Eastern'), ('issue_date', 'US/Eastern')]
+        times = [('completed_date_EST', 'US/Eastern'), ('issue_date_EST', 'US/Eastern')]
 
         lines = p | ReadFromText(known_args.input, coder=JsonCoder())
 
