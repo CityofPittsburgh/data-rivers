@@ -98,11 +98,12 @@ class TestAirflowUtils(unittest.TestCase):
     def test_gcs_to_email(self):
         bucket = f"{os.environ['GCS_PREFIX']}_pbp"
         file_path = "data_sharing/time_balance_mismatches.csv"
-        recipient = os.environ['EMAIL']
+        recipients = [os.environ['EMAIL']]
+        cc = [os.environ['OFFICE365_UN']]
         subject = "ALERT: Time Bank Mismatches Detected"
         message = "Attached is an extract of all time bank balances that differ between the Ceridian and InTime source systems."
         attachment_name = "time_balance_mismatches"
-        af2_airflow_utils.gcs_to_email(bucket, file_path, recipient, subject, message, attachment_name)
+        af2_airflow_utils.gcs_to_email(bucket, file_path, recipients, cc, subject, message, attachment_name)
 
     def test_within_city_limits(self):
         datum = [{'address': '414 Grant St, Pittsburgh, PA 15219', 'lat': 40.4382355, 'long': -79.9966742, 'address_type': 'Precise'},
