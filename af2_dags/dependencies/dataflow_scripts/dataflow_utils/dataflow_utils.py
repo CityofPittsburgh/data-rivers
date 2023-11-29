@@ -16,6 +16,7 @@ import requests
 from abc import ABC
 from avro import schema
 from dateutil import parser
+import numpy as np
 
 import apache_beam as beam
 from apache_beam.options.pipeline_options import PipelineOptions
@@ -25,6 +26,16 @@ from google.cloud import bigquery, storage, dlp_v2
 dt = datetime.now()
 bq_client = bigquery.Client()
 storage_client = storage.Client()
+
+# current (as of 2024) format of full 16 char parcel numbers
+# detailed by each components char length, whether letters are  permitted in that component, and if the component is
+# required for conversion into a full 16 char string
+# (some formats omit the final characters and these should be converted to zeros)
+CITY_PARC_NUM_FORMAT = {
+        "len"       : [4, 1, 5, 4, 2],
+        "alpha_char": [False, True, False, True, True],
+        "required"  : [True, True, True, False, False]
+}
 
 
 class JsonCoder(object):
@@ -1297,3 +1308,150 @@ def sort_dict(d):
     :return: dict sorted by key
     """
     return dict(sorted(d.items()))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+class StandardizeParcelNumbers(beam.DoFn, ABC):
+    def __init__(self, parc_fd):
+        self.parc_fd = parc_fd
+
+    def process(self, datum):
+        standardize_parc_num(self, datum)
+
+        yield datum
+
+
+def standardize_parc_num(self, datum):
+    """
+       function to standardize the format of parcel numbers/block lots to the county format. this is intended to be run on
+       single input values and is designed to work in parallel processing applications (e.g. dataflow or pandas.apply etc)
+
+       the terminology block/lot and parcel number are interchangeable
+
+       the only acceptable format is the same the county uses- a 16 char string (no special chars) with the 5th
+       character being a letter and all others numeric.
+
+       each of the 5 CITY_PARC_NUM_FORMAT of the parcel number string are fixed in length (4, 1, 5, 4,
+       and 2 characters,
+       respectively)
+       and no characters can be omitted (e.g. 1234X12345123412 is correct) Zero padding the CITY_PARC_NUM_FORMAT is
+       very
+       common (
+       i.e. each component frequently contains several "0") (0001X00001000101 is correctly formatted).
+
+       The city frequently inserts hyphens between CITY_PARC_NUM_FORMAT and does not zero pad them. As an example,
+       this parcel
+       number: 0001X00001000101 (when correctly formatted) could appear like this in the city's datasets: 01-X-01-1-1.
+       Further, when all CITY_PARC_NUM_FORMAT of the parcel number are "0"s the city frequently omits them. As an
+       example:
+       01-X-01
+       would represent 0001X00001000000.
+
+       This function will dehypenate, zero pad, and verify correctness
+
+       :param input_parc: string input value representing the parcel number
+       :return out: a string of the formatted parcel number
+       """
+
+    # skip Nulls
+    try:
+        parc_str_extract = datum["JOBPARCELXREF"][0]["PARCEL"]["PARCELNUMBER"]
+    except:
+        return "invalid_input"
+
+        # strip white spaces
+        parc_str = parc_str_extract.strip().upper()
+
+        # all values must be a hyphen or alphanumeric (no special chars)
+        for char_val in parc_str:
+            if not char_val.isalnum() and char_val != "-":
+                return "invalid input"
+
+        # either the string contains hyphens (and can be variable length) or it is exactly 16 chars
+        # some city formats contain hyphens and abbreviated components
+        if parc_str.__contains__("-"):
+            parts = parc_str.split("-")
+            if len(parts) > len(CITY_PARC_NUM_FORMAT["required"]):
+                return "invalid input"
+
+        # if the input doesn't have hyphens (determined above) and is the proper length:
+        # parts will be a list with all 5 segments of the parc number
+        # grab the leading characters and place them into a growing list (as seperate elements)
+        # then drop those characters from the input so that only leading characters are extracted
+        # the end result is each component of the input parc number is extracted and broken down for further analysis
+        elif len(parc_str) == 16:
+            parts = []
+            for l in CITY_PARC_NUM_FORMAT["len"]:
+                sel_string = parc_str[:l]
+                parc_str = parc_str[l:]
+                parts.append(sel_string)
+
+        # fails above conditional logic (thus is not 16 chars long or does not contain hyphnens)
+        else:
+            return "invalid input"
+
+        # all processing below assumes that the input is exactly 16 chars or hyphenated, and without special chars.
+        # all fully inspected vals will overwrite the elements of conv_vals. The final 2 CITY_PARC_NUM_FORMAT of the
+        # string are often ommitted by the city if they are all zeros. In this case, the zeros pre populated in conv_vals will
+        # take their place
+        conv_vals = ["", "", "", "0000", "00"]
+
+        # for each part
+        for i in range(len(parts)):
+
+            # verify all chars in component are correctly alpha or non alpha CITY_PARC_NUM_FORMAT (as of August 2023,
+            # only component #1 and #3 cannot have a letter) (special char containing strings already bypassed-
+            # this checks that each char within each component is correctly alpha or numeric (e.g not like "12A4" in
+            # the first component)
+
+            # for each char in the selected part
+            for c_num in parts[i]:
+                # check if the selected character is in a component allowing letters
+                if not CITY_PARC_NUM_FORMAT["alpha_char"][i] and c_num.isalpha():
+                    return "invalid input"
+
+            # verify component is not longer than allowed (if the string was 16 chars then this has to be correct,
+            # so this only really is useful if the input was hyphenated. input string hyphen locations are variable)
+            if len(parts[i]) > CITY_PARC_NUM_FORMAT["len"][i]:
+                return "invalid input"
+
+            # pad all string parts with zeros if they are shorter than required.
+            # this code results in no changes if:
+            # 1) the input string was 16 chars in length
+            # OR
+            # 2) the selected part is already the correct length
+            conv_vals[i] = parts[i].rjust(CITY_PARC_NUM_FORMAT["len"][i], "0")
+
+        out = "".join(conv_vals)
+
+        # the final output must be 16 chars (this is essentially guaranteed by this point and this is a final
+        # safeguard
+        # to restrict errant testing values and junk data that are entered, we require that there must be a minimum
+        # of 2 unique characters (one letter and one number).
+        # The reality is that there should be approx 4-5 unique characters as the absolute minimum.
+        # The multiple systems which these data can be extracted from do not constrain or restrict usage of junk
+        # data for internal testing purposes etc. The minimum of 2  unique characters prevents test strings like "0000A00000000000"
+        # from passing through. This is, however, only a weak safeguard. End users should understand that manual
+        # inspection may be required depending on the use case.
+        if len(out) == 16 and len(set(out)) > 2:
+            return out
+        else:
+            return "invalid input"
+    else:
+        return "invalid input"
+

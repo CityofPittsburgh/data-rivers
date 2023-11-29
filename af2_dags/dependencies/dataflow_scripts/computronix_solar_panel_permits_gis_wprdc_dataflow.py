@@ -10,7 +10,7 @@ from apache_beam.io.avroio import WriteToAvro
 # import util modules.
 # util modules located one level down in directory (./dataflow_util_modules/datflow_utils.py)
 from dataflow_utils.dataflow_utils import JsonCoder, SwapFieldNames, ChangeDataTypes, FilterFields, generate_args, \
-    StandardizeTimes
+    StandardizeTimes, StandardizeParcelNumbers
 
 DEFAULT_DATAFLOW_ARGS = [
         '--save_main_session',
@@ -95,6 +95,7 @@ def run(argv = None):
                 | beam.ParDo(ExtractLocData("JOBPARCELXREF"))
                 | beam.Filter(mask_loc_data_present)
                 | beam.ParDo(SwapFieldNames(name_swaps))
+                # | beam.ParDo(StandardizeParcelNumbers("parc_num"))
                 | beam.ParDo(FilterFields(keep_cols, exclude_target_fields = False))
                 | beam.ParDo(ChangeDataTypes(type_changes))
                 | beam.ParDo(StandardizeTimes(times, "%Y-%m-%d %H:%M:%S%z"))
