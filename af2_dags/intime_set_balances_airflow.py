@@ -15,9 +15,13 @@ dag = DAG(
     max_active_runs=1
 )
 
+exec_date = "{{ ds }}"
+path = "timebank/update_log/{{ ds|get_ds_year }}/{{ ds|get_ds_month }}"
+json_loc = f"{path}/{exec_date}_updates.json"
+
 set_balances_gcs = BashOperator(
     task_id='set_balances_gcs',
-    bash_command=f"python {os.environ['GCS_LOADER_PATH']}/intime_set_balances_gcs.py",
+    bash_command=f"python {os.environ['GCS_LOADER_PATH']}/intime_set_balances_gcs.py --output_arg {json_loc}",
     dag=dag
 )
 
