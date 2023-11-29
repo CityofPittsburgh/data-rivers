@@ -127,3 +127,5 @@ composer_kube_config
 *.log
 .vscode/*
 list/
+
+*dask*

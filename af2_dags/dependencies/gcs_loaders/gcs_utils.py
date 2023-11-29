@@ -3,6 +3,7 @@ from __future__ import print_function
 import argparse
 import os
 import io
+import base64
 import logging
 import re
 import requests
@@ -17,7 +18,7 @@ import xmltodict
 import pandas as pd
 import jaydebeapi
 from sendgrid import SendGridAPIClient
-from sendgrid.helpers.mail import Mail
+from sendgrid.helpers.mail import Mail, Attachment, FileContent, FileName, FileType, Disposition
 import avro.schema
 from avro.datafile import DataFileWriter
 from avro.io import DatumWriter
@@ -35,8 +36,7 @@ DEFAULT_PII_TYPES = [{"name": "PERSON_NAME"}, {"name": "EMAIL_ADDRESS"}, {"name"
 WPRDC_API_HARD_LIMIT = 500001  # A limit set by the CKAN instance.
 
 
-
-def call_odata_api_error_handling(targ_url, pipeline, time_out = 3600, limit_results = False, ct_url = None):
+def call_odata_api_error_handling(targ_url, pipeline, time_out=3600, limit_results=False, ct_url=None):
     """
     :param targ_url: string value of fully formed odata_query (needs to be constructed before passing in)
     :param pipeline: string of the pipeline name (e.g. computronix_shadow_jobs) for error notification
@@ -57,7 +57,6 @@ def call_odata_api_error_handling(targ_url, pipeline, time_out = 3600, limit_res
             print("an expected number of records could not be determined. an error was generated")
             send_team_email_notification(F"{pipeline} ODATA API CALL",
                                          "failed when trying to calculate expected records")
-
 
     records = []
     more_links = True
@@ -89,7 +88,7 @@ def call_odata_api_error_handling(targ_url, pipeline, time_out = 3600, limit_res
         # try the call
         try:
             print(F"executing call #{call_attempt}")
-            res = requests.get(targ_url, timeout = time_out)
+            res = requests.get(targ_url, timeout=time_out)
 
 
         # exceptions for calls that are never executed or completed w/in time limit
@@ -147,7 +146,7 @@ def call_odata_api_error_handling(targ_url, pipeline, time_out = 3600, limit_res
     print(F"A total of {len(records)} records were returned")
 
     if ct_url:
-         print(F"{ct} records were expected")
+        print(F"{ct} records were expected")
 
     print("exiting the odata api request function")
 
@@ -157,13 +156,39 @@ def call_odata_api_error_handling(targ_url, pipeline, time_out = 3600, limit_res
     return records, error_flag
 
 
+def send_alert_email_with_csv(recipient, subject, message, data, attachment_name):
+    csv_df = pd.DataFrame(data)
+    stream = io.BytesIO()
+    csv_df.to_csv(stream, index=False)
+    message = Mail(
+        from_email='ip.analytics@pittsburghpa.gov',
+        to_emails=recipient,
+        subject=subject,
+        html_content=F"""
+                    {message}
+                    """
+    )
+    encoded_file = base64.b64encode(stream.getvalue()).decode()
+
+    attached_file = Attachment(
+        FileContent(encoded_file),
+        FileName(attachment_name),
+        FileType('application/csv'),
+        Disposition('attachment')
+    )
+    message.attachment = attached_file
+
+    sg = SendGridAPIClient(os.environ['SENDGRID_API_KEY'])
+    response = sg.send(message)
+
+
 def send_team_email_notification(failed_process, message):
     message = Mail(
-            from_email = 'ip.analytics@pittsburghpa.gov',
-            to_emails = 'ip.analytics@pittsburghpa.gov',
+        from_email='ip.analytics@pittsburghpa.gov',
+        to_emails='ip.analytics@pittsburghpa.gov',
 
-            subject = "Airflow Failure Notification",
-            html_content = F""""
+        subject="Airflow Failure Notification",
+        html_content=F""""
                     Bad things have happened...
                     {failed_process} has {message}...check the airflow log for more info
                     """
@@ -173,7 +198,7 @@ def send_team_email_notification(failed_process, message):
 
 
 def write_partial_api_request_results_for_inspection(write_object, file_name,
-                                                     out_bucket = F"{os.environ['GCS_PREFIX']}_slag_metal"):
+                                                     out_bucket=F"{os.environ['GCS_PREFIX']}_slag_metal"):
     """
     :param write_object: list of dicts to output to gcs bucket
     :param file_name: string of file name. the file name will ultimately be prepended with the date
@@ -201,12 +226,12 @@ def write_partial_api_request_results_for_inspection(write_object, file_name,
         try:
             # attempt to write data as a plain text file
             blob = storage.Blob(
-                    name = F"{str(datetime.today().date())}_{file_name}.txt",
-                    bucket = storage_client.get_bucket(out_bucket),
+                name=F"{str(datetime.today().date())}_{file_name}.txt",
+                bucket=storage_client.get_bucket(out_bucket),
             )
             blob.upload_from_string(
-                    data = json.dumps(write_object),
-                    client = storage_client,
+                data=json.dumps(write_object),
+                client=storage_client,
             )
         except:
             print("file could not be uploaded as plain text")
@@ -216,7 +241,7 @@ def conv_avsc_to_bq_schema(avro_bucket, schema_name):
     # bigquery schemas that are used to upload directly from pandas are not formatted identically as an avsc filie.
     # this func makes the necessary conversions. this allows a single schema to serve both purposes
 
-    blob = storage.Blob(name = schema_name, bucket = storage_client.get_bucket(avro_bucket))
+    blob = storage.Blob(name=schema_name, bucket=storage_client.get_bucket(avro_bucket))
     schema_text = blob.download_as_string()
     schema = json.loads(schema_text)
 
@@ -248,12 +273,12 @@ def snake_case_place_names(input):
     # if an identifier is found (indicative of a place such as a road or park), we want to join the place with the
     # preceding word with the join character. Thus, "Moore Park" would become "Moore_Park".
     joined_places = (re.sub(r'(\s)\b({})\b'.format(place_name_identifiers), r'_\2', input,
-                            flags = re.IGNORECASE))
+                            flags=re.IGNORECASE))
 
     return joined_places
 
 
-def replace_pii(input_str, retain_location: bool, info_types = DEFAULT_PII_TYPES):
+def replace_pii(input_str, retain_location: bool, info_types=DEFAULT_PII_TYPES):
     # This helper function added 2021-07-26 to update the existing methodology (deprecated below).
     # configure API client call arguments (incuding a full resource id for the project)
 
@@ -264,16 +289,16 @@ def replace_pii(input_str, retain_location: bool, info_types = DEFAULT_PII_TYPES
     max_findings = 0
     include_quote = False
     inspect_config = {
-            "info_types"   : info_types,
-            "include_quote": include_quote,
-            "limits"       : {"max_findings_per_request": max_findings},
+        "info_types": info_types,
+        "include_quote": include_quote,
+        "limits": {"max_findings_per_request": max_findings},
     }
     deidentify_config = {
-            "info_type_transformations": {
-                    "transformations": [
-                            {"primitive_transformation": {"replace_with_info_type_config": {}}}
-                    ]
-            }
+        "info_type_transformations": {
+            "transformations": [
+                {"primitive_transformation": {"replace_with_info_type_config": {}}}
+            ]
+        }
     }
     parent = "projects/{}".format(PROJECT)
 
@@ -349,10 +374,10 @@ def gen_schema_from_df(name, df):
     # output: schema (dict) this is always a record type schema for AVSC files
 
     schema = {
-            'doc'      : name,
-            'name'     : name,
-            'namespace': name,
-            'type'     : 'record'
+        'doc': name,
+        'name': name,
+        'namespace': name,
+        'type': 'record'
     }
 
     info = []
@@ -383,10 +408,10 @@ def time_to_seconds(t):
     :return: int (time in seconds, 12:00 AM UTC)
     """
     ts = datetime.strptime(t, '%Y-%m-%d')
-    return int(ts.replace(tzinfo = pytz.UTC).timestamp())
+    return int(ts.replace(tzinfo=pytz.UTC).timestamp())
 
 
-def filter_fields(results, relevant_fields, add_fields = True):
+def filter_fields(results, relevant_fields, add_fields=True):
     """
     Remove unnecessary keys from results or filter for only those you want depending on add_fields arg
     :param results: list of dicts
@@ -463,7 +488,7 @@ def execution_date_to_prev_quarter(execution_date):
     return quarter, int(year)
 
 
-def sql_to_dict_list(conn, sql_query, db = 'mssql', date_col = None, date_format = None):
+def sql_to_dict_list(conn, sql_query, db='mssql', date_col=None, date_format=None):
     """
     Execute sql query and return list of dicts
     :param conn: sql db connection
@@ -518,8 +543,8 @@ def avro_to_gcs(file_name, avro_object_list, bucket_name, schema_name):
     """
     avro_bucket = F"{os.environ['GCS_PREFIX']}_avro_schemas"
     blob = storage.Blob(
-            name = schema_name,
-            bucket = storage_client.get_bucket(avro_bucket),
+        name=schema_name,
+        bucket=storage_client.get_bucket(avro_bucket),
     )
 
     schema_text = blob.download_as_string()
@@ -538,15 +563,15 @@ def json_to_gcs(path, json_object_list, bucket_name):
     take list of dicts in memory and upload to GCS as newline JSON
     """
     blob = storage.Blob(
-            name = path,
-            bucket = storage_client.get_bucket(bucket_name),
+        name=path,
+        bucket=storage_client.get_bucket(bucket_name),
     )
     try:
         blob.upload_from_string(
-                # dataflow needs newline-delimited json, so use ndjson
-                data = ndjson.dumps(json_object_list),
-                content_type = 'application/json',
-                client = storage_client,
+            # dataflow needs newline-delimited json, so use ndjson
+            data=ndjson.dumps(json_object_list),
+            content_type='application/json',
+            client=storage_client,
         )
     except json.decoder.JSONDecodeError:
         print("Error uploading data to GCS bucket, linting and trying again")
@@ -631,7 +656,7 @@ def unnest_domi_street_seg(nested_data, name_swaps, old_nested_keys, new_unneste
 def query_resource(site, query):
     """Use the datastore_search_sql API endpoint to query a public CKAN resource."""
     ckan = ckanapi.RemoteCKAN(site)
-    response = ckan.action.datastore_search_sql(sql = query)
+    response = ckan.action.datastore_search_sql(sql=query)
     data = response['records']
     # Note that if a CKAN table field name is a Postgres reserved word (like
     # ALL or CAST or NEW), you get a not-very-useful error
@@ -652,14 +677,14 @@ def query_any_resource(resource_id, query):
     site = "https://data.wprdc.org"
     ckan = ckanapi.RemoteCKAN(site)
     # From resource ID, determine package ID.
-    package_id = ckan.action.resource_show(id = resource_id)['package_id']
+    package_id = ckan.action.resource_show(id=resource_id)['package_id']
     # From package ID, determine if the package is private.
-    private = ckan.action.package_show(id = package_id)['private']
+    private = ckan.action.package_show(id=package_id)['private']
     if private:
         print(
-                "As of February 2018, CKAN still doesn't allow you to run a datastore_search_sql query on a private "
-                "dataset. Sorry. See this GitHub issue if you want to know a little more: "
-                "https://github.com/ckan/ckan/issues/1954")
+            "As of February 2018, CKAN still doesn't allow you to run a datastore_search_sql query on a private "
+            "dataset. Sorry. See this GitHub issue if you want to know a little more: "
+            "https://github.com/ckan/ckan/issues/1954")
         raise ValueError("CKAN can't query private resources (like {}) yet.".format(resource_id))
     else:
         return query_resource(site, query)
@@ -689,8 +714,8 @@ def remove_fields(records, fields_to_remove):
     return records
 
 
-def synthesize_query(resource_id, select_fields = ['*'], where_clauses = None, group_by = None, order_by = None,
-                     limit = None):
+def synthesize_query(resource_id, select_fields=['*'], where_clauses=None, group_by=None, order_by=None,
+                     limit=None):
     query = f'SELECT {", ".join(select_fields)} FROM "{resource_id}"'
 
     if where_clauses is not None:
@@ -756,8 +781,8 @@ Here are the resulting top five names for the POODLE STANDARD breed, sorted by d
 """
 
 
-def get_wprdc_data(resource_id, select_fields = ['*'], where_clauses = None, group_by = None, order_by = None,
-                   limit = None, fields_to_remove = None):
+def get_wprdc_data(resource_id, select_fields=['*'], where_clauses=None, group_by=None, order_by=None,
+                   limit=None, fields_to_remove=None):
     """
     helper to construct query for CKAN API and return results as list of dictionaries
     :param resource_id: str
@@ -774,9 +799,9 @@ def get_wprdc_data(resource_id, select_fields = ['*'], where_clauses = None, gro
 
     if len(records) == WPRDC_API_HARD_LIMIT:
         print(
-                f"Note that there may be more results than you have obtained since the WPRDC CKAN instance only "
-                f"returns "
-                f"{WPRDC_API_HARD_LIMIT} records at a time.")
+            f"Note that there may be more results than you have obtained since the WPRDC CKAN instance only "
+            f"returns "
+            f"{WPRDC_API_HARD_LIMIT} records at a time.")
         # If you send a bogus SQL query through to the CKAN API, the resulting error message will include the full
         # query used by CKAN, which wraps the query you send something like this: "SELECT * FROM (<your query>) LIMIT
         # 500001", so you can determine the actual hard limit that way.
@@ -795,16 +820,16 @@ def get_last_day_of_month(datestring, input_date_fmt="%Y-%m-%d %H:%M:%S",
     input_date = datetime.strptime(datestring, input_date_fmt)
     if input_date.month == 12:
         return str(input_date.replace(day=31).strftime(output_date_fmt)) + output_time
-    date_val = input_date.replace(month=input_date.month+1, day=1) - timedelta(days=1)
+    date_val = input_date.replace(month=input_date.month + 1, day=1) - timedelta(days=1)
     return str(date_val.date().strftime(output_date_fmt)) + output_time
 
 
 def rmsprod_setup():
     parser = argparse.ArgumentParser()
-    parser.add_argument('-e', '--execution_date', dest = 'execution_date',
-                        required = True, help = 'DAG execution date (YYYY-MM-DD)')
-    parser.add_argument('-s', '--prev_execution_date', dest = 'prev_execution_date',
-                        required = True, help = 'Previous DAG execution date (YYYY-MM-DD)')
+    parser.add_argument('-e', '--execution_date', dest='execution_date',
+                        required=True, help='DAG execution date (YYYY-MM-DD)')
+    parser.add_argument('-s', '--prev_execution_date', dest='prev_execution_date',
+                        required=True, help='Previous DAG execution date (YYYY-MM-DD)')
     args = vars(parser.parse_args())
     execution_year = args['execution_date'].split('-')[0]
     execution_month = args['execution_date'].split('-')[1]
@@ -857,34 +882,29 @@ def get_last_upload(bucket_name, good_run_path, known_path):
     return data
 
 
-def generate_xml(soap_url, request, branch, from_time, to_time, prefix='v3'):
+def generate_xml(soap_url, request, params, prefix='v3'):
     """
     :param prefix: prefix used by SOAP library for given request
     :param soap_url: InTime uses different URLs to group different classes of requests
     (e.g., Time & Attendance vs. Employee Details)
     :param request: name of request made to the InTime API
-    :param branch: string to identify the department employee information will be pulled from
-    :param from_time: date string in %Y-%m-%d format that identifies the start window for when employee data
-    should start being pulled. This date is either the date of the first-ever entry of data into
-    the InTime system, or the date of the last successful run of this data pipeline
-    :param to_time: date string in %Y-%m-%d format that identifies the end window for when employee data
-    should stop being pulled. Should always be the current date
+    :param params: list of dictionaries that contains XML tags mapped to their corresponding contents
     """
-    if prefix == 'v3':
-        branch_param = 'branchRef'
-    else:
-        branch_param = 'branchReference'
-    return F"""
-    <S:Envelope xmlns:S="http://schemas.xmlsoap.org/soap/envelope/" xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/" xmlns:{prefix}="http://v3.{soap_url}.rise.intimesoft.com/">
+    xml = F"""
+    <S:Envelope xmlns:S="http://schemas.xmlsoap.org/soap/envelope/" xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/" xmlns:{prefix}="http://{soap_url}.rise.intimesoft.com/">
         <S:Body>
             <{prefix}:{request}>
-                <{branch_param}>{branch}</{branch_param}>
-                <startDate>{from_time}</startDate>
-                <endDate>{to_time}</endDate>
+    """
+    param_str_list = []
+    for element in params:
+        param_str_list.append(f'<{element["tag"]}>{element["content"]}</{element["tag"]}>')
+    xml += "\n".join(str(element) for element in param_str_list)
+    xml += F"""
             </{prefix}:{request}>
         </S:Body>
     </S:Envelope>
     """
+    return xml
 
 
 def json_linter(ndjson: str):
@@ -915,7 +935,7 @@ def json_linter(ndjson: str):
     return '\n'.join(result_ndjson)
 
 
-def sql_to_df(conn, sql_query, db = 'MSSQL', date_col = None, date_format = None):
+def sql_to_df(conn, sql_query, db='MSSQL', date_col=None, date_format=None):
     """
     Execute sql query and return list of dicts
     :param conn: sql db connection
@@ -939,7 +959,7 @@ def sql_to_df(conn, sql_query, db = 'MSSQL', date_col = None, date_format = None
     try:
         df.columns = field_names
     except ValueError:
-        df = pd.DataFrame(columns = field_names, dtype = object)
+        df = pd.DataFrame(columns=field_names, dtype=object)
 
     if date_col is not None:
         if date_format is not None:
@@ -951,11 +971,21 @@ def sql_to_df(conn, sql_query, db = 'MSSQL', date_col = None, date_format = None
 
 
 def post_xml(base_url, envelope, auth, headers, res_start, res_stop):
-    # API call to get data
-    response = requests.post(base_url, data = envelope, auth = auth, headers = headers)
-    # Print API status code for debugging purposes
-    print("API response code: " + str(response.status_code))
-    vals = response.text[response.text.find(res_start) + len(res_start):response.text.rfind(res_stop)]
-    vals = '<root>' + vals + '</root>'
-    xml_dict = xmltodict.parse(xml_input = vals, encoding = 'utf-8')
+    xml_dict = {'root': {'return': None}}
+    res_code = '429'
+    attempt = 0
+    while res_code == '429' and attempt < 10:
+        # API call to get data
+        response = requests.post(base_url, data=envelope, auth=auth, headers=headers)
+        attempt += 1
+        # Print API status code for debugging purposes
+        res_code = str(response.status_code)
+        # print(f"API response code: {res_code}")
+        if res_code == '200':
+            vals = response.text[response.text.find(res_start) + len(res_start):response.text.rfind(res_stop)]
+            vals = '<root>' + vals + '</root>'
+            xml_dict = xmltodict.parse(xml_input=vals, encoding='utf-8')
+        elif res_code == '429':
+            print('API request failed. Sleeping for 1 minute and retrying')
+            time.sleep(60)
     return xml_dict

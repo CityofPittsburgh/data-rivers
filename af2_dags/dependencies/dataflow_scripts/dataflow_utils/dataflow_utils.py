@@ -312,59 +312,6 @@ class ConvertStringCase(beam.DoFn, ABC):
         yield datum
 
 
-class CrosswalkDeptNames(beam.DoFn, ABC):
-    def __init__(self, dept_field, file_name):
-        """
-        :param dept_field - Name of field within datum that contains misformatted department names
-        :param file_name - Name of JSON file that contains mappings of department names
-        """
-        self.dept_field = dept_field
-        self.file_name = file_name
-        cw_bucket = storage_client.get_bucket("user_defined_data")
-        cw_blob = cw_bucket.get_blob(self.file_name)
-        cw = cw_blob.download_as_string()
-        crosswalk_dict = json.loads(cw.decode('utf-8'))
-        self.crosswalk_dict = crosswalk_dict
-
-    def process(self, datum):
-        datum['dept'] = None
-        datum['dept_desc'] = None
-        datum['office'] = None
-        datum['corporation'] = 'City of Pittsburgh'
-        if datum[self.dept_field] in self.crosswalk_dict:
-            try:
-                datum['dept'] = self.crosswalk_dict[datum[self.dept_field]][0]
-                datum['dept_desc'] = self.crosswalk_dict[datum[self.dept_field]][1]
-                if self.crosswalk_dict[datum[self.dept_field]][2] != '':
-                    datum['office'] = self.crosswalk_dict[datum[self.dept_field]][2]
-            except:
-                split_dept = datum[self.dept_field].split("-")
-                datum['dept'] = split_dept[0]
-                try:
-                    datum['dept_desc'] = split_dept[1]
-                    try:
-                        datum['office'] = split_dept[2]
-                    except:
-                        pass
-                except:
-                    datum['dept_desc'] = split_dept[0]
-        else:
-            # Sometimes new sub-departments are added to Ceridian and will not be tracked by the crosswalk file
-            # until manually added - this debug statement prints to the console in case this happens
-            print(f"Untracked department name found: {datum[self.dept_field]}")
-            split_dept = datum[self.dept_field].split("-")
-            datum['dept'] = split_dept[0]
-            try:
-                datum['dept_desc'] = split_dept[1]
-                try:
-                    datum['office'] = split_dept[2]
-                except:
-                    pass
-            except:
-                datum['dept_desc'] = split_dept[0]
-        yield datum
-
-
 class ExtractField(beam.DoFn):
     def __init__(self, source_fields, nested_fields, new_field_names, additional_nested_fields):
         self.source_fields = source_fields
@@ -486,6 +433,37 @@ class FormatAndClassifyAddress(beam.DoFn, ABC):
 
         datum['address_type'] = None
         datum = id_underspecified_addresses(datum, self)
+
+        yield datum
+
+
+class GetValsFromExternalFile(beam.DoFn, ABC):
+    def __init__(self, file_name, source_field, update_field):
+        self.file_name = file_name
+        self.source_field = source_field
+        self.update_field = update_field
+        client = storage.Client()
+        cw_bucket = client.get_bucket("user_defined_data")
+        cw_blob = cw_bucket.get_blob(self.file_name)
+        cw = cw_blob.download_as_string()
+        self.crosswalk_dict = json.loads(cw.decode('utf-8'))
+
+    def process(self, datum):
+        try:
+            datum[self.update_field]
+        except KeyError:
+            datum[self.update_field] = datum[self.source_field]
+
+        if datum[self.source_field] in self.crosswalk_dict:
+            try:
+                datum[self.update_field] = self.crosswalk_dict[datum[self.source_field]]
+            except Exception as e:
+                print(e)
+        elif not datum[self.source_field]:
+            datum[self.source_field] = datum[self.update_field]
+        else:
+            if datum[self.source_field] not in str(self.crosswalk_dict):
+                print(f"Untracked value found in {self.source_field}: {datum[self.source_field]}")
 
         yield datum
 

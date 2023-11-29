@@ -23,6 +23,21 @@ def build_percentage_table_query(new_table, pct_field, hardcoded_vals):
     return sql
 
 
+def compare_timebank_balances():
+    return F"""
+    CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.ceridian.intime_balance_comparison` AS
+    SELECT c.employee_id, e.display_name, c.`date` AS retrieval_date, i.code AS time_bank_code, 
+           c.balance AS ceridian_balance, i.balance AS intime_balance
+    FROM `{os.environ['GCLOUD_PROJECT']}.ceridian.time_accruals_report` c, 
+         `{os.environ['GCLOUD_PROJECT']}.intime.weekly_time_balances` i,
+         `{os.environ['GCLOUD_PROJECT']}.ceridian.all_employees` e
+    WHERE c.employee_id = i.employee_id AND c.employee_id = e.employee_num
+    AND c.`date` = i.`date`
+    AND c.time_bank = i.time_bank
+    AND ROUND(c.balance, 1) != ROUND(i.balance, 1)
+    """
+
+
 def extract_new_hires():
     return F"""
     CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.ceridian.daily_new_hires` AS
@@ -63,4 +78,19 @@ def pmo_export_query():
         WHERE status IN ('Active', 'Pre-Start')
         AND dept_desc NOT IN ('Bureau of Police', 'Bureau of Emergency Medical Services', 
                               'Bureau of Fire', 'Bureau of School Crossing Guards')
+    """
+
+
+def update_time_accruals_table():
+    return F"""
+    CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.ceridian.historic_accrual_balances` AS
+    SELECT DISTINCT employee_id, PARSE_DATE('%Y-%m-%d', `date`) AS retrieval_date, time_bank, code, balance
+    FROM `{os.environ['GCLOUD_PROJECT']}.ceridian.time_accruals_report`
+    UNION ALL
+    SELECT DISTINCT employee_id, retrieval_date, time_bank, code, balance
+    FROM `{os.environ['GCLOUD_PROJECT']}.ceridian.historic_accrual_balances`
+    WHERE CONCAT(employee_id, ':', CAST(retrieval_date AS STRING)) NOT IN (
+        SELECT CONCAT(employee_id, ':', `date`)
+        FROM `{os.environ['GCLOUD_PROJECT']}.ceridian.time_accruals_report`
+    )
     """

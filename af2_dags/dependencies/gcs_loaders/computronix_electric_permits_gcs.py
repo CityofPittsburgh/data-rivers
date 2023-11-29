@@ -5,7 +5,10 @@ from gcs_utils import json_to_gcs, call_odata_api_error_handling, write_partial_
 
 """
 The permits for solar panels are ingested here. 
-These data will be used by GIS for mapping a product that fire (etc.) will use. They will also be published to WPRDC
+These data will be used by GIS for mapping a product that fire (etc.) will use. They will also be published to WPRDC. 
+All electrical permits are downloaded as it is not feasible (10/23) to filter the non solar panel permits at this 
+juncture. Th pli_permits DAG also ingests electrical permits along with several other types. It is more streamlined to 
+download them seperately here in practice.
 """
 
 # CX ODATA API URL base
@@ -16,6 +19,8 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--output_arg', dest = 'out_loc', required = True,
                     help = 'fully specified location to upload the ndjson file')
 args = vars(parser.parse_args())
+
+
 
 bucket = f"{os.environ['GCS_PREFIX']}_computronix"
 
@@ -37,7 +42,7 @@ tables = {
 }
 
 fds = {
-        "bt"        : 'JOBID, STATUSDESCRIPTION, COMMERCIALORRESIDENTIAL, COMPLETEDDATE, ISSUEDATE, EXTERNALFILENUM',
+        "bt"        : 'JOBID, STATUSDESCRIPTION, COMMERCIALORRESIDENTIAL, COMPLETEDDATE, ISSUEDATE, EXTERNALFILENUM, WORKDESCRIPTION',
         "left_xref" : "JOBID",
         "left_nt"   : "DESCRIPTION",
         "right_xref": "JOBID",
