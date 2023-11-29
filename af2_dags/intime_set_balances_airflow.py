@@ -16,7 +16,7 @@ dag = DAG(
 )
 
 exec_date = "{{ ds }}"
-path = "timebank/update_log/{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ ds|get_ds_day }}"
+path = "timebank/update_log/{{ ds|get_ds_year }}/{{ ds|get_ds_month }}"
 json_loc = f"{path}/{exec_date}_updates.json"
 
 set_balances_gcs = BashOperator(
