@@ -1,7 +1,6 @@
 from __future__ import absolute_import
 
 import os
-from datetime import datetime
 
 from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
@@ -18,8 +17,7 @@ import dependencies.bq_queries.employee_admin.intime_admin as q
 dag = DAG(
     'intime_timebank',
     default_args=default_args,
-    schedule_interval='00 8 * * 1',
-    start_date=datetime(2023, 11, 15),
+    schedule_interval=None,
     user_defined_filters={'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year, 'get_ds_day': get_ds_day},
     max_active_runs=1,
     catchup=False
