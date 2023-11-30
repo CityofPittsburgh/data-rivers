@@ -5,7 +5,6 @@
 from __future__ import absolute_import
 
 import os
-from datetime import datetime
 
 from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
@@ -407,5 +406,5 @@ beam_cleanup = BashOperator(
 
 # DAG execution:
 gcs_loader >> dataflow >> gcs_to_bq >> split_table >> city_limits >> join_dedupe >> geojoin >> dedup_enriched >> \
-add_pii_comments >> insert_new_parent >> remove_false_parents >> integrate_children >> drop_pii_for_export >> \
-wprdc_export >> beam_cleanup
+    add_pii_comments >> insert_new_parent >> remove_false_parents >> integrate_children >> drop_pii_for_export >> \
+    wprdc_export >> beam_cleanup
