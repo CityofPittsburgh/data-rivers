@@ -130,21 +130,6 @@ def build_dashburgh_street_tix_query(dataset, raw_table, new_table, is_deduped, 
     return sql
 
 
-def build_dedup_old_updates(dataset, table, id_field, last_upd_field):
-    sql = F"""
-    CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.{dataset}.{table}` AS
-    SELECT * EXCEPT (rn)
-    FROM (
-        SELECT
-            *,
-            ROW_NUMBER() OVER(PARTITION BY {id_field} ORDER BY {last_upd_field} DESC) AS rn
-        FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{table}`
-    )
-    WHERE rn = 1;
-    """
-    return sql
-
-
 # TODO: phase out the usage of build_revgeo_query() in favor of build_rev_geo_time_bound_query()
 def build_revgeo_time_bound_query(dataset, source, new_table, create_date, lat_field, long_field, source_is_table =
 True):
@@ -384,50 +369,6 @@ def build_split_table_query(dataset, raw_table, start, stop, num_shards, date_fi
         """
 
     return query
-
-
-def build_sync_staging_table_query(dataset, new_table, upd_table, src_table, is_deduped, upd_id_field, join_id_field,
-                                   field_groups, comp_fields):
-    sql = F"""
-    CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.{dataset}.{new_table}` AS 
-    SELECT {'DISTINCT' if is_deduped else ''} {upd_id_field}, """
-    field_list = []
-    for group in field_groups:
-        for alias, fields in group.items():
-            for field in fields:
-                field_list.append(f"{alias}.{field}")
-    sql += ", ".join(str(field) for field in field_list)
-    sql += f" FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{upd_table}` upd"
-    for group in field_groups:
-        for alias, fields in group.items():
-            join_list = []
-            sql += f" INNER JOIN (SELECT {'DISTINCT' if is_deduped else ''} {join_id_field}, "
-            for field in fields:
-                join_list.append(f"{field}")
-            sql += ", ".join(str(field) for field in join_list)
-            sql += f""" FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{src_table}`) {alias}
-            ON upd.{upd_id_field} = {alias}.{join_id_field}"""
-    sql += " WHERE "
-    comparison_list = []
-    for group in comp_fields:
-        for alias, fields in group.items():
-            for field in fields:
-                comparison_list.append(f'IFNULL(upd.{field}, "") != IFNULL({alias}.{field}, "") ')
-    sql += "OR ".join(str(field) for field in comparison_list)
-    return sql
-
-
-def build_sync_update_query(dataset, upd_table, src_table, id_field, upd_fields):
-    sql = f"UPDATE `{os.environ['GCLOUD_PROJECT']}.{dataset}.{upd_table}` upd SET "
-    upd_str_list = []
-    for field in upd_fields:
-        upd_str_list.append(f"upd.{field} = temp.{field}")
-    sql += ", ".join(str(upd) for upd in upd_str_list)
-    sql += f"""
-    FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{src_table}` temp
-    WHERE upd.{id_field} = temp.{id_field}
-    """
-    return sql
 
 
 def create_partitioned_bq_table(avro_bucket, schema_name, table_id, partition):
