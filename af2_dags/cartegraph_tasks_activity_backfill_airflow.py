@@ -6,10 +6,10 @@ from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
 from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOperator
 from airflow.contrib.operators.bigquery_operator import BigQueryOperator
-from airflow.contrib.operators.bigquery_to_gcs import BigQueryToCloudStorageOperator
 
 from dependencies import airflow_utils
-from dependencies.airflow_utils import get_ds_year, get_ds_month, get_ds_day, default_args, build_dedup_old_updates
+from dependencies.airflow_utils import get_ds_year, get_ds_month, get_ds_day, default_args
+from dependencies.bq_queries import general_queries as q
 
 
 # STEPS TO TAKE BEFORE EXECUTING DAG:
@@ -81,11 +81,9 @@ join_activities = BigQueryOperator(
     dag=dag
 )
 
-query_dedup = build_dedup_old_updates('cartegraph', 'all_tasks',
-                                      'id', 'entry_date_UNIX')
 dedup_table = BigQueryOperator(
     task_id='dedup_table',
-    sql=query_dedup,
+    sql=q.build_dedup_old_updates('cartegraph', 'all_tasks', 'id', 'entry_date_UNIX'),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag

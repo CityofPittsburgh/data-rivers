@@ -85,7 +85,7 @@ email_comparison = PythonOperator(
     python_callable=gcs_to_email,
     op_kwargs={"bucket": f"{os.environ['GCS_PREFIX']}_ceridian",
                "file_path": "data_sharing/time_balance_mismatches.csv",
-               "recipients": ["osar@pittsburghpa.gov"], "cc": [os.environ["EMAIL"]],
+               "recipients": ["osar@pittsburghpa.gov"], "cc": [os.environ["EMAIL"], "benjamin.cogan@pittsburghpa.gov"],
                "subject": "ALERT: Time Bank Mismatches",
                "message": "Attached is an extract of all time bank balances that differ between the Ceridian and InTime source systems.",
                "attachment_name": "time_balance_mismatches"},
