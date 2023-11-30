@@ -603,8 +603,11 @@ class StandardizeParcelNumbers(beam.DoFn, ABC):
     def __init__(self, parc_fd):
         self.parc_fd = parc_fd
 
+    # the func called below is also used by frameworks other than BEAM/Dataflow. Thus, parc_fd is passed in as a
+    # string directly from self, as opposed to passing in self and extracting in the called func, consistent with
+    # other approaches in these utilites.
     def process(self, datum):
-        standardize_parc_num(self, datum)
+        standardize_parc_num(self.parc_fd, datum)
         yield datum
 
 
@@ -1324,7 +1327,7 @@ def sort_dict(d):
     return dict(sorted(d.items()))
 
 
-def standardize_parc_num(self, datum):
+def standardize_parc_num(parc_fd, datum):
     """
        function to standardize the format of parcel numbers/block lots to the county format. this is designed to work
        in parallel processing applications (e.g. dataflow or pandas.apply etc)
@@ -1357,12 +1360,11 @@ def standardize_parc_num(self, datum):
 
     # skip Nulls or other anomolies
     try:
-        parc_str_extract = datum[self.parc_fd]
+        parc_str_extract = datum[parc_fd]
         parc_str = parc_str_extract.strip().upper()
 
     except ValueError:
         return "invalid_input"
-
 
     # all values must be a hyphen or alphanumeric (no special chars)
     for char_val in parc_str:
