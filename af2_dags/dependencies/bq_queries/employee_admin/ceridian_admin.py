@@ -32,7 +32,6 @@ def compare_timebank_balances():
          `{os.environ['GCLOUD_PROJECT']}.intime.weekly_time_balances` i,
          `{os.environ['GCLOUD_PROJECT']}.ceridian.all_employees` e
     WHERE c.employee_id = i.employee_id AND c.employee_id = e.employee_num
-    AND c.`date` = i.`date`
     AND c.time_bank = i.time_bank
     AND ROUND(c.balance, 1) != ROUND(i.balance, 1)
     """
