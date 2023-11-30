@@ -123,3 +123,16 @@ def build_sync_update_query(dataset, upd_table, src_table, id_field, upd_fields)
     WHERE upd.{id_field} = temp.{id_field}
     """
     return sql
+
+
+def dedup_table(dataset, table):
+    return f"""
+    SELECT DISTINCT * FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{table}`
+    """
+
+
+def filter_old_values(dataset, temp_table, final_table, join_field):
+    return f"""
+    DELETE FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{final_table}` final
+    WHERE final.{join_field} IN (SELECT {join_field} FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{temp_table}`)
+    """
