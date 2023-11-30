@@ -35,6 +35,39 @@ def build_city_limits_query(raw_table, lat_field='lat', long_field='long'):
     """
 
 
+def build_dashburgh_street_tix_query(dataset, raw_table, new_table, is_deduped, id_field, group_field, limit,
+                                     start_time, field_groups):
+    sql = f"""
+    CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.{dataset}.{new_table}` AS 
+    SELECT {'DISTINCT' if is_deduped else ''} {id_field} AS id, dept, tix.request_type_name, closed_date_est
+    FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{raw_table}` tix
+    INNER JOIN
+        (SELECT {group_field}, COUNT(*) AS `count`
+        FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{raw_table}`
+        WHERE """
+    group_list = []
+    for group, fields in field_groups.items():
+        field_list = []
+        group_str = f"{group} IN ("
+        for field in fields:
+            field_list.append(f"'{field}'")
+        group_str += ", ".join(str(field) for field in field_list) + ")"
+        group_list.append(group_str)
+    sql += " AND ".join(str(group) for group in group_list)
+    sql += f"""
+        GROUP BY {group_field}
+        ORDER BY `count` DESC
+        LIMIT {limit}) top_types
+    ON tix.{group_field} = top_types.{group_field}
+    WHERE tix."""
+    sql += " AND ".join(str(group) for group in group_list)
+    sql += f"""
+    AND status_name = 'closed'
+    AND create_date_unix >= {start_time}
+    """
+    return sql
+
+
 def delete_table_group(char_pattern):
     return f"""
     FOR record IN (
