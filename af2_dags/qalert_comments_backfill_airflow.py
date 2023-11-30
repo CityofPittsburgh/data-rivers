@@ -15,7 +15,8 @@ from airflow.contrib.operators.bigquery_to_gcs import BigQueryToCloudStorageOper
 
 from dependencies import airflow_utils
 from dependencies.airflow_utils import get_ds_year, get_ds_month, get_ds_day, default_args, build_city_limits_query, \
-    build_revgeo_time_bound_query, build_split_table_query, build_dedup_old_updates
+    build_revgeo_time_bound_query, build_split_table_query
+from dependencies.bq_queries import general_queries as q
 
 COLS_IN_ORDER = """id, parent_ticket_id, child_ticket, dept, status_name, status_code, request_type_name, 
 request_type_id, origin, pii_comments, anon_comments, pii_private_notes, create_date_est, create_date_utc, 
@@ -140,12 +141,9 @@ geojoin = BigQueryOperator(
     dag=dag
 )
 
-last_upd_field = 'last_action_unix'
-query_dedup_enriched = build_dedup_old_updates('qalert', 'backfill_enriched',
-                                               'id', 'last_action_unix')
 dedup_enriched = BigQueryOperator(
     task_id='dedup_enriched',
-    sql=query_dedup_enriched,
+    sql=q.build_dedup_old_updates('qalert', 'backfill_enriched', 'id', 'last_action_unix'),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
