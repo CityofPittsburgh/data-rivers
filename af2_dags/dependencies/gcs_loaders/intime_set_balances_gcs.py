@@ -1,6 +1,7 @@
 import os
 import io
 import csv
+import json
 import argparse
 import pendulum
 
@@ -34,27 +35,28 @@ stream = io.StringIO(content.decode(encoding='utf-8'))
 
 # DictReader used over Pandas Dataframe for fast iteration + minimal memory usage
 update_log = []
-csv_reader = csv.DictReader(stream, delimiter=',')
-for row in csv_reader:
-    params = [{'tag': 'employeeId', 'content': row['employee_id']},
-              {'tag': 'timeBankRef', 'content': row['code']},
-              {'tag': 'date', 'content': today},
-              {'tag': 'hours', 'content': float(row['ceridian_balance'])}]
+if json.loads(os.environ['USE_PROD_RESOURCES'].lower()):
+    csv_reader = csv.DictReader(stream, delimiter=',')
+    for row in csv_reader:
+        params = [{'tag': 'employeeId', 'content': row['employee_id']},
+                  {'tag': 'timeBankRef', 'content': row['code']},
+                  {'tag': 'date', 'content': today},
+                  {'tag': 'hours', 'content': float(row['ceridian_balance'])}]
 
-    response = post_xml(BASE_URL, envelope=generate_xml(soap_url, request, params, prefix=prefix),
-                        auth=auth, headers=headers, res_start=start, res_stop=end)
+        response = post_xml(BASE_URL, envelope=generate_xml(soap_url, request, params, prefix=prefix),
+                            auth=auth, headers=headers, res_start=start, res_stop=end)
 
-    # An empty response dictionary indicates that the update failed. Otherwise, print update details to the console.
-    if response['root']['return']:
-        upd_row = dict(row)
-        upd_row['old_balance'] = upd_row.pop('intime_balance')
-        upd_row['new_balance'] = upd_row.pop('ceridian_balance')
-        print(f"Successfully updated {upd_row['code']} time bank balance for employee #{upd_row['employee_id']} from "
-              f"{float(upd_row['old_balance'])} to {float(upd_row['new_balance'])}")
-        update_log.append(upd_row)
-    else:
-        print(f"Update operation failed for employee #{row['employee_id']} with time bank code {row['code']}")
-        print(f"Could not update InTime balance from {row['intime_balance']} to {row['ceridian_balance']}")
+        # An empty response dictionary indicates that the update failed. Otherwise, print update details to the console.
+        if response['root']['return']:
+            upd_row = dict(row)
+            upd_row['old_balance'] = upd_row.pop('intime_balance')
+            upd_row['new_balance'] = upd_row.pop('ceridian_balance')
+            print(f"Successfully updated {upd_row['code']} time bank balance for employee #{upd_row['employee_id']} from "
+                  f"{float(upd_row['old_balance'])} to {float(upd_row['new_balance'])}")
+            update_log.append(upd_row)
+        else:
+            print(f"Update operation failed for employee #{row['employee_id']} with time bank code {row['code']}")
+            print(f"Could not update InTime balance from {row['intime_balance']} to {row['ceridian_balance']}")
 
 if update_log:
     json_to_gcs(f"{args['out_loc']}", update_log, f"{os.environ['GCS_PREFIX']}_intime")
