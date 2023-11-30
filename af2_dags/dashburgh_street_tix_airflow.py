@@ -58,8 +58,8 @@ format_street_tix = BigQueryOperator(
 )
 
 qalert_beam_cleanup = BashOperator(
-    task_id='dashburgh_street_tix_beam_cleanup',
-    bash_command=airflow_utils.beam_cleanup_statement(f"{os.environ['GCS_PREFIX']}_dashburgh_street_tix"),
+    task_id='qalert_beam_cleanup',
+    bash_command=airflow_utils.beam_cleanup_statement(f"{os.environ['GCS_PREFIX']}_qalert"),
     dag=dag
 )
 
