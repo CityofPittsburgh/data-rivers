@@ -607,6 +607,8 @@ class StandardizeParcelNumbers(beam.DoFn, ABC):
     # string directly from self, as opposed to passing in self and extracting in the called func, consistent with
     # other approaches in these utilites.
     def process(self, datum):
+        if datum[self.parc_fd] is None:
+            yield "invalid_input"
         standardize_parc_num(self.parc_fd, datum)
         yield datum
 
@@ -1358,12 +1360,17 @@ def standardize_parc_num(parc_fd, datum):
        :return out: a string of the correctly formatted parcel number
        """
 
-    # skip Nulls or other anomolies
+    # skip input anomolies
     try:
         parc_str_extract = datum[parc_fd]
         parc_str = parc_str_extract.strip().upper()
-
     except ValueError:
+        # input not a string- return "invalid_input" so script keeps running
+        print(type(parc_str_extract))
+        return "invalid_input"
+    except AttributeError:
+        # most likely input is None. This SHOULD be caught in calling function and is a fail safe here
+        print(type(parc_str_extract))
         return "invalid_input"
 
     # all values must be a hyphen or alphanumeric (no special chars)
