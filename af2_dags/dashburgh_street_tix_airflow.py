@@ -5,7 +5,8 @@ from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
 from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 from dependencies import airflow_utils
-from dependencies.airflow_utils import get_ds_month, get_ds_year, default_args, build_dashburgh_street_tix_query
+from dependencies.airflow_utils import get_ds_month, get_ds_year, default_args
+from dependencies.bq_queries.qscend import transform_enrich_requests as q
 
 # The goal of this mini-DAG is to perform a daily pull of all DPW Streets Maintenance tasks
 # and store it in a table, which is then accessed by a Power BI chart to be displayed in the
@@ -28,38 +29,37 @@ group_field = 'request_type_name'
 limit = 10
 start_time = 1577854800
 field_groups = {group_field: [
-                        # each of these request types are identified as DPW
-                        # Streets Maintenance requests by the Qalert online request portal
-                        'Angle Iron', 'Barricades', 'City Steps, Need Cleared',
-                        'Curb/Request for Asphalt Windrow', 'Drainage/Leak',
-                        'Graffiti, Removal', 'Leaves/Street Cleaning', 'Litter', 'Litter Can',
-                        'Litter Can, Public', 'Litter, Public Property', 'Overgrowth',
-                        'Port A Potty', 'Potholes', 'Public Right of Way', 'Salt Box',
-                        'Snow/Ice removal', 'Street Cleaning/Sweeping', 'Trail Maintenance',
-                        'Tree Fallen Across Road', 'Tree Fallen Across Sidewalk'],
-               # each of these department names refer to DPW Divisions that have at one point
-               # completed street maintenance tasks. 'DPW - Streets Maintenance' was introduced
-               # in 2020 as a catchall department name for this type of request
-               'dept': ['DPW - Division 1', 'DPW - Division 2',
-                         'DPW - 2nd Division', 'DPW - Division 3',
-                         'DPW - Division 5', 'DPW - Division 6',
-                         'DPW - Street Maintenance']
-               }
-query_dashburgh_table = build_dashburgh_street_tix_query(dataset, raw_table, new_table,
-                                                         is_deduped, id_field, group_field,
-                                                         limit, start_time, field_groups)
+    # each of these request types are identified as DPW
+    # Streets Maintenance requests by the Qalert online request portal
+    'Angle Iron', 'Barricades', 'City Steps, Need Cleared',
+    'Curb/Request for Asphalt Windrow', 'Drainage/Leak',
+    'Graffiti, Removal', 'Leaves/Street Cleaning', 'Litter', 'Litter Can',
+    'Litter Can, Public', 'Litter, Public Property', 'Overgrowth',
+    'Port A Potty', 'Potholes', 'Public Right of Way', 'Salt Box',
+    'Snow/Ice removal', 'Street Cleaning/Sweeping', 'Trail Maintenance',
+    'Tree Fallen Across Road', 'Tree Fallen Across Sidewalk'],
+    # each of these department names refer to DPW Divisions that have at one point
+    # completed street maintenance tasks. 'DPW - Streets Maintenance' was introduced
+    # in 2020 as a catchall department name for this type of request
+    'dept': ['DPW - Division 1', 'DPW - Division 2',
+             'DPW - 2nd Division', 'DPW - Division 3',
+             'DPW - Division 5', 'DPW - Division 6',
+             'DPW - Street Maintenance']
+}
+
 # create a table containing every unique ticket fulfilled by a DPW Streets Division
 format_street_tix = BigQueryOperator(
-        task_id = 'format_street_tix',
-        sql = query_dashburgh_table,
-        bigquery_conn_id='google_cloud_default',
-        use_legacy_sql = False,
-        dag = dag
+    task_id='format_street_tix',
+    sql=q.build_dashburgh_street_tix_query(dataset, raw_table, new_table, is_deduped, id_field, group_field,
+                                           limit, start_time, field_groups),
+    bigquery_conn_id='google_cloud_default',
+    use_legacy_sql=False,
+    dag=dag
 )
 
 qalert_beam_cleanup = BashOperator(
-    task_id='dashburgh_street_tix_beam_cleanup',
-    bash_command= airflow_utils.beam_cleanup_statement('{}_dashburgh_street_tix'.format(os.environ['GCS_PREFIX'])),
+    task_id='qalert_beam_cleanup',
+    bash_command=airflow_utils.beam_cleanup_statement(f"{os.environ['GCS_PREFIX']}_qalert"),
     dag=dag
 )
 
