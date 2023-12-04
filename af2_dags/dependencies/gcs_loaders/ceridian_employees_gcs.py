@@ -16,7 +16,7 @@ parser.add_argument('--output_arg', dest='out_loc', required=True,
                     help='fully specified location to upload the combined ndjson file')
 args = vars(parser.parse_args())
 
-yesterday = datetime.combine(datetime.now(tz = pendulum.timezone("utc")) - timedelta(1),
+yesterday = datetime.combine(datetime.now(tz=pendulum.timezone("utc")) - timedelta(1),
                              datetime.min.time()).strftime("%Y-%m-%d %H:%M:%S")
 
 # find the last successful DAG run (needs to be specified in UTC YYYY-MM-DD HH:MM:SS)
@@ -32,7 +32,7 @@ all_records = [r for r in all_records if r.get('Employee_LastName') != 'Test']
 successful_run = {
     "requests_retrieved": len(all_records),
     "since": run_start_win,
-    "current_run": datetime.now(tz = pendulum.timezone('UTC')).strftime("%Y-%m-%d %H:%M:%S"),
+    "current_run": datetime.now(tz=pendulum.timezone('UTC')).strftime("%Y-%m-%d %H:%M:%S"),
     "note": "Data retrieved between the time points listed above"
 }
 json_to_gcs("employees/successful_run_log/log.json", [successful_run],
