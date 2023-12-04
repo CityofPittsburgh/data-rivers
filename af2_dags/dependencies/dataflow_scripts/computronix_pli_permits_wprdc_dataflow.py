@@ -9,7 +9,8 @@ from apache_beam.io.avroio import WriteToAvro
 
 # import util modules.
 # util modules located one level down in directory (./dataflow_util_modules/datflow_utils.py)
-from dataflow_utils.dataflow_utils import JsonCoder, SwapFieldNames, StandardizeTimes, ConvertStringCase, generate_args
+from dataflow_utils.dataflow_utils import JsonCoder, SwapFieldNames, StandardizeTimes, ConvertStringCase, \
+    StandardizeParcelNumbers, generate_args
 
 DEFAULT_DATAFLOW_ARGS = [
         '--save_main_session',
@@ -76,13 +77,12 @@ def run(argv = None):
         name_swaps = [("EXTERNALFILENUM", "ext_file_num"), ("ISSUEDATE", "issue_date"), ("OWNERNAME", "owner_name"),
                       ("ALLCONTRACTORSNAME", "contractor_name"), ("TOTALPROJECTVALUE", "total_proj_val"),
                       ("TYPEOFWORKDESCRIPTION", "type_work"), ("COMMERCIALORRESIDENTIAL", "commercial_or_residential"),
-                      ("WORKDESCRIPTION", "work_desc"), ("FORMATTEDPARCELNUMBER", "parcel_num"),
+                      ("WORKDESCRIPTION", "work_desc"), ("FORMATTEDPARCELNUMBER", "parc_num"),
                       ("ADDRESSABLEOBJEFORMATTEDADDRES", "obj_address")]
-        # fds_unt1 = 'SNP_NEIGHBORHOOD, SNP_WARD'
 
         str_convs = [("ext_file_num", "upper"), ("permit_type", "upper"), ("owner_name", "upper"),
                      ("contractor_name", "upper"), ("type_work", "upper"), ("commercial_or_residential", "upper"),
-                     ("work_desc", "upper"), ("parcel_num", "upper"), ("obj_address", "upper")]
+                     ("work_desc", "upper"), ("parc_num", "upper"), ("obj_address", "upper")]
 
         times = [("issue_date", "US/Eastern")]
 
@@ -94,6 +94,7 @@ def run(argv = None):
                 | beam.ParDo(SwapFieldNames(name_swaps))
                 | beam.ParDo(ConvertStringCase(str_convs))
                 | beam.ParDo(StandardizeTimes(times, t_format = "%m/%d/%Y"))
+                | beam.ParDo(StandardizeParcelNumbers("parc_num"))
                 | WriteToAvro(known_args.avro_output, schema = avro_schema, file_name_suffix = '.avro',
                               use_fastavro = True))
 
