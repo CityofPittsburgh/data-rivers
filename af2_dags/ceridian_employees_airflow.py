@@ -9,6 +9,7 @@ from airflow.operators.python_operator import PythonOperator
 from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOperator
 from airflow.contrib.operators.bigquery_to_gcs import BigQueryToCloudStorageOperator
+from airflow.contrib.operators.bigquery_table_delete_operator import BigQueryTableDeleteOperator
 from dependencies import airflow_utils
 from dependencies.airflow_utils import get_ds_month, get_ds_year, get_ds_day, default_args, perform_data_quality_check
 
@@ -144,6 +145,13 @@ recent_terminations_to_gcs = BigQueryToCloudStorageOperator(
     dag=dag
 )
 
+delete_terminations_table = BigQueryTableDeleteOperator(
+    task_id="delete_terminations_table",
+    deletion_dataset_table=f"{os.environ['GCLOUD_PROJECT']}.ceridian.past_month_terminations",
+    bigquery_conn_id='google_cloud_default',
+    dag=dag
+)
+
 create_pmo_export_table = BigQueryOperator(
     task_id='create_pmo_export_table',
     sql=c_q.pmo_export_query(),
@@ -156,6 +164,13 @@ ceridian_pmo_export = BigQueryToCloudStorageOperator(
     task_id='ceridian_pmo_export',
     source_project_dataset_table=f"{os.environ['GCLOUD_PROJECT']}.ceridian.active_non_ps_employees",
     destination_cloud_storage_uris=[f"gs://{os.environ['GCS_PREFIX']}_pmo/training/active_non_ps_employees.csv"],
+    bigquery_conn_id='google_cloud_default',
+    dag=dag
+)
+
+delete_pmo_table = BigQueryTableDeleteOperator(
+    task_id="delete_pmo_table",
+    deletion_dataset_table=f"{os.environ['GCLOUD_PROJECT']}.ceridian.active_non_ps_employees",
     bigquery_conn_id='google_cloud_default',
     dag=dag
 )
@@ -177,6 +192,13 @@ ceridian_iapro_export = BigQueryToCloudStorageOperator(
     dag=dag
 )
 
+delete_iapro_table = BigQueryTableDeleteOperator(
+    task_id="delete_iapro_table",
+    deletion_dataset_table=f"{os.environ['GCLOUD_PROJECT']}.ceridian.ceridian_ad_export",
+    bigquery_conn_id='google_cloud_default',
+    dag=dag
+)
+
 beam_cleanup = BashOperator(
     task_id='ceridian_beam_cleanup',
     bash_command=airflow_utils.beam_cleanup_statement(f"{os.environ['GCS_PREFIX']}_ceridian"),
@@ -186,10 +208,10 @@ beam_cleanup = BashOperator(
 ceridian_employees_gcs >> ceridian_employees_dataflow >> ceridian_employees_bq_load >> create_data_quality_table >> \
     export_data_quality >> data_quality_check >> beam_cleanup
 ceridian_employees_gcs >> ceridian_employees_dataflow >> ceridian_employees_bq_load >> create_iapro_export_table >> \
-    ceridian_iapro_export >> beam_cleanup
+    ceridian_iapro_export >> delete_iapro_table >> beam_cleanup
 ceridian_employees_gcs >> ceridian_employees_dataflow >> ceridian_employees_bq_load >> \
-    create_recent_terminations_table >> recent_terminations_to_gcs >> beam_cleanup
+    create_recent_terminations_table >> recent_terminations_to_gcs >> delete_terminations_table >> beam_cleanup
 ceridian_employees_gcs >> ceridian_employees_dataflow >> ceridian_employees_bq_load >> create_pmo_export_table >> \
-    ceridian_pmo_export >> beam_cleanup
+    ceridian_pmo_export >> delete_pmo_table >> beam_cleanup
 ceridian_employees_gcs >> ceridian_employees_dataflow >> ceridian_employees_bq_load >> create_gender_comp_table >> \
     create_racial_comp_table >> beam_cleanup
