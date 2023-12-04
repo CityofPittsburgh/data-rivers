@@ -97,39 +97,6 @@ def get_prev_ds_day(ds):
     return ds.split('-')[2]
 
 
-def build_dashburgh_street_tix_query(dataset, raw_table, new_table, is_deduped, id_field, group_field, limit,
-                                     start_time, field_groups):
-    sql = f"""
-    CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.{dataset}.{new_table}` AS 
-    SELECT {'DISTINCT' if is_deduped else ''} {id_field} AS id, dept, tix.request_type_name, closed_date_est
-    FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{raw_table}` tix
-    INNER JOIN
-        (SELECT {group_field}, COUNT(*) AS `count`
-        FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{raw_table}`
-        WHERE """
-    group_list = []
-    for group, fields in field_groups.items():
-        field_list = []
-        group_str = f"{group} IN ("
-        for field in fields:
-            field_list.append(f"'{field}'")
-        group_str += ", ".join(str(field) for field in field_list) + ")"
-        group_list.append(group_str)
-    sql += " AND ".join(str(group) for group in group_list)
-    sql += f"""
-        GROUP BY {group_field}
-        ORDER BY `count` DESC
-        LIMIT {limit}) top_types
-    ON tix.{group_field} = top_types.{group_field}
-    WHERE tix."""
-    sql += " AND ".join(str(group) for group in group_list)
-    sql += f"""
-    AND status_name = 'closed'
-    AND create_date_unix >= {start_time}
-    """
-    return sql
-
-
 # TODO: phase out the usage of build_revgeo_query() in favor of build_rev_geo_time_bound_query()
 def build_revgeo_time_bound_query(dataset, source, new_table, create_date, lat_field, long_field, source_is_table =
 True):
@@ -399,19 +366,6 @@ def create_partitioned_bq_table(avro_bucket, schema_name, table_id, partition):
     table.time_partitioning = bigquery.table.TimePartitioning(type_ = partition)
 
     bq_client.create_table(table)
-
-
-def dedup_table(dataset, table):
-    return f"""
-    SELECT DISTINCT * FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{table}`
-    """
-
-
-def filter_old_values(dataset, temp_table, final_table, join_field):
-    return f"""
-    DELETE FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{final_table}` final
-    WHERE final.{join_field} IN (SELECT {join_field} FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{temp_table}`)
-    """
 
 
 def gcs_to_email(bucket, file_path, recipients, cc, subject, message, attachment_name, file_type='csv', min_length=50,
