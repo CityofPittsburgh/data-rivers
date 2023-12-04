@@ -23,6 +23,9 @@ from dependencies.bq_queries import general_queries as g_q
 # membership totals to display on Dashburgh. This will give the public insight on the demographics
 # of the city government and how it compares to the demographics of the city as a whole.
 
+SAFE_FIELDS = """employee_num, first_name, last_name, display_name, sso_login, dept_desc, office, job_title, 
+hire_date, termination_date, account_modified_date, `union`, status, pay_class, manager_name, ethnicity, gender"""
+
 dag = DAG(
     'ceridian_employees',
     default_args=default_args,
@@ -40,6 +43,9 @@ path = "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}"
 json_loc = f"{dataset}/{path}/{exec_date}_employees.json"
 avro_loc = f"{dataset}/avro_output/{path}/" + "{{ run_id }}"
 dq_checker = "ceridian_departments"
+date_fields = [{'field': 'hire_date', 'type': 'DATE'},
+               {'field': 'termination_date', 'type': 'DATE'},
+               {'field': 'account_modified_date', 'type': 'DATE'}]
 
 ceridian_employees_gcs = BashOperator(
     task_id='ceridian_employees_gcs',
@@ -154,10 +160,18 @@ ceridian_pmo_export = BigQueryToCloudStorageOperator(
     dag=dag
 )
 
-# Export employee table to IAPro bucket as readable CSV
+create_iapro_export_table = BigQueryOperator(
+    task_id='create_iapro_export_table',
+    sql=g_q.build_format_dedup_query('ceridian', 'ceridian_ad_export', 'all_employees', date_fields, SAFE_FIELDS,
+                                     datestring_fmt="%Y-%m-%d", tz="America/New_York"),
+    bigquery_conn_id='google_cloud_default',
+    use_legacy_sql=False,
+    dag=dag
+)
+
 ceridian_iapro_export = BigQueryToCloudStorageOperator(
     task_id='ceridian_iapro_export',
-    source_project_dataset_table=f"{os.environ['GCLOUD_PROJECT']}.ceridian.all_employees",
+    source_project_dataset_table=f"{os.environ['GCLOUD_PROJECT']}.ceridian.ceridian_ad_export",
     destination_cloud_storage_uris=[f"gs://{os.environ['GCS_PREFIX']}_iapro/ceridian_report.csv"],
     bigquery_conn_id='google_cloud_default',
     dag=dag
@@ -170,10 +184,12 @@ beam_cleanup = BashOperator(
 )
 
 ceridian_employees_gcs >> ceridian_employees_dataflow >> ceridian_employees_bq_load >> create_data_quality_table >> \
-    export_data_quality >> data_quality_check >> ceridian_iapro_export >> beam_cleanup
+    export_data_quality >> data_quality_check >> beam_cleanup
+ceridian_employees_gcs >> ceridian_employees_dataflow >> ceridian_employees_bq_load >> create_iapro_export_table >> \
+    ceridian_iapro_export >> beam_cleanup
 ceridian_employees_gcs >> ceridian_employees_dataflow >> ceridian_employees_bq_load >> \
-    create_recent_terminations_table >> recent_terminations_to_gcs >> ceridian_iapro_export >> beam_cleanup
+    create_recent_terminations_table >> recent_terminations_to_gcs >> beam_cleanup
 ceridian_employees_gcs >> ceridian_employees_dataflow >> ceridian_employees_bq_load >> create_pmo_export_table >> \
-    ceridian_pmo_export >> ceridian_iapro_export >> beam_cleanup
+    ceridian_pmo_export >> beam_cleanup
 ceridian_employees_gcs >> ceridian_employees_dataflow >> ceridian_employees_bq_load >> create_gender_comp_table >> \
-    create_racial_comp_table >> ceridian_iapro_export >> beam_cleanup
+    create_racial_comp_table >> beam_cleanup
