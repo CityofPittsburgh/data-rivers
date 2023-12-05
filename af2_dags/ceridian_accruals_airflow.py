@@ -4,13 +4,11 @@ import os
 
 from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
-from airflow.operators.python_operator import PythonOperator
 from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOperator
-from airflow.contrib.operators.bigquery_to_gcs import BigQueryToCloudStorageOperator
 
 from dependencies import airflow_utils
-from dependencies.airflow_utils import get_ds_year, get_ds_month, get_ds_day, default_args, gcs_to_email
+from dependencies.airflow_utils import get_ds_year, get_ds_month, get_ds_day, default_args
 import dependencies.bq_queries.employee_admin.ceridian_admin as q
 
 # The goal of this DAG is to extract Time Bank accruals from all officers present in the Ceridian system for comparison
@@ -20,7 +18,7 @@ import dependencies.bq_queries.employee_admin.ceridian_admin as q
 dag = DAG(
     'ceridian_accruals',
     default_args=default_args,
-    schedule_interval=None,
+    schedule_interval='@daily',
     user_defined_filters={'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year, 'get_ds_day': get_ds_day},
     max_active_runs=1,
     catchup=False
@@ -62,34 +60,6 @@ accruals_gcs_to_bq = GoogleCloudStorageToBigQueryOperator(
     dag=dag
 )
 
-compare_timebank_balances = BigQueryOperator(
-    task_id='compare_timebank_balances',
-    sql=q.compare_timebank_balances(),
-    bigquery_conn_id='google_cloud_default',
-    use_legacy_sql=False,
-    dag=dag
-)
-
-comparison_gcs_export = BigQueryToCloudStorageOperator(
-    task_id='comparison_gcs_export',
-    source_project_dataset_table=f"{os.environ['GCLOUD_PROJECT']}.ceridian.intime_balance_comparison",
-    destination_cloud_storage_uris=[f"gs://{os.environ['GCS_PREFIX']}_ceridian/data_sharing/time_balance_mismatches.csv"],
-    bigquery_conn_id='google_cloud_default',
-    dag=dag
-)
-
-email_comparison = PythonOperator(
-    task_id='email_comparison',
-    python_callable=gcs_to_email,
-    op_kwargs={"bucket": f"{os.environ['GCS_PREFIX']}_ceridian",
-               "file_path": "data_sharing/time_balance_mismatches.csv",
-               "recipients": ["osar@pittsburghpa.gov"], "cc": [os.environ["EMAIL"], "benjamin.cogan@pittsburghpa.gov"],
-               "subject": "ALERT: Time Bank Mismatches",
-               "message": "Attached is an extract of all time bank balances that differ between the Ceridian and InTime source systems.",
-               "attachment_name": "time_balance_mismatches"},
-    dag=dag
-)
-
 update_accruals_table = BigQueryOperator(
     task_id='update_accruals_table',
     sql=q.update_time_accruals_table(),
@@ -110,7 +80,5 @@ accruals_beam_cleanup = BashOperator(
     dag=dag
 )
 
-accruals_gcs_loader >> accruals_dataflow >> accruals_gcs_to_bq >> compare_timebank_balances >> comparison_gcs_export >>\
-    email_comparison >> delete_accruals_avro >> accruals_beam_cleanup
 accruals_gcs_loader >> accruals_dataflow >> accruals_gcs_to_bq >> update_accruals_table >> delete_accruals_avro >> \
     accruals_beam_cleanup
