@@ -1,6 +1,7 @@
 from __future__ import absolute_import
 
 import os
+import datetime
 
 from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
@@ -12,13 +13,14 @@ from dependencies.airflow_utils import get_ds_year, get_ds_month, get_ds_day, de
 import dependencies.bq_queries.employee_admin.ceridian_admin as q
 
 # The goal of this DAG is to extract Time Bank accruals from all officers present in the Ceridian system for comparison
-# with the time balances found in InTime. The Ceridian figures should be written to InTime in cases where they differ,
-# as Dayforce serves as the system of record for accrual balances.
+# with the time balances found in InTime. The Ceridian figures should be written to InTime in cases where they differ
+# upon the conclusion of a pay period, as Dayforce serves as the system of record for accrual balances.
 
 dag = DAG(
     'ceridian_accruals',
     default_args=default_args,
     schedule_interval='@daily',
+    start_date=datetime(2023, 12, 8),
     user_defined_filters={'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year, 'get_ds_day': get_ds_day},
     max_active_runs=1,
     catchup=False
