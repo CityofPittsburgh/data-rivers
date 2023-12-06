@@ -96,14 +96,15 @@ class TestAirflowUtils(unittest.TestCase):
             index += 1
 
     def test_gcs_to_email(self):
-        bucket = f"{os.environ['GCS_PREFIX']}_pbp"
+        bucket = f"pghpa_ceridian"
         file_path = "data_sharing/time_balance_mismatches.csv"
         recipients = [os.environ['EMAIL']]
         cc = [os.environ['OFFICE365_UN']]
         subject = "ALERT: Time Bank Mismatches Detected"
         message = "Attached is an extract of all time bank balances that differ between the Ceridian and InTime source systems."
         attachment_name = "time_balance_mismatches"
-        af2_airflow_utils.gcs_to_email(bucket, file_path, recipients, cc, subject, message, attachment_name)
+        on_day = (True, 2)
+        af2_airflow_utils.gcs_to_email(bucket, file_path, recipients, cc, subject, message, attachment_name, on_day)
 
     def test_within_city_limits(self):
         datum = [{'address': '414 Grant St, Pittsburgh, PA 15219', 'lat': 40.4382355, 'long': -79.9966742, 'address_type': 'Precise'},
