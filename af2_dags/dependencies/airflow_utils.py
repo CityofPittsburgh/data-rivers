@@ -11,7 +11,7 @@ import base64
 
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail, Attachment, FileContent, FileName, FileType, Disposition, Personalization, Cc, To
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from google.cloud import bigquery, storage
 from google.api_core.exceptions import NotFound
 
@@ -368,44 +368,47 @@ def create_partitioned_bq_table(avro_bucket, schema_name, table_id, partition):
     bq_client.create_table(table)
 
 
-def gcs_to_email(bucket, file_path, recipients, cc, subject, message, attachment_name, file_type='csv', min_length=50,
-                 **kwargs):
-    try:
-        bucket = storage_client.get_bucket(bucket)
-        blob = bucket.blob(file_path)
-        content = blob.download_as_string()
-        if len(content) >= min_length:
-            message = Mail(
-                from_email=os.environ['EMAIL'],
-                subject=subject,
-                html_content=F"""
-                            {message}
-                            """
-            )
-            recips = Personalization()
-            for addr in recipients:
-                recips.add_to(To(addr))
-            if cc:
-                for addr in cc:
-                    recips.add_cc(Cc(addr))
-            message.add_personalization(recips)
+def gcs_to_email(bucket, file_path, recipients, cc, subject, message, attachment_name, on_certain_day=(False, None),
+                 file_type='csv', min_length=50,  **kwargs):
+    if (not on_certain_day[0]) or (on_certain_day[0] and date.today().weekday() == on_certain_day[1]):
+        try:
+            bucket = storage_client.get_bucket(bucket)
+            blob = bucket.blob(file_path)
+            content = blob.download_as_string()
+            if len(content) >= min_length:
+                message = Mail(
+                    from_email=os.environ['EMAIL'],
+                    subject=subject,
+                    html_content=F"""
+                                {message}
+                                """
+                )
+                recips = Personalization()
+                for addr in recipients:
+                    recips.add_to(To(addr))
+                if cc:
+                    for addr in cc:
+                        recips.add_cc(Cc(addr))
+                message.add_personalization(recips)
 
-            encoded_file = base64.b64encode(content).decode()
+                encoded_file = base64.b64encode(content).decode()
 
-            attached_file = Attachment(
-                FileContent(encoded_file),
-                FileName(f"{attachment_name}.{file_type}"),
-                FileType(f'application/{file_type}'),
-                Disposition('attachment')
-            )
-            message.attachment = attached_file
+                attached_file = Attachment(
+                    FileContent(encoded_file),
+                    FileName(f"{attachment_name}.{file_type}"),
+                    FileType(f'application/{file_type}'),
+                    Disposition('attachment')
+                )
+                message.attachment = attached_file
 
-            sg = SendGridAPIClient(os.environ['SENDGRID_API_KEY'])
-            response = sg.send(message)
-        else:
-            print('Requested file is empty, no email sent')
-    except NotFound:
-        print('Requested file not found')
+                sg = SendGridAPIClient(os.environ['SENDGRID_API_KEY'])
+                response = sg.send(message)
+            else:
+                print('Requested file is empty, no email sent')
+        except NotFound:
+            print('Requested file not found')
+    else:
+        print('No email sent, comparison only performed on Wednesdays')
 
 
 def beam_cleanup_statement(bucket):
