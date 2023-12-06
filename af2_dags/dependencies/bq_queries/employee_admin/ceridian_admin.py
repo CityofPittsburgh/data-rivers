@@ -1,4 +1,9 @@
 import os
+import io
+
+import pandas as pd
+from datetime import datetime, timedelta, date
+from google.cloud import storage
 
 
 def build_percentage_table_query(new_table, pct_field, hardcoded_vals):
@@ -23,18 +28,45 @@ def build_percentage_table_query(new_table, pct_field, hardcoded_vals):
     return sql
 
 
-def compare_timebank_balances():
-    return F"""
-    CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.ceridian.intime_balance_comparison` AS
-    SELECT c.employee_id, e.display_name, c.`date` AS retrieval_date, i.code AS time_bank_code, 
+def compare_timebank_balances(dataset, comp_table, offset=0):
+    query = F"""
+    CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.{dataset}.{comp_table}` AS
+    SELECT c.employee_id, e.display_name, c.retrieval_date, i.code AS time_bank_code, 
            c.balance AS ceridian_balance, i.balance AS intime_balance
-    FROM `{os.environ['GCLOUD_PROJECT']}.ceridian.time_accruals_report` c, 
-         `{os.environ['GCLOUD_PROJECT']}.intime.weekly_time_balances` i,
+    FROM `{os.environ['GCLOUD_PROJECT']}.ceridian.historic_accrual_balances` c, 
+         `{os.environ['GCLOUD_PROJECT']}.intime.timebank_balances` i,
          `{os.environ['GCLOUD_PROJECT']}.ceridian.all_employees` e
     WHERE c.employee_id = i.employee_id AND c.employee_id = e.employee_num
     AND c.time_bank = i.time_bank
-    AND ROUND(c.balance, 1) != ROUND(i.balance, 1)
     """
+
+    storage_client = storage.Client()
+    today = datetime.today()
+    offset_val = timedelta(days=offset)
+    comp_date = today + offset_val
+    comp_str = comp_date.strftime("%m/%d/%Y")
+
+    if comp_table == 'balance_update':
+        bucket = storage_client.get_bucket(f"{os.environ['GCS_PREFIX']}_ceridian")
+        blob = bucket.blob("timekeeping/payroll_schedule_23-24.csv")
+        content = blob.download_as_string()
+        stream = io.StringIO(content.decode(encoding='utf-8'))
+        df = pd.read_csv(stream)
+        if comp_str in list(df['pay_period_end']):
+            query += f"""AND c.retrieval_date = PARSE_DATE('%m/%d/%Y', '{comp_str}') 
+                         AND i.retrieval_date = PARSE_DATE('%m/%d/%Y', '{comp_str}')"""
+        else:
+            return 'SELECT NULL AS placeholder'
+
+    elif comp_table == 'discrepancy_report':
+        if date.today().weekday() == 2:
+            query += f"""AND c.retrieval_date = PARSE_DATE('%m/%d/%Y', '{today.strftime('%m/%d/%Y')}') 
+                         AND i.retrieval_date = PARSE_DATE('%m/%d/%Y', '{comp_str}')"""
+        else:
+            return 'SELECT NULL AS placeholder'
+
+    query += " AND ROUND(c.balance, 1) != ROUND(i.balance, 1)"
+    return query
 
 
 def extract_new_hires():
