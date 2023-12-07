@@ -19,7 +19,7 @@ import dependencies.bq_queries.employee_admin.ceridian_admin as q
 dag = DAG(
     'ceridian_accruals',
     default_args=default_args,
-    schedule_interval='@daily',
+    schedule_interval='0 12 * * *',
     start_date=datetime(2023, 12, 8),
     user_defined_filters={'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year, 'get_ds_day': get_ds_day},
     max_active_runs=1,
