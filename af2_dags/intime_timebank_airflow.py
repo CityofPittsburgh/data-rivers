@@ -14,12 +14,12 @@ import dependencies.bq_queries.employee_admin.intime_admin as q
 
 # The goal of this DAG is to extract time bank balances from all officers present in the InTime system for comparison
 # with the time accruals found in Ceridian. The Ceridian figures should be written to InTime in cases where they differ
-# upon tthe conclusion of a pay period.
+# upon the conclusion of a pay period.
 
 dag = DAG(
     'intime_timebank',
     default_args=default_args,
-    schedule_interval='@daily',
+    schedule_interval='0 10 * * *',
     start_date=datetime(2023, 12, 8),
     user_defined_filters={'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year, 'get_ds_day': get_ds_day},
     max_active_runs=1,
