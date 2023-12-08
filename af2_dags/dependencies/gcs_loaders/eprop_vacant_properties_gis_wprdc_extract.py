@@ -193,7 +193,7 @@ df_records["id"] = df_records["id"].astype(str)
 df_records["address"] = df_records["address"].apply(lambda x: x.upper())
 
 # clean the parcel numbers
-df_records["normalized_parc"] = df_records["parc"].apply(lambda x: normalize_block_lot(x))
+df_records["parc_num"] = df_records["parc"].apply(lambda x: normalize_block_lot(x))
 
 # load into BQ
 schema = conv_avsc_to_bq_schema(F"{os.environ['GCS_PREFIX']}_avro_schemas", "eproperty_vacant_property.avsc")

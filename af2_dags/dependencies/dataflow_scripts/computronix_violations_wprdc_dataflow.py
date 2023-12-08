@@ -9,7 +9,8 @@ from apache_beam.io.avroio import WriteToAvro
 
 # import util modules.
 # util modules located one level down in directory (./dataflow_util_modules/datflow_utils.py)
-from dataflow_utils.dataflow_utils import JsonCoder, SwapFieldNames, StandardizeTimes, ConvertStringCase, generate_args
+from dataflow_utils.dataflow_utils import JsonCoder, StandardizeTimes, ConvertStringCase, \
+    StandardizeParcelNumbers, generate_args
 
 DEFAULT_DATAFLOW_ARGS = [
         '--save_main_session',
@@ -38,7 +39,7 @@ def run(argv = None):
         str_convs = [("casefile_number", "upper"), ("investigation_outcome", "upper"), ("investigation_date", "upper"),
                      ("violation_desc", "upper"), ("status", "upper"), ("investigation_findings", "upper"),
                      ("violation_code_title", "upper"), ("violation_code_sec", "upper"),
-                     ("violation_spec_instructions", "upper"), ("parcel_num", "upper"), ("address", "upper")]
+                     ("violation_spec_instructions", "upper"), ("parc_num", "upper"), ("address", "upper")]
 
         times = [("investigation_date", "US/Eastern")]
 
@@ -48,6 +49,7 @@ def run(argv = None):
                 lines
                 | beam.ParDo(ConvertStringCase(str_convs))
                 | beam.ParDo(StandardizeTimes(times, t_format = "%Y/%m/%d"))
+                | beam.ParDo(StandardizeParcelNumbers("parc_num"))
                 | WriteToAvro(known_args.avro_output, schema = avro_schema, file_name_suffix = '.avro',
                               use_fastavro = True))
 
