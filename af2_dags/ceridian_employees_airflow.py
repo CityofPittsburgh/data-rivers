@@ -9,6 +9,7 @@ from airflow.operators.python_operator import PythonOperator
 from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOperator
 from airflow.contrib.operators.bigquery_to_gcs import BigQueryToCloudStorageOperator
+from airflow.contrib.operators.bigquery_table_delete_operator import BigQueryTableDeleteOperator
 from dependencies import airflow_utils
 from dependencies.airflow_utils import get_ds_month, get_ds_year, get_ds_day, default_args, perform_data_quality_check
 
@@ -22,6 +23,9 @@ from dependencies.bq_queries import general_queries as g_q
 # their COVID vaccination status. Additionally, we will use de-identified race, sex, and union
 # membership totals to display on Dashburgh. This will give the public insight on the demographics
 # of the city government and how it compares to the demographics of the city as a whole.
+
+SAFE_FIELDS = """employee_num, first_name, last_name, display_name, sso_login, dept_desc, office, job_title, 
+hire_date, termination_date, account_modified_date, `union`, status, pay_class, manager_name, ethnicity, gender"""
 
 dag = DAG(
     'ceridian_employees',
@@ -40,6 +44,9 @@ path = "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}"
 json_loc = f"{dataset}/{path}/{exec_date}_employees.json"
 avro_loc = f"{dataset}/avro_output/{path}/" + "{{ run_id }}"
 dq_checker = "ceridian_departments"
+date_fields = [{'field': 'hire_date', 'type': 'DATE'},
+               {'field': 'termination_date', 'type': 'DATE'},
+               {'field': 'account_modified_date', 'type': 'DATE'}]
 
 ceridian_employees_gcs = BashOperator(
     task_id='ceridian_employees_gcs',
@@ -138,6 +145,13 @@ recent_terminations_to_gcs = BigQueryToCloudStorageOperator(
     dag=dag
 )
 
+delete_terminations_table = BigQueryTableDeleteOperator(
+    task_id="delete_terminations_table",
+    deletion_dataset_table=f"{os.environ['GCLOUD_PROJECT']}.ceridian.past_month_terminations",
+    bigquery_conn_id='google_cloud_default',
+    dag=dag
+)
+
 create_pmo_export_table = BigQueryOperator(
     task_id='create_pmo_export_table',
     sql=c_q.pmo_export_query(),
@@ -154,11 +168,33 @@ ceridian_pmo_export = BigQueryToCloudStorageOperator(
     dag=dag
 )
 
-# Export employee table to IAPro bucket as readable CSV
+delete_pmo_table = BigQueryTableDeleteOperator(
+    task_id="delete_pmo_table",
+    deletion_dataset_table=f"{os.environ['GCLOUD_PROJECT']}.ceridian.active_non_ps_employees",
+    bigquery_conn_id='google_cloud_default',
+    dag=dag
+)
+
+create_iapro_export_table = BigQueryOperator(
+    task_id='create_iapro_export_table',
+    sql=g_q.build_format_dedup_query('ceridian', 'ceridian_ad_export', 'all_employees', date_fields, SAFE_FIELDS,
+                                     datestring_fmt="%Y-%m-%d", tz="America/New_York"),
+    bigquery_conn_id='google_cloud_default',
+    use_legacy_sql=False,
+    dag=dag
+)
+
 ceridian_iapro_export = BigQueryToCloudStorageOperator(
     task_id='ceridian_iapro_export',
-    source_project_dataset_table=f"{os.environ['GCLOUD_PROJECT']}.ceridian.all_employees",
+    source_project_dataset_table=f"{os.environ['GCLOUD_PROJECT']}.ceridian.ceridian_ad_export",
     destination_cloud_storage_uris=[f"gs://{os.environ['GCS_PREFIX']}_iapro/ceridian_report.csv"],
+    bigquery_conn_id='google_cloud_default',
+    dag=dag
+)
+
+delete_iapro_table = BigQueryTableDeleteOperator(
+    task_id="delete_iapro_table",
+    deletion_dataset_table=f"{os.environ['GCLOUD_PROJECT']}.ceridian.ceridian_ad_export",
     bigquery_conn_id='google_cloud_default',
     dag=dag
 )
@@ -170,10 +206,12 @@ beam_cleanup = BashOperator(
 )
 
 ceridian_employees_gcs >> ceridian_employees_dataflow >> ceridian_employees_bq_load >> create_data_quality_table >> \
-    export_data_quality >> data_quality_check >> ceridian_iapro_export >> beam_cleanup
+    export_data_quality >> data_quality_check >> beam_cleanup
+ceridian_employees_gcs >> ceridian_employees_dataflow >> ceridian_employees_bq_load >> create_iapro_export_table >> \
+    ceridian_iapro_export >> delete_iapro_table >> beam_cleanup
 ceridian_employees_gcs >> ceridian_employees_dataflow >> ceridian_employees_bq_load >> \
-    create_recent_terminations_table >> recent_terminations_to_gcs >> ceridian_iapro_export >> beam_cleanup
+    create_recent_terminations_table >> recent_terminations_to_gcs >> delete_terminations_table >> beam_cleanup
 ceridian_employees_gcs >> ceridian_employees_dataflow >> ceridian_employees_bq_load >> create_pmo_export_table >> \
-    ceridian_pmo_export >> ceridian_iapro_export >> beam_cleanup
+    ceridian_pmo_export >> delete_pmo_table >> beam_cleanup
 ceridian_employees_gcs >> ceridian_employees_dataflow >> ceridian_employees_bq_load >> create_gender_comp_table >> \
-    create_racial_comp_table >> ceridian_iapro_export >> beam_cleanup
+    create_racial_comp_table >> beam_cleanup
