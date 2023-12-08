@@ -64,6 +64,14 @@ ceridian_jobs_bq_load = GoogleCloudStorageToBigQueryOperator(
     dag=dag
 )
 
+build_eeo4_report = BigQueryOperator(
+    task_id='build_eeo4_report',
+    sql=c_q.build_eeo4_report(),
+    bigquery_conn_id='google_cloud_default',
+    use_legacy_sql=False,
+    dag=dag
+)
+
 create_data_quality_table = BigQueryOperator(
     task_id='create_data_quality_table',
     sql=g_q.build_data_quality_table('ceridian', dq_checker, 'job_details', 'job_function'),
@@ -94,5 +102,6 @@ beam_cleanup = BashOperator(
     dag=dag
 )
 
+ceridian_jobs_gcs >> ceridian_jobs_dataflow >> ceridian_jobs_bq_load >> build_eeo4_report >> beam_cleanup
 ceridian_jobs_gcs >> ceridian_jobs_dataflow >> ceridian_jobs_bq_load >> create_data_quality_table >> \
     export_data_quality >> data_quality_check >> beam_cleanup
