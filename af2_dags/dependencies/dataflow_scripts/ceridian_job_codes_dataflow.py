@@ -58,7 +58,7 @@ def run(argv=None):
     with beam.Pipeline(options=pipeline_options) as p:
         strip_fields = ['Job_JobUDFString1', 'JobFunction_ShortName']
         delims = [':', ':']
-        before_or_afters = [1, 1]
+        before_or_afters = [0, 1]
         field_name_swaps = [('Job_ShortName', 'job_title'),
                             ('Job_JobUDFString1', 'eeo4_category'),
                             ('JobFunction_ShortName', 'job_function'),
