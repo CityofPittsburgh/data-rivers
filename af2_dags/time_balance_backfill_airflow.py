@@ -40,7 +40,8 @@ time_balance_backfill_gcs = BashOperator(
 c_exec_df = f"python {os.environ['DATAFLOW_SCRIPT_PATH']}/ceridian_accruals_dataflow.py"
 accruals_backfill_dataflow = BashOperator(
     task_id='accruals_backfill_dataflow',
-    bash_command=f"{c_exec_df} --input {c_bucket}/{c_loc} --avro_output {hot_bucket}/{output}accruals",
+    bash_command=f"{c_exec_df} --input {c_bucket}/{c_loc} --avro_output {hot_bucket}/{output}accruals "
+                 f"--specify_runner DataflowRunner",
     dag=dag
 )
 
@@ -60,7 +61,8 @@ accruals_backfill_to_bq = GoogleCloudStorageToBigQueryOperator(
 i_exec_df = f"python {os.environ['DATAFLOW_SCRIPT_PATH']}/intime_timebank_dataflow.py"
 timebank_backfill_dataflow = BashOperator(
     task_id='timebank_backfill_dataflow',
-    bash_command=f"{i_exec_df} --input {i_bucket}/{i_loc} --avro_output {hot_bucket}/{output}timebanks",
+    bash_command=f"{i_exec_df} --input {i_bucket}/{i_loc} --avro_output {hot_bucket}/{output}timebanks "
+                 f"--specify_runner DataflowRunner",
     dag=dag
 )
 
