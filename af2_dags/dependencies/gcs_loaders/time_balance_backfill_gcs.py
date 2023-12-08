@@ -64,27 +64,27 @@ for index, row in enumerate(sched_df.itertuples(), 1):
     ceridian_records = get_ceridian_report(f'ACCRUALSREPORTPOLICE?{params}')
     ceridian_records = [{**rec, 'date': row.pay_period_end.strftime("%Y-%m-%d")} for rec in ceridian_records]
     ceridian_data.extend(ceridian_records)
-    for value in last_upload:
-        for code in ref_codes:
-            params = [{'tag': 'employeeId', 'content': value['employeeId']},
-                      {'tag': 'timeBankRef', 'content': ref_codes[code]},
-                      {'tag': 'date', 'content': row.pay_period_end.strftime("%Y-%m-%d")}]
+    # for value in last_upload:
+    #     for code in ref_codes:
+    #         params = [{'tag': 'employeeId', 'content': value['employeeId']},
+    #                   {'tag': 'timeBankRef', 'content': ref_codes[code]},
+    #                   {'tag': 'date', 'content': row.pay_period_end.strftime("%Y-%m-%d")}]
+    #
+    #         # API requests need to be made one at a time, which may overwhelm the request limit.
+    #         # Within the post_xml util, the request attempts in a loop until a 200/500 response is obtained
+    #         response = post_xml(BASE_URL, envelope=generate_xml(soap_url, request, params, prefix=prefix),
+    #                             auth=auth, headers=headers, res_start=start, res_stop=end)
+    #         balance = response['root']['return']
+    #         if balance:
+    #             record = {'employee_id': value['employeeId'], 'date': row.pay_period_end.strftime("%Y-%m-%d"),
+    #                       'time_bank': code, 'code': ref_codes[code], 'balance': balance}
+    #             intime_data.append(record)
+    #         else:
+    #             print(f'No balance for employee #{value["employeeId"]} in time bank {ref_codes[code]} on date {row.pay_period_end.strftime("%Y-%m-%d")}')
 
-            # API requests need to be made one at a time, which may overwhelm the request limit.
-            # Within the post_xml util, the request attempts in a loop until a 200/500 response is obtained
-            response = post_xml(BASE_URL, envelope=generate_xml(soap_url, request, params, prefix=prefix),
-                                auth=auth, headers=headers, res_start=start, res_stop=end)
-            balance = response['root']['return']
-            if balance:
-                record = {'employee_id': value['employeeId'], 'date': row.pay_period_end.strftime("%Y-%m-%d"),
-                          'time_bank': code, 'code': ref_codes[code], 'balance': balance}
-                intime_data.append(record)
-            else:
-                print(f'No balance for employee #{value["employeeId"]} in time bank {ref_codes[code]} on date {row.pay_period_end.strftime("%Y-%m-%d")}')
 
-
-print(f"Count of backfilled Cerdian records: {len(ceridian_records)}")
-json_to_gcs(f"{args['ceridian_output']}", ceridian_records, c_bucket_name)
+print(f"Count of backfilled Cerdian records: {len(ceridian_data)}")
+json_to_gcs(f"{args['ceridian_output']}", ceridian_data, c_bucket_name)
 
 print(f"Count of backfilled InTime records: {len(intime_data)}")
 json_to_gcs(f"{args['intime_output']}", intime_data, i_bucket_name)
