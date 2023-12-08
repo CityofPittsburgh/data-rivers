@@ -20,6 +20,18 @@ DEFAULT_DATAFLOW_ARGS = [
 ]
 
 
+# Credit: ChatGPT
+class Deduplicate(beam.DoFn):
+    def __init__(self):
+        self.seen_elements = set()
+
+    def process(self, element):
+        # Deduplicate elements using a set to track seen elements
+        if element not in self.seen_elements:
+            self.seen_elements.add(element)
+            yield element
+
+
 class DictToHashable:
     def __call__(self, dictionary):
         return frozenset(dictionary.items())
@@ -68,7 +80,7 @@ def run(argv=None):
                 | beam.ParDo(FilterFields(drop_fields, exclude_target_fields=True))
                 # Convert dictionaries to hashable objects so they can be de-duplicated
                 | 'ToHashable' >> beam.Map(DictToHashable())
-                | beam.Distinct()
+                | beam.ParDo(Deduplicate())
                 # Convert PCollection back to dictionaries so it can be written to Avro
                 | 'ToDict' >> beam.Map(HashableToDict())
                 | WriteToAvro(known_args.avro_output, schema=avro_schema, file_name_suffix='.avro',
