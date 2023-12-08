@@ -42,11 +42,12 @@ extract = BashOperator(
 )
 
 
-# the primary key of city owned properties is parcel ID (pin); parcel data is also stored in the timebound_geography
+# the primary key of city owned properties is parcel ID (parc_num); parcel data is also stored in the
+# timebound_geography
 # dataset with corresponding geographical boundaries. this query uses the ST_CENTROID geographic function to obtain
 # lat/longs for each parcel
 query_coords = build_geo_coords_from_parcel_query(raw_table = F"{os.environ['GCLOUD_PROJECT']}.finance.incoming_city_owned_properties",
-                                                  parc_field = "pin")
+                                                  parc_field = "parc_num")
 query_coords = F""" CREATE OR REPLACE TABLE {os.environ['GCLOUD_PROJECT']}.finance.incoming_city_owned_properties AS
 {query_coords}"""
 get_coords = BigQueryOperator(
