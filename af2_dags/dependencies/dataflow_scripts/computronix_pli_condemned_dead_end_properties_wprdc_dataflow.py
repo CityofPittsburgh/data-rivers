@@ -10,7 +10,7 @@ from apache_beam.io.avroio import WriteToAvro
 # import util modules.
 # util modules located one level down in directory (./dataflow_util_modules/datflow_utils.py)
 from dataflow_utils.dataflow_utils import JsonCoder, SwapFieldNames, StandardizeTimes, StripStrings, FilterFields, \
-    generate_args
+    StandardizeParcelNumbers, generate_args
 
 DEFAULT_DATAFLOW_ARGS = [
         '--save_main_session',
@@ -97,6 +97,7 @@ def run(argv = None):
                 | beam.ParDo(StandardizeTimes(times, t_format = "%m/%d/%Y"))
                 | beam.ParDo(StripStrings(fields_to_strip))
                 | beam.ParDo(FilterFields(drops))
+                | beam.ParDo(StandardizeParcelNumbers("parc_num"))
                 | WriteToAvro(known_args.avro_output, schema = avro_schema, file_name_suffix = '.avro',
                               use_fastavro = True))
 
