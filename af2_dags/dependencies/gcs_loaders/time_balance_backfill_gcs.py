@@ -1,96 +1,72 @@
 import os
 import io
+import csv
 import json
 import argparse
-
+import pendulum
 import pandas as pd
-from requests.auth import HTTPBasicAuth
-from datetime import datetime
-from google.cloud import storage
-from gcs_utils import generate_xml, post_xml, json_to_gcs, get_last_upload, get_ceridian_report, \
-    find_last_successful_run
 
+from datetime import datetime
+from requests.auth import HTTPBasicAuth
+from google.cloud import storage
+from gcs_utils import generate_xml, post_xml, json_to_gcs
 
 storage_client = storage.Client()
-today = datetime.today()
-DEFAULT_RUN_START = '2022-12-04'
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--ceridian_output', dest='ceridian_output', required=True,
-                    help='fully specified location to upload the combined Ceridian ndjson file')
-parser.add_argument('--intime_output', dest='intime_output', required=True,
-                    help='fully specified location to upload the combined InTime ndjson file')
+parser.add_argument('--output_arg', dest='out_loc', required=True,
+                    help='fully specified location to upload the update log')
 args = vars(parser.parse_args())
+
+today = datetime.now(tz=pendulum.timezone("utc")).strftime("%Y-%m-%d")
 
 BASE_URL = 'https://intime2.intimesoft.com/ise/timebank/TimeBankService'
 auth = HTTPBasicAuth(os.environ['INTIME_USER'], os.environ['INTIME_PW'])
 soap_url = 'timebank.export.attendance.bo'
 prefix = 'tns'
-request = 'getBalance'
+request = 'setBalance'
 headers = {'Content-Type': 'application/xml'}
-# These variables allow us to parse the record information from the XML text returned by the API
-start = f'<ns2:getBalanceResponse xmlns:ns2="http://{soap_url}.rise.intimesoft.com/">'
-end = '</ns2:getBalanceResponse>'
+start = f'<setBalanceResponse xmlns:ns2="http://{soap_url}.rise.intimesoft.com/">'
+end = '</setBalanceResponse>'
 
-# Retrieve path of most recent InTime employees extract - use that as source for time bank data
-i_bucket_name = f"{os.environ['GCS_PREFIX']}_intime"
-i_bucket = storage_client.get_bucket(i_bucket_name)
-log_path = 'employees/successful_run_log/log.json'
-known_path = 'employees/2023/08/17/scheduled__2023-08-17T19:00:00+00:00_records.json'
-last_upload = get_last_upload(i_bucket_name, log_path, known_path)
-
-c_bucket_name = f"{os.environ['GCS_PREFIX']}_ceridian"
-c_bucket = storage_client.get_bucket(c_bucket_name)
-blob = c_bucket.blob("timekeeping/payroll_schedule_23-24.csv")
+bucket = storage_client.get_bucket(f"{os.environ['GCS_PREFIX']}_intime")
+blob = bucket.blob("timebank/time_balance_mismatches.csv")
 content = blob.download_as_string()
 stream = io.StringIO(content.decode(encoding='utf-8'))
-sched_df = pd.read_csv(stream)
-sched_df['pay_period_end'] = pd.to_datetime(sched_df['pay_period_end'])
 
-run_start_win, first_run = find_last_successful_run(i_bucket_name, "timebank/backfill/backfill_log/log.json", DEFAULT_RUN_START)
-backfill_start = datetime.strptime(run_start_win, '%Y-%m-%d')
-sched_df = sched_df[(backfill_start < sched_df['pay_period_end']) & (sched_df['pay_period_end'] < today)]
+sched_bucket = storage_client.get_bucket(f"{os.environ['GCS_PREFIX']}_ceridian")
+sched_blob = sched_bucket.blob("timekeeping/payroll_schedule_23-24.csv")
+sched_content = sched_blob.download_as_string()
+sched_stream = io.StringIO(sched_content.decode(encoding='utf-8'))
+sched_df = pd.read_csv(sched_stream)
+run = datetime.today().strftime("%m/%d/%Y") in list(sched_df['pay_period_end'])
 
-cw_bucket = storage_client.get_bucket("user_defined_data")
-cw_blob = cw_bucket.get_blob("timebank_codes.json")
-cw = cw_blob.download_as_string()
-ref_codes = json.loads(cw.decode('utf-8'))
+# DictReader used over Pandas Dataframe for fast iteration + minimal memory usage
+update_log = []
+if json.loads(os.environ['USE_PROD_RESOURCES'].lower()) and run:
+    csv_reader = csv.DictReader(stream, delimiter=',')
+    for row in csv_reader:
+        params = [{'tag': 'employeeId', 'content': row['employee_id']},
+                  {'tag': 'timeBankRef', 'content': row['code']},
+                  {'tag': 'date', 'content': row['retrieval_date']},
+                  {'tag': 'hours', 'content': float(row['ceridian_balance'])}]
 
-ceridian_data = []
-intime_data = []
-for index, row in enumerate(sched_df.itertuples(), 1):
-    params = f'a9b23df9-0bbb-4ada-9669-f3432b741da3={row.pay_period_end.strftime("%m/%d/%Y %H:%M:%S")}'
-    params += f'&4244386a-b503-4b9a-8843-70b00ad70259={row.pay_period_end.strftime("%m/%d/%Y")} 23:59:59'
-    ceridian_records = get_ceridian_report(f'ACCRUALSREPORTPOLICE?{params}')
-    ceridian_records = [{**rec, 'date': row.pay_period_end.strftime("%Y-%m-%d")} for rec in ceridian_records]
-    ceridian_data.extend(ceridian_records)
-    for value in last_upload:
-        for code in ref_codes:
-            params = [{'tag': 'employeeId', 'content': value['employeeId']},
-                      {'tag': 'timeBankRef', 'content': ref_codes[code]},
-                      {'tag': 'date', 'content': row.pay_period_end.strftime("%Y-%m-%d")}]
+        response = post_xml(BASE_URL, envelope=generate_xml(soap_url, request, params, prefix=prefix),
+                            auth=auth, headers=headers, res_start=start, res_stop=end)
 
-            # API requests need to be made one at a time, which may overwhelm the request limit.
-            # Within the post_xml util, the request attempts in a loop until a 200/500 response is obtained
-            response = post_xml(BASE_URL, envelope=generate_xml(soap_url, request, params, prefix=prefix),
-                                auth=auth, headers=headers, res_start=start, res_stop=end)
-            balance = response['root']['return']
-            if balance:
-                record = {'employee_id': value['employeeId'], 'date': row.pay_period_end.strftime("%Y-%m-%d"),
-                          'time_bank': code, 'code': ref_codes[code], 'balance': balance}
-                intime_data.append(record)
-            else:
-                print(f'No balance for employee #{value["employeeId"]} in time bank {ref_codes[code]} on date {row.pay_period_end.strftime("%Y-%m-%d")}')
+        # An empty response dictionary indicates that the update failed. Otherwise, print update details to the console.
+        if response['root']['return']:
+            upd_row = dict(row)
+            upd_row['old_balance'] = upd_row.pop('intime_balance')
+            upd_row['new_balance'] = upd_row.pop('ceridian_balance')
+            print(f"Successfully updated {upd_row['code']} time bank balance for employee #{upd_row['employee_id']} from "
+                  f"{float(upd_row['old_balance'])} to {float(upd_row['new_balance'])} for date {row['retrieval_date']}")
+            update_log.append(upd_row)
+        else:
+            print(f"Update operation failed for employee #{row['employee_id']} with time bank code {row['code']} for date {row['retrieval_date']}")
+            print(f"Could not update InTime balance from {row['intime_balance']} to {row['ceridian_balance']} for date {row['retrieval_date']}")
+else:
+    print('No update performed')
 
-
-print(f"Count of backfilled Cerdian records: {len(ceridian_records)}")
-json_to_gcs(f"{args['ceridian_output']}", ceridian_records, c_bucket_name)
-
-print(f"Count of backfilled InTime records: {len(intime_data)}")
-json_to_gcs(f"{args['intime_output']}", intime_data, i_bucket_name)
-
-successful_run = [{"requests_retrieved": len(ceridian_records) + len(intime_data),
-                   "since": run_start_win,
-                   "current_run": today.strftime("%Y-%m-%d"),
-                   "note": "Data retrieved between the time points listed above"}]
-json_to_gcs("timebank/backfill/backfill_log/log.json", successful_run, i_bucket_name)
+if update_log:
+    json_to_gcs(f"{args['out_loc']}", update_log, f"{os.environ['GCS_PREFIX']}_intime")
