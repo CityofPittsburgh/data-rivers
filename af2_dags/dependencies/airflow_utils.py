@@ -401,8 +401,11 @@ def gcs_to_email(bucket, file_path, recipients, cc, subject, message, attachment
                 )
                 message.attachment = attached_file
 
-                sg = SendGridAPIClient(os.environ['SENDGRID_API_KEY'])
-                response = sg.send(message)
+                if json.loads(os.environ['USE_PROD_RESOURCES'].lower()):
+                    sg = SendGridAPIClient(os.environ['SENDGRID_API_KEY'])
+                    response = sg.send(message)
+                else:
+                    print(f'Test complete, following email not sent: \n{message}')
             else:
                 print('Requested file is empty, no email sent')
         except NotFound:
