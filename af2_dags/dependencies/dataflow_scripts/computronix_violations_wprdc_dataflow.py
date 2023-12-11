@@ -39,7 +39,7 @@ def run(argv = None):
         str_convs = [("casefile_number", "upper"), ("investigation_outcome", "upper"), ("investigation_date", "upper"),
                      ("violation_desc", "upper"), ("status", "upper"), ("investigation_findings", "upper"),
                      ("violation_code_title", "upper"), ("violation_code_sec", "upper"),
-                     ("violation_spec_instructions", "upper"), ("parc_num", "upper"), ("address", "upper")]
+                     ("violation_spec_instructions", "upper"), ("address", "upper")]
 
         times = [("investigation_date", "US/Eastern")]
 
