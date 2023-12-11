@@ -107,9 +107,10 @@ def compare_timebank_balances(dataset, comp_table, offset=0):
         content = blob.download_as_string()
         stream = io.StringIO(content.decode(encoding='utf-8'))
         df = pd.read_csv(stream)
-        if comp_str in list(df['pay_period_end']):
-            query += f"""AND c.retrieval_date = PARSE_DATE('%m/%d/%Y', '{comp_str}') 
-                         AND i.retrieval_date = PARSE_DATE('%m/%d/%Y', '{comp_str}')"""
+        if comp_str in list(df['pay_issued']):
+            date_val = df.loc[df['pay_issued'] == comp_str, 'pay_period_end'].item()
+            query += f"""AND c.retrieval_date = PARSE_DATE('%m/%d/%Y', '{date_val}') 
+                         AND i.retrieval_date = PARSE_DATE('%m/%d/%Y', '{date_val}')"""
         else:
             return 'SELECT NULL AS placeholder'
 

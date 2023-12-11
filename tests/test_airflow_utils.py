@@ -96,7 +96,7 @@ class TestAirflowUtils(unittest.TestCase):
             index += 1
 
     def test_gcs_to_email(self):
-        bucket = f"pghpa_ceridian"
+        bucket = f"{os.environ['GCS_PREFIX']}_ceridian"
         file_path = "data_sharing/time_balance_mismatches.csv"
         recipients = [os.environ['EMAIL']]
         cc = [os.environ['OFFICE365_UN']]
