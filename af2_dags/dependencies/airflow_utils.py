@@ -408,7 +408,7 @@ def gcs_to_email(bucket, file_path, recipients, cc, subject, message, attachment
         except NotFound:
             print('Requested file not found')
     else:
-        print('No email sent, comparison only performed on Wednesdays')
+        print(f'No email sent, comparison only performed on day of week {on_certain_day[1]}')
 
 
 def beam_cleanup_statement(bucket):

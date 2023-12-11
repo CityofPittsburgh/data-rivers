@@ -136,3 +136,18 @@ def filter_old_values(dataset, temp_table, final_table, join_field):
     DELETE FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{final_table}` final
     WHERE final.{join_field} IN (SELECT {join_field} FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{temp_table}`)
     """
+
+
+def update_time_balances_table(dataset, master_table, temp_table):
+    return F"""
+    CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.{dataset}.{master_table}` AS
+    SELECT DISTINCT employee_id, PARSE_DATE('%Y-%m-%d', `date`) AS retrieval_date, time_bank, code, balance
+    FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{temp_table}`
+    UNION ALL
+    SELECT DISTINCT employee_id, retrieval_date, time_bank, code, balance
+    FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{master_table}`
+    WHERE CONCAT(employee_id, ':', CAST(retrieval_date AS STRING)) NOT IN (
+        SELECT CONCAT(employee_id, ':', `date`)
+        FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{temp_table}`
+    )
+    """

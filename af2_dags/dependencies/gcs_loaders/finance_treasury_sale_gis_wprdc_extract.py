@@ -66,6 +66,7 @@ df = sql_to_df(conn, query, db = os.environ['REALESTATE_DRIVER'])
 # data cleaning:
 # rename columns
 df.columns = df.columns.str.lower().to_list()
+data.rename(columns = {'pin': 'parc_num'}, inplace = True)
 
 # strip leading 0's from addresses (e.g., 0 MAIN ST should just become MAIN ST)
 df['address'] = df['address'].apply(lambda x: re.sub(r'^0\s', '', x) if isinstance(x, str) else x)
