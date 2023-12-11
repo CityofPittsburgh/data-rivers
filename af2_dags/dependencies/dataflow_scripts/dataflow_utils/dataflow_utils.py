@@ -608,8 +608,11 @@ class StandardizeParcelNumbers(beam.DoFn, ABC):
     # other approaches in these utilites.
     def process(self, datum):
         if datum[self.parc_fd] is None:
-            yield "invalid_input"
-        standardize_parc_num(self.parc_fd, datum)
+            datum[self.parc_fd] = "invalid_input"
+            yield datum
+        
+        datum[self.parc_fd] = standardize_parc_num(self.parc_fd, datum)
+
         yield datum
 
 
