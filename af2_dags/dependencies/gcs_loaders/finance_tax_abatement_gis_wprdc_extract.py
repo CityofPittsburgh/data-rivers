@@ -10,7 +10,7 @@ from gcs_utils import json_to_gcs, sql_to_df, conv_avsc_to_bq_schema
 # Note: we recently (5/23) learned that this pipeline is end of life with 6 months of creation (11/23). While more
 # data enrichment and work would normally be completed, this is sufficient, given this situation.
 # column name changes
-NEW_NAMES = {"PIN": "pin", "ADDRESS": "address", "START_YEAR": "start_year",
+NEW_NAMES = {"PIN": "parc_num", "ADDRESS": "address", "START_YEAR": "start_year",
              "APPROVED_DATE": "approved_date", "PROGRAM_NAME": "program_name", "NO_YEARS": "num_years",
              "ABATEMENT_AMT": "abatement_amount"}
 
