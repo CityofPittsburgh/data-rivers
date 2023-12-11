@@ -126,7 +126,7 @@ def normalize_block_lot(x):
 
 
 API_LIMIT = 10000
-FIELDS = {"id"             : "id", "parcelNumber": "parc", "propertyAddress1": "address",
+FIELDS = {"id"             : "id", "parcelNumber": "parc_num", "propertyAddress1": "address",
           "currentOwners"  : "owner", "parcelSquareFootage": "parc_sq_ft", "acquisitionMethod": "acquisition_method",
           "acquisitionDate": "acquisition_date", "propertyClass": "class", "censusTract": "census_tract",
           "latitude"       : "lat", "longitude": "long", "inventoryType": "inventory_type", "zonedAs": "zoned_as",
@@ -193,7 +193,7 @@ df_records["id"] = df_records["id"].astype(str)
 df_records["address"] = df_records["address"].apply(lambda x: x.upper())
 
 # clean the parcel numbers
-df_records["parc_num"] = df_records["parc"].apply(lambda x: normalize_block_lot(x))
+df_records["parc_num"] = df_records["parc_num"].apply(lambda x: normalize_block_lot(x))
 
 # load into BQ
 schema = conv_avsc_to_bq_schema(F"{os.environ['GCS_PREFIX']}_avro_schemas", "eproperty_vacant_property.avsc")
