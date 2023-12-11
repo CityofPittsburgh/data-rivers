@@ -14,7 +14,7 @@ import dependencies.bq_queries.employee_admin.ceridian_admin as q
 dag = DAG(
     'intime_set_balances',
     default_args=default_args,
-    schedule_interval=None,
+    schedule_interval='@daily',
     user_defined_filters={'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year,
                           'get_ds_day': get_ds_day},
     max_active_runs=1
@@ -54,7 +54,7 @@ email_comparison = PythonOperator(
 
 create_update_table = BigQueryOperator(
     task_id='create_update_table',
-    sql=q.compare_timebank_balances('intime', 'balance_update', -14),
+    sql=q.compare_timebank_balances('intime', 'balance_update', -7),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
