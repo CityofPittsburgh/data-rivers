@@ -610,7 +610,9 @@ class StandardizeParcelNumbers(beam.DoFn, ABC):
         if datum[self.parc_fd] is None:
             datum[self.parc_fd] = "invalid_input"
             yield datum
+        
         datum[self.parc_fd] = standardize_parc_num(self.parc_fd, datum)
+
         yield datum
 
 

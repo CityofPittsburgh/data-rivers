@@ -1,6 +1,61 @@
 import os
 
 
+def build_eeo4_report():
+    return F"""
+    CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.ceridian.equal_opportunity_report` AS
+    SELECT job_function, salary_range, ethnicity, gender, COUNT(*) counts FROM (
+    SELECT j.job_function, CASE
+        WHEN base_salary <= 15999.89 THEN '$0.1 - $15.9'
+        WHEN base_salary BETWEEN 16000.00 AND 19999.99 THEN '$16.0 - $19.9'
+        WHEN base_salary BETWEEN 20000.00 AND 24999.99 THEN '$20.0 - $24.9'
+        WHEN base_salary BETWEEN 25000.00 AND 32999.99 THEN '$25.0 - $32.9'
+        WHEN base_salary BETWEEN 33000.00 AND 42999.99 THEN '$33.0 - $42.9'
+        WHEN base_salary BETWEEN 43000.00 AND 54999.99 THEN '$43.0 - $54.9'
+        WHEN base_salary BETWEEN 55000.00 AND 69999.99 THEN '$55.0 - $69.9'
+        WHEN base_salary >= 70000.00 THEN '$70.0 PLUS'
+        ELSE 'Unknown Range'
+    END AS salary_range, ethnicity, gender
+    FROM `{os.environ['GCLOUD_PROJECT']}.ceridian.job_details` j
+    RIGHT OUTER JOIN (SELECT job_title, base_salary, ethnicity, gender
+    FROM `{os.environ['GCLOUD_PROJECT']}.ceridian.all_employees`
+    WHERE dept_desc NOT IN ('Non-Employee Benefits', 'Historical')
+    AND job_title != 'Community Liaison') e_1
+    ON j.job_title = e_1.job_title
+    UNION ALL
+    SELECT 'Officials and Administrators' AS job_function, CASE
+        WHEN base_salary <= 15999.89 THEN '$0.1 - $15.9'
+        WHEN base_salary BETWEEN 16000.00 AND 19999.99 THEN '$16.0 - $19.9'
+        WHEN base_salary BETWEEN 20000.00 AND 24999.99 THEN '$20.0 - $24.9'
+        WHEN base_salary BETWEEN 25000.00 AND 32999.99 THEN '$25.0 - $32.9'
+        WHEN base_salary BETWEEN 33000.00 AND 42999.99 THEN '$33.0 - $42.9'
+        WHEN base_salary BETWEEN 43000.00 AND 54999.99 THEN '$43.0 - $54.9'
+        WHEN base_salary BETWEEN 55000.00 AND 69999.99 THEN '$55.0 - $69.9'
+        WHEN base_salary >= 70000.00 THEN '$70.0 PLUS'
+        ELSE 'Unknown Range'
+    END AS salary_range, ethnicity, gender
+    FROM (SELECT job_title, base_salary, ethnicity, gender
+    FROM `{os.environ['GCLOUD_PROJECT']}.ceridian.all_employees`
+    WHERE job_title = 'Community Liaison' AND dept_desc = 'Office of the Mayor')
+    UNION ALL
+    SELECT 'Professionals' AS job_function, CASE
+        WHEN base_salary <= 15999.89 THEN '$0.1 - $15.9'
+        WHEN base_salary BETWEEN 16000.00 AND 19999.99 THEN '$16.0 - $19.9'
+        WHEN base_salary BETWEEN 20000.00 AND 24999.99 THEN '$20.0 - $24.9'
+        WHEN base_salary BETWEEN 25000.00 AND 32999.99 THEN '$25.0 - $32.9'
+        WHEN base_salary BETWEEN 33000.00 AND 42999.99 THEN '$33.0 - $42.9'
+        WHEN base_salary BETWEEN 43000.00 AND 54999.99 THEN '$43.0 - $54.9'
+        WHEN base_salary BETWEEN 55000.00 AND 69999.99 THEN '$55.0 - $69.9'
+        WHEN base_salary >= 70000.00 THEN '$70.0 PLUS'
+        ELSE 'Unknown Range'
+    END AS salary_range, ethnicity, gender
+    FROM (SELECT job_title, base_salary, ethnicity, gender
+    FROM `{os.environ['GCLOUD_PROJECT']}.ceridian.all_employees`
+    WHERE job_title = 'Community Liaison' AND dept_desc != 'Office of the Mayor'))
+    GROUP BY job_function, salary_range, ethnicity, gender
+    """
+
+
 def build_percentage_table_query(new_table, pct_field, hardcoded_vals):
     sql = f"""
     CREATE OR REPLACE TABLE  `{os.environ['GCLOUD_PROJECT']}.ceridian.{new_table}` AS
