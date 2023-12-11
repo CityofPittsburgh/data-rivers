@@ -5,11 +5,11 @@ from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
 from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOperator
+from airflow.contrib.operators.bigquery_table_delete_operator import BigQueryTableDeleteOperator
 from dependencies import airflow_utils
 from dependencies.airflow_utils import get_ds_month, get_ds_year, get_ds_day, default_args
 
-import dependencies.bq_queries.employee_admin.ceridian_admin as c_q
-import dependencies.bq_queries.employee_admin.intime_admin as i_q
+import dependencies.bq_queries.general_queries as q
 
 dag = DAG(
     'time_balance_backfill',
@@ -47,13 +47,28 @@ accruals_backfill_dataflow = BashOperator(
 
 accruals_backfill_to_bq = GoogleCloudStorageToBigQueryOperator(
     task_id='accruals_backfill_to_bq',
-    destination_project_dataset_table=f"{os.environ['GCLOUD_PROJECT']}:backfill.ceridian_accruals_backfill_{exec_date}",
+    destination_project_dataset_table=f"{os.environ['GCLOUD_PROJECT']}:ceridian.accruals_backfill_{exec_date}",
     bucket=f"{os.environ['GCS_PREFIX']}_hot_metal",
     source_objects=[f"{output}accruals*.avro"],
     write_disposition='WRITE_TRUNCATE',
     create_disposition='CREATE_IF_NEEDED',
     source_format='AVRO',
     autodetect=True,
+    bigquery_conn_id='google_cloud_default',
+    dag=dag
+)
+
+backfill_to_accruals_table = BigQueryOperator(
+    task_id='backfill_to_accruals_table',
+    sql=q.update_time_balances_table('ceridian', 'historic_accrual_balances', f'accruals_backfill_{exec_date}'),
+    bigquery_conn_id='google_cloud_default',
+    use_legacy_sql=False,
+    dag=dag
+)
+
+delete_accruals_backfill = BigQueryTableDeleteOperator(
+    task_id="delete_accruals_backfill",
+    deletion_dataset_table=f"{os.environ['GCLOUD_PROJECT']}.ceridian.accruals_backfill_{exec_date}",
     bigquery_conn_id='google_cloud_default',
     dag=dag
 )
@@ -68,7 +83,7 @@ timebank_backfill_dataflow = BashOperator(
 
 timebank_backfill_to_bq = GoogleCloudStorageToBigQueryOperator(
     task_id='timebank_backfill_to_bq',
-    destination_project_dataset_table=f"{os.environ['GCLOUD_PROJECT']}:backfill.intime_timebank_backfill_{exec_date}",
+    destination_project_dataset_table=f"{os.environ['GCLOUD_PROJECT']}:intime.timebank_backfill_{exec_date}",
     bucket=f"{os.environ['GCS_PREFIX']}_hot_metal",
     source_objects=[f"{output}timebanks*.avro"],
     write_disposition='WRITE_TRUNCATE',
@@ -79,6 +94,23 @@ timebank_backfill_to_bq = GoogleCloudStorageToBigQueryOperator(
     dag=dag
 )
 
+backfill_to_timebank_table = BigQueryOperator(
+    task_id='backfill_to_timebank_table',
+    sql=q.update_time_balances_table('intime', 'timebank_balances', f'timebank_backfill_{exec_date}'),
+    bigquery_conn_id='google_cloud_default',
+    use_legacy_sql=False,
+    dag=dag
+)
 
-time_balance_backfill_gcs >> accruals_backfill_dataflow >> accruals_backfill_to_bq
-time_balance_backfill_gcs >> timebank_backfill_dataflow >> timebank_backfill_to_bq
+delete_timebank_backfill = BigQueryTableDeleteOperator(
+    task_id="delete_timebank_backfill",
+    deletion_dataset_table=f"{os.environ['GCLOUD_PROJECT']}.intime.timebank_backfill_{exec_date}",
+    bigquery_conn_id='google_cloud_default',
+    dag=dag
+)
+
+
+time_balance_backfill_gcs >> accruals_backfill_dataflow >> accruals_backfill_to_bq >> backfill_to_accruals_table >> \
+    delete_accruals_backfill
+time_balance_backfill_gcs >> timebank_backfill_dataflow >> timebank_backfill_to_bq >> backfill_to_timebank_table >> \
+    delete_timebank_backfill
