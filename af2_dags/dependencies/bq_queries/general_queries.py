@@ -36,8 +36,8 @@ def build_format_dedup_query(dataset, fmt_table, src_table, cast_fields, cols_in
     sql += "), "
     cast_str_list = []
     for conv in cast_fields:
-        if conv['type'] == 'DATETIME':
-            cast_str_list.append(f'PARSE_DATETIME("{datestring_fmt}", {conv["field"]}) AS {conv["field"]}')
+        if conv['type'] in ('DATE', 'DATETIME'):
+            cast_str_list.append(f'PARSE_{conv["type"]}("{datestring_fmt}", {conv["field"]}) AS {conv["field"]}')
         elif conv['type'] == 'TIMESTAMP':
             cast_str_list.append(f'PARSE_TIMESTAMP("{datestring_fmt}", {conv["field"]}, "{tz}") AS {conv["field"]}')
         else:

@@ -43,8 +43,6 @@ def run(argv=None):
     )
 
     with beam.Pipeline(options=pipeline_options) as p:
-        check_field = 'Department_LongName'
-        data_quality_file = 'ceridian_departments.txt'
         strip_fields = ['Employee_HireDate', 'Employee_TerminationDate',
                         'EmployeeEmploymentStatus_CreatedTimestamp', 'Department_ShortName']
         delims = ['T', 'T', 'T', '-']
@@ -56,6 +54,7 @@ def run(argv=None):
                             ('Department_LongName', 'dept_desc'),
                             ('Department_ShortName', 'office'),
                             ('Job_ShortName', 'job_title'),
+                            ('EmployeeEmploymentStatus_BaseSalary', 'base_salary'),
                             ('Employee_HireDate', 'hire_date'),
                             ('Employee_TerminationDate', 'termination_date'),
                             ('EmployeeEmploymentStatus_CreatedTimestamp', 'account_modified_date'),
@@ -66,7 +65,7 @@ def run(argv=None):
                             ('DFEthnicity_ShortName', 'ethnicity'),
                             ('Employee_Gender', 'gender'),
                             ('SSOLogin', 'sso_login')]
-        type_changes = [('employee_num', 'str')]
+        type_changes = [('employee_num', 'str'), ('base_salary', 'float')]
         drop_fields = ['EmploymentStatus_ShortName', 'DeptJob_ShortName',
                        'Employee_PreferredLastName', 'DenormEmployeeContact_BusinessPhone',
                        'DenormEmployeeContact_HomePhone', 'DenormEmployeeContact_MobilePhone']

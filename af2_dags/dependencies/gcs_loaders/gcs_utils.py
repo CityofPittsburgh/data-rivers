@@ -6,9 +6,10 @@ import io
 import base64
 import logging
 import re
-import requests
-from datetime import datetime, timedelta
 import time
+import requests
+from requests.auth import HTTPBasicAuth
+from datetime import datetime, timedelta
 
 import json
 import ckanapi
@@ -737,6 +738,36 @@ def synthesize_query(resource_id, select_fields=['*'], where_clauses=None, group
         query += f" LIMIT {limit}"
 
     return query
+
+
+def get_ceridian_report(xrefcode):
+    url = f"https://www.dayforcehcm.com/Api/{os.environ['CERIDIAN_ORG_ID']}/V1/Reports/{xrefcode}"
+    auth = HTTPBasicAuth(os.environ['CERIDIAN_USER'], os.environ['CERIDIAN_PW'])
+
+    all_records = []
+    # Make use of session to retain authorization header when a URL redirect happens
+    s = requests.session()
+    more = True
+    while more is True:
+        # API call to get data
+        response = s.get(url, auth=auth)
+        # Initial API should fail due to URL change, response gives us new URL
+        if response.status_code == 401:
+            redir_url = response.url
+            # Retry API request with same parameters but new URL
+            response = s.get(redir_url, auth=auth)
+        print(f"API Response: {str(response.status_code)}")
+
+        records = response.json()['Data']['Rows']
+        # continue looping through records until the API has a MoreFlag value of 0
+        if response.json()['Paging']['Next']:
+            url = response.json()['Paging']['Next']
+        else:
+            more = False
+        # append list of API results to growing all_records list (should not need more than initial API call)
+        all_records.extend(records)
+
+    return all_records
 
 
 """
