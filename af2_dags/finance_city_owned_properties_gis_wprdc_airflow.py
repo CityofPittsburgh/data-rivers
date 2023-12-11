@@ -59,7 +59,6 @@ get_coords = BigQueryOperator(
 )
 
 
-# ToDo: get a date field
 query_geo_join = build_revgeo_time_bound_query('finance', 'incoming_city_owned_properties',
                                                'geo_enriched_city_owned_properties',
                                                'latest_sale_date', 'latitude', 'longitude')
