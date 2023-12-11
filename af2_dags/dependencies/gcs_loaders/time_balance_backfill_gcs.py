@@ -83,8 +83,8 @@ for index, row in enumerate(sched_df.itertuples(), 1):
                 print(f'No balance for employee #{value["employeeId"]} in time bank {ref_codes[code]} on date {row.pay_period_end.strftime("%Y-%m-%d")}')
 
 
-print(f"Count of backfilled Cerdian records: {len(ceridian_records)}")
-json_to_gcs(f"{args['ceridian_output']}", ceridian_records, c_bucket_name)
+print(f"Count of backfilled Cerdian records: {len(ceridian_data)}")
+json_to_gcs(f"{args['ceridian_output']}", ceridian_data, c_bucket_name)
 
 print(f"Count of backfilled InTime records: {len(intime_data)}")
 json_to_gcs(f"{args['intime_output']}", intime_data, i_bucket_name)
