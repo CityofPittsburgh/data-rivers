@@ -16,7 +16,7 @@ from dependencies.airflow_utils import get_ds_month, get_ds_year, get_ds_day, de
 # database. Once the data is extracted, it will be uploaded to BigQuery and geocoded by matching on parcel number.
 # The final output will be stored as a CSV file in GCS and made available to WPRDC for public display.
 
-COLS = "pin, address, billing_city, current_delq, prior_years, state_description, neighborhood, " \
+COLS = "parc_num, address, billing_city, current_delq, prior_years, state_description, neighborhood, " \
        "council_district, ward, CAST(dpw_streets AS STRING) AS public_works_division, " \
        "CAST(ward AS STRING) AS pli_division, police_zone, fire_zone, longitude, latitude"
 
@@ -50,7 +50,7 @@ tax_delinquency_gcs = BashOperator(
 # the primary key of tax delinquency data is parcel ID; parcel data is also stored in the timebound_geography dataset
 # with corresponding geographical boundaries. this query uses the ST_CENTROID geographic function to obtain lat/longs
 # for each parcel
-sub_query = build_geo_coords_from_parcel_query(f"{os.environ['GCLOUD_PROJECT']}.{source}.incoming_{table}", "pin")
+sub_query = build_geo_coords_from_parcel_query(f"{os.environ['GCLOUD_PROJECT']}.{source}.incoming_{table}", "parc_num")
 coord_query = f"CREATE OR REPLACE TABLE  `{os.environ['GCLOUD_PROJECT']}.{source}.incoming_{table}` AS {sub_query}"
 get_coords = BigQueryOperator(
     task_id='get_coords',
