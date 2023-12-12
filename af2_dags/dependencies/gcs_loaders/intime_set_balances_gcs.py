@@ -4,7 +4,6 @@ import csv
 import json
 import argparse
 import pendulum
-import pandas as pd
 
 from datetime import datetime
 from requests.auth import HTTPBasicAuth
@@ -34,16 +33,9 @@ blob = bucket.blob("timebank/time_balance_mismatches.csv")
 content = blob.download_as_string()
 stream = io.StringIO(content.decode(encoding='utf-8'))
 
-sched_bucket = storage_client.get_bucket(f"{os.environ['GCS_PREFIX']}_ceridian")
-sched_blob = sched_bucket.blob("timekeeping/payroll_schedule_23-24.csv")
-sched_content = sched_blob.download_as_string()
-sched_stream = io.StringIO(sched_content.decode(encoding='utf-8'))
-sched_df = pd.read_csv(sched_stream)
-run = datetime.today().strftime("%m/%d/%Y") in list(sched_df['pay_period_end'])
-
 # DictReader used over Pandas Dataframe for fast iteration + minimal memory usage
 update_log = []
-if json.loads(os.environ['USE_PROD_RESOURCES'].lower()) and run:
+if json.loads(os.environ['USE_PROD_RESOURCES'].lower()):
     csv_reader = csv.DictReader(stream, delimiter=',')
     for row in csv_reader:
         params = [{'tag': 'employeeId', 'content': row['employee_id']},
