@@ -4,11 +4,12 @@ import os
 
 from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
-from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOperator
+from airflow.operators.python_operator import ShortCircuitOperator
 from airflow.contrib.operators.bigquery_operator import BigQueryOperator
+from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOperator
 
 from dependencies import airflow_utils
-from dependencies.airflow_utils import get_ds_year, get_ds_month, get_ds_day, default_args, \
+from dependencies.airflow_utils import get_ds_year, get_ds_month, get_ds_day, default_args, check_blob_exists, \
     build_revgeo_time_bound_query
 
 from dependencies.bq_queries.qscend import integrate_new_requests, transform_enrich_requests
@@ -54,6 +55,14 @@ gcs_loader = BashOperator(
     task_id='gcs_loader',
     bash_command=F"python {os.environ['DAGS_PATH']}/dependencies/gcs_loaders/qalert_monthly_backfill_gcs.py "
                  F"--output_arg {path}",
+    dag=dag
+)
+
+# Short-circuit DAG if no backfill needs to be performed
+check_if_needed = ShortCircuitOperator(
+    task_id='check_if_needed',
+    python_callable=check_blob_exists,
+    op_kwargs={"bucket": f"{os.environ['GCS_PREFIX']}_qalert", "path": path},
     dag=dag
 )
 
@@ -191,9 +200,10 @@ beam_cleanup = BashOperator(
 )
 
 # DAG execution:
-gcs_loader >> dataflow >> gcs_to_bq >> format_subset >> city_limits >> geojoin >> insert_new_parent >> \
-    insert_missed_requests >> document_missed_requests >> delete_temp_backfill_tables >> beam_cleanup
+gcs_loader >> check_if_needed >> dataflow >> gcs_to_bq >> format_subset >> city_limits >> geojoin >> \
+    insert_new_parent >> insert_missed_requests >> document_missed_requests >> delete_temp_backfill_tables >> \
+    beam_cleanup
 
-gcs_loader >> dataflow >> gcs_to_bq >> format_subset >> city_limits >> geojoin >> build_child_ticket_table >>\
-    increment_ticket_count >> integrate_children >> insert_missed_requests >> document_missed_requests >> \
-    delete_temp_backfill_tables >> beam_cleanup
+gcs_loader >> check_if_needed >> dataflow >> gcs_to_bq >> format_subset >> city_limits >> geojoin >> \
+    build_child_ticket_table >> increment_ticket_count >> integrate_children >> insert_missed_requests >> \
+    document_missed_requests >> delete_temp_backfill_tables >> beam_cleanup
