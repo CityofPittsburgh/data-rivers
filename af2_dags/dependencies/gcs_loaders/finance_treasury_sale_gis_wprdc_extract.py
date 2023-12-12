@@ -11,10 +11,9 @@ from gcs_utils import json_to_gcs, sql_to_df, conv_avsc_to_bq_schema
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--output_arg', dest='out_loc', required=True,
-                    help='fully specified location to upload the output of the SQL query')
+parser.add_argument('--output_arg', dest = 'out_loc', required = True,
+                    help = 'fully specified location to upload the output of the SQL query')
 args = vars(parser.parse_args())
-
 
 # build connection to the DB which will be used in the utility func below
 conn = jaydebeapi.connect("oracle.jdbc.OracleDriver", os.environ['REALESTATE_DB'],
@@ -50,7 +49,8 @@ SELECT
 	jt.OTHER_MUNICIPAL_CHARGES_DUE AS clean_lien_due,
 	jt.PARKS_JORDAN_DUE AS parks_tax_due,
 	m.TREAS_SALE_FLAG, 
-  	m.prop_low_house_no || ' ' || m.prop_street_name || ', ' || m.PROP_CITY || ', ' || m.PROP_STATE || ' ' || m.PROP_ZIP AS ADDRESS
+  	m.prop_low_house_no || ' ' || m.prop_street_name || ', ' || m.PROP_CITY || ', ' || m.PROP_STATE || ' ' || 
+  	m.PROP_ZIP AS ADDRESS
 FROM 
 	JORDAN_TSALE jt
 INNER JOIN TREAS_SALE_DELINQUENT tsd ON
@@ -66,7 +66,7 @@ df = sql_to_df(conn, query, db = os.environ['REALESTATE_DRIVER'])
 # data cleaning:
 # rename columns
 df.columns = df.columns.str.lower().to_list()
-data.rename(columns = {'pin': 'parc_num'}, inplace = True)
+df.rename(columns = {'pin': 'parc_num'}, inplace = True)
 
 # strip leading 0's from addresses (e.g., 0 MAIN ST should just become MAIN ST)
 df['address'] = df['address'].apply(lambda x: re.sub(r'^0\s', '', x) if isinstance(x, str) else x)

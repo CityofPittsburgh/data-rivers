@@ -519,6 +519,10 @@ def format_dataflow_call(script_name, bucket_name, sub_direc, dataset_id):
     return exec_script_cmd + input_arg + output_arg
 
 
+def log_task(dag_id, message, **kwargs):
+    print(f'Logging DAG {dag_id}: \n{message}')
+
+
 def build_city_limits_query(dataset, raw_table, lat_field='lat', long_field='long'):
     """
     Determine whether a set of coordinates fall within the borders of the City of Pittsburgh,

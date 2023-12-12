@@ -47,7 +47,7 @@ extract = BashOperator(
 # with corresponding geographical boundaries. this query uses the ST_CENTROID geographic function to obtain lat/longs
 # for each parcel
 query_coords = build_geo_coords_from_parcel_query(raw_table = F"{os.environ['GCLOUD_PROJECT']}.finance.incoming_tax_abatement",
-                                                  parc_field = "pin")
+                                                  parc_field = "parc_num")
 query_coords = F""" CREATE OR REPLACE TABLE {os.environ['GCLOUD_PROJECT']}.finance.incoming_tax_abatement AS
 {query_coords}"""
 get_coords = BigQueryOperator(
