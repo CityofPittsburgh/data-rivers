@@ -4,12 +4,11 @@ import csv
 import json
 import argparse
 import pendulum
-import pandas as pd
 
 from datetime import datetime
 from requests.auth import HTTPBasicAuth
 from google.cloud import storage
-from gcs_utils import generate_xml, post_xml, json_to_gcs
+from gcs_utils import generate_xml, post_xml, json_to_gcs, send_alert_email_with_csv
 
 storage_client = storage.Client()
 
@@ -34,16 +33,9 @@ blob = bucket.blob("timebank/time_balance_mismatches.csv")
 content = blob.download_as_string()
 stream = io.StringIO(content.decode(encoding='utf-8'))
 
-sched_bucket = storage_client.get_bucket(f"{os.environ['GCS_PREFIX']}_ceridian")
-sched_blob = sched_bucket.blob("timekeeping/payroll_schedule_23-24.csv")
-sched_content = sched_blob.download_as_string()
-sched_stream = io.StringIO(sched_content.decode(encoding='utf-8'))
-sched_df = pd.read_csv(sched_stream)
-run = datetime.today().strftime("%m/%d/%Y") in list(sched_df['pay_period_end'])
-
 # DictReader used over Pandas Dataframe for fast iteration + minimal memory usage
 update_log = []
-if json.loads(os.environ['USE_PROD_RESOURCES'].lower()) and run:
+if json.loads(os.environ['USE_PROD_RESOURCES'].lower()):
     csv_reader = csv.DictReader(stream, delimiter=',')
     for row in csv_reader:
         params = [{'tag': 'employeeId', 'content': row['employee_id']},
@@ -70,3 +62,8 @@ else:
 
 if update_log:
     json_to_gcs(f"{args['out_loc']}", update_log, f"{os.environ['GCS_PREFIX']}_intime")
+    send_alert_email_with_csv("osar@pittsburghpa.gov", "ALERT: InTime Time Banks Updated",
+                              "The attached CSV lists all updates that have been made to time bank balances in the "
+                              "InTime source system using information found in Dayforce. The balances are correct as "
+                              "of the listed dates, and update operation did not overwrite any time accrued afterward.",
+                              update_log, "time_bank_update_log.csv")
