@@ -112,14 +112,16 @@ def compare_timebank_balances(dataset, comp_table, offset=0):
             query += f"""AND c.retrieval_date = PARSE_DATE('%m/%d/%Y', '{date_val}') 
                          AND i.retrieval_date = PARSE_DATE('%m/%d/%Y', '{date_val}')"""
         else:
-            return 'SELECT NULL AS placeholder'
+            query += "LIMIT 0"
+            return query
 
     elif comp_table == 'discrepancy_report':
         if date.today().weekday() == 2:
             query += f"""AND c.retrieval_date = PARSE_DATE('%m/%d/%Y', '{today.strftime('%m/%d/%Y')}') 
                          AND i.retrieval_date = PARSE_DATE('%m/%d/%Y', '{comp_str}')"""
         else:
-            return 'SELECT NULL AS placeholder'
+            query += "LIMIT 0"
+            return query
 
     query += " AND ROUND(c.balance, 1) != ROUND(i.balance, 1)"
     return query
