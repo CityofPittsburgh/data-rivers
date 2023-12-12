@@ -419,6 +419,12 @@ def beam_cleanup_statement(bucket):
            "no beam output; fi".format(bucket, bucket)
 
 
+def check_blob_exists(bucket, path, **kwargs):
+    for _ in storage_client.list_blobs(bucket, prefix=path):
+        return True
+    return False
+
+
 def find_backfill_date(bucket_name, subfolder):
     """
     Return the date of the last time a given DAG was run when provided with a bucket name and
