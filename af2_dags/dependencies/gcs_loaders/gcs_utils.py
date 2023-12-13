@@ -998,7 +998,7 @@ def sql_to_df(conn, sql_query, db='MSSQL', date_col=None, date_format=None):
     return df
 
 
-def post_xml(base_url, envelope, auth, headers, res_start, res_stop):
+def post_xml(base_url, envelope, auth, headers, res_start='', res_stop=''):
     xml_dict = {'root': {'return': None}}
     res_code = '429'
     attempt = 0
@@ -1006,9 +1006,7 @@ def post_xml(base_url, envelope, auth, headers, res_start, res_stop):
         # API call to get data
         response = requests.post(base_url, data=envelope, auth=auth, headers=headers)
         attempt += 1
-        # Print API status code for debugging purposes
         res_code = str(response.status_code)
-        # print(f"API response code: {res_code}")
         if res_code == '200':
             vals = response.text[response.text.find(res_start) + len(res_start):response.text.rfind(res_stop)]
             vals = '<root>' + vals + '</root>'

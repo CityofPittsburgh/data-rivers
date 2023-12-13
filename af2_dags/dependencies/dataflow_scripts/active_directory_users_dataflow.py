@@ -55,7 +55,7 @@ def run(argv=None):
     with beam.Pipeline(options=pipeline_options) as p:
         field_name_swaps = [('givenName', 'first_name'), ('sn', 'last_name'),
                             ('sAMAccountName', 'sam_account_name'), ('mail', 'email')]
-        dept_name_params = ['ad_department_mapping.json', 'description', 'department']
+        dept_name_params = ['ad_department_mapping.json', 'department', 'department']
         type_changes = [('employee_id', 'str')]
         drop_fields = ['userAccountControl']
 
