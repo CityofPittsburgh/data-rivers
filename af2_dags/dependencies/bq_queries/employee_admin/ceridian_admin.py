@@ -1,9 +1,5 @@
 import os
-import io
-
-import pandas as pd
-from datetime import datetime, timedelta, date
-from google.cloud import storage
+from datetime import datetime, timedelta
 
 
 def build_eeo4_report():
@@ -86,7 +82,7 @@ def build_percentage_table_query(new_table, pct_field, hardcoded_vals):
 def compare_timebank_balances(dataset, comp_table, offset=0):
     query = F"""
     CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.{dataset}.{comp_table}` AS
-    SELECT c.employee_id, e.display_name, c.retrieval_date, i.code AS time_bank_code, 
+    SELECT c.employee_id, e.display_name, c.retrieval_date, i.code, 
            c.balance AS ceridian_balance, i.balance AS intime_balance
     FROM `{os.environ['GCLOUD_PROJECT']}.ceridian.historic_accrual_balances` c, 
          `{os.environ['GCLOUD_PROJECT']}.intime.timebank_balances` i,
