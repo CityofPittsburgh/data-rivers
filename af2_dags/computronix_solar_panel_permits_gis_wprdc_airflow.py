@@ -5,6 +5,7 @@ from datetime import datetime
 
 from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
+from airflow.operators.python_operator import ShortCircuitOperator
 from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOperator
 from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 from airflow.contrib.operators.bigquery_to_bigquery import BigQueryToBigQueryOperator
@@ -12,7 +13,7 @@ from airflow.contrib.operators.bigquery_table_delete_operator import BigQueryTab
 
 from dependencies import airflow_utils
 from dependencies.airflow_utils import get_ds_year, get_ds_month, get_ds_day, default_args, \
-    build_geo_coords_from_parcel_query, build_revgeo_time_bound_query
+    build_geo_coords_from_parcel_query, build_revgeo_time_bound_query, check_blob_exists
 
 
 # custom query builder func. to do all geo enrichment as a single query. this avoids unnecessary staging tables/views
@@ -70,6 +71,16 @@ gcs_loader = BashOperator(
         dag = dag
 )
 
+
+# Short-circuit DAG if no backfill needs to be performed
+check_api_retrieval_error = ShortCircuitOperator(
+    task_id='check_api_retrieval_error',
+    python_callable=check_blob_exists,
+    op_kwargs={"bucket": F"{os.environ['GCS_PREFIX']}_computronix", "path": F"{dataset}/{ingest_json_loc}"},
+    dag=dag
+)
+
+
 # Run dataflow
 exec_df = F"python {os.environ['DATAFLOW_SCRIPT_PATH']}/computronix_solar_panel_permits_gis_wprdc_dataflow.py"
 dataflow = BashOperator(
@@ -107,7 +118,7 @@ exp_to_gis_bq = BigQueryToBigQueryOperator(
         task_id = 'exp_to_gis_bq',
         source_project_dataset_tables = F"{os.environ['GCLOUD_PROJECT']}:computronix.geo_enriched_solar_panels",
         destination_project_dataset_table = F"data-bridgis:computronix.geo_enriched_solar_panels",
-        write_disposition = 'WRITE_EMPTY',
+        write_disposition = 'WRITE_TRUNCATE',
         create_disposition = 'CREATE_IF_NEEDED',
         bigquery_conn_id = 'google_cloud_default',
         dag = dag
@@ -138,7 +149,9 @@ beam_cleanup = BashOperator(
 )
 
 
-gcs_loader >> dataflow >> gcs_to_bq
+gcs_loader >> check_api_retrieval_error >> dataflow >> gcs_to_bq
 gcs_to_bq >> del_hot_bucket_avro
 gcs_to_bq >> beam_cleanup
 gcs_to_bq >> bq_geo_enrichment >> exp_to_gis_bq >> delete_incoming_table
+
+
