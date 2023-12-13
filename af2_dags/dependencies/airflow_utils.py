@@ -98,8 +98,8 @@ def get_prev_ds_day(ds):
 
 
 # TODO: phase out the usage of build_revgeo_query() in favor of build_rev_geo_time_bound_query()
-def build_revgeo_time_bound_query(dataset, source, new_table, create_date, lat_field, long_field, source_is_table =
-True):
+def build_revgeo_time_bound_query(dataset, source, create_date, lat_field, long_field,
+                                  new_table = None, source_is_table = True):
     """
     Take a table with lat/long values and reverse-geocode it into a new a final table.
     This function is a substantial refactor of the build_rev_geo() function. This query allows a lat/long point to be
@@ -128,11 +128,13 @@ True):
     """
     if source_is_table:
         src = F"`{os.environ['GCLOUD_PROJECT']}.{dataset}.{source}`"
+        create_statement = F"CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.{dataset}.{new_table}` AS"
     else:
         src = source
+        create_statement = ""
 
     return f"""
-    CREATE OR REPLACE TABLE `{os.environ["GCLOUD_PROJECT"]}.{dataset}.{new_table}` AS
+    {create_statement}
     -- return zones for all records that it is possible to rev geocode. some records will not be possible to process 
     -- (bad lat/long etc) and will be pulled in via the next blocked
     SELECT
