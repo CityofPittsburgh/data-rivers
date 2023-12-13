@@ -419,6 +419,12 @@ def beam_cleanup_statement(bucket):
            "no beam output; fi".format(bucket, bucket)
 
 
+def check_blob_exists(bucket, path, **kwargs):
+    for _ in storage_client.list_blobs(bucket, prefix=path):
+        return True
+    return False
+
+
 def find_backfill_date(bucket_name, subfolder):
     """
     Return the date of the last time a given DAG was run when provided with a bucket name and
@@ -517,6 +523,10 @@ def format_dataflow_call(script_name, bucket_name, sub_direc, dataset_id):
     output_arg = f" --avro_output gs://{os.environ['GCS_PREFIX']}_{bucket_name}/{sub_direc}/avro_output/" \
                  f"{date_direc}/{ts}/"
     return exec_script_cmd + input_arg + output_arg
+
+
+def log_task(dag_id, message, **kwargs):
+    print(f'Logging DAG {dag_id}: \n{message}')
 
 
 def build_city_limits_query(dataset, raw_table, lat_field='lat', long_field='long'):

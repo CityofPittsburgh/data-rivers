@@ -1,28 +1,65 @@
 from __future__ import absolute_import
 
 import os
+import io
+import pandas as pd
+from datetime import datetime, timedelta, date
+from google.cloud import storage
+
 from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
 from airflow.operators.python_operator import PythonOperator
+from airflow.operators.python_operator import BranchPythonOperator
 from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 from airflow.contrib.operators.bigquery_to_gcs import BigQueryToCloudStorageOperator
 
 from dependencies import airflow_utils
-from dependencies.airflow_utils import get_ds_month, get_ds_year, get_ds_day, default_args, gcs_to_email
+from dependencies.airflow_utils import get_ds_month, get_ds_year, get_ds_day, default_args, gcs_to_email, log_task
 import dependencies.bq_queries.employee_admin.ceridian_admin as q
 
 dag = DAG(
     'intime_set_balances',
     default_args=default_args,
-    schedule_interval='@daily',
+    schedule_interval='0 17 * * *',
+    start_date=datetime(2023, 12, 8),
     user_defined_filters={'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year,
                           'get_ds_day': get_ds_day},
-    max_active_runs=1
+    max_active_runs=1,
+    catchup=False
 )
 
 exec_date = "{{ ds }}"
 path = "timebank/update_log/{{ ds|get_ds_year }}/{{ ds|get_ds_month }}"
 json_loc = f"{path}/{exec_date}_updates.json"
+
+
+def branch_time_balance_comp(offset):
+    storage_client = storage.Client()
+    today = datetime.today()
+    if date.today().weekday() == 2:
+        return ['create_discrepancy_table']
+    elif date.today().weekday() == 4:
+        offset_val = timedelta(days=offset)
+        comp_date = today + offset_val
+        comp_str = comp_date.strftime("%m/%d/%Y")
+
+        bucket = storage_client.get_bucket(f"{os.environ['GCS_PREFIX']}_ceridian")
+        blob = bucket.blob("timekeeping/payroll_schedule_23-24.csv")
+        content = blob.download_as_string()
+        stream = io.StringIO(content.decode(encoding='utf-8'))
+        sched_df = pd.read_csv(stream)
+        if comp_str in list(sched_df['pay_issued']):
+            return ['create_update_table']
+    else:
+        return ['irrelevant_day']
+
+
+choose_branch = BranchPythonOperator(
+    task_id='choose_branch',
+    python_callable=branch_time_balance_comp,
+    op_args=[7],
+    dag=dag
+)
 
 create_discrepancy_table = BigQueryOperator(
     task_id='create_discrepancy_table',
@@ -47,14 +84,15 @@ email_comparison = PythonOperator(
                "file_path": "data_sharing/discrepancy_report.csv",
                "recipients": ["osar@pittsburghpa.gov"], "cc": [os.environ["EMAIL"], "benjamin.cogan@pittsburghpa.gov"],
                "subject": "ALERT: Time Bank Discrepancy Report",
-               "message": "Attached is an extract of all time bank balances that differ between the Ceridian and InTime source systems.",
+               "message": "Attached is an extract of all time bank balances that differ between the Ceridian and "
+                          "InTime source systems.",
                "attachment_name": "discrepancy_report"},
     dag=dag
 )
 
 create_update_table = BigQueryOperator(
     task_id='create_update_table',
-    sql=q.compare_timebank_balances('intime', 'balance_update', -7),
+    sql=q.compare_timebank_balances('intime', 'balance_update', -5),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
@@ -75,5 +113,15 @@ set_balances_gcs = BashOperator(
     dag=dag
 )
 
-create_discrepancy_table >> comparison_gcs_export >> email_comparison
-create_update_table >> export_update_table >> set_balances_gcs
+irrelevant_day = PythonOperator(
+    task_id='irrelevant_day',
+    python_callable=log_task,
+    op_kwargs={"dag_id": "intime_set_balances",
+               "message": f"No comparison performed between Ceridian & InTime time balances on date {exec_date}. "
+                          f"Comparisons are only performed on Wednesdays and non-payday Fridays."},
+    dag=dag
+)
+
+choose_branch >> create_discrepancy_table >> comparison_gcs_export >> email_comparison
+choose_branch >> create_update_table >> export_update_table >> set_balances_gcs
+choose_branch >> irrelevant_day

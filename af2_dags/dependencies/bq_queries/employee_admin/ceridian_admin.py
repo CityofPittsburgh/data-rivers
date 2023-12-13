@@ -95,33 +95,18 @@ def compare_timebank_balances(dataset, comp_table, offset=0):
     AND c.time_bank = i.time_bank
     """
 
-    storage_client = storage.Client()
     today = datetime.today()
     offset_val = timedelta(days=offset)
     comp_date = today + offset_val
     comp_str = comp_date.strftime("%m/%d/%Y")
 
     if comp_table == 'balance_update':
-        bucket = storage_client.get_bucket(f"{os.environ['GCS_PREFIX']}_ceridian")
-        blob = bucket.blob("timekeeping/payroll_schedule_23-24.csv")
-        content = blob.download_as_string()
-        stream = io.StringIO(content.decode(encoding='utf-8'))
-        df = pd.read_csv(stream)
-        if comp_str in list(df['pay_issued']):
-            date_val = df.loc[df['pay_issued'] == comp_str, 'pay_period_end'].item()
-            query += f"""AND c.retrieval_date = PARSE_DATE('%m/%d/%Y', '{date_val}') 
-                         AND i.retrieval_date = PARSE_DATE('%m/%d/%Y', '{date_val}')"""
-        else:
-            query += "LIMIT 0"
-            return query
+        query += f"""AND c.retrieval_date = PARSE_DATE('%m/%d/%Y', '{comp_str}') 
+                     AND i.retrieval_date = PARSE_DATE('%m/%d/%Y', '{comp_str}')"""
 
     elif comp_table == 'discrepancy_report':
-        if date.today().weekday() == 2:
-            query += f"""AND c.retrieval_date = PARSE_DATE('%m/%d/%Y', '{today.strftime('%m/%d/%Y')}') 
-                         AND i.retrieval_date = PARSE_DATE('%m/%d/%Y', '{comp_str}')"""
-        else:
-            query += "LIMIT 0"
-            return query
+        query += f"""AND c.retrieval_date = PARSE_DATE('%m/%d/%Y', '{today.strftime('%m/%d/%Y')}') 
+                     AND i.retrieval_date = PARSE_DATE('%m/%d/%Y', '{comp_str}')"""
 
     query += " AND ROUND(c.balance, 1) != ROUND(i.balance, 1)"
     return query

@@ -44,6 +44,7 @@ def call_odata_api_error_handling(targ_url, pipeline, time_out=3600, limit_resul
     :param time_out: int value in seconds for indicating how long the function should be allowed to run before
     failing out
     :param limit_results: boolean to limit the func from hitting the API more than once (useful for testing)
+    :param ct_url: string of odata url query to calculate the number oof expected records
     :return: list of dicts containing API results
     """
 
@@ -140,19 +141,15 @@ def call_odata_api_error_handling(targ_url, pipeline, time_out=3600, limit_resul
             error_flag = True
             break
 
-    # TODO: when we're ready, remove the error_flag control flow. This  will allow the func to return partial results
-    #  retrieved up until the API requests fail. This requires that old tables are not truncated when new ones are
-    #  written. instead, a more complicated series of joins/unions are needed to combine the newly retrieved records
-    #  and the older records which may not be present in the partial results.
     print(F"A total of {len(records)} records were returned")
 
     if ct_url:
         print(F"{ct} records were expected")
 
-    print("exiting the odata api request function")
-
     if error_flag:
         print(F"API failed...returned reason was {res.reason}")
+
+    print("exiting the odata api request function")
 
     return records, error_flag
 
