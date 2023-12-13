@@ -44,10 +44,10 @@ if json.loads(os.environ['USE_PROD_RESOURCES'].lower()):
                   {'tag': 'hours', 'content': float(row['ceridian_balance'])}]
 
         response = post_xml(BASE_URL, envelope=generate_xml(soap_url, request, params, prefix=prefix),
-                            auth=auth, headers=headers, res_start=start, res_stop=end)
+                            auth=auth, headers=headers)
 
         # An empty response dictionary indicates that the update failed. Otherwise, print update details to the console.
-        if response['root']['return']:
+        if response != {'root': {'return': None}}:
             upd_row = dict(row)
             upd_row['old_balance'] = upd_row.pop('intime_balance')
             upd_row['new_balance'] = upd_row.pop('ceridian_balance')
