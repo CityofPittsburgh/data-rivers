@@ -37,7 +37,7 @@ extract_data = BashOperator(
 
 # geocode missing lat/long based on parc id
 query_parc_coords = build_geo_coords_from_parcel_query(raw_table = F"{os.environ['GCLOUD_PROJECT']}.eproperty.vacant_properties",
-                                                       parc_field = "parc", lat_field = "lat_parc", long_field =
+                                                       parc_field = "parc_num", lat_field = "lat_parc", long_field =
                                                        "long_parc")
 query_parc_coords = F"""
 CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.eproperty.vacant_properties` AS

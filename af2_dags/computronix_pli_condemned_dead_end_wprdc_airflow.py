@@ -8,6 +8,7 @@ from airflow.operators.bash_operator import BashOperator
 from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOperator
 from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 from airflow.contrib.operators.bigquery_to_gcs import BigQueryToCloudStorageOperator
+from airflow.contrib.operators.bigquery_table_delete_operator import BigQueryTableDeleteOperator
 
 from dependencies import airflow_utils
 from dependencies.airflow_utils import get_ds_year, get_ds_month, get_ds_day, default_args
@@ -75,8 +76,8 @@ combine_incoming_existing = BigQueryOperator(
 
 
 # seperate all condemened and dead end records for pli export (2 tables)
-seperate_pli_con_dead_end = BigQueryOperator(
-        task_id = 'seperate_con_dead_end',
+seperate_pli_active_con_dead_end = BigQueryOperator(
+        task_id = 'seperate_pli_active_con_dead_end',
         sql = q.create_pli_exp_active_tables(),
         bigquery_conn_id='google_cloud_default',
         use_legacy_sql = False,
@@ -89,7 +90,7 @@ csv_file_name = f"{path}"
 dest_bucket = f"gs://{os.environ['GCS_PREFIX']}_pli/condemned_properties/"
 pli_export_condemned = BigQueryToCloudStorageOperator(
         task_id = 'pli_export_condemned',
-        source_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}.computronix.pli_condemned_properties",
+        source_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}.computronix.pli_active_condemned_properties",
         destination_cloud_storage_uris = [f"{dest_bucket}{csv_file_name}.csv"],
         bigquery_conn_id='google_cloud_default',
         dag = dag
@@ -101,7 +102,7 @@ csv_file_name = f"{path}"
 dest_bucket = f"gs://{os.environ['GCS_PREFIX']}_pli/dead_end_properties/"
 pli_export_dead_end = BigQueryToCloudStorageOperator(
         task_id = 'pli_export_dead_end',
-        source_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}.computronix.pli_dead_end_properties",
+        source_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}.computronix.pli_active_dead_end_properties",
         destination_cloud_storage_uris = [f"{dest_bucket}{csv_file_name}.csv"],
         bigquery_conn_id='google_cloud_default',
         dag = dag
@@ -130,6 +131,18 @@ push_gis_latest_cde = BigQueryOperator(
 )
 
 
+delete_con_active_table = BigQueryTableDeleteOperator(
+    task_id="delete_con_active_table",
+    deletion_dataset_table=f"{os.environ['GCLOUD_PROJECT']}.computronix.pli_active_condemned_properties",
+)
+
+
+delete_de_active_table = BigQueryTableDeleteOperator(
+    task_id="delete_de_active_table",
+    deletion_dataset_table=f"{os.environ['GCLOUD_PROJECT']}.computronix.pli_active_dead_end_properties",
+)
+
+
 beam_cleanup = BashOperator(
     task_id='beam_cleanup',
     bash_command=airflow_utils.beam_cleanup_statement('{}_computronix'.format(os.environ['GCS_PREFIX'])),
@@ -137,9 +150,16 @@ beam_cleanup = BashOperator(
 )
 
 
+delete_incoming_inspection_table = BigQueryTableDeleteOperator(
+    task_id="delete_incoming_inspection_table",
+    deletion_dataset_table=f"{os.environ['GCLOUD_PROJECT']}.computronix.incoming_pli_program_inspection_properties",
+)
+
+
 gcs_loader >> dataflow >> gcs_to_bq >> combine_incoming_existing
 combine_incoming_existing >> wprdc_export >> beam_cleanup
-combine_incoming_existing >> seperate_pli_con_dead_end
-seperate_pli_con_dead_end >> pli_export_condemned >> beam_cleanup
-seperate_pli_con_dead_end >> pli_export_dead_end >> beam_cleanup
+combine_incoming_existing >> seperate_pli_active_con_dead_end
+seperate_pli_active_con_dead_end >> pli_export_condemned >> delete_con_active_table >> beam_cleanup
+seperate_pli_active_con_dead_end >> pli_export_dead_end >> delete_de_active_table >> beam_cleanup
 combine_incoming_existing >> push_gis_latest_cde >> beam_cleanup
+beam_cleanup >> delete_incoming_inspection_table

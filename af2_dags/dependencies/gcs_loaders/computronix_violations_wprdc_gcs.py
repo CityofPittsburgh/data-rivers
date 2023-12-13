@@ -112,7 +112,7 @@ violations, error_flag = call_odata_api_error_handling(targ_url = odata_url, pip
 # names to swap for fields that are not nested in raw data
 swaps = [
         fds_base.split(", "),
-        ["casefile_number", "status", "address", "parcel_num"]
+        ["casefile_number", "status", "address", "parc_num"]
 ]
 unnested_violations = unnest_violations(violations, swaps)
 

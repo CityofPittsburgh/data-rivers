@@ -6,9 +6,10 @@ import io
 import base64
 import logging
 import re
-import requests
-from datetime import datetime, timedelta
 import time
+import requests
+from requests.auth import HTTPBasicAuth
+from datetime import datetime, timedelta
 
 import json
 import ckanapi
@@ -43,6 +44,7 @@ def call_odata_api_error_handling(targ_url, pipeline, time_out=3600, limit_resul
     :param time_out: int value in seconds for indicating how long the function should be allowed to run before
     failing out
     :param limit_results: boolean to limit the func from hitting the API more than once (useful for testing)
+    :param ct_url: string of odata url query to calculate the number oof expected records
     :return: list of dicts containing API results
     """
 
@@ -139,19 +141,15 @@ def call_odata_api_error_handling(targ_url, pipeline, time_out=3600, limit_resul
             error_flag = True
             break
 
-    # TODO: when we're ready, remove the error_flag control flow. This  will allow the func to return partial results
-    #  retrieved up until the API requests fail. This requires that old tables are not truncated when new ones are
-    #  written. instead, a more complicated series of joins/unions are needed to combine the newly retrieved records
-    #  and the older records which may not be present in the partial results.
     print(F"A total of {len(records)} records were returned")
 
     if ct_url:
         print(F"{ct} records were expected")
 
-    print("exiting the odata api request function")
-
     if error_flag:
         print(F"API failed...returned reason was {res.reason}")
+
+    print("exiting the odata api request function")
 
     return records, error_flag
 
@@ -737,6 +735,36 @@ def synthesize_query(resource_id, select_fields=['*'], where_clauses=None, group
         query += f" LIMIT {limit}"
 
     return query
+
+
+def get_ceridian_report(xrefcode):
+    url = f"https://www.dayforcehcm.com/Api/{os.environ['CERIDIAN_ORG_ID']}/V1/Reports/{xrefcode}"
+    auth = HTTPBasicAuth(os.environ['CERIDIAN_USER'], os.environ['CERIDIAN_PW'])
+
+    all_records = []
+    # Make use of session to retain authorization header when a URL redirect happens
+    s = requests.session()
+    more = True
+    while more is True:
+        # API call to get data
+        response = s.get(url, auth=auth)
+        # Initial API should fail due to URL change, response gives us new URL
+        if response.status_code == 401:
+            redir_url = response.url
+            # Retry API request with same parameters but new URL
+            response = s.get(redir_url, auth=auth)
+        print(f"API Response: {str(response.status_code)}")
+
+        records = response.json()['Data']['Rows']
+        # continue looping through records until the API has a MoreFlag value of 0
+        if response.json()['Paging']['Next']:
+            url = response.json()['Paging']['Next']
+        else:
+            more = False
+        # append list of API results to growing all_records list (should not need more than initial API call)
+        all_records.extend(records)
+
+    return all_records
 
 
 """

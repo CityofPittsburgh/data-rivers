@@ -1,4 +1,64 @@
 import os
+import io
+
+import pandas as pd
+from datetime import datetime, timedelta, date
+from google.cloud import storage
+
+
+def build_eeo4_report():
+    return F"""
+    CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.ceridian.equal_opportunity_report` AS
+    SELECT job_function, salary_range, ethnicity, gender, COUNT(*) counts FROM (
+    SELECT j.job_function, CASE
+        WHEN base_salary <= 15999.89 THEN '$0.1 - $15.9'
+        WHEN base_salary BETWEEN 16000.00 AND 19999.99 THEN '$16.0 - $19.9'
+        WHEN base_salary BETWEEN 20000.00 AND 24999.99 THEN '$20.0 - $24.9'
+        WHEN base_salary BETWEEN 25000.00 AND 32999.99 THEN '$25.0 - $32.9'
+        WHEN base_salary BETWEEN 33000.00 AND 42999.99 THEN '$33.0 - $42.9'
+        WHEN base_salary BETWEEN 43000.00 AND 54999.99 THEN '$43.0 - $54.9'
+        WHEN base_salary BETWEEN 55000.00 AND 69999.99 THEN '$55.0 - $69.9'
+        WHEN base_salary >= 70000.00 THEN '$70.0 PLUS'
+        ELSE 'Unknown Range'
+    END AS salary_range, ethnicity, gender
+    FROM `{os.environ['GCLOUD_PROJECT']}.ceridian.job_details` j
+    RIGHT OUTER JOIN (SELECT job_title, base_salary, ethnicity, gender
+    FROM `{os.environ['GCLOUD_PROJECT']}.ceridian.all_employees`
+    WHERE dept_desc NOT IN ('Non-Employee Benefits', 'Historical')
+    AND job_title != 'Community Liaison') e_1
+    ON j.job_title = e_1.job_title
+    UNION ALL
+    SELECT 'Officials and Administrators' AS job_function, CASE
+        WHEN base_salary <= 15999.89 THEN '$0.1 - $15.9'
+        WHEN base_salary BETWEEN 16000.00 AND 19999.99 THEN '$16.0 - $19.9'
+        WHEN base_salary BETWEEN 20000.00 AND 24999.99 THEN '$20.0 - $24.9'
+        WHEN base_salary BETWEEN 25000.00 AND 32999.99 THEN '$25.0 - $32.9'
+        WHEN base_salary BETWEEN 33000.00 AND 42999.99 THEN '$33.0 - $42.9'
+        WHEN base_salary BETWEEN 43000.00 AND 54999.99 THEN '$43.0 - $54.9'
+        WHEN base_salary BETWEEN 55000.00 AND 69999.99 THEN '$55.0 - $69.9'
+        WHEN base_salary >= 70000.00 THEN '$70.0 PLUS'
+        ELSE 'Unknown Range'
+    END AS salary_range, ethnicity, gender
+    FROM (SELECT job_title, base_salary, ethnicity, gender
+    FROM `{os.environ['GCLOUD_PROJECT']}.ceridian.all_employees`
+    WHERE job_title = 'Community Liaison' AND dept_desc = 'Office of the Mayor')
+    UNION ALL
+    SELECT 'Professionals' AS job_function, CASE
+        WHEN base_salary <= 15999.89 THEN '$0.1 - $15.9'
+        WHEN base_salary BETWEEN 16000.00 AND 19999.99 THEN '$16.0 - $19.9'
+        WHEN base_salary BETWEEN 20000.00 AND 24999.99 THEN '$20.0 - $24.9'
+        WHEN base_salary BETWEEN 25000.00 AND 32999.99 THEN '$25.0 - $32.9'
+        WHEN base_salary BETWEEN 33000.00 AND 42999.99 THEN '$33.0 - $42.9'
+        WHEN base_salary BETWEEN 43000.00 AND 54999.99 THEN '$43.0 - $54.9'
+        WHEN base_salary BETWEEN 55000.00 AND 69999.99 THEN '$55.0 - $69.9'
+        WHEN base_salary >= 70000.00 THEN '$70.0 PLUS'
+        ELSE 'Unknown Range'
+    END AS salary_range, ethnicity, gender
+    FROM (SELECT job_title, base_salary, ethnicity, gender
+    FROM `{os.environ['GCLOUD_PROJECT']}.ceridian.all_employees`
+    WHERE job_title = 'Community Liaison' AND dept_desc != 'Office of the Mayor'))
+    GROUP BY job_function, salary_range, ethnicity, gender
+    """
 
 
 def build_percentage_table_query(new_table, pct_field, hardcoded_vals):
@@ -23,19 +83,33 @@ def build_percentage_table_query(new_table, pct_field, hardcoded_vals):
     return sql
 
 
-def compare_timebank_balances():
-    return F"""
-    CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.ceridian.intime_balance_comparison` AS
-    SELECT c.employee_id, e.display_name, c.`date` AS retrieval_date, i.code AS time_bank_code, 
+def compare_timebank_balances(dataset, comp_table, offset=0):
+    query = F"""
+    CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.{dataset}.{comp_table}` AS
+    SELECT c.employee_id, e.display_name, c.retrieval_date, i.code AS time_bank_code, 
            c.balance AS ceridian_balance, i.balance AS intime_balance
-    FROM `{os.environ['GCLOUD_PROJECT']}.ceridian.time_accruals_report` c, 
-         `{os.environ['GCLOUD_PROJECT']}.intime.weekly_time_balances` i,
+    FROM `{os.environ['GCLOUD_PROJECT']}.ceridian.historic_accrual_balances` c, 
+         `{os.environ['GCLOUD_PROJECT']}.intime.timebank_balances` i,
          `{os.environ['GCLOUD_PROJECT']}.ceridian.all_employees` e
     WHERE c.employee_id = i.employee_id AND c.employee_id = e.employee_num
-    AND c.`date` = i.`date`
     AND c.time_bank = i.time_bank
-    AND ROUND(c.balance, 1) != ROUND(i.balance, 1)
     """
+
+    today = datetime.today()
+    offset_val = timedelta(days=offset)
+    comp_date = today + offset_val
+    comp_str = comp_date.strftime("%m/%d/%Y")
+
+    if comp_table == 'balance_update':
+        query += f"""AND c.retrieval_date = PARSE_DATE('%m/%d/%Y', '{comp_str}') 
+                     AND i.retrieval_date = PARSE_DATE('%m/%d/%Y', '{comp_str}')"""
+
+    elif comp_table == 'discrepancy_report':
+        query += f"""AND c.retrieval_date = PARSE_DATE('%m/%d/%Y', '{today.strftime('%m/%d/%Y')}') 
+                     AND i.retrieval_date = PARSE_DATE('%m/%d/%Y', '{comp_str}')"""
+
+    query += " AND ROUND(c.balance, 1) != ROUND(i.balance, 1)"
+    return query
 
 
 def extract_new_hires():

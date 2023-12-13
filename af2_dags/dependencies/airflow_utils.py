@@ -11,7 +11,7 @@ import base64
 
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail, Attachment, FileContent, FileName, FileType, Disposition, Personalization, Cc, To
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from google.cloud import bigquery, storage
 from google.api_core.exceptions import NotFound
 
@@ -95,54 +95,6 @@ def get_prev_ds_month(prev_ds):
 
 def get_prev_ds_day(ds):
     return ds.split('-')[2]
-
-
-def build_dashburgh_street_tix_query(dataset, raw_table, new_table, is_deduped, id_field, group_field, limit,
-                                     start_time, field_groups):
-    sql = f"""
-    CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.{dataset}.{new_table}` AS 
-    SELECT {'DISTINCT' if is_deduped else ''} {id_field} AS id, dept, tix.request_type_name, closed_date_est
-    FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{raw_table}` tix
-    INNER JOIN
-        (SELECT {group_field}, COUNT(*) AS `count`
-        FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{raw_table}`
-        WHERE """
-    group_list = []
-    for group, fields in field_groups.items():
-        field_list = []
-        group_str = f"{group} IN ("
-        for field in fields:
-            field_list.append(f"'{field}'")
-        group_str += ", ".join(str(field) for field in field_list) + ")"
-        group_list.append(group_str)
-    sql += " AND ".join(str(group) for group in group_list)
-    sql += f"""
-        GROUP BY {group_field}
-        ORDER BY `count` DESC
-        LIMIT {limit}) top_types
-    ON tix.{group_field} = top_types.{group_field}
-    WHERE tix."""
-    sql += " AND ".join(str(group) for group in group_list)
-    sql += f"""
-    AND status_name = 'closed'
-    AND create_date_unix >= {start_time}
-    """
-    return sql
-
-
-def build_dedup_old_updates(dataset, table, id_field, last_upd_field):
-    sql = F"""
-    CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.{dataset}.{table}` AS
-    SELECT * EXCEPT (rn)
-    FROM (
-        SELECT
-            *,
-            ROW_NUMBER() OVER(PARTITION BY {id_field} ORDER BY {last_upd_field} DESC) AS rn
-        FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{table}`
-    )
-    WHERE rn = 1;
-    """
-    return sql
 
 
 # TODO: phase out the usage of build_revgeo_query() in favor of build_rev_geo_time_bound_query()
@@ -386,50 +338,6 @@ def build_split_table_query(dataset, raw_table, start, stop, num_shards, date_fi
     return query
 
 
-def build_sync_staging_table_query(dataset, new_table, upd_table, src_table, is_deduped, upd_id_field, join_id_field,
-                                   field_groups, comp_fields):
-    sql = F"""
-    CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.{dataset}.{new_table}` AS 
-    SELECT {'DISTINCT' if is_deduped else ''} {upd_id_field}, """
-    field_list = []
-    for group in field_groups:
-        for alias, fields in group.items():
-            for field in fields:
-                field_list.append(f"{alias}.{field}")
-    sql += ", ".join(str(field) for field in field_list)
-    sql += f" FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{upd_table}` upd"
-    for group in field_groups:
-        for alias, fields in group.items():
-            join_list = []
-            sql += f" INNER JOIN (SELECT {'DISTINCT' if is_deduped else ''} {join_id_field}, "
-            for field in fields:
-                join_list.append(f"{field}")
-            sql += ", ".join(str(field) for field in join_list)
-            sql += f""" FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{src_table}`) {alias}
-            ON upd.{upd_id_field} = {alias}.{join_id_field}"""
-    sql += " WHERE "
-    comparison_list = []
-    for group in comp_fields:
-        for alias, fields in group.items():
-            for field in fields:
-                comparison_list.append(f'IFNULL(upd.{field}, "") != IFNULL({alias}.{field}, "") ')
-    sql += "OR ".join(str(field) for field in comparison_list)
-    return sql
-
-
-def build_sync_update_query(dataset, upd_table, src_table, id_field, upd_fields):
-    sql = f"UPDATE `{os.environ['GCLOUD_PROJECT']}.{dataset}.{upd_table}` upd SET "
-    upd_str_list = []
-    for field in upd_fields:
-        upd_str_list.append(f"upd.{field} = temp.{field}")
-    sql += ", ".join(str(upd) for upd in upd_str_list)
-    sql += f"""
-    FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{src_table}` temp
-    WHERE upd.{id_field} = temp.{id_field}
-    """
-    return sql
-
-
 def create_partitioned_bq_table(avro_bucket, schema_name, table_id, partition):
     # bigquery schemas that are used to upload directly from pandas are not formatted identically as an avsc filie.
     # this func makes the necessary conversions. this allows a single schema to serve both purposes
@@ -460,62 +368,61 @@ def create_partitioned_bq_table(avro_bucket, schema_name, table_id, partition):
     bq_client.create_table(table)
 
 
-def dedup_table(dataset, table):
-    return f"""
-    SELECT DISTINCT * FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{table}`
-    """
+def gcs_to_email(bucket, file_path, recipients, cc, subject, message, attachment_name, on_certain_day=(False, None),
+                 file_type='csv', min_length=50,  **kwargs):
+    if (not on_certain_day[0]) or (on_certain_day[0] and date.today().weekday() == on_certain_day[1]):
+        try:
+            bucket = storage_client.get_bucket(bucket)
+            blob = bucket.blob(file_path)
+            content = blob.download_as_string()
+            if len(content) >= min_length:
+                message = Mail(
+                    from_email=os.environ['EMAIL'],
+                    subject=subject,
+                    html_content=F"""
+                                {message}
+                                """
+                )
+                recips = Personalization()
+                for addr in recipients:
+                    recips.add_to(To(addr))
+                if cc:
+                    for addr in cc:
+                        recips.add_cc(Cc(addr))
+                message.add_personalization(recips)
 
+                encoded_file = base64.b64encode(content).decode()
 
-def filter_old_values(dataset, temp_table, final_table, join_field):
-    return f"""
-    DELETE FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{final_table}` final
-    WHERE final.{join_field} IN (SELECT {join_field} FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{temp_table}`)
-    """
+                attached_file = Attachment(
+                    FileContent(encoded_file),
+                    FileName(f"{attachment_name}.{file_type}"),
+                    FileType(f'application/{file_type}'),
+                    Disposition('attachment')
+                )
+                message.attachment = attached_file
 
-
-def gcs_to_email(bucket, file_path, recipients, cc, subject, message, attachment_name, file_type='csv', min_length=50,
-                 **kwargs):
-    try:
-        bucket = storage_client.get_bucket(bucket)
-        blob = bucket.blob(file_path)
-        content = blob.download_as_string()
-        if len(content) >= min_length:
-            message = Mail(
-                from_email=os.environ['EMAIL'],
-                subject=subject,
-                html_content=F"""
-                            {message}
-                            """
-            )
-            recips = Personalization()
-            for addr in recipients:
-                recips.add_to(To(addr))
-            if cc:
-                for addr in cc:
-                    recips.add_cc(Cc(addr))
-            message.add_personalization(recips)
-
-            encoded_file = base64.b64encode(content).decode()
-
-            attached_file = Attachment(
-                FileContent(encoded_file),
-                FileName(f"{attachment_name}.{file_type}"),
-                FileType(f'application/{file_type}'),
-                Disposition('attachment')
-            )
-            message.attachment = attached_file
-
-            sg = SendGridAPIClient(os.environ['SENDGRID_API_KEY'])
-            response = sg.send(message)
-        else:
-            print('Requested file is empty, no email sent')
-    except NotFound:
-        print('Requested file not found')
+                if json.loads(os.environ['USE_PROD_RESOURCES'].lower()):
+                    sg = SendGridAPIClient(os.environ['SENDGRID_API_KEY'])
+                    response = sg.send(message)
+                else:
+                    print(f'Test complete, following email not sent: \n{message}')
+            else:
+                print('Requested file is empty, no email sent')
+        except NotFound:
+            print('Requested file not found')
+    else:
+        print(f'No email sent, comparison only performed on day of week {on_certain_day[1]}')
 
 
 def beam_cleanup_statement(bucket):
     return "if gsutil -q stat gs://{}/beam_output/*; then gsutil rm gs://{}/beam_output/**; else echo " \
            "no beam output; fi".format(bucket, bucket)
+
+
+def check_blob_exists(bucket, path, **kwargs):
+    for _ in storage_client.list_blobs(bucket, prefix=path):
+        return True
+    return False
 
 
 def find_backfill_date(bucket_name, subfolder):
@@ -616,6 +523,10 @@ def format_dataflow_call(script_name, bucket_name, sub_direc, dataset_id):
     output_arg = f" --avro_output gs://{os.environ['GCS_PREFIX']}_{bucket_name}/{sub_direc}/avro_output/" \
                  f"{date_direc}/{ts}/"
     return exec_script_cmd + input_arg + output_arg
+
+
+def log_task(dag_id, message, **kwargs):
+    print(f'Logging DAG {dag_id}: \n{message}')
 
 
 def build_city_limits_query(dataset, raw_table, lat_field='lat', long_field='long'):
