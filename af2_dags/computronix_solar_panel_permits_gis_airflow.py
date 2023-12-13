@@ -82,7 +82,7 @@ check_api_retrieval_error = ShortCircuitOperator(
 
 
 # Run dataflow
-exec_df = F"python {os.environ['DATAFLOW_SCRIPT_PATH']}/computronix_solar_panel_permits_gis_wprdc_dataflow.py"
+exec_df = F"python {os.environ['DATAFLOW_SCRIPT_PATH']}/computronix_solar_panel_permits_gis_dataflow.py"
 dataflow = BashOperator(
         task_id = 'dataflow',
         bash_command = F"{exec_df} --input {ingest_bucket}/{dataset}/{ingest_json_loc} --avro_output"
