@@ -46,7 +46,7 @@ def build_geo_enrich_query():
 
 
 dag = DAG(
-        'computronix_solar_panel_gis_wprdc',
+        'computronix_solar_panel_gis',
         default_args = default_args,
         schedule_interval = '@daily',
         user_defined_filters = {'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year, 'get_ds_day': get_ds_day},

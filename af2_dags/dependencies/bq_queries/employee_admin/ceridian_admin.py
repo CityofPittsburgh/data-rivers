@@ -79,9 +79,8 @@ def build_percentage_table_query(new_table, pct_field, hardcoded_vals):
     return sql
 
 
-def compare_timebank_balances(dataset, comp_table, offset=0):
+def compare_timebank_balances(comp_table, offset=0):
     query = F"""
-    CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.{dataset}.{comp_table}` AS
     SELECT c.employee_id, e.display_name, c.retrieval_date, i.code, 
            c.balance AS ceridian_balance, i.balance AS intime_balance
     FROM `{os.environ['GCLOUD_PROJECT']}.ceridian.historic_accrual_balances` c, 
