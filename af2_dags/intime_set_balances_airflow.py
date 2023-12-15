@@ -65,7 +65,7 @@ choose_branch = BranchPythonOperator(
 create_discrepancy_table = BigQueryOperator(
     task_id='create_discrepancy_table',
     sql=g_q.direct_gcs_export(f"gs://{os.environ['GCS_PREFIX']}_ceridian/data_sharing/discrepancy_report.csv",
-                              'csv', '*',  c_q.compare_timebank_balances('ceridian', 'discrepancy_report', -2)),
+                              'csv', '*',  c_q.compare_timebank_balances('discrepancy_report', -2)),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
