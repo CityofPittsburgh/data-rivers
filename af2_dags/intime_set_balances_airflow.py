@@ -15,7 +15,8 @@ from airflow.contrib.operators.bigquery_to_gcs import BigQueryToCloudStorageOper
 
 from dependencies import airflow_utils
 from dependencies.airflow_utils import get_ds_month, get_ds_year, get_ds_day, default_args, gcs_to_email, log_task
-import dependencies.bq_queries.employee_admin.ceridian_admin as q
+import dependencies.bq_queries.general_queries as g_q
+import dependencies.bq_queries.employee_admin.ceridian_admin as c_q
 
 dag = DAG(
     'intime_set_balances',
@@ -63,7 +64,8 @@ choose_branch = BranchPythonOperator(
 
 create_discrepancy_table = BigQueryOperator(
     task_id='create_discrepancy_table',
-    sql=q.compare_timebank_balances('ceridian', 'discrepancy_report', -2),
+    sql=g_q.direct_gcs_export(f"gs://{os.environ['GCS_PREFIX']}_ceridian/data_sharing/discrepancy_report.csv",
+                              'csv', '*',  c_q.compare_timebank_balances('ceridian', 'discrepancy_report', -2)),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
@@ -90,22 +92,21 @@ email_comparison = PythonOperator(
     dag=dag
 )
 
-create_update_table = BigQueryOperator(
-    task_id='create_update_table',
-    sql=q.compare_timebank_balances('intime', 'balance_update', -5),
+i_export_subquery = c_q.compare_timebank_balances('balance_update')
+export_fields = """
+employee_id AS `Employee ID`, code AS `Time Bank Reference`,
+CAST(retrieval_date AS STRING FORMAT 'MM/DD/YYYY') AS `Set Balance Date`,
+balance AS Balance, NULL AS `Time Bank Effective Date`,
+NULL AS `Accrual Ref`, NULL AS `Worked Hours Ref`, NULL AS `Balance Reset Ref`
+"""
+export_for_api = BigQueryOperator(
+    task_id='export_for_api',
+    sql=g_q.direct_gcs_export(f'gs://{os.environ["GCS_PREFIX"]}_intime/timebank/time_balance_mismatches',
+                              'csv', export_fields, i_export_subquery),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
 )
-
-export_update_table = BigQueryToCloudStorageOperator(
-    task_id='export_update_table',
-    source_project_dataset_table=f"{os.environ['GCLOUD_PROJECT']}.intime.balance_update",
-    destination_cloud_storage_uris=[f"gs://{os.environ['GCS_PREFIX']}_intime/timebank/time_balance_mismatches.csv"],
-    bigquery_conn_id='google_cloud_default',
-    dag=dag
-)
-
 
 set_balances_gcs = BashOperator(
     task_id='set_balances_gcs',
@@ -123,5 +124,5 @@ irrelevant_day = PythonOperator(
 )
 
 choose_branch >> create_discrepancy_table >> comparison_gcs_export >> email_comparison
-choose_branch >> create_update_table >> export_update_table >> set_balances_gcs
+choose_branch >> export_for_api >> export_for_api >> set_balances_gcs
 choose_branch >> irrelevant_day
