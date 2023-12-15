@@ -11,7 +11,6 @@ from airflow.operators.bash_operator import BashOperator
 from airflow.operators.python_operator import PythonOperator
 from airflow.operators.python_operator import BranchPythonOperator
 from airflow.contrib.operators.bigquery_operator import BigQueryOperator
-from airflow.contrib.operators.bigquery_to_gcs import BigQueryToCloudStorageOperator
 
 from dependencies import airflow_utils
 from dependencies.airflow_utils import get_ds_month, get_ds_year, get_ds_day, default_args, gcs_to_email, log_task
@@ -62,20 +61,12 @@ choose_branch = BranchPythonOperator(
     dag=dag
 )
 
-create_discrepancy_table = BigQueryOperator(
-    task_id='create_discrepancy_table',
+export_discrepancy = BigQueryOperator(
+    task_id='export_discrepancy',
     sql=g_q.direct_gcs_export(f"gs://{os.environ['GCS_PREFIX']}_ceridian/data_sharing/discrepancy_report.csv",
                               'csv', '*',  c_q.compare_timebank_balances('discrepancy_report', -2)),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
-    dag=dag
-)
-
-comparison_gcs_export = BigQueryToCloudStorageOperator(
-    task_id='comparison_gcs_export',
-    source_project_dataset_table=f"{os.environ['GCLOUD_PROJECT']}.ceridian.discrepancy_report",
-    destination_cloud_storage_uris=[f"gs://{os.environ['GCS_PREFIX']}_ceridian/data_sharing/discrepancy_report.csv"],
-    bigquery_conn_id='google_cloud_default',
     dag=dag
 )
 
@@ -122,6 +113,6 @@ irrelevant_day = PythonOperator(
     dag=dag
 )
 
-choose_branch >> create_discrepancy_table >> comparison_gcs_export >> email_comparison
-choose_branch >> export_for_api >> export_for_api >> set_balances_gcs
+choose_branch >> export_discrepancy >> email_comparison
+choose_branch >> export_for_api >> set_balances_gcs
 choose_branch >> irrelevant_day
