@@ -92,7 +92,6 @@ email_comparison = PythonOperator(
     dag=dag
 )
 
-i_export_subquery = c_q.compare_timebank_balances('balance_update')
 export_fields = """
 employee_id AS `Employee ID`, code AS `Time Bank Reference`,
 CAST(retrieval_date AS STRING FORMAT 'MM/DD/YYYY') AS `Set Balance Date`,
@@ -102,7 +101,7 @@ NULL AS `Accrual Ref`, NULL AS `Worked Hours Ref`, NULL AS `Balance Reset Ref`
 export_for_api = BigQueryOperator(
     task_id='export_for_api',
     sql=g_q.direct_gcs_export(f'gs://{os.environ["GCS_PREFIX"]}_intime/timebank/time_balance_mismatches',
-                              'csv', export_fields, i_export_subquery),
+                              'csv', export_fields, c_q.compare_timebank_balances('balance_update')),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
