@@ -131,6 +131,20 @@ def dedup_table(dataset, table):
     """
 
 
+def direct_gcs_export(export_uri, file_type, fields, query_string, delim=','):
+    return f"""
+    EXPORT DATA OPTIONS (
+        uri='{export_uri}*.{file_type}',
+        format='{file_type}',
+        overwrite=true,
+        header=true,
+        field_delimiter='{delim}'
+    )
+    AS SELECT {fields}
+    FROM {query_string}
+    """
+
+
 def filter_old_values(dataset, temp_table, final_table, join_field):
     return f"""
     DELETE FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{final_table}` final
