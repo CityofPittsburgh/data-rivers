@@ -1,10 +1,11 @@
 from __future__ import absolute_import
 
-import os
 from datetime import datetime
 
 from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
+
+from dependencies.airflow_utils import default_args
 
 
 dag = DAG(
