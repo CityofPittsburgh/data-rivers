@@ -37,7 +37,7 @@ def branch_time_balance_comp(offset):
     storage_client = storage.Client()
     today = datetime.today()
     if date.today().weekday() == 2:
-        return ['create_discrepancy_table']
+        return ['export_discrepancy']
     elif date.today().weekday() == 4:
         offset_val = timedelta(days=offset)
         comp_date = today + offset_val
@@ -49,7 +49,7 @@ def branch_time_balance_comp(offset):
         stream = io.StringIO(content.decode(encoding='utf-8'))
         sched_df = pd.read_csv(stream)
         if comp_str in list(sched_df['pay_issued']):
-            return ['create_update_table']
+            return ['export_for_api']
     else:
         return ['irrelevant_day']
 
@@ -63,7 +63,7 @@ choose_branch = BranchPythonOperator(
 
 export_discrepancy = BigQueryOperator(
     task_id='export_discrepancy',
-    sql=g_q.direct_gcs_export(f"gs://{os.environ['GCS_PREFIX']}_ceridian/data_sharing/discrepancy_report.csv",
+    sql=g_q.direct_gcs_export(f"gs://{os.environ['GCS_PREFIX']}_ceridian/data_sharing/discrepancy_report",
                               'csv', '*',  c_q.compare_timebank_balances('discrepancy_report', -2)),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
@@ -86,7 +86,7 @@ email_comparison = PythonOperator(
 export_fields = """
 employee_id AS `Employee ID`, code AS `Time Bank Reference`,
 CAST(retrieval_date AS STRING FORMAT 'MM/DD/YYYY') AS `Set Balance Date`,
-balance AS Balance, NULL AS `Time Bank Effective Date`,
+ceridian_balance AS Balance, NULL AS `Time Bank Effective Date`,
 NULL AS `Accrual Ref`, NULL AS `Worked Hours Ref`, NULL AS `Balance Reset Ref`
 """
 export_for_api = BigQueryOperator(
