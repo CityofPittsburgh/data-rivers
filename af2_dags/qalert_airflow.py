@@ -14,10 +14,10 @@ from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 from airflow.contrib.operators.bigquery_to_gcs import BigQueryToCloudStorageOperator
 
 from dependencies import airflow_utils
-from dependencies.airflow_utils import get_ds_year, get_ds_month, get_ds_day, default_args, \
-    build_revgeo_time_bound_query
+from dependencies.airflow_utils import get_ds_year, get_ds_month, get_ds_day, default_args
 
 from dependencies.bq_queries.qscend import integrate_new_requests, transform_enrich_requests
+from dependencies.bq_queries import geo_queries
 
 INCOMING_COLS = """id, parent_ticket_id, child_ticket, dept, status_name, status_code, request_type_name, 
 request_type_id, origin, pii_comments, anon_comments, pii_private_notes, create_date_est, create_date_utc, 
@@ -144,7 +144,7 @@ format_dedupe = BigQueryOperator(
 # Query new tickets to determine if they are in the city limits
 city_limits = BigQueryOperator(
     task_id='city_limits',
-    sql=transform_enrich_requests.build_city_limits_query('incoming_actions', 'input_pii_lat', 'input_pii_long'),
+    sql=geo_queries.build_city_limits_query('incoming_actions', 'input_pii_lat', 'input_pii_long'),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
@@ -154,8 +154,8 @@ city_limits = BigQueryOperator(
 #  for clearer explanation)
 # FINAL ENRICHMENT OF NEW DATA
 # Join all the geo information (e.g. DPW districts, etc) to the new data
-query_geo_join = build_revgeo_time_bound_query('qalert', 'incoming_actions', 'incoming_enriched',
-                                               'create_date_utc', 'input_pii_lat', 'input_pii_long')
+query_geo_join = geo_queries.build_revgeo_time_bound_query('qalert', 'incoming_actions', 'create_date_utc',
+                                                           'input_pii_lat', 'input_pii_long', 'incoming_enriched')
 geojoin = BigQueryOperator(
     task_id='geojoin',
     sql=query_geo_join,
