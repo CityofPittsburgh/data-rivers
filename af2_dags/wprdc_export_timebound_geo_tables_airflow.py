@@ -14,8 +14,7 @@ dag = DAG(
         schedule_interval = '30 1 1,15 * *',
         start_date = datetime(2022, 12, 1),
         catchup = False,
-        max_active_runs = 1,
-        retries = 1,
+        max_active_runs = 1
 )
 
 
