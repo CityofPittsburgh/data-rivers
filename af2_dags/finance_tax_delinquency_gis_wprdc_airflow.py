@@ -9,8 +9,8 @@ from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 from airflow.contrib.operators.bigquery_to_gcs import BigQueryToCloudStorageOperator
 from airflow.contrib.operators.bigquery_table_delete_operator import BigQueryTableDeleteOperator
 from dependencies import airflow_utils
-from dependencies.airflow_utils import get_ds_month, get_ds_year, get_ds_day, default_args, \
-    build_geo_coords_from_parcel_query, build_revgeo_time_bound_query
+from dependencies.airflow_utils import get_ds_month, get_ds_year, get_ds_day, default_args
+from dependencies.bq_queries import geo_queries as q
 
 # This DAG will perform an extract and transformation of Property Tax Delinquency data from the Real Estate Oracle
 # database. Once the data is extracted, it will be uploaded to BigQuery and geocoded by matching on parcel number.
@@ -50,7 +50,8 @@ tax_delinquency_gcs = BashOperator(
 # the primary key of tax delinquency data is parcel ID; parcel data is also stored in the timebound_geography dataset
 # with corresponding geographical boundaries. this query uses the ST_CENTROID geographic function to obtain lat/longs
 # for each parcel
-sub_query = build_geo_coords_from_parcel_query(f"{os.environ['GCLOUD_PROJECT']}.{source}.incoming_{table}", "parc_num")
+sub_query = q.build_geo_coords_from_parcel_query(f"{os.environ['GCLOUD_PROJECT']}.{source}.incoming_{table}",
+                                                 "parc_num")
 coord_query = f"CREATE OR REPLACE TABLE  `{os.environ['GCLOUD_PROJECT']}.{source}.incoming_{table}` AS {sub_query}"
 get_coords = BigQueryOperator(
     task_id='get_coords',
@@ -63,8 +64,8 @@ get_coords = BigQueryOperator(
 # the following task joins the parcel records to the geographic zones displayed in the published WPRDC dataset
 geojoin = BigQueryOperator(
     task_id='geojoin',
-    sql=build_revgeo_time_bound_query(source, f"incoming_{table}", f"geo_enriched_{table}", 'modify_date',
-                                      'latitude', 'longitude'),
+    sql=q.build_revgeo_time_bound_query(source, f"incoming_{table}", 'modify_date', 'latitude', 'longitude',
+                                        f"geo_enriched_{table}"),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
