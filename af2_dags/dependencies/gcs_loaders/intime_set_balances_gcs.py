@@ -38,10 +38,10 @@ update_log = []
 if json.loads(os.environ['USE_PROD_RESOURCES'].lower()):
     csv_reader = csv.DictReader(stream, delimiter=',')
     for row in csv_reader:
-        params = [{'tag': 'employeeId', 'content': row['employee_id']},
-                  {'tag': 'timeBankRef', 'content': row['code']},
-                  {'tag': 'date', 'content': row['retrieval_date']},
-                  {'tag': 'hours', 'content': float(row['ceridian_balance'])}]
+        params = [{'tag': 'employeeId', 'content': row['Employee ID']},
+                  {'tag': 'timeBankRef', 'content': row['Time Bank Reference']},
+                  {'tag': 'date', 'content': row['Set Balance Date']},
+                  {'tag': 'hours', 'content': float(row['Balance'])}]
 
         response = post_xml(BASE_URL, envelope=generate_xml(soap_url, request, params, prefix=prefix),
                             auth=auth, headers=headers)
@@ -49,14 +49,12 @@ if json.loads(os.environ['USE_PROD_RESOURCES'].lower()):
         # An empty response dictionary indicates that the update failed. Otherwise, print update details to the console.
         if response != {'root': {'return': None}}:
             upd_row = dict(row)
-            upd_row['old_balance'] = upd_row.pop('intime_balance')
-            upd_row['new_balance'] = upd_row.pop('ceridian_balance')
-            print(f"Successfully updated {upd_row['code']} time bank balance for employee #{upd_row['employee_id']} from "
-                  f"{float(upd_row['old_balance'])} to {float(upd_row['new_balance'])} for date {row['retrieval_date']}")
+            print(f"Successfully updated {upd_row['Time Bank Reference']} time bank balance for employee "
+                  f"#{upd_row['Employee ID']} to {float(upd_row['Balance'])} for date {row['Set Balance Date']}")
             update_log.append(upd_row)
         else:
-            print(f"Update operation failed for employee #{row['employee_id']} with time bank code {row['code']} for date {row['retrieval_date']}")
-            print(f"Could not update InTime balance from {row['intime_balance']} to {row['ceridian_balance']} for date {row['retrieval_date']}")
+            print(f"Update operation failed for employee #{row['Employee ID']} with time bank code "
+                  f"{row['Time Bank Reference']} for date {row['Set Balance Date']}")
 else:
     print('No update performed')
 
