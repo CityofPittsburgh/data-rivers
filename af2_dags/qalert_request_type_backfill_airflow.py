@@ -8,9 +8,8 @@ from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOper
 from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 
 from dependencies import airflow_utils
-from dependencies.airflow_utils import get_ds_year, get_ds_month, get_ds_day, default_args, build_city_limits_query, \
-    build_revgeo_time_bound_query
-from dependencies.bq_queries import general_queries as g_q
+from dependencies.airflow_utils import get_ds_year, get_ds_month, get_ds_day, default_args
+from dependencies.bq_queries import general_queries, geo_queries
 from dependencies.bq_queries.qscend import integrate_new_requests as i_q
 
 COLS_IN_ORDER = """id, parent_ticket_id, child_ticket, dept, status_name, status_code, request_type_name, 
@@ -92,7 +91,7 @@ cast_fields = [{'field': 'input_pii_lat', 'type': 'FLOAT64'},
                {'field': 'google_anon_long', 'type': 'FLOAT64'}]
 format_table = BigQueryOperator(
     task_id='format_table',
-    sql=g_q.build_format_dedup_query('qalert', 'temp_backfill', 'temp_backfill', cast_fields, COLS_IN_ORDER),
+    sql=general_queries.build_format_dedup_query('qalert', 'temp_backfill', 'temp_backfill', cast_fields, COLS_IN_ORDER),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
@@ -117,10 +116,9 @@ create_subset = BigQueryOperator(
 )
 
 # Query new tickets to determine if they are in the city limits
-query_city_lim = build_city_limits_query('qalert', 'temp_backfill_subset', 'input_pii_lat', 'input_pii_long')
 city_limits = BigQueryOperator(
     task_id='city_limits',
-    sql=query_city_lim,
+    sql=geo_queries.build_city_limits_query('qalert', 'temp_backfill_subset', 'input_pii_lat', 'input_pii_long'),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
@@ -128,7 +126,7 @@ city_limits = BigQueryOperator(
 
 dedup_src_table = BigQueryOperator(
     task_id='dedup_src_table',
-    sql=g_q.build_dedup_old_updates('qalert', 'temp_backfill', 'id', 'last_action_unix'),
+    sql=general_queries.build_dedup_old_updates('qalert', 'temp_backfill', 'id', 'last_action_unix'),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
@@ -136,7 +134,7 @@ dedup_src_table = BigQueryOperator(
 
 dedup_sub_table = BigQueryOperator(
     task_id='dedup_sub_table',
-    sql=g_q.build_dedup_old_updates('qalert', 'temp_backfill_subset', 'id', 'last_action_unix'),
+    sql=general_queries.build_dedup_old_updates('qalert', 'temp_backfill_subset', 'id', 'last_action_unix'),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
@@ -145,17 +143,16 @@ dedup_sub_table = BigQueryOperator(
 upd_fields = ['address_type']
 update_address_types = BigQueryOperator(
     task_id='update_address_types',
-    sql=g_q.build_sync_update_query('qalert', 'temp_backfill', 'temp_backfill_subset', 'id', upd_fields),
+    sql=general_queries.build_sync_update_query('qalert', 'temp_backfill', 'temp_backfill_subset', 'id', upd_fields),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
 )
 
-query_geo_join = build_revgeo_time_bound_query('qalert', 'temp_backfill', 'backfill_enriched',
-                                               'create_date_utc', 'input_pii_lat', 'input_pii_long')
 geojoin = BigQueryOperator(
     task_id='geojoin',
-    sql=query_geo_join,
+    sql=geo_queries.build_revgeo_time_bound_query('qalert', 'temp_backfill', 'create_date_utc', 'input_pii_lat',
+                                                  'input_pii_long', 'backfill_enriched'),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
