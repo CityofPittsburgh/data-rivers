@@ -109,7 +109,7 @@ def build_revgeo_time_bound_query(dataset, source, create_date, lat_field, long_
         AND TIMESTAMP(PARSE_DATETIME('%m/%d/%Y %H:%M:%S-00:00',t_pk.start_date)) <= TIMESTAMP(source.{create_date})
         AND IFNULL(TIMESTAMP(PARSE_DATETIME('%m/%d/%Y %H:%M:%S-00:00', t_pk.end_date)),
             CURRENT_TIMESTAMP()) >= TIMESTAMP(source.{create_date})
-"""
+    """
 
 
 def build_geo_coords_from_parcel_query(raw_table, parc_field, lat_field="latitude", long_field="longitude"):
@@ -121,4 +121,38 @@ def build_geo_coords_from_parcel_query(raw_table, parc_field, lat_field="latitud
     FROM `{raw_table}` raw
     LEFT OUTER JOIN `{os.environ['GCLOUD_PROJECT']}.timebound_geography.parcels` p ON 
     {parc_field} = p.zone
+    """
+
+
+def build_city_limits_query(raw_table, lat_field='lat', long_field='long'):
+    """
+    Determine whether a set of coordinates fall within the borders of the City of Pittsburgh,
+    while also falling outside the borders of Mt. Oliver. If an address is within the city,
+    the address_type field is left as-is. Otherwise, address_type is changed to 'Outside
+    of City'.
+    :param raw_table: name of the table containing raw 311 data
+    :param lat_field: name of table column that contains latitude value
+    :param long_field: name of table column that contains longitude value
+    :return: string to be passed through as arg to BigQueryOperator
+    **NOTE**: A strange issue occurs with the Mt Oliver borders if it is stored in BigQuery in GEOGRAPHY format.
+    All lat/longs outside of the Mt Oliver boundaries are identified as inside Mt Oliver when passed through ST_COVERS,
+    and all lat/longs inside of Mt Oliver are identified as outside of it. To get around this problem, we have stored
+    the boundary polygons as strings, and then convert those strings to polygons using ST_GEOGFROMTEXT.
+    """
+
+    return f"""
+    UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.{raw_table}`
+    SET address_type = IF ( 
+       ((ST_COVERS((ST_GEOGFROMTEXT((SELECT geometry FROM `{os.environ['GCLOUD_PROJECT']}.timebound_geography.pittsburgh_and_mt_oliver_borders`
+                                      WHERE zone = 'Mt. Oliver'))),
+               ST_GEOGPOINT(`{os.environ['GCLOUD_PROJECT']}.qalert.{raw_table}`.{long_field},
+                    `{os.environ['GCLOUD_PROJECT']}.qalert.{raw_table}`.{lat_field})))
+        OR NOT 
+        ST_COVERS((ST_GEOGFROMTEXT((SELECT geometry FROM `{os.environ['GCLOUD_PROJECT']}.timebound_geography.pittsburgh_and_mt_oliver_borders`
+                                     WHERE zone = 'Pittsburgh'))),
+                   ST_GEOGPOINT(`{os.environ['GCLOUD_PROJECT']}.qalert.{raw_table}`.{long_field}, 
+                   `{os.environ['GCLOUD_PROJECT']}.qalert.{raw_table}`.{lat_field}))
+       ), 'Outside of City', address_type )
+    WHERE `{os.environ['GCLOUD_PROJECT']}.qalert.{raw_table}`.{long_field} IS NOT NULL AND 
+    `{os.environ['GCLOUD_PROJECT']}.qalert.{raw_table}`.{lat_field} IS NOT NULL
     """
