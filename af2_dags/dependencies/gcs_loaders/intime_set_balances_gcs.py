@@ -25,11 +25,9 @@ soap_url = 'timebank.export.attendance.bo'
 prefix = 'tns'
 request = 'setBalance'
 headers = {'Content-Type': 'application/xml'}
-start = f'<setBalanceResponse xmlns:ns2="http://{soap_url}.rise.intimesoft.com/">'
-end = '</setBalanceResponse>'
 
 bucket = storage_client.get_bucket(f"{os.environ['GCS_PREFIX']}_intime")
-blob = bucket.blob("timebank/time_balance_mismatches.csv")
+blob = bucket.blob("timebank/time_balance_mismatches000000000000.csv")
 content = blob.download_as_string()
 stream = io.StringIO(content.decode(encoding='utf-8'))
 
@@ -40,8 +38,8 @@ if json.loads(os.environ['USE_PROD_RESOURCES'].lower()):
     for row in csv_reader:
         params = [{'tag': 'employeeId', 'content': row['Employee ID']},
                   {'tag': 'timeBankRef', 'content': row['Time Bank Reference']},
-                  {'tag': 'date', 'content': row['Set Balance Date']},
-                  {'tag': 'hours', 'content': float(row['Balance'])}]
+                  {'tag':'date', 'content':datetime.strptime(row['Set Balance Date'],'%m/%d/%Y').strftime('%Y-%m-%d')},
+                  {'tag': 'balance', 'content': float(row['Balance'])}]
 
         response = post_xml(BASE_URL, envelope=generate_xml(soap_url, request, params, prefix=prefix),
                             auth=auth, headers=headers)
@@ -62,6 +60,7 @@ if update_log:
     json_to_gcs(f"{args['out_loc']}", update_log, f"{os.environ['GCS_PREFIX']}_intime")
     send_alert_email_with_csv("osar@pittsburghpa.gov", "ALERT: InTime Time Banks Updated",
                               "The attached CSV lists all updates that have been made to time bank balances in the "
-                              "InTime source system using information found in Dayforce. The balances are correct as "
-                              "of the listed dates, and update operation did not overwrite any time accrued afterward.",
-                              update_log, "time_bank_update_log.csv")
+                              "InTime source system using information found in Dayforce. If the update script failed "
+                              "to make the listed changes, upload the attached file to the InTime Data Importer "
+                              "tool at https://intime2.intimesoft.com/importer/import/do to issue corrections.",
+                              update_log, f"time_bank_import_{today}.csv")
