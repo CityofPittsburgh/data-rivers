@@ -8,7 +8,8 @@ from airflow.operators.bash_operator import BashOperator
 from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOperator
 from dependencies import airflow_utils
-from dependencies.airflow_utils import get_ds_month, get_ds_year, get_ds_day, default_args, build_revgeo_time_bound_query
+from dependencies.airflow_utils import get_ds_month, get_ds_year, get_ds_day, default_args
+from dependencies.bq_queries import general_queries, geo_queries
 
 INCOMING_COLS = """id, activity, department, status, entry_date_UTC, entry_date_EST, entry_date_UNIX, 
 actual_start_date_UTC, actual_start_date_EST, actual_start_date_UNIX, actual_stop_date_UTC, actual_stop_date_EST, 
@@ -24,7 +25,7 @@ police_zone, fire_zone, dpw_streets, dpw_enviro, dpw_parks, lat, long"""
 dag = DAG(
     'cartegraph_tasks',
     default_args=default_args,
-    schedule_interval= '@daily',
+    schedule_interval='@daily',
     start_date=datetime(2022, 11, 29),
     user_defined_filters={'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year,
                           'get_ds_day': get_ds_day}
@@ -45,86 +46,61 @@ cartegraph_gcs = BashOperator(
 )
 
 cartegraph_dataflow = BashOperator(
-        task_id = 'cartegraph_dataflow',
-        bash_command = f"python {os.environ['DATAFLOW_SCRIPT_PATH']}/cartegraph_tasks_dataflow.py "
-                       f"--input {bucket}/{json_loc} --avro_output {bucket}/{avro_loc}",
-        dag = dag
+    task_id='cartegraph_dataflow',
+    bash_command=f"python {os.environ['DATAFLOW_SCRIPT_PATH']}/cartegraph_tasks_dataflow.py "
+                 f"--input {bucket}/{json_loc} --avro_output {bucket}/{avro_loc}",
+    dag=dag
 )
 
 cartegraph_bq_load = GoogleCloudStorageToBigQueryOperator(
-        task_id = 'cartegraph_bq_load',
-        destination_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}.cartegraph.incoming_tasks",
-        bucket = f"{os.environ['GCS_PREFIX']}_cartegraph",
-        source_objects = [f"{avro_loc}*.avro"],
-        write_disposition='WRITE_TRUNCATE',
-        create_disposition='CREATE_IF_NEEDED',
-        source_format = 'AVRO',
-        autodetect = True,
-        bigquery_conn_id='google_cloud_default',
-        dag = dag
+    task_id='cartegraph_bq_load',
+    destination_project_dataset_table=f"{os.environ['GCLOUD_PROJECT']}.cartegraph.incoming_tasks",
+    bucket=f"{os.environ['GCS_PREFIX']}_cartegraph",
+    source_objects=[f"{avro_loc}*.avro"],
+    write_disposition='WRITE_TRUNCATE',
+    create_disposition='CREATE_IF_NEEDED',
+    source_format='AVRO',
+    autodetect=True,
+    bigquery_conn_id='google_cloud_default',
+    dag=dag
 )
 
-query_format_dedupe = f"""
-CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.cartegraph.incoming_tasks` AS
-WITH formatted  AS 
-    (
-    SELECT 
-        DISTINCT * EXCEPT (lat, long),
-        CAST(lat AS FLOAT64) AS lat,
-        CAST(long AS FLOAT64) AS long,
-    FROM 
-        {os.environ['GCLOUD_PROJECT']}.cartegraph.incoming_tasks
-    )
--- drop the final column through slicing the string. final column is added in next query     
-SELECT 
-    {INCOMING_COLS}, lat, long
-FROM 
-    formatted
-"""
+cast_fields = [{'field': 'lat', 'type': 'FLOAT64'},
+               {'field': 'long', 'type': 'FLOAT64'}]
 format_dedupe = BigQueryOperator(
     task_id='format_dedupe',
-    sql=query_format_dedupe,
+    sql=general_queries.build_format_dedup_query('cartegraph', 'incoming_tasks', 'incoming_tasks', cast_fields,
+                                                 INCOMING_COLS),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
 )
 
 # Join all the geo information (e.g. DPW districts, etc) to the new data
-query_geo_join = build_revgeo_time_bound_query('cartegraph', 'incoming_tasks', 'incoming_enriched',
-                                               'actual_start_date_UTC', 'lat', 'long')
+query_geo_join = geo_queries.build_revgeo_time_bound_query('cartegraph', 'incoming_tasks', 'actual_start_date_UTC',
+                                                           'lat', 'long', 'incoming_enriched')
 geojoin = BigQueryOperator(
-        task_id = 'geojoin',
-        sql = query_geo_join,
-        bigquery_conn_id='google_cloud_default',
-        use_legacy_sql = False,
-        dag = dag
+    task_id='geojoin',
+    sql=query_geo_join,
+    bigquery_conn_id='google_cloud_default',
+    use_legacy_sql=False,
+    dag=dag
 )
 
-query_insert_tasks = f"""
--- This query check that a task has never been seen before (checks all_tasks) before inserting into the growing table.
-
-INSERT INTO `{os.environ['GCLOUD_PROJECT']}.cartegraph.all_tasks`
-(
-SELECT
-    {COLS_IN_ORDER}
-FROM
-    `{os.environ['GCLOUD_PROJECT']}.cartegraph.incoming_enriched`
-WHERE id NOT IN (SELECT id FROM `{os.environ['GCLOUD_PROJECT']}.cartegraph.all_tasks`)
-);
-"""
 insert_new_tasks = BigQueryOperator(
-        task_id = 'insert_new_tasks',
-        sql = query_insert_tasks,
-        bigquery_conn_id='google_cloud_default',
-        use_legacy_sql = False,
-        dag = dag
+    task_id='insert_new_tasks',
+    sql=general_queries.build_insert_new_records_query('cartegraph', 'incoming_enriched', 'all_tasks', 'id',
+                                                       COLS_IN_ORDER),
+    bigquery_conn_id='google_cloud_default',
+    use_legacy_sql=False,
+    dag=dag
 )
 
 beam_cleanup = BashOperator(
-        task_id = 'cartegraph_beam_cleanup',
-        bash_command = airflow_utils.beam_cleanup_statement(f"{os.environ['GCS_PREFIX']}_cartegraph_tasks"),
-        dag = dag
+    task_id='cartegraph_beam_cleanup',
+    bash_command=airflow_utils.beam_cleanup_statement(f"{os.environ['GCS_PREFIX']}_cartegraph_tasks"),
+    dag=dag
 )
 
-cartegraph_gcs >> cartegraph_dataflow >> cartegraph_bq_load >> format_dedupe >> \
-geojoin >> insert_new_tasks >> beam_cleanup
+cartegraph_gcs >> cartegraph_dataflow >> cartegraph_bq_load >> format_dedupe >> geojoin >> insert_new_tasks >> \
+    beam_cleanup
