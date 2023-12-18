@@ -71,7 +71,7 @@ cast_fields = [{'field': 'lat', 'type': 'FLOAT64'},
 format_dedupe = BigQueryOperator(
     task_id='format_dedupe',
     sql=general_queries.build_format_dedup_query('cartegraph', 'incoming_tasks', 'incoming_tasks', cast_fields,
-                                                 INCOMING_COLS),
+                                                 f"{INCOMING_COLS}, lat, long"),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
