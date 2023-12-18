@@ -141,7 +141,7 @@ def direct_gcs_export(export_uri, file_type, fields, query_string, delim=','):
         field_delimiter='{delim}'
     )
     AS SELECT {fields}
-    FROM {query_string}
+    FROM ({query_string})
     """
 
 
