@@ -59,9 +59,10 @@ get_coords = BigQueryOperator(
 )
 
 
-query_geo_join = build_revgeo_time_bound_query('finance', 'incoming_city_owned_properties',
-                                               'geo_enriched_city_owned_properties',
-                                               'latest_sale_date', 'latitude', 'longitude')
+query_geo_join = build_revgeo_time_bound_query(dataset='finance', source='incoming_city_owned_properties',
+                                               new_table='geo_enriched_city_owned_properties',
+                                               create_date='latest_sale_date', lat_field='latitude',
+                                               long_field='longitude')
 geojoin = BigQueryOperator(
         task_id = 'geojoin',
         sql = query_geo_join,

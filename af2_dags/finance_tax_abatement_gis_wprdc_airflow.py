@@ -59,8 +59,10 @@ get_coords = BigQueryOperator(
 )
 
 
-query_geo_join = build_revgeo_time_bound_query('finance', 'incoming_tax_abatement', 'geo_enriched_tax_abatement',
-                                               'approved_date_UTC', 'latitude', 'longitude')
+query_geo_join = build_revgeo_time_bound_query(dataset='finance', source='incoming_tax_abatement',
+                                               new_table='geo_enriched_tax_abatement',
+                                               create_date='approved_date_UTC', lat_field='latitude',
+                                               long_field='longitude')
 geojoin = BigQueryOperator(
         task_id = 'geojoin',
         sql = query_geo_join,
