@@ -9,7 +9,6 @@ from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 from airflow.contrib.operators.bigquery_to_gcs import BigQueryToCloudStorageOperator
 
 from dependencies.airflow_utils import get_ds_month, get_ds_year, default_args
-#    build_revgeo_time_bound_query, build_geo_coords_from_parcel_query
 from dependencies.bq_queries import geo_queries as q
 
 # This DAG will perform an extract and transformation of City Owned Properties from the Real Estate Oracle
