@@ -13,9 +13,8 @@ from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 from airflow.contrib.operators.bigquery_to_gcs import BigQueryToCloudStorageOperator
 
 from dependencies import airflow_utils
-from dependencies.airflow_utils import get_ds_year, get_ds_month, get_ds_day, default_args, build_city_limits_query, \
-    build_revgeo_time_bound_query, build_split_table_query
-from dependencies.bq_queries import general_queries as q
+from dependencies.airflow_utils import get_ds_year, get_ds_month, get_ds_day, default_args, build_split_table_query
+from dependencies.bq_queries import general_queries, geo_queries
 
 COLS_IN_ORDER = """id, parent_ticket_id, child_ticket, dept, status_name, status_code, request_type_name, 
 request_type_id, origin, pii_comments, anon_comments, pii_private_notes, create_date_est, create_date_utc, 
@@ -100,7 +99,7 @@ split_table = BigQueryOperator(
 # Query new tickets to determine if they are in the city limits
 query_city_lim = ""
 for i in range(30):
-    query_city_lim += build_city_limits_query('qalert', f'incoming_backfill_{i + 1}', 'pii_lat', 'pii_long') + ";"
+    query_city_lim += geo_queries.build_city_limits_query(f'incoming_backfill_{i + 1}', 'pii_lat', 'pii_long') + ";"
 city_limits = BigQueryOperator(
     task_id='city_limits',
     sql=query_city_lim,
@@ -130,8 +129,8 @@ join_dedupe = BigQueryOperator(
 #  for clearer explanation)
 # FINAL ENRICHMENT OF NEW DATA
 # Join all the geo information (e.g. DPW districts, etc) to the new data
-query_geo_join = build_revgeo_time_bound_query('qalert', 'incoming_backfill', 'backfill_enriched',
-                                               'create_date_utc', 'pii_lat', 'pii_long')
+query_geo_join = geo_queries.build_revgeo_time_bound_query('qalert', 'incoming_backfill', 'create_date_utc',
+                                                           'pii_lat', 'pii_long', 'backfill_enriched')
 geojoin = BigQueryOperator(
     task_id='geojoin',
     sql=query_geo_join,
@@ -142,7 +141,7 @@ geojoin = BigQueryOperator(
 
 dedup_enriched = BigQueryOperator(
     task_id='dedup_enriched',
-    sql=q.build_dedup_old_updates('qalert', 'backfill_enriched', 'id', 'last_action_unix'),
+    sql=general_queries.build_dedup_old_updates('qalert', 'backfill_enriched', 'id', 'last_action_unix'),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
