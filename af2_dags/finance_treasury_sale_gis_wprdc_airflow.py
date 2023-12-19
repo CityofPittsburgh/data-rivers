@@ -52,11 +52,10 @@ sub_query_coords_from_parc = F"""(
         
 )"""
 
-query_geo =  build_revgeo_time_bound_query('finance', F"{sub_query_coords_from_parc}",
-                                           'geo_enriched_treas_sale_properties',
-                                           'treas_sale_date', 'latitude', 'longitude',
+query_geo =  build_revgeo_time_bound_query(dataset='finance', source=F"{sub_query_coords_from_parc}",
+                                           new_table='geo_enriched_treas_sale_properties',
+                                           create_date='treas_sale_date', lat_field='latitude', long_field='longitude',
                                            source_is_table = False)
-
 geo_operations = BigQueryOperator(
         task_id = 'geo_operations',
         sql = query_geo,
