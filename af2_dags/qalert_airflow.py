@@ -278,7 +278,7 @@ delete_old_insert_new_records = BigQueryOperator(
 # be stored in a table prior to the push. Thus, this is a 2 step process also involving the operator below.
 drop_pii_for_export = BigQueryOperator(
     task_id='drop_pii_for_export',
-    sql=transform_enrich_requests.drop_pii((F"{SAFE_FIELDS}, {PII_COORDS}"), PRIVATE_TYPES),
+    sql=transform_enrich_requests.drop_xpii((F"{SAFE_FIELDS}, {PII_COORDS}"), PRIVATE_TYPES),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
