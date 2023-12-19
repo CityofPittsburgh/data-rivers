@@ -288,7 +288,7 @@ drop_pii_for_export = BigQueryOperator(
 wprdc_export = BigQueryToCloudStorageOperator(
     task_id='wprdc_export',
     source_project_dataset_table=f"{os.environ['GCLOUD_PROJECT']}.qalert.data_export_scrubbed",
-    destination_cloud_storage_uris=[f"gs://{os.environ['GCS_PREFIX']}_wprdc/qalert_requests/{path}.csv"],
+    destination_cloud_storage_uris=[f"gs://{os.environ['GCS_PREFIX']}_wprdc/qalert_requests.csv"],
     bigquery_conn_id='google_cloud_default',
     dag=dag
 )
