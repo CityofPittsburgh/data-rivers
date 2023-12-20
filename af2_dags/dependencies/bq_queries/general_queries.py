@@ -140,7 +140,7 @@ def direct_gcs_export(export_uri, file_type, fields, query_string, delim=','):
         header=true,
         field_delimiter='{delim}'
     )
-    AS SELECT {fields}
+    AS SELECT DISTINCT {fields}
     FROM ({query_string})
     """
 
