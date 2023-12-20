@@ -58,7 +58,8 @@ else:
 
 if update_log:
     json_to_gcs(f"{args['out_loc']}", update_log, f"{os.environ['GCS_PREFIX']}_intime")
-    send_alert_email_with_csv(["osar@pittsburghpa.gov"], [os.environ['EMAIL']], "ALERT: InTime Time Banks Updated",
+    send_alert_email_with_csv([os.environ['INTIME_ALERT_EMAIL']], [os.environ['EMAIL']],
+                              "ALERT: InTime Time Banks Updated",
                               "The attached CSV lists all updates that have been made to time bank balances in the "
                               "InTime source system using information found in Dayforce. If the update script failed "
                               "to make the listed changes, upload the attached file to the InTime Data Importer "
