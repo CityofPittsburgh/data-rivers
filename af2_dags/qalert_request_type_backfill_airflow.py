@@ -118,7 +118,7 @@ create_subset = BigQueryOperator(
 # Query new tickets to determine if they are in the city limits
 city_limits = BigQueryOperator(
     task_id='city_limits',
-    sql=geo_queries.build_city_limits_query('qalert', 'temp_backfill_subset', 'input_pii_lat', 'input_pii_long'),
+    sql=geo_queries.build_city_limits_query('temp_backfill_subset', 'input_pii_lat', 'input_pii_long'),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
