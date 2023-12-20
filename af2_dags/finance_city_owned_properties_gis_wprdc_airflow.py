@@ -8,8 +8,8 @@ from airflow.operators.bash_operator import BashOperator
 from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 from airflow.contrib.operators.bigquery_to_gcs import BigQueryToCloudStorageOperator
 
-from dependencies.airflow_utils import get_ds_month, get_ds_year, default_args, \
-    build_revgeo_time_bound_query, build_geo_coords_from_parcel_query
+from dependencies.airflow_utils import get_ds_month, get_ds_year, default_args
+from dependencies.bq_queries import geo_queries as q
 
 # This DAG will perform an extract and transformation of City Owned Properties from the Real Estate Oracle
 # database. Once the data is extracted, it will be uploaded to BigQuery and geocoded by matching on parcel number.
@@ -28,11 +28,9 @@ dag = DAG(
     max_active_runs=1
 )
 
-
 data_name = "city_owned_properties"
 path = "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}/{{ run_id }}"
 json_loc = f"{data_name}/{path}_city_owned_properties.json"
-
 
 extract = BashOperator(
     task_id='extract',
@@ -41,13 +39,14 @@ extract = BashOperator(
     dag=dag
 )
 
-
 # the primary key of city owned properties is parcel ID (parc_num); parcel data is also stored in the
 # timebound_geography
 # dataset with corresponding geographical boundaries. this query uses the ST_CENTROID geographic function to obtain
 # lat/longs for each parcel
-query_coords = build_geo_coords_from_parcel_query(raw_table = F"{os.environ['GCLOUD_PROJECT']}.finance.incoming_city_owned_properties",
-                                                  parc_field = "parc_num")
+query_coords = q.build_geo_coords_from_parcel_query(
+    raw_table=F"{os.environ['GCLOUD_PROJECT']}.finance.incoming_city_owned_properties",
+    parc_field="parc_num"
+)
 query_coords = F""" CREATE OR REPLACE TABLE {os.environ['GCLOUD_PROJECT']}.finance.incoming_city_owned_properties AS
 {query_coords}"""
 get_coords = BigQueryOperator(
@@ -58,19 +57,16 @@ get_coords = BigQueryOperator(
     dag=dag
 )
 
-
-query_geo_join = build_revgeo_time_bound_query(dataset='finance', source='incoming_city_owned_properties',
-                                               new_table='geo_enriched_city_owned_properties',
-                                               create_date='latest_sale_date', lat_field='latitude',
-                                               long_field='longitude')
 geojoin = BigQueryOperator(
-        task_id = 'geojoin',
-        sql = query_geo_join,
-        bigquery_conn_id='google_cloud_default',
-        use_legacy_sql = False,
-        dag = dag
+    task_id='geojoin',
+    sql=q.build_revgeo_time_bound_query(dataset='finance', source='incoming_city_owned_properties',
+                                        new_table='geo_enriched_city_owned_properties',
+                                        create_date='latest_sale_date', lat_field='latitude',
+                                        long_field='longitude'),
+    bigquery_conn_id='google_cloud_default',
+    use_legacy_sql=False,
+    dag=dag
 )
-
 
 query_create_partition = F"""CREATE OR REPLACE TABLE
 `{os.environ['GCLOUD_PROJECT']}.finance.city_owned_properties_partitioned`
@@ -81,23 +77,22 @@ PARSE_DATE ("%Y-%m-%d", latest_sale_date) as partition_latest_sale_date
 FROM 
   `{os.environ['GCLOUD_PROJECT']}.finance.geo_enriched_city_owned_properties`;"""
 create_partition = BigQueryOperator(
-        task_id = 'create_partition',
-        sql = query_create_partition,
-        bigquery_conn_id = 'google_cloud_default',
-        use_legacy_sql = False,
-        dag = dag
+    task_id='create_partition',
+    sql=query_create_partition,
+    bigquery_conn_id='google_cloud_default',
+    use_legacy_sql=False,
+    dag=dag
 )
-
 
 # Export table as CSV to WPRDC bucket
 # file name is the date. path contains the date info
 csv_file_name = f"{path}"
 dest_bucket = f"gs://{os.environ['GCS_PREFIX']}_wprdc/finance/city_owned_properties/"
 wprdc_export = BigQueryToCloudStorageOperator(
-        task_id = 'wprdc_export',
-        source_project_dataset_table = f"{os.environ['GCLOUD_PROJECT']}.finance.city_owned_properties_partitioned",
-        destination_cloud_storage_uris = [f"{dest_bucket}{csv_file_name}.csv"],
-        dag = dag
+    task_id='wprdc_export',
+    source_project_dataset_table=f"{os.environ['GCLOUD_PROJECT']}.finance.city_owned_properties_partitioned",
+    destination_cloud_storage_uris=[f"{dest_bucket}{csv_file_name}.csv"],
+    dag=dag
 )
 
 # push table to data-bridGIS BQ
@@ -109,13 +104,12 @@ FROM
   `{os.environ['GCLOUD_PROJECT']}.finance.city_owned_properties_partitioned`;
 """
 push_gis = BigQueryOperator(
-        task_id = 'push_gis',
-        sql = query_push_gis,
-        bigquery_conn_id = 'google_cloud_default',
-        use_legacy_sql = False,
-        dag = dag
+    task_id='push_gis',
+    sql=query_push_gis,
+    bigquery_conn_id='google_cloud_default',
+    use_legacy_sql=False,
+    dag=dag
 )
-
 
 extract >> get_coords >> geojoin >> create_partition
 create_partition >> wprdc_export
