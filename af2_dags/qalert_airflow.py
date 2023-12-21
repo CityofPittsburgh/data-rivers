@@ -154,8 +154,12 @@ city_limits = BigQueryOperator(
 #  for clearer explanation)
 # FINAL ENRICHMENT OF NEW DATA
 # Join all the geo information (e.g. DPW districts, etc) to the new data
-query_geo_join = geo_queries.build_revgeo_time_bound_query('qalert', 'incoming_actions', 'create_date_utc',
-                                                           'input_pii_lat', 'input_pii_long', 'incoming_enriched')
+query_geo_join = geo_queries.build_revgeo_time_bound_query(
+        dataset = 'qalert',
+        source = F"`{os.environ['GCLOUD_PROJECT']}.qalert.incoming_actions`",
+        create_date = 'create_date_utc', lat_field = 'input_pii_lat', long_field = 'input_pii_long',
+        new_table = F"`{os.environ['GCLOUD_PROJECT']}.qalert.incoming_enriched`")
+
 geojoin = BigQueryOperator(
     task_id='geojoin',
     sql=query_geo_join,

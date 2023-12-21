@@ -59,10 +59,12 @@ get_coords = BigQueryOperator(
 )
 
 
-query_geo_join = q.build_revgeo_time_bound_query(dataset='finance', source='incoming_tax_abatement',
-                                                 new_table='geo_enriched_tax_abatement',
-                                                 create_date='approved_date_UTC', lat_field='latitude',
-                                                 long_field='longitude')
+query_geo_join = q.build_revgeo_time_bound_query(
+        dataset='finance',
+        source= F"`{os.environ['GCLOUD_PROJECT']}.finance.incoming_tax_abatement`",
+        new_table= F"`{os.environ['GCLOUD_PROJECT']}.finance.geo_enriched_tax_abatement`",
+        create_date='approved_date_UTC', lat_field='latitude', long_field='longitude')
+
 geojoin = BigQueryOperator(
         task_id = 'geojoin',
         sql = query_geo_join,

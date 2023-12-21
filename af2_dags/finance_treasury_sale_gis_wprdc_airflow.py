@@ -48,11 +48,11 @@ sub_query_coords_from_parc = F"""(
         raw_table = F"{os.environ['GCLOUD_PROJECT']}.finance.incoming_treas_sale", parc_field = "parc_num")}
 )"""
 
-query_geo = build_revgeo_time_bound_query(dataset = 'finance', source = F"{sub_query_coords_from_parc}",
-                                          create_date = 'treas_sale_date', lat_field = 'latitude',
-                                          long_field = 'longitude',
-                                          new_table = F"`{os.environ['GCLOUD_PROJECT']}.finance.geo_enriched_treas_sale_properties`"
-                                          )
+query_geo = build_revgeo_time_bound_query(
+        dataset = 'finance', source = F"{sub_query_coords_from_parc}", create_date = 'treas_sale_date',
+        lat_field = 'latitude', long_field = 'longitude',
+        new_table = F"`{os.environ['GCLOUD_PROJECT']}.finance.geo_enriched_treas_sale_properties`"
+)
 
 geo_operations = BigQueryOperator(
         task_id = 'geo_operations',

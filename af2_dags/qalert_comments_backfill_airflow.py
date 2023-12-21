@@ -129,8 +129,12 @@ join_dedupe = BigQueryOperator(
 #  for clearer explanation)
 # FINAL ENRICHMENT OF NEW DATA
 # Join all the geo information (e.g. DPW districts, etc) to the new data
-query_geo_join = geo_queries.build_revgeo_time_bound_query('qalert', 'incoming_backfill', 'create_date_utc',
-                                                           'pii_lat', 'pii_long', 'backfill_enriched')
+query_geo_join = geo_queries.build_revgeo_time_bound_query(
+        dataset = 'qalert',
+        source = F"`{os.environ['GCLOUD_PROJECT']}.qalert.incoming_backfill`",
+        create_date = 'create_date_utc',lat_field = 'pii_lat', long_field = 'pii_long',
+        new_table = F"`{os.environ['GCLOUD_PROJECT']}.qalert.backfill_enriched`")
+
 geojoin = BigQueryOperator(
     task_id='geojoin',
     sql=query_geo_join,
