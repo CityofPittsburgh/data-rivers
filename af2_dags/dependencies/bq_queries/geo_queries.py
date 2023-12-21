@@ -14,18 +14,14 @@ def build_revgeo_time_bound_query(dataset, source, create_date, lat_field, long_
     :param dataset: BigQuery dataset (string)
     :param source: starting dataset that has not been rev geocoded yet. this should be either 1) the name of the
     table containing the source data, or 2) the name of the alias from the common table expression containing the
-    source data. Note that all project/dataset information is added  in the query string and only the table/CTE alias
-    name are needed (string)
-    :param new_table: name of table that will hold the fully geocoded datta (string)
+    source data. Note that if this a table, it must be fully resolved inlcuding apple
+    tick marks ``)
     :param create_date: field in raw_table that contains the creation date (string)
     :param lat_field: field in table that identifies latitude value (string)
     :param long_field: field in table that identifies longitude value (string)
-    :param out_is_table:
-
-
-
-    indicates that .
-
+    :param new_table: name of table that will hold the fully geocoded data (string) (fully resolved inlcuding apple
+    tick marks ``). Defaults to None if the output is not a table. This is helpful for embedding this query in a CTE
+    or subquery. 
     :return: string to be passed through as arg to BigQueryOperator
     """
 
