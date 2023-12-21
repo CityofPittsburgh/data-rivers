@@ -8,8 +8,8 @@ from airflow.operators.bash_operator import BashOperator
 from airflow.contrib.operators.bigquery_operator import BigQueryOperator
 from airflow.contrib.operators.bigquery_to_gcs import BigQueryToCloudStorageOperator
 
-from dependencies.airflow_utils import get_ds_month, get_ds_year, get_ds_day, default_args, \
-    build_revgeo_time_bound_query, build_geo_coords_from_parcel_query
+from dependencies.airflow_utils import get_ds_month, get_ds_year, get_ds_day, default_args
+from dependencies.bq_queries import geo_queries as q
 
 # This DAG will perform an extract and transformation of Property Tax Abatement data from the Real Estate Oracle
 # database. Once the data is extracted, it will be uploaded to BigQuery and geocoded by matching on parcel number.
@@ -46,8 +46,8 @@ extract = BashOperator(
 # the primary key of tax delinquency data is parcel ID; parcel data is also stored in the timebound_geography dataset
 # with corresponding geographical boundaries. this query uses the ST_CENTROID geographic function to obtain lat/longs
 # for each parcel
-query_coords = build_geo_coords_from_parcel_query(raw_table = F"{os.environ['GCLOUD_PROJECT']}.finance.incoming_tax_abatement",
-                                                  parc_field = "parc_num")
+query_coords = q.build_geo_coords_from_parcel_query(raw_table = F"{os.environ['GCLOUD_PROJECT']}.finance.incoming_tax_abatement",
+                                                    parc_field = "parc_num")
 query_coords = F""" CREATE OR REPLACE TABLE {os.environ['GCLOUD_PROJECT']}.finance.incoming_tax_abatement AS
 {query_coords}"""
 get_coords = BigQueryOperator(
@@ -59,10 +59,10 @@ get_coords = BigQueryOperator(
 )
 
 
-query_geo_join = build_revgeo_time_bound_query(dataset='finance', source='incoming_tax_abatement',
-                                               new_table='geo_enriched_tax_abatement',
-                                               create_date='approved_date_UTC', lat_field='latitude',
-                                               long_field='longitude')
+query_geo_join = q.build_revgeo_time_bound_query(dataset='finance', source='incoming_tax_abatement',
+                                                 new_table='geo_enriched_tax_abatement',
+                                                 create_date='approved_date_UTC', lat_field='latitude',
+                                                 long_field='longitude')
 geojoin = BigQueryOperator(
         task_id = 'geojoin',
         sql = query_geo_join,
