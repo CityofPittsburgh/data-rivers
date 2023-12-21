@@ -24,8 +24,9 @@ from dependencies.bq_queries import general_queries as g_q
 # membership totals to display on Dashburgh. This will give the public insight on the demographics
 # of the city government and how it compares to the demographics of the city as a whole.
 
-SAFE_FIELDS = """employee_num, first_name, last_name, display_name, sso_login, dept_desc, office, job_title, 
-hire_date, termination_date, account_modified_date, `union`, status, pay_class, manager_name, ethnicity, gender"""
+SAFE_FIELDS = """employee_num, first_name, last_name, display_name, sso_login, dept_desc, 
+office, job_title, hire_date, termination_date, work_assignment_date, account_modified_date, 
+`union`, status, pay_class, manager_name, ethnicity, gender"""
 
 dag = DAG(
     'ceridian_employees',
@@ -129,49 +130,21 @@ create_racial_comp_table = BigQueryOperator(
     dag=dag
 )
 
-create_recent_terminations_table = BigQueryOperator(
-    task_id='create_recent_terminations_table',
-    sql=c_q.extract_recent_terminations(),
+export_terminations = BigQueryOperator(
+    task_id='export_terminations',
+    sql=g_q.direct_gcs_export(f"gs://{os.environ['GCS_PREFIX']}_iapro/past_month_terminations",
+                              'csv', '*',  c_q.extract_recent_terminations()),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
 )
 
-recent_terminations_to_gcs = BigQueryToCloudStorageOperator(
-    task_id='recent_terminations_to_gcs',
-    source_project_dataset_table=f"{os.environ['GCLOUD_PROJECT']}.ceridian.past_month_terminations",
-    destination_cloud_storage_uris=[f"gs://{os.environ['GCS_PREFIX']}_iapro/past_month_terminations.csv"],
-    bigquery_conn_id='google_cloud_default',
-    dag=dag
-)
-
-delete_terminations_table = BigQueryTableDeleteOperator(
-    task_id="delete_terminations_table",
-    deletion_dataset_table=f"{os.environ['GCLOUD_PROJECT']}.ceridian.past_month_terminations",
-    bigquery_conn_id='google_cloud_default',
-    dag=dag
-)
-
-create_pmo_export_table = BigQueryOperator(
-    task_id='create_pmo_export_table',
-    sql=c_q.pmo_export_query(),
+export_pmo = BigQueryOperator(
+    task_id='export_pmo',
+    sql=g_q.direct_gcs_export(f"gs://{os.environ['GCS_PREFIX']}_pmo/training/active_non_ps_employees",
+                              'csv', '*',  c_q.pmo_export_query()),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
-    dag=dag
-)
-
-ceridian_pmo_export = BigQueryToCloudStorageOperator(
-    task_id='ceridian_pmo_export',
-    source_project_dataset_table=f"{os.environ['GCLOUD_PROJECT']}.ceridian.active_non_ps_employees",
-    destination_cloud_storage_uris=[f"gs://{os.environ['GCS_PREFIX']}_pmo/training/active_non_ps_employees.csv"],
-    bigquery_conn_id='google_cloud_default',
-    dag=dag
-)
-
-delete_pmo_table = BigQueryTableDeleteOperator(
-    task_id="delete_pmo_table",
-    deletion_dataset_table=f"{os.environ['GCLOUD_PROJECT']}.ceridian.active_non_ps_employees",
-    bigquery_conn_id='google_cloud_default',
     dag=dag
 )
 
@@ -210,8 +183,7 @@ ceridian_employees_gcs >> ceridian_employees_dataflow >> ceridian_employees_bq_l
 ceridian_employees_gcs >> ceridian_employees_dataflow >> ceridian_employees_bq_load >> create_iapro_export_table >> \
     ceridian_iapro_export >> delete_iapro_table >> beam_cleanup
 ceridian_employees_gcs >> ceridian_employees_dataflow >> ceridian_employees_bq_load >> \
-    create_recent_terminations_table >> recent_terminations_to_gcs >> delete_terminations_table >> beam_cleanup
-ceridian_employees_gcs >> ceridian_employees_dataflow >> ceridian_employees_bq_load >> create_pmo_export_table >> \
-    ceridian_pmo_export >> delete_pmo_table >> beam_cleanup
+    export_terminations >> beam_cleanup
+ceridian_employees_gcs >> ceridian_employees_dataflow >> ceridian_employees_bq_load >> export_pmo >> beam_cleanup
 ceridian_employees_gcs >> ceridian_employees_dataflow >> ceridian_employees_bq_load >> create_gender_comp_table >> \
     create_racial_comp_table >> beam_cleanup
