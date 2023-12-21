@@ -56,9 +56,14 @@ query_geo =  build_revgeo_time_bound_query(dataset='finance', source=F"{sub_quer
                                            new_table='geo_enriched_treas_sale_properties',
                                            create_date='treas_sale_date', lat_field='latitude', long_field='longitude',
                                            source_is_table = False)
+query_full = F"""
+CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.finance.geo_enriched_treas_sale_properties` AS
+{query_geo}
+"""
+
 geo_operations = BigQueryOperator(
         task_id = 'geo_operations',
-        sql = query_geo,
+        sql = query_full,
         bigquery_conn_id='google_cloud_default',
         use_legacy_sql = False,
         dag = dag
