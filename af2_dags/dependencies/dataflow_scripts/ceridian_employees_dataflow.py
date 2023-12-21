@@ -43,10 +43,10 @@ def run(argv=None):
     )
 
     with beam.Pipeline(options=pipeline_options) as p:
-        strip_fields = ['Employee_HireDate', 'Employee_TerminationDate',
+        strip_fields = ['Employee_HireDate', 'Employee_TerminationDate', 'EmployeeWorkAssignment_EffectiveStart',
                         'EmployeeEmploymentStatus_CreatedTimestamp', 'Department_ShortName']
-        delims = ['T', 'T', 'T', '-']
-        before_or_afters = [0, 0, 0, 1]
+        delims = ['T', 'T', 'T', 'T', '-']
+        before_or_afters = [0, 0, 0, 0, 1]
         field_name_swaps = [('EmployeeEmploymentStatus_EmployeeNumber', 'employee_num'),
                             ('Employee_FirstName', 'first_name'),
                             ('Employee_LastName', 'last_name'),

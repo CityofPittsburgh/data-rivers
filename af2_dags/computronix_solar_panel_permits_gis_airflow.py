@@ -12,8 +12,8 @@ from airflow.contrib.operators.bigquery_to_bigquery import BigQueryToBigQueryOpe
 from airflow.contrib.operators.bigquery_table_delete_operator import BigQueryTableDeleteOperator
 
 from dependencies import airflow_utils
-from dependencies.airflow_utils import get_ds_year, get_ds_month, get_ds_day, default_args, \
-    build_geo_coords_from_parcel_query, build_revgeo_time_bound_query, check_blob_exists
+from dependencies.airflow_utils import get_ds_year, get_ds_month, get_ds_day, default_args, check_blob_exists
+from dependencies.bq_queries import geo_queries as q
 
 
 # custom query builder func. to do all geo enrichment as a single query. this avoids unnecessary staging tables/views
@@ -24,14 +24,14 @@ from dependencies.airflow_utils import get_ds_year, get_ds_month, get_ds_day, de
 # vars
 def build_geo_enrich_query():
     # geocode missing lat/long based on parcel number
-    query_get_coords = build_geo_coords_from_parcel_query(
+    query_get_coords = q.build_geo_coords_from_parcel_query(
             F"{os.environ['GCLOUD_PROJECT']}.computronix.incoming_solar_panel_permits",
             "parc_num")
 
     # reverse geocode city geographic zones from lat/long
-    query_geo_join = build_revgeo_time_bound_query('computronix', 'get_coords',
-                                                   'completed_date_UTC', 'latitude', 'longitude',
-                                                   source_is_table = False)
+    query_geo_join = q.build_revgeo_time_bound_query('computronix', 'get_coords',
+                                                     'completed_date_UTC', 'latitude', 'longitude',
+                                                     source_is_table = False)
 
     # combine the two queries into a Create Table (the final table) and CTE query
     query_geo_enrich = F"""
