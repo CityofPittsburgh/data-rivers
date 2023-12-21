@@ -51,7 +51,7 @@ def build_revgeo_time_bound_query(dataset, source, create_date, lat_field, long_
         CAST (t_es.zone AS STRING) AS dpw_enviro,
         CAST (t_pk.zone AS STRING) AS dpw_parks
       FROM
-        {source}
+        {source} source
 
       -- neighborhoods
       LEFT OUTER JOIN `{os.environ["GCLOUD_PROJECT"]}.timebound_geography.neighborhoods` AS t_hoods ON
