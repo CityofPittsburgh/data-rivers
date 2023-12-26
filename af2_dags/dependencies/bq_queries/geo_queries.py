@@ -1,8 +1,7 @@
 import os
 
 
-def build_revgeo_time_bound_query(dataset, source, create_date, lat_field, long_field,
-                                  new_table=None, source_is_table=True):
+def build_revgeo_time_bound_query(dataset, source, create_date, lat_field, long_field, new_table=None):
     """
     Take a table with lat/long values and reverse-geocode it into a new a final table.
     This function is a substantial refactor of the build_rev_geo() function. This query allows a lat/long point to be
@@ -15,25 +14,22 @@ def build_revgeo_time_bound_query(dataset, source, create_date, lat_field, long_
     :param dataset: BigQuery dataset (string)
     :param source: starting dataset that has not been rev geocoded yet. this should be either 1) the name of the
     table containing the source data, or 2) the name of the alias from the common table expression containing the
-    source data. Note that all project/dataset information is added  in the query string and only the table/CTE alias
-    name are needed (string)
-    :param new_table: name of table that will hold the fully geocoded datta (string)
+    source data. Note that if this a table, it must be fully resolved inlcuding apple
+    tick marks ``)
     :param create_date: field in raw_table that contains the creation date (string)
     :param lat_field: field in table that identifies latitude value (string)
     :param long_field: field in table that identifies longitude value (string)
-    :param source_is_table: indicates that the source dataset (which will be rev geocoded) is an existing
-    table (default = true). if this is false, the datasource can be derived from a common table expression (value =
-    false). this allows this operation to be bundled together into a larger query without staging table creation.
-    This function was always used on existing tables prior to  9/23 and the functions requires no modifications in
-    input arguments to maintain this usage because it defaults to True (boolean).
-
+    :param new_table: name of table that will hold the fully geocoded data (string) (fully resolved inlcuding apple
+    tick marks ``). Defaults to None if the output is not a table. This is helpful for embedding this query in a CTE
+    or subquery. 
     :return: string to be passed through as arg to BigQueryOperator
     """
-    if source_is_table:
-        src = F"`{os.environ['GCLOUD_PROJECT']}.{dataset}.{source}`"
-        create_statement = F"CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.{dataset}.{new_table}` AS"
+
+    if new_table:
+        create_statement = F"CREATE OR REPLACE TABLE {new_table} AS"
     else:
-        src = source
+        print("""query does not create a new table. this is idealized for embedding this function call as output in a
+              second function call""")
         create_statement = ""
 
     return f"""
@@ -51,7 +47,7 @@ def build_revgeo_time_bound_query(dataset, source, create_date, lat_field, long_
         CAST (t_es.zone AS STRING) AS dpw_enviro,
         CAST (t_pk.zone AS STRING) AS dpw_parks
       FROM
-        {src} source
+        {source} source
 
       -- neighborhoods
       LEFT OUTER JOIN `{os.environ["GCLOUD_PROJECT"]}.timebound_geography.neighborhoods` AS t_hoods ON

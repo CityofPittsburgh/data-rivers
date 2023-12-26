@@ -151,8 +151,12 @@ update_address_types = BigQueryOperator(
 
 geojoin = BigQueryOperator(
     task_id='geojoin',
-    sql=geo_queries.build_revgeo_time_bound_query('qalert', 'temp_backfill', 'create_date_utc', 'input_pii_lat',
-                                                  'input_pii_long', 'backfill_enriched'),
+    sql=geo_queries.build_revgeo_time_bound_query(
+            dataset = 'qalert',
+            source = F"`{os.environ['GCLOUD_PROJECT']}.qalert.temp_backfill`",
+            create_date = 'create_date_utc', lat_field = 'input_pii_lat',long_field = 'input_pii_long',
+            new_table = F"`{os.environ['GCLOUD_PROJECT']}.qalert.backfill_enriched`"
+    ),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag

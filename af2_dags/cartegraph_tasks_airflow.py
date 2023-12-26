@@ -78,8 +78,11 @@ format_dedupe = BigQueryOperator(
 )
 
 # Join all the geo information (e.g. DPW districts, etc) to the new data
-query_geo_join = geo_queries.build_revgeo_time_bound_query('cartegraph', 'incoming_tasks', 'actual_start_date_UTC',
-                                                           'lat', 'long', 'incoming_enriched')
+query_geo_join = geo_queries.build_revgeo_time_bound_query(dataset='cartegraph',
+                                                           source=F"`{os.environ['GCLOUD_PROJECT']}.cartegraph.incoming_tasks`",
+                                                           create_date='actual_start_date_UTC', lat_field = 'lat',
+                                                           long_field = 'long',
+                                                           new_table=F"`{os.environ['GCLOUD_PROJECT']}.cartegraph.incoming_enriched`")
 geojoin = BigQueryOperator(
     task_id='geojoin',
     sql=query_geo_join,

@@ -13,6 +13,7 @@ from airflow.contrib.operators.bigquery_table_delete_operator import BigQueryTab
 
 from dependencies import airflow_utils
 from dependencies.airflow_utils import get_ds_year, get_ds_month, get_ds_day, default_args, check_blob_exists
+
 from dependencies.bq_queries import geo_queries as q
 
 
@@ -21,7 +22,9 @@ from dependencies.bq_queries import geo_queries as q
 # no args passed in here as this func is specific for this script and we are not currently
 # (10/23) focused on code reusability. it is more concise to enter the table names/datasets directly. if this
 # idea is extended to future dags, this should be converted to a utility func with the necessary arguments passed as
-# vars
+# vars. In the case OF THIS PARTICULAR pipeline, a CTE approach was (slightly) less efficient than a subquery. This
+# may bear revisiting if data size grows (12/23)
+
 def build_geo_enrich_query():
     # geocode missing lat/long based on parcel number
     query_get_coords = q.build_geo_coords_from_parcel_query(
@@ -29,19 +32,11 @@ def build_geo_enrich_query():
             "parc_num")
 
     # reverse geocode city geographic zones from lat/long
-    query_geo_join = q.build_revgeo_time_bound_query('computronix', 'get_coords',
-                                                     'completed_date_UTC', 'latitude', 'longitude',
-                                                     source_is_table = False)
+    query_geo_enrich = q.build_revgeo_time_bound_query(
+            dataset='computronix', source=F"({query_get_coords})",
+            create_date='completed_date_UTC', lat_field='latitude', long_field = 'longitude',
+            new_table = F"`{os.environ['GCLOUD_PROJECT']}.computronix.geo_enriched_solar_panels`")
 
-    # combine the two queries into a Create Table (the final table) and CTE query
-    query_geo_enrich = F"""
-    CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.computronix.geo_enriched_solar_panels` AS
-    WITH get_coords AS 
-    (
-    {query_get_coords}
-    )
-    {query_geo_join}
-    """
     return query_geo_enrich
 
 
