@@ -57,8 +57,11 @@ get_coords = BigQueryOperator(
 
 
 # reverse geocode
-query_geo_join = q.build_revgeo_time_bound_query('eproperty', 'vacant_properties', 'status_date_utc', 'latitude',
-                                                 'longitude', 'vacant_properties_enriched')
+query_geo_join = q.build_revgeo_time_bound_query(
+        dataset='eproperty', source= F"`{os.environ['GCLOUD_PROJECT']}.eproperty.vacant_properties`",
+        create_date = 'status_date_utc', lat_field = 'latitude', long_field = 'longitude',
+        new_table =F"`{os.environ['GCLOUD_PROJECT']}.eproperty.vacant_properties_enriched`")
+
 geojoin = BigQueryOperator(
         task_id = 'geojoin',
         sql = query_geo_join,
