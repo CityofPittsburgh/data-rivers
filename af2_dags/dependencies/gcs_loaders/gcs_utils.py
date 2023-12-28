@@ -154,6 +154,43 @@ def call_odata_api_error_handling(targ_url, pipeline, time_out=3600, limit_resul
     return records, error_flag
 
 
+def send_alert_email(recipients, cc, subject, message, data=None, attachment_name=None):
+    message = Mail(
+        from_email=os.environ['EMAIL'],
+        subject=subject,
+        html_content=F"""
+                    {message}
+                    """
+    )
+    recips = Personalization()
+    for addr in recipients:
+        recips.add_to(To(addr))
+    if cc:
+        for addr in cc:
+            recips.add_cc(Cc(addr))
+    message.add_personalization(recips)
+
+    if data:
+        csv_df = pd.DataFrame(data)
+        stream = io.BytesIO()
+        csv_df.to_csv(stream, index=False)
+        encoded_file = base64.b64encode(stream.getvalue()).decode()
+
+        attached_file = Attachment(
+            FileContent(encoded_file),
+            FileName(attachment_name),
+            FileType('application/csv'),
+            Disposition('attachment')
+        )
+        message.attachment = attached_file
+
+    if json.loads(os.environ['USE_PROD_RESOURCES'].lower()):
+        sg = SendGridAPIClient(os.environ['SENDGRID_API_KEY'])
+        response = sg.send(message)
+    else:
+        print(f'Test complete, following email not sent: \n{message}')
+
+
 def send_alert_email_with_csv(recipients, cc, subject, message, data, attachment_name):
     csv_df = pd.DataFrame(data)
     stream = io.BytesIO()
