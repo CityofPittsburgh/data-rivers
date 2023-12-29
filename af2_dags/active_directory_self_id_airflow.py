@@ -40,7 +40,7 @@ export_f_name = BigQueryOperator(
 )
 
 l_name_query = F"""
-SELECT ad_email, ad_fname, ceridian_fname
+SELECT ad_email, ad_lname, ceridian_lname
 FROM `{os.environ['GCLOUD_PROJECT']}.active_directory.ad_ceridian_comparison`
 WHERE ad_lname != ceridian_lname
 AND ad_lname NOT LIKE '%Jr%'
