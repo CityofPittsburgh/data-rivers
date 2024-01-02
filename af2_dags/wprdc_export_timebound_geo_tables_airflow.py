@@ -11,8 +11,8 @@ from dependencies.airflow_utils import default_args
 dag = DAG(
         'export_geo_tables_to_wprdc',
         default_args = default_args,
-        schedule_interval = '30 1 1,15 * *',
-        start_date = datetime(2022, 12, 1),
+        schedule_interval = '@daily',
+        start_date = datetime(2024, 1, 1),
         catchup = False,
         max_active_runs = 1
 )
