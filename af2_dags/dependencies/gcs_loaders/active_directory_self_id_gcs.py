@@ -26,7 +26,8 @@ def send_name_survey(name_part):
                              f"Action Needed: Complete Form With Your Preferred {name_part.capitalize()} Name",
                              f"The Data Services Team has detected a difference between how your {name_part} name is "
                              f"listed in Dayforce compared to Microsoft Active Directory. The names we have on file "
-                             f"are as follows:<br /><br /><pre>    {row[c_field]}<br />    {row[ad_field]}</pre><br />"
+                             f"are as follows:<br /><br />"
+                             f"<pre>    Dayforce: {row[c_field]}<br />    Microsoft: {row[ad_field]}</pre><br />"
                              f"Please fill out the form linked below with the name you would prefer to have used going "
                              f"forward. Please note that you must enter your name exactly as it should appear, "
                              f"meaning the text is case sensitive and should contain no unnecessary spaces.<br /><br />"
@@ -37,8 +38,9 @@ def send_name_survey(name_part):
         send_alert_email([os.environ['EMAIL']], None,
                          f"Action Needed: Complete Form With Your Preferred {name_part.capitalize()} Name",
                          f"The Data Services Team has detected a difference between how your {name_part} name is "
-                         f"listed in Dayforce compared to Microsoft Active Directory. The names we have on file are as "
-                         f"follows:<br /><br /><pre>    {row[c_field]}<br />    {row[ad_field]}</pre><br />"
+                         f"listed in Dayforce compared to Microsoft Active Directory. The names we have on file "
+                         f"are as follows:<br /><br />"
+                         f"<pre>    Dayforce: {row[c_field]}<br />    Microsoft: {row[ad_field]}</pre><br />"
                          f"Please fill out the form linked below with the name you would prefer to have used going "
                          f"forward. Please note that you must enter your name exactly as it should appear, "
                          f"meaning the text is case sensitive and should contain no unnecessary spaces.<br /><br />"
