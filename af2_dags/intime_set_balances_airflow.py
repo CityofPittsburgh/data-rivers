@@ -50,6 +50,8 @@ def branch_time_balance_comp(offset):
         sched_df = pd.read_csv(stream)
         if comp_str in list(sched_df['pay_issued']):
             return ['export_for_api']
+        else:
+            return ['irrelevant_day']
     else:
         return ['irrelevant_day']
 
