@@ -25,7 +25,7 @@ def send_name_survey(name_part):
             send_alert_email([row['ad_email']], [os.environ['EMAIL']],
                              f"Action Needed: Complete Form With Your Preferred {name_part.capitalize()} Name",
                              f"The Data Services Team has detected a difference between how your {name_part} name is "
-                             f"listed in Dayforce compared to Microsoft Active Directory. The names we have on file "
+                             f"listed for your network login compared to Dayforce. The names we have on file "
                              f"are as follows:<br /><br />"
                              f"<pre>    Dayforce: {row[c_field]}<br />    Microsoft: {row[ad_field]}</pre><br />"
                              f"Please fill out the form linked below with the name you would prefer to have used going "
@@ -38,7 +38,7 @@ def send_name_survey(name_part):
         send_alert_email([os.environ['EMAIL']], None,
                          f"Action Needed: Complete Form With Your Preferred {name_part.capitalize()} Name",
                          f"The Data Services Team has detected a difference between how your {name_part} name is "
-                         f"listed in Dayforce compared to Microsoft Active Directory. The names we have on file "
+                         f"listed for your network login compared to Dayforce. The names we have on file "
                          f"are as follows:<br /><br />"
                          f"<pre>    Dayforce: {row[c_field]}<br />    Microsoft: {row[ad_field]}</pre><br />"
                          f"Please fill out the form linked below with the name you would prefer to have used going "
