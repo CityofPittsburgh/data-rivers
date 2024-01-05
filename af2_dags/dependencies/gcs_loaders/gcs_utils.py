@@ -154,12 +154,12 @@ def call_odata_api_error_handling(targ_url, pipeline, time_out=3600, limit_resul
     return records, error_flag
 
 
-def send_alert_email(recipients, cc, subject, message, data=None, attachment_name=None):
+def send_alert_email(recipients, cc, subject, content, from_email=os.environ['EMAIL'], data=None, attachment_name=None):
     message = Mail(
-        from_email=os.environ['EMAIL'],
+        from_email=from_email,
         subject=subject,
         html_content=F"""
-                    {message}
+                    {content}
                     """
     )
     recips = Personalization()
