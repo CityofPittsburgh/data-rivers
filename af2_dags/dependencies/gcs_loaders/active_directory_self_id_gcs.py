@@ -32,7 +32,8 @@ def send_name_survey(name_part):
                              f"forward. Please note that you must enter your name exactly as it should appear, "
                              f"meaning the text is case sensitive and should contain no unnecessary spaces.<br /><br />"
                              f'<a href="https://forms.office.com/g/{os.environ[survey_var]}">'
-                             f'{name_part.capitalize()} Name Survey</a>')
+                             f'{name_part.capitalize()} Name Survey</a>',
+                             os.environ['HR_EMAIL'])
     else:
         row = next(name_reader)
         send_alert_email([os.environ['EMAIL']], None,
@@ -45,7 +46,8 @@ def send_name_survey(name_part):
                          f"forward. Please note that you must enter your name exactly as it should appear, "
                          f"meaning the text is case sensitive and should contain no unnecessary spaces.<br /><br />"
                          f'<a href="https://forms.office.com/g/{os.environ[survey_var]}">'
-                         f'{name_part.capitalize()} Name Survey</a>')
+                         f'{name_part.capitalize()} Name Survey</a>',
+                         os.environ['HR_EMAIL'])
 
 
 send_name_survey('first')
