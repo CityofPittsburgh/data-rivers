@@ -8,7 +8,7 @@ import pendulum
 from datetime import datetime
 from requests.auth import HTTPBasicAuth
 from google.cloud import storage
-from gcs_utils import generate_xml, post_xml, json_to_gcs, send_alert_email_with_csv
+from gcs_utils import generate_xml, post_xml, json_to_gcs, send_alert_email
 
 storage_client = storage.Client()
 
@@ -58,10 +58,10 @@ else:
 
 if update_log:
     json_to_gcs(f"{args['out_loc']}", update_log, f"{os.environ['GCS_PREFIX']}_intime")
-    send_alert_email_with_csv([os.environ['INTIME_ALERT_EMAIL']], [os.environ['EMAIL']],
-                              "ALERT: InTime Time Banks Updated",
-                              "The attached CSV lists all updates that have been made to time bank balances in the "
-                              "InTime source system using information found in Dayforce. If the update script failed "
-                              "to make the listed changes, upload the attached file to the InTime Data Importer "
-                              "tool at https://intime2.intimesoft.com/importer/import/do to issue corrections.",
-                              update_log, f"time_bank_import_{today}.csv")
+    send_alert_email(recipients=[os.environ['INTIME_ALERT_EMAIL']], cc=[os.environ['EMAIL']],
+                     subject="ALERT: InTime Time Banks Updated",
+                     content="The attached CSV lists all updates that have been made to time bank balances in the "
+                     "InTime source system using information found in Dayforce. If the update script failed "
+                     "to make the listed changes, upload the attached file to the InTime Data Importer "
+                     "tool at https://intime2.intimesoft.com/importer/import/do to issue corrections.",
+                     data=update_log, attachment_name=f"time_bank_import_{today}.csv")
