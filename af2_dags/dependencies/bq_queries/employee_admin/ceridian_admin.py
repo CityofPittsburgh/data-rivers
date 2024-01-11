@@ -107,6 +107,16 @@ def compare_timebank_balances(comp_table, offset=0):
     return query
 
 
+def extract_employee_manager_info():
+    return F"""
+    SELECT e.display_name, e.sso_login AS email, e.dept_desc, e.manager_name, m.sso_login AS manager_email, e.status
+    FROM `{os.environ['GCLOUD_PROJECT']}.ceridian.all_employees` e
+    LEFT OUTER JOIN (SELECT display_name, sso_login FROM `{os.environ['GCLOUD_PROJECT']}.ceridian.all_employees`) m
+    ON e.manager_name = m.display_name
+    WHERE e.status IN ('Active', 'Pre-Start')
+    """
+
+
 def extract_new_hires():
     return F"""
     CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.ceridian.daily_new_hires` AS
