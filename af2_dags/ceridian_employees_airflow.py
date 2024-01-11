@@ -34,7 +34,8 @@ dag = DAG(
     schedule_interval='@daily',
     start_date=datetime(2023, 2, 8),
     user_defined_filters={'get_ds_month': get_ds_month, 'get_ds_year': get_ds_year,
-                          'get_ds_day': get_ds_day}
+                          'get_ds_day': get_ds_day},
+    catchup=False
 )
 
 # initialize gcs locations
@@ -148,6 +149,15 @@ export_pmo = BigQueryOperator(
     dag=dag
 )
 
+export_applications = BigQueryOperator(
+    task_id='export_applications',
+    sql=g_q.direct_gcs_export(f"gs://{os.environ['GCS_PREFIX']}_ip_applications/ceridian/active_employees_w_managers",
+                              'csv', '*',  c_q.extract_employee_manager_info()),
+    bigquery_conn_id='google_cloud_default',
+    use_legacy_sql=False,
+    dag=dag
+)
+
 create_iapro_export_table = BigQueryOperator(
     task_id='create_iapro_export_table',
     sql=g_q.build_format_dedup_query('ceridian', 'ceridian_ad_export', 'all_employees', date_fields, SAFE_FIELDS,
@@ -182,8 +192,10 @@ ceridian_employees_gcs >> ceridian_employees_dataflow >> ceridian_employees_bq_l
     export_data_quality >> data_quality_check >> beam_cleanup
 ceridian_employees_gcs >> ceridian_employees_dataflow >> ceridian_employees_bq_load >> create_iapro_export_table >> \
     ceridian_iapro_export >> delete_iapro_table >> beam_cleanup
-ceridian_employees_gcs >> ceridian_employees_dataflow >> ceridian_employees_bq_load >> \
-    export_terminations >> beam_cleanup
+ceridian_employees_gcs >> ceridian_employees_dataflow >> ceridian_employees_bq_load >> export_terminations >> \
+    beam_cleanup
+ceridian_employees_gcs >> ceridian_employees_dataflow >> ceridian_employees_bq_load >> export_applications >> \
+    beam_cleanup
 ceridian_employees_gcs >> ceridian_employees_dataflow >> ceridian_employees_bq_load >> export_pmo >> beam_cleanup
 ceridian_employees_gcs >> ceridian_employees_dataflow >> ceridian_employees_bq_load >> create_gender_comp_table >> \
     create_racial_comp_table >> beam_cleanup
