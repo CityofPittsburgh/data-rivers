@@ -142,7 +142,7 @@ def extract_new_hires():
 
 def extract_recent_terminations():
     return F"""
-    SELECT employee_num, first_name, last_name, dept_desc, status, termination_date, pay_class
+    SELECT employee_num, sso_login, first_name, last_name, dept_desc, status, termination_date, pay_class
     FROM `{os.environ['GCLOUD_PROJECT']}.ceridian.all_employees`
     WHERE status = 'Terminated' AND 
     DATE_DIFF(CURRENT_DATETIME(), PARSE_DATETIME('%Y-%m-%d', termination_date), DAY) <= 30
