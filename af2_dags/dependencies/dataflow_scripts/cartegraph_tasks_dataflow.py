@@ -45,7 +45,9 @@ def run(argv = None):
         drop_fields = ['CgShape']
         times = [('entry_date', 'US/Eastern'), ('actual_start_date', 'US/Eastern'), ('actual_stop_date', 'US/Eastern')]
         type_changes = [('id', 'str'), ('labor_cost', 'float'), ('equipment_cost', 'float'), ('material_cost', 'float'),
-                        ('labor_hours', 'float'), ('actual_start_date_UNIX', 'posint'),
+                        ('labor_hours', 'float'), ('request_issue', 'nullstr'), ('request_department', 'nullstr'),
+                        ('request_location', 'nullstr'), ('asset_id', 'nullstr'), ('task_description', 'nullstr'),
+                        ('task_notes', 'nullstr'),  ('actual_start_date_UNIX', 'posint'),
                         ('actual_stop_date_UNIX', 'posint'), ('entry_date_UNIX', 'posint')]
 
         lines = p | ReadFromText(known_args.input, coder = JsonCoder())
