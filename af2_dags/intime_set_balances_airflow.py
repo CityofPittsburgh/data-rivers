@@ -76,7 +76,7 @@ email_comparison = PythonOperator(
     task_id='email_comparison',
     python_callable=gcs_to_email,
     op_kwargs={"bucket": f"{os.environ['GCS_PREFIX']}_ceridian",
-               "file_path": "data_sharing/discrepancy_report.csv",
+               "file_path": "data_sharing/discrepancy_report000000000000.csv",
                "recipients": [os.environ["INTIME_ALERT_EMAIL"]],
                "cc": [os.environ["EMAIL"], os.environ["HR_ALERT_EMAIL"]],
                "subject": "ALERT: Time Bank Discrepancy Report",
