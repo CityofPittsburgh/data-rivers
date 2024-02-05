@@ -1,13 +1,30 @@
 import os
 
 
-def build_data_quality_table(dataset, new_table, source_table, field):
+def build_data_quality_table(dataset, new_table, source_table, fields, conditional='AND'):
+    """
+    Return a query that creates a table that displays all unique values in an infrequently-changing column.
+    This is important because the team should be notified every time an API returns a new value is in certain
+    critical columns (for example, if a new department is added to HR data).
+    :param dataset: name of BigQuery dataset
+    :param new_table: name of table that will store the unique values within the data_quality_check dataset
+    :param source_table: name of table that will be tested for new values
+    :param fields: a list of all fields that are being checked for new values, or a single field name that is converted
+    to a list for string processing purposes
+    :param conditional: name of BQ conditional operator used in query (only relevant when multiple fields are listed)
+    :return: SQL query that will be executed in a subsequent Airflow task
+    """
+    # Convert singular string values to list (allows rest of function to be flexible to one or many input fields)
+    if type(fields) != list:
+        fields = [fields]
+    field_list = str((fields[0]) if len(fields) == 1 else ', '.join(map(str, fields)))
+    field_conditionals = field_list.replace(', ', f' IS NOT NULL {conditional} ') + ' IS NOT NULL'
     return F"""
     CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.data_quality_check.{new_table}` AS 
-    SELECT DISTINCT {field}
+    SELECT DISTINCT {field_list}
     FROM `{os.environ['GCLOUD_PROJECT']}.{dataset}.{source_table}`
-    WHERE {field} IS NOT NULL
-    ORDER BY {field} ASC
+    WHERE {field_conditionals}
+    ORDER BY {fields[0]} ASC
     """
 
 
