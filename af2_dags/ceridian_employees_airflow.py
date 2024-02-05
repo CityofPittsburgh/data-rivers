@@ -46,6 +46,7 @@ path = "{{ ds|get_ds_year }}/{{ ds|get_ds_month }}"
 json_loc = f"{dataset}/{path}/{exec_date}_employees.json"
 avro_loc = f"{dataset}/avro_output/{path}/" + "{{ run_id }}"
 dq_checker = "ceridian_departments"
+preferred_name_table = "new_preferred_names"
 date_fields = [{'field': 'hire_date', 'type': 'DATE'},
                {'field': 'termination_date', 'type': 'DATE'},
                {'field': 'account_modified_date', 'type': 'DATE'}]
@@ -78,7 +79,8 @@ ceridian_employees_bq_load = GoogleCloudStorageToBigQueryOperator(
 
 create_data_quality_table = BigQueryOperator(
     task_id='create_data_quality_table',
-    sql=g_q.build_data_quality_table('ceridian', dq_checker, 'all_employees', 'dept_desc'),
+    sql=g_q.build_data_quality_table(dataset='ceridian', new_table=dq_checker,
+                                      source_table='all_employees', fields=['dept_desc']),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
@@ -97,6 +99,33 @@ data_quality_check = PythonOperator(
     task_id='data_quality_check',
     python_callable=perform_data_quality_check,
     op_kwargs={"file_name": f"{dq_checker}.json"},
+    dag=dag
+)
+
+create_preferred_name_table = BigQueryOperator(
+    task_id='create_preferred_name_table',
+    sql=g_q.build_data_quality_table(dataset='ceridian', new_table=preferred_name_table, source_table='all_employees',
+                                     fields=['common_name', 'preferred_last_name'], conditional='OR'),
+    bigquery_conn_id='google_cloud_default',
+    use_legacy_sql=False,
+    dag=dag
+)
+
+export_preferred_names = BigQueryToCloudStorageOperator(
+    task_id='export_preferred_names',
+    source_project_dataset_table=f"{os.environ['GCLOUD_PROJECT']}.data_quality_check.{preferred_name_table}",
+    destination_cloud_storage_uris=[
+        f"gs://{os.environ['GCS_PREFIX']}_data_quality_check/TEMP_{preferred_name_table}.json"
+    ],
+    export_format='NEWLINE_DELIMITED_JSON',
+    bigquery_conn_id='google_cloud_default',
+    dag=dag
+)
+
+new_name_check = PythonOperator(
+    task_id='new_name_check',
+    python_callable=perform_data_quality_check,
+    op_kwargs={"file_name": f"{preferred_name_table}.json"},
     dag=dag
 )
 
@@ -190,6 +219,8 @@ beam_cleanup = BashOperator(
 
 ceridian_employees_gcs >> ceridian_employees_dataflow >> ceridian_employees_bq_load >> create_data_quality_table >> \
     export_data_quality >> data_quality_check >> beam_cleanup
+ceridian_employees_gcs >> ceridian_employees_dataflow >> ceridian_employees_bq_load >> create_preferred_name_table >> \
+    export_preferred_names >> new_name_check >> beam_cleanup
 ceridian_employees_gcs >> ceridian_employees_dataflow >> ceridian_employees_bq_load >> create_iapro_export_table >> \
     ceridian_iapro_export >> delete_iapro_table >> beam_cleanup
 ceridian_employees_gcs >> ceridian_employees_dataflow >> ceridian_employees_bq_load >> export_terminations >> \
