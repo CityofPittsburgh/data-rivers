@@ -26,7 +26,7 @@ from dependencies.bq_queries import general_queries as g_q
 
 SAFE_FIELDS = """employee_num, first_name, last_name, display_name, sso_login, dept_desc, 
 office, job_title, hire_date, termination_date, work_assignment_date, account_modified_date, 
-`union`, status, pay_class, manager_name, ethnicity, gender, common_name, preferred_name"""
+`union`, status, pay_class, manager_name, ethnicity, gender, common_name, preferred_last_name"""
 
 dag = DAG(
     'ceridian_employees',
