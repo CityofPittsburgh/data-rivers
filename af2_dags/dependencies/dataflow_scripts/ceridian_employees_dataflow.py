@@ -65,7 +65,9 @@ def run(argv=None):
                             ('EmployeeManager_ManagerDisplayName', 'manager_name'),
                             ('DFEthnicity_ShortName', 'ethnicity'),
                             ('Employee_Gender', 'gender'),
-                            ('SSOLogin', 'sso_login')]
+                            ('SSOLogin', 'sso_login'),
+                            ('Employee_CommonName', 'common_name'),
+                            ('Employee_PreferredLastName', 'preferred_last_name')]
         type_changes = [('employee_num', 'str'), ('base_salary', 'float')]
         drop_fields = ['EmploymentStatus_ShortName', 'DeptJob_ShortName',
                        'Employee_PreferredLastName', 'DenormEmployeeContact_BusinessPhone',
