@@ -363,19 +363,18 @@ def perform_data_quality_check(file_name, **kwargs):
             old_content = old_blob.download_as_string()
             old_dq = ndjson.loads(old_content)
 
-            message_contents = "Possible data quality issue detected: the following value(s): <br /><br />"
+            msg_content = f"<p>Previously untracked value(s) detected in reference file <i>{file_name}</i>:<br/><ul>"
             uncaught = []
             for item in new_dq:
                 val = next(iter(item.items()))[1]
                 if item not in old_dq and val:
                     print(f"Untracked value: {item}")
-                    message_contents += f"{val}<br />"
+                    msg_content += f"<li>{val}</li>"
                     uncaught.append(val)
 
             if uncaught:
-                message_contents += f"<br />were not found in reference file {file_name}.<br />Check the airflow logs " \
-                                    f"and reference file in GCS for more info."
-                send_team_email_notification("Data Quality Notification", message_contents)
+                msg_content += f"</ul>Check the Airflow logs and contact data stewards for more info."
+                send_team_email_notification("Data Quality Notification", msg_content)
 
             old_blob.delete()
             bucket.copy_blob(new_blob, bucket, file_name)
