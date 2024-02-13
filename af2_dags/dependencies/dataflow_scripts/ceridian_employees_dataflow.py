@@ -58,6 +58,7 @@ def run(argv=None):
                             ('Employee_HireDate', 'hire_date'),
                             ('Employee_TerminationDate', 'termination_date'),
                             ('EmployeeWorkAssignment_EffectiveStart', 'work_assignment_date'),
+                            ('EmploymentStatusReason_LongName', 'account_modified_reason'),
                             ('EmployeeEmploymentStatus_CreatedTimestamp', 'account_modified_date'),
                             ('DFUnion_ShortName', 'union'),
                             ('EmploymentStatus_LongName', 'status'),
