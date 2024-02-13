@@ -351,7 +351,7 @@ def log_task(dag_id, message, **kwargs):
     print(f'Logging DAG {dag_id}: \n{message}')
 
 
-def perform_data_quality_check(file_name, **kwargs):
+def perform_data_quality_check(file_name, subject="Data Quality Notification", **kwargs):
     try:
         bucket = storage_client.get_bucket(f"{os.environ['GCS_PREFIX']}_data_quality_check")
         new_blob = bucket.blob(f"TEMP_{file_name}")
@@ -374,7 +374,7 @@ def perform_data_quality_check(file_name, **kwargs):
 
             if uncaught:
                 msg_content += f"</ul>Check the Airflow logs and contact data stewards for more info."
-                send_team_email_notification("Data Quality Notification", msg_content)
+                send_team_email_notification(subject, msg_content)
 
             old_blob.delete()
             bucket.copy_blob(new_blob, bucket, file_name)
