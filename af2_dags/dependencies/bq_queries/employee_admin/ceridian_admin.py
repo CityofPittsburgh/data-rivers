@@ -149,15 +149,14 @@ def extract_recent_terminations():
     """
 
 
-def extract_recent_status_changes(status_field, status_value):
+def extract_recent_status_changes(field_list, status_field, status_value, date_field):
     return F"""
-    SELECT employee_num, first_name, last_name, display_name, sso_login, job_title, manager_name, dept_desc, office, 
-    hire_date, account_modified_reason, account_modified_date, termination_date, pay_class, status
+    SELECT {field_list}
     FROM `{os.environ['GCLOUD_PROJECT']}.ceridian.all_employees` 
     WHERE {status_field} = '{status_value}'
     AND (
-        EXTRACT(MONTH FROM CURRENT_DATETIME()) = EXTRACT(MONTH FROM PARSE_DATETIME('%Y-%m-%d', account_modified_date))
-        AND EXTRACT(YEAR FROM CURRENT_DATETIME()) = EXTRACT(YEAR FROM PARSE_DATETIME('%Y-%m-%d', account_modified_date))
+        EXTRACT(MONTH FROM CURRENT_DATETIME()) = EXTRACT(MONTH FROM PARSE_DATETIME('%Y-%m-%d', {date_field}))
+        AND EXTRACT(YEAR FROM CURRENT_DATETIME()) = EXTRACT(YEAR FROM PARSE_DATETIME('%Y-%m-%d', {date_field}))
     )
     """
 
