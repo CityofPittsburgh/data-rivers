@@ -148,6 +148,32 @@ export_terminations = BigQueryOperator(
     dag=dag
 )
 
+export_transfers = BigQueryOperator(
+    task_id='export_transfers',
+    sql=g_q.direct_gcs_export(f"gs://{os.environ['GCS_PREFIX']}_iapro/past_month_transfers",
+                              'csv', '*',
+                              c_q.extract_recent_status_changes(field_list=STATUS_FIELDS,
+                                                                status_field='account_modified_reason',
+                                                                status_value='Transfer',
+                                                                date_field='account_modified_date')),
+    bigquery_conn_id='google_cloud_default',
+    use_legacy_sql=False,
+    dag=dag
+)
+
+export_rehires = BigQueryOperator(
+    task_id='export_rehires',
+    sql=g_q.direct_gcs_export(f"gs://{os.environ['GCS_PREFIX']}_iapro/past_month_rehires",
+                              'csv', '*',
+                              c_q.extract_recent_status_changes(field_list=STATUS_FIELDS,
+                                                                status_field='account_modified_reason',
+                                                                status_value='Rehire',
+                                                                date_field='account_modified_date')),
+    bigquery_conn_id='google_cloud_default',
+    use_legacy_sql=False,
+    dag=dag
+)
+
 export_pmo = BigQueryOperator(
     task_id='export_pmo',
     sql=g_q.direct_gcs_export(f"gs://{os.environ['GCS_PREFIX']}_pmo/training/active_non_ps_employees",
@@ -201,6 +227,10 @@ ceridian_employees_gcs >> ceridian_employees_dataflow >> ceridian_employees_bq_l
 ceridian_employees_gcs >> ceridian_employees_dataflow >> ceridian_employees_bq_load >> create_iapro_export_table >> \
     ceridian_iapro_export >> delete_iapro_table >> beam_cleanup
 ceridian_employees_gcs >> ceridian_employees_dataflow >> ceridian_employees_bq_load >> export_terminations >> \
+    beam_cleanup
+ceridian_employees_gcs >> ceridian_employees_dataflow >> ceridian_employees_bq_load >> export_transfers >> \
+    beam_cleanup
+ceridian_employees_gcs >> ceridian_employees_dataflow >> ceridian_employees_bq_load >> export_rehires >> \
     beam_cleanup
 ceridian_employees_gcs >> ceridian_employees_dataflow >> ceridian_employees_bq_load >> export_applications >> \
     beam_cleanup
