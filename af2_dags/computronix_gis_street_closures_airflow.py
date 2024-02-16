@@ -15,7 +15,7 @@ from dependencies import airflow_utils
 from dependencies.airflow_utils import get_ds_year, get_ds_month, get_ds_day, default_args
 
 now = datetime.date.today()
-unix_date = time.mktime(now.timetuple())
+unix_date = int(time.mktime(now.timetuple()))
 
 # TODO: When Airflow 2.0 is released, upgrade the package, sub in DataFlowPythonOperator for BashOperator,
 # and pass the argument 'py_interpreter=python3'
