@@ -1,5 +1,5 @@
 from __future__ import absolute_import
-
+#
 import logging
 import os
 import time
@@ -11,8 +11,9 @@ from apache_beam.io import ReadFromText, WriteToBigQuery
 
 # import util modules.
 # util modules located one level down in directory (./dataflow_util_modules/datflow_utils.py)
-from dataflow_utils.dataflow_utils import JsonCoder, ConvertBooleans, StandardizeTimes, \
-    FilterOutliers, FilterFields, ConvertStringCase, generate_args
+from dataflow_utils import dataflow_utils
+from dataflow_utils.dataflow_utils import JsonCoder, ConvertBooleans, StandardizeTimes, FilterOutliers, FilterFields,\
+    ConvertStringCase, generate_args
 
 DEFAULT_DATAFLOW_ARGS = [
         '--save_main_session',

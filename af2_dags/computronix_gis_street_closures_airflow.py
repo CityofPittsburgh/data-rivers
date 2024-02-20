@@ -6,9 +6,8 @@ import time
 
 from airflow import DAG
 from airflow.operators.bash_operator import BashOperator
-from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOperator
+# from airflow.contrib.operators.gcs_to_bq import GoogleCloudStorageToBigQueryOperator
 from airflow.contrib.operators.bigquery_operator import BigQueryOperator
-
 from airflow.contrib.operators.bigquery_to_gcs import BigQueryToCloudStorageOperator
 
 from dependencies import airflow_utils
@@ -17,8 +16,6 @@ from dependencies.airflow_utils import get_ds_year, get_ds_month, get_ds_day, de
 now = datetime.date.today()
 unix_date = int(time.mktime(now.timetuple()))
 
-# TODO: When Airflow 2.0 is released, upgrade the package, sub in DataFlowPythonOperator for BashOperator,
-# and pass the argument 'py_interpreter=python3'
 
 """
 This DAG retrieves a DOMI dataset containing street closures. The API it hits doesn't have a good way (as of 10/22)  to 
@@ -60,17 +57,17 @@ dataflow = BashOperator(
 )
 
 # Load AVRO data produced by dataflow_script into BQ temp table
-gcs_to_bq = GoogleCloudStorageToBigQueryOperator(
-    task_id='gcs_to_bq',
-    destination_project_dataset_table=f"{os.environ['GCLOUD_PROJECT']}:computronix.gis_street_closures",
-    bucket=f"{os.environ['GCS_PREFIX']}_computronix",
-    source_objects=[f"{dataset}/{avro_loc}*.avro"],
-    write_disposition='WRITE_TRUNCATE',
-    create_disposition='CREATE_IF_NEEDED',
-    source_format='AVRO',
-    autodetect=True,
-    dag=dag
-)
+# gcs_to_bq = GoogleCloudStorageToBigQueryOperator(
+#     task_id='gcs_to_bq',
+    #     destination_project_dataset_table=f"{os.environ['GCLOUD_PROJECT']}:computronix.gis_street_closures",
+#     bucket=f"{os.environ['GCS_PREFIX']}_computronix",
+#     source_objects=[f"{dataset}/{avro_loc}*.avro"],
+#     write_disposition='WRITE_TRUNCATE',
+#     create_disposition='CREATE_IF_NEEDED',
+#     source_format='AVRO',
+#     autodetect=True,
+#     dag=dag
+# )
 
 # join the carte_id vals to the corresponding lat/long
 query_join = F"""
@@ -114,31 +111,32 @@ domi_export = BigQueryToCloudStorageOperator(
 )
 
 # remove inactive permits and place into data-rivers and data-bridGIS BQ
-query_filter = F"""
-CREATE OR REPLACE TABLE `{os.environ["GCLOUD_PROJECT"]}.computronix.gis_active_street_closures` AS
-SELECT 
- *
-FROM `{os.environ["GCLOUD_PROJECT"]}.computronix.gis_street_closures` 
-WHERE from_date_UNIX <= {unix_date} AND to_date_unix >= {unix_date};
-
-
-CREATE OR REPLACE TABLE `data-bridgis.computronix.gis_active_street_closures` AS 
-SELECT 
-  * EXCEPT(from_date_UTC, from_date_EST, from_date_UNIX, to_date_UTC, to_date_EST, to_date_UNIX),
-  (PARSE_DATETIME ("%m/%d/%Y %H:%M:%S",from_date_EST)) as from_est,
-  (PARSE_DATETIME ("%m/%d/%Y %H:%M:%S",to_date_EST)) as to_est,
-  (PARSE_DATETIME ("%m/%d/%Y %H:%M:%S",from_date_UTC)) as from_utc,
-  (PARSE_DATETIME ("%m/%d/%Y %H:%M:%S",to_date_UTC)) as to_utc
-FROM `{os.environ["GCLOUD_PROJECT"]}.computronix.gis_active_street_closures`;
-
-"""
-filter_inactive_push_to_data_bridGIS = BigQueryOperator(
-    task_id='filter_inactive_push_to_data_bridGIS',
-    sql=query_filter,
-    bigquery_conn_id='google_cloud_default',
-    use_legacy_sql=False,
-    dag=dag
-)
+# query_filter = F"""
+# CREATE OR REPLACE TABLE `{os.environ["GCLOUD_PROJECT"]}.computronix.gis_active_street_closures` AS
+# SELECT
+#  *
+# FROM `{os.environ["GCLOUD_PROJECT"]}.computronix.gis_street_closures`
+# WHERE from_date_UNIX <= {unix_date} AND to_date_unix >= {unix_date};
+#
+# query ="""
+# CREATE OR REPLACE TABLE `data-bridgis.computronix.gis_active_street_closures` AS
+# SELECT
+#   * EXCEPT(from_date_UTC, from_date_EST, from_date_UNIX, to_date_UTC, to_date_EST, to_date_UNIX),
+#   (PARSE_DATETIME ("%m/%d/%Y %H:%M:%S",from_date_EST)) as from_est,
+#   (PARSE_DATETIME ("%m/%d/%Y %H:%M:%S",to_date_EST)) as to_est,
+#   (PARSE_DATETIME ("%m/%d/%Y %H:%M:%S",from_date_UTC)) as from_utc,
+#   (PARSE_DATETIME ("%m/%d/%Y %H:%M:%S",to_date_UTC)) as to_utc,
+#   PARTITION BY active
+# FROM `{os.environ["GCLOUD_PROJECT"]}.computronix.gis_active_street_closures`;
+#
+# """
+# filter_inactive_push_to_data_bridGIS = BigQueryOperator(
+#     task_id='filter_inactive_push_to_data_bridGIS',
+#     sql=query_filter,
+#     bigquery_conn_id='google_cloud_default',
+#     use_legacy_sql=False,
+#     dag=dag
+# )
 
 # push table of ALL permits (not just active) data-bridGIS BQ
 query_push_all = F"""
@@ -151,8 +149,8 @@ SELECT
   (PARSE_DATETIME ("%m/%d/%Y %H:%M:%S",to_date_UTC)) as to_utc
 FROM `{os.environ["GCLOUD_PROJECT"]}.computronix.gis_street_closures` 	
 """
-push_all_data_bridgis = BigQueryOperator(
-    task_id='push_all_data_bridgis',
+push_data_bridgis = BigQueryOperator(
+    task_id='push_data_bridgis',
     sql=query_push_all,
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
@@ -160,14 +158,14 @@ push_all_data_bridgis = BigQueryOperator(
 )
 
 # Export active table as CSV to wprdc bucket
-dest_bucket = f"gs://{os.environ['GCS_PREFIX']}_wprdc/domi_street_closures/active_street_closures/"
-wprdc_active_csv_export = BigQueryToCloudStorageOperator(
-    task_id='wprdc_active_csv_export',
-    source_project_dataset_table=f"{os.environ['GCLOUD_PROJECT']}.computronix.gis_active_street_closures",
-    destination_cloud_storage_uris=[f"{dest_bucket}active_closures.csv"],
-    bigquery_conn_id='google_cloud_default',
-    dag=dag
-)
+# dest_bucket = f"gs://{os.environ['GCS_PREFIX']}_wprdc/domi_street_closures/active_street_closures/"
+# wprdc_active_csv_export = BigQueryToCloudStorageOperator(
+#     task_id='wprdc_active_csv_export',
+#     source_project_dataset_table=f"{os.environ['GCLOUD_PROJECT']}.computronix.gis_active_street_closures",
+#     destination_cloud_storage_uris=[f"{dest_bucket}active_closures.csv"],
+#     bigquery_conn_id='google_cloud_default',
+#     dag=dag
+# )
 
 beam_cleanup = BashOperator(
     task_id='beam_cleanup',
@@ -176,8 +174,7 @@ beam_cleanup = BashOperator(
 )
 
 # branching DAG splits after the gcs_to_bq stage and converges back at beam_cleanup
-gcs_loader >> dataflow >> gcs_to_bq >> join_coords
+gcs_loader >> dataflow >> join_coords
 join_coords >> wprdc_export >> beam_cleanup
 join_coords >> domi_export >> beam_cleanup
-join_coords >> filter_inactive_push_to_data_bridGIS >> wprdc_active_csv_export >> beam_cleanup
-join_coords >> push_all_data_bridgis >> beam_cleanup
+join_coords >> push_data_bridgis >> beam_cleanup
