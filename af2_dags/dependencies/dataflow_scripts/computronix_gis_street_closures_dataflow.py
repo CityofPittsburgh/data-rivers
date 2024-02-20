@@ -56,7 +56,6 @@ def conv_avsc_to_bq_table_schema(schema):
 
         schema_str = schema_str + F"{name}:{type_str_clean},"
 
-    schema_str = schema_str.upper()
     schema_str = schema_str[:-1]
 
     print(schema_str)
