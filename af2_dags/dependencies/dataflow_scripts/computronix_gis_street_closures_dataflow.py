@@ -4,7 +4,7 @@ import logging
 import os
 import time
 import datetime
-from abc import ABC
+# from abc import ABC
 
 import apache_beam as beam
 from apache_beam.io import ReadFromText, WriteToBigQuery
@@ -64,7 +64,7 @@ def conv_avsc_to_bq_table_schema(schema):
     return schema_str
 
 
-class IdentifyActivePermits(beam.DoFn, ABC):
+class IdentifyActivePermits(beam.DoFn):
     def process(self, datum):
         now = datetime.date.today()
         unix_date = int(time.mktime(now.timetuple()))
