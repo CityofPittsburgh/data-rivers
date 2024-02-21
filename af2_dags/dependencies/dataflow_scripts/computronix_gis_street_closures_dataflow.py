@@ -1,17 +1,19 @@
 from __future__ import absolute_import
-
+#
 import logging
 import os
+import time
+import datetime
+# from abc import ABC
 
 import apache_beam as beam
-from apache_beam.io import ReadFromText
-from apache_beam.io.avroio import WriteToAvro
+from apache_beam.io import ReadFromText, WriteToBigQuery
 
 # import util modules.
 # util modules located one level down in directory (./dataflow_util_modules/datflow_utils.py)
-from dataflow_utils.dataflow_utils import JsonCoder, ConvertBooleans, StandardizeTimes, \
-    FilterOutliers, FilterFields, ConvertStringCase, generate_args
-
+from dataflow_utils import dataflow_utils
+from dataflow_utils.dataflow_utils import JsonCoder, ConvertBooleans, StandardizeTimes, FilterOutliers, FilterFields,\
+    ConvertStringCase, generate_args
 
 DEFAULT_DATAFLOW_ARGS = [
         '--save_main_session',
@@ -20,6 +22,61 @@ DEFAULT_DATAFLOW_ARGS = [
         f"--region={os.environ['REGION']}",
         f"--subnetwork={os.environ['SUBNET']}"
 ]
+
+
+def conv_avsc_to_bq_table_schema(schema):
+    """
+    Data can be loaded into BQ directly from a BEAM pipeline if a corresponding schema is provided. The format for
+    this schema is close, but not identical, to that use by Airflow in a GCSToBQ operation (a typical AVSC). This
+    function converts a schema specified in an AVSC file to a BQ table schema. This function allows usage of a single
+    schema definition for either BQ upload method.
+
+    :param schema: list of dicts, each dict containing a field and its data type. all other info is removed for
+    compatibility with BEAM/BQ formatting. NULL cannot be specified in the resulting output and some data types use
+    different naming conventions (e.g. 'int' vs 'int64')
+    :return: schema_str - a single string containing all field names and data types, formatted as a big query table
+    schema
+    """
+    schema_str = ""
+    change_vals = {"float": "float64", "int": "int64"}
+    change_keys = change_vals.keys()
+    for s in schema:
+        print(s)
+        val_type = s["type"]
+        name = s["name"]
+        if type(val_type) == list and 'null' in val_type:
+            val_type.remove('null')
+            type_str = val_type[0]
+        else:
+            type_str = val_type[0]
+        if type_str in change_keys:
+            type_str_clean = change_vals[type_str]
+        else:
+            type_str_clean = type_str
+
+        schema_str = schema_str + F"{name}:{type_str_clean},"
+
+    schema_str = schema_str[:-1]
+
+    print(schema_str)
+
+    return schema_str
+
+
+class IdentifyActivePermits(beam.DoFn):
+    def process(self, datum):
+        now = datetime.date.today()
+        unix_date = int(time.mktime(now.timetuple()))
+        start = datum['from_date_UNIX']
+        stop = datum['to_date_UNIX']
+        try:
+            if start <= unix_date <= stop:
+                datum["active"] = 1
+            else:
+                datum["active"] = 0
+        except TypeError:
+            datum["active"] = None
+        yield datum
 
 
 # run function is called at the bottom of the script and the entire operation is defined within
@@ -34,6 +91,8 @@ def run(argv = None):
             schema_name = 'computronix_gis_street_closures',
             default_arguments = DEFAULT_DATAFLOW_ARGS
     )
+
+    schema_str_conv = conv_avsc_to_bq_table_schema(schema = avro_schema['fields'])
 
     with beam.Pipeline(options = pipeline_options) as p:
         times = [("from_date", "US/Eastern"), ("to_date", "US/Eastern")]
@@ -62,8 +121,13 @@ def run(argv = None):
                 | beam.ParDo(StandardizeTimes(times, t_format = "%m/%d/%Y %H:%M:%S"))
                 | beam.ParDo(FilterOutliers(outlier_checks))
                 | beam.ParDo(FilterFields(drops))
-                | WriteToAvro(known_args.avro_output, schema = avro_schema, file_name_suffix = '.avro',
-                              use_fastavro = True))
+                | beam.ParDo(IdentifyActivePermits())
+                | WriteToBigQuery(F"{os.environ['GCLOUD_PROJECT']}:computronix.gis_street_closures",
+                                  schema = schema_str_conv,
+                                  create_disposition = beam.io.BigQueryDisposition.CREATE_IF_NEEDED,
+                                  write_disposition = beam.io.BigQueryDisposition.WRITE_TRUNCATE)
+
+        )
 
 
 if __name__ == '__main__':
