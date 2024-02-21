@@ -75,7 +75,7 @@ join_coords = BigQueryOperator(
 dest_bucket = F"gs://{os.environ['GCS_PREFIX']}_wprdc/domi_street_closures/"
 wprdc_export = BigQueryToCloudStorageOperator(
     task_id='wprdc_export',
-    source_project_dataset_table=F"{os.environ['GCLOUD_PROJECT']}.computronix.gis_street_closures",
+    source_project_dataset_table=F"{os.environ['GCLOUD_PROJECT']}.computronix.gis_street_closures_partitioned",
     destination_cloud_storage_uris=[F"{dest_bucket}street_segments.csv"],
     bigquery_conn_id='google_cloud_default',
     dag=dag
@@ -86,7 +86,7 @@ csv_file_name = F"{path}"
 dest_bucket = F"gs://{os.environ['GCS_PREFIX']}_domi/domi_street_closures/"
 domi_export = BigQueryToCloudStorageOperator(
     task_id='domi_export',
-    source_project_dataset_table=F"{os.environ['GCLOUD_PROJECT']}.computronix.gis_street_closures",
+    source_project_dataset_table=F"{os.environ['GCLOUD_PROJECT']}.computronix.gis_street_closures_partitioned",
     destination_cloud_storage_uris=[F"{dest_bucket}street_segments.csv"],
     bigquery_conn_id='google_cloud_default',
     dag=dag
@@ -94,7 +94,8 @@ domi_export = BigQueryToCloudStorageOperator(
 
 # push table of all permits to data-bridGIS BQ
 query_push_all = F"""
-CREATE OR REPLACE TABLE `data-bridgis.computronix.gis_street_closures_partitioned` AS 
+CREATE OR REPLACE TABLE `data-bridgis.computronix.gis_street_closures_partitioned` 
+PARTITION BY RANGE_BUCKET(active, GENERATE_ARRAY(0, 1)) AS
 SELECT 
   * EXCEPT(from_date_UTC, from_date_EST, from_date_UNIX, to_date_UTC, to_date_EST, to_date_UNIX),
   (PARSE_DATETIME ("%m/%d/%Y %H:%M:%S",from_date_EST)) as from_EST,
