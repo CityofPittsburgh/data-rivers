@@ -94,7 +94,8 @@ domi_export = BigQueryToCloudStorageOperator(
 
 # push table of all permits to data-bridGIS BQ
 query_push_all = F"""
-CREATE OR REPLACE TABLE `data-bridgis.computronix.gis_street_closures_partitioned` AS 
+CREATE OR REPLACE TABLE `data-bridgis.computronix.gis_street_closures_partitioned` 
+PARTITION BY RANGE_BUCKET(active, GENERATE_ARRAY(0, 1)) AS
 SELECT 
   * EXCEPT(from_date_UTC, from_date_EST, from_date_UNIX, to_date_UTC, to_date_EST, to_date_UNIX),
   (PARSE_DATETIME ("%m/%d/%Y %H:%M:%S",from_date_EST)) as from_EST,
