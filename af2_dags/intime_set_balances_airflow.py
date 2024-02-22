@@ -52,6 +52,8 @@ def branch_time_balance_comp(offset):
             return ['export_for_api']
         else:
             return ['irrelevant_day']
+    elif date.today().weekday() == 5:
+        return ['export_for_api']
     else:
         return ['irrelevant_day']
 
