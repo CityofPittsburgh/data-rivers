@@ -97,9 +97,9 @@ def compare_timebank_balances(comp_table, offset=0):
 
     if comp_table == 'balance_update':
         query += f"""AND c.retrieval_date = PARSE_DATE('%m/%d/%Y', '{comp_str}') 
-                     AND i.retrieval_date = PARSE_DATE('%m/%d/%Y', '{comp_str}')"""
-                     # AND c.code IN ('Military', 'COVAC', 'PPL')
-                     # AND i.code IN ('Military', 'COVAC', 'PPL')"""
+                     AND i.retrieval_date = PARSE_DATE('%m/%d/%Y', '{comp_str}')
+                     AND c.code IN ('Military', 'COVAC', 'PPL')
+                     AND i.code IN ('Military', 'COVAC', 'PPL')"""
 
     elif comp_table == 'discrepancy_report':
         query += f"""AND c.retrieval_date = PARSE_DATE('%m/%d/%Y', '{today.strftime('%m/%d/%Y')}') 
