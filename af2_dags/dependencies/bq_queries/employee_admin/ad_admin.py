@@ -43,7 +43,7 @@ def enhance_ad_table():
         SELECT * FROM `{os.environ['GCLOUD_PROJECT']}.active_directory.ad_users_raw`
         WHERE email NOT IN (SELECT email FROM `{os.environ['GCLOUD_PROJECT']}.active_directory.ad_ceridian_matches`)
         UNION ALL
-        SELECT employee_num, first_name, last_name, display_name, published_name, email, sam_account_name, 
+        SELECT employee_num, first_name, last_name, display_name, published_name, email, 
                sam_account_name, title, department, description, enabled
         FROM `{os.environ['GCLOUD_PROJECT']}.active_directory.ad_ceridian_matches`
     ) ORDER BY last_name ASC
