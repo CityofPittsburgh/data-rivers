@@ -136,7 +136,7 @@ def insert_new_parent(incoming_table, cols):
     (
     SELECT
         id as group_id,
-        "" as child_ids,
+        NULL AS child_tickets,
         1 as num_requests,
         IF(status_name = "closed", TRUE, FALSE) as parent_closed,
         {cols}
