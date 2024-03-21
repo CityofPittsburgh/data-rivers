@@ -107,35 +107,12 @@ gcs_to_bq = GoogleCloudStorageToBigQueryOperator(
 )
 
 # Update geo coords with lat/long cast as floats (dataflow/AVRO glitch forces them to be output as strings; the
-# source of the error is instrinsic to dataflow and may not be fixable). Also, dedupe the results (someties the same
-# ticket appears in the computer system more than 1 time (a QAlert glitch)
-query_format_dedupe = f"""
-CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_actions` AS
-WITH formatted  AS 
-    (
-    SELECT 
-        DISTINCT * EXCEPT (input_pii_lat, input_pii_long, google_pii_lat, google_pii_long, 
-                           input_anon_lat, input_anon_long, google_anon_lat, google_anon_long),
-        CAST(input_pii_lat AS FLOAT64) AS input_pii_lat,
-        CAST(input_pii_long AS FLOAT64) AS input_pii_long,
-        CAST(google_pii_lat AS FLOAT64) AS google_pii_lat,
-        CAST(google_pii_long AS FLOAT64) AS google_pii_long,
-        CAST(input_anon_lat AS FLOAT64) AS input_anon_lat,
-        CAST(input_anon_long AS FLOAT64) AS input_anon_long,
-        CAST(google_anon_lat AS FLOAT64) AS google_anon_lat,
-        CAST(google_anon_long AS FLOAT64) AS google_anon_long,
-    FROM 
-        {os.environ['GCLOUD_PROJECT']}.qalert.incoming_actions
-    )
--- drop the final column through slicing the string (-13). final column is added in next query     
-SELECT 
-    {INCOMING_COLS} 
-FROM 
-    formatted
-"""
+# source of the error is instrinsic to dataflow and may not be fixable). Also, cast date strings to datetime/timestamp
+# data types and dedupe the results (sometimes the same ticket appears in the computer system more than 1 time
+# (a QAlert glitch)
 format_dedupe = BigQueryOperator(
     task_id='format_dedupe',
-    sql=query_format_dedupe,
+    sql=transform_enrich_requests.format_incoming_data_types('incoming_actions', INCOMING_COLS),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
@@ -168,34 +145,9 @@ geojoin = BigQueryOperator(
     dag=dag
 )
 
-query_insert_new_parent = f"""
-/*
-This query check that a ticket has never been seen before (checks all_tix_current_status) AND
-that the ticket is a parent. Satisfying both conditions means that the ticket needs to be placed in all_linked_requests
-There is one catch that is caused by the way tickets are manually linked: This newly recorded request is
-labeled as a parent. However, in the future the 311 operators may link this ticket with another
-existing parent and it will change into a child ticket. This means the original ticket was actually a "false_parent"
-ticket. Future steps in the DAG will handle that possibility, and for this query the only feasible option is to assume
-the ticket is correctly labeled.*/
-
-INSERT INTO `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests`
-(
-SELECT
-    id as group_id,
-    "" as child_ids,
-    1 as num_requests,
-    IF(status_name = "closed", TRUE, FALSE) as parent_closed,
-    {LINKED_COLS_IN_ORDER}
-
-FROM
-    `{os.environ['GCLOUD_PROJECT']}.qalert.incoming_enriched`
-WHERE id NOT IN (SELECT id FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_tickets_current_status`)
-AND child_ticket = False
-);
-"""
 insert_new_parent = BigQueryOperator(
     task_id='insert_new_parent',
-    sql=query_insert_new_parent,
+    sql=integrate_new_requests.insert_new_parent('incoming_enriched', LINKED_COLS_IN_ORDER),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
@@ -238,19 +190,9 @@ remove_false_parents = BigQueryOperator(
 )
 
 
-append_fields = [{'fname': 'child_ids', 'delim': ', '},
-                 {'fname': 'anon_comments', 'delim': ' <BREAK> '},
-                 {'fname': 'pii_private_notes', 'delim': ' <BREAK> '}]
-query_integrate_children = F"""
-{integrate_new_requests.build_child_ticket_table('temp_child_combined', 'incoming_enriched')};
-{integrate_new_requests.increment_ticket_counts('temp_child_combined')};
-"""
-for field in append_fields:
-    query_integrate_children += integrate_new_requests.append_to_text_field('temp_child_combined',
-                                                                            field['fname'], field['delim']) + ';'
 integrate_children = BigQueryOperator(
     task_id='integrate_children',
-    sql=query_integrate_children,
+    sql=integrate_new_requests.update_linked_tix_info('incoming_enriched'),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
