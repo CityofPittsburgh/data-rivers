@@ -196,3 +196,37 @@ def replace_last_update(incoming_table, cols):
 
     return sql
 
+
+def update_linked_tix_info(incoming_table):
+    return f"""
+    UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests` p
+    SET p.child_tickets = ARRAY_CONCAT(p.child_tickets, c.child_tickets) 
+    FROM (WITH new_child AS (
+            SELECT id, parent_ticket_id, child_ticket, anon_comments, pii_private_notes
+            FROM `{os.environ['GCLOUD_PROJECT']}.qalert.{incoming_table}`
+            WHERE child_ticket IS TRUE AND parent_ticket_id IN (
+                    SELECT group_id  FROM `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests`
+            )
+         )
+      SELECT ARRAY_AGG(STRUCT(id AS child_id, 
+                              anon_comments AS child_comments, 
+                              pii_private_notes AS child_notes
+                              )
+                      ) AS child_tickets, 
+      parent_ticket_id
+      FROM new_child
+      GROUP BY parent_ticket_id
+    ) c
+    WHERE p.group_id = c.parent_ticket_id;
+    
+    UPDATE `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests`
+    SET num_requests = ARRAY_LENGTH(child_tickets) + 1
+    FROM (WITH new_child AS (
+        SELECT DISTINCT parent_ticket_id
+        FROM `{os.environ['GCLOUD_PROJECT']}.qalert.{incoming_table}`
+        WHERE child_ticket IS TRUE
+      ) 
+      SELECT * FROM new_child
+    ) 
+    WHERE group_id = parent_ticket_id;
+    """
