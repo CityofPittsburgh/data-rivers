@@ -99,7 +99,7 @@ def drop_pii(safe_fields, private_types):
     CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.data_export_scrubbed` AS
     SELECT
         group_id,
-        child_ids,
+        child_tickets,
         num_requests,
         parent_closed,
         {safe_fields}
