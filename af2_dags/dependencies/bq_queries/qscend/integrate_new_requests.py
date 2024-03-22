@@ -170,7 +170,7 @@ def replace_last_update(incoming_table, cols):
     */
     CREATE OR REPLACE TABLE  `{os.environ['GCLOUD_PROJECT']}.qalert.temp_update` AS
     (
-    SELECT
+    SELECT DISTINCT
         id,
         IF (status_name = "closed", TRUE, FALSE) AS p_closed, """
     sql += ", ".join(str(col) for col in cols)
