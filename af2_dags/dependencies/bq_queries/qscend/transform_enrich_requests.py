@@ -94,9 +94,11 @@ def document_missed_requests(backfill_table):
     """
 
 
-def drop_pii(safe_fields, private_types):
-    return f"""
-    CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.data_export_scrubbed` AS
+def drop_pii(safe_fields, private_types, create_table=True):
+    sql = ""
+    if create_table:
+        sql = f"CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.data_export_scrubbed` AS "
+    sql += f"""
     SELECT
         group_id,
         child_tickets,
@@ -108,6 +110,7 @@ def drop_pii(safe_fields, private_types):
     WHERE 
         request_type_name NOT IN ({private_types})
     """
+    return sql
 
 
 def format_incoming_data_types(incoming_table, cols):
