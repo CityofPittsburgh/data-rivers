@@ -132,10 +132,10 @@ city_limits = BigQueryOperator(
 # FINAL ENRICHMENT OF NEW DATA
 # Join all the geo information (e.g. DPW districts, etc) to the new data
 query_geo_join = geo_queries.build_revgeo_time_bound_query(
-        dataset = 'qalert',
-        source = F"`{os.environ['GCLOUD_PROJECT']}.qalert.incoming_actions`",
-        create_date = 'create_date_utc', lat_field = 'input_pii_lat', long_field = 'input_pii_long',
-        new_table = F"`{os.environ['GCLOUD_PROJECT']}.qalert.incoming_enriched`")
+    dataset='qalert',
+    source=F"`{os.environ['GCLOUD_PROJECT']}.qalert.incoming_actions`",
+    create_date='create_date_utc', lat_field='input_pii_lat', long_field='input_pii_long',
+    new_table=F"`{os.environ['GCLOUD_PROJECT']}.qalert.incoming_enriched`")
 
 geojoin = BigQueryOperator(
     task_id='geojoin',
@@ -189,7 +189,6 @@ remove_false_parents = BigQueryOperator(
     dag=dag
 )
 
-
 integrate_children = BigQueryOperator(
     task_id='integrate_children',
     sql=integrate_new_requests.update_linked_tix_info('incoming_enriched'),
@@ -197,7 +196,6 @@ integrate_children = BigQueryOperator(
     use_legacy_sql=False,
     dag=dag
 )
-
 
 update_cols = ['status_name', 'status_code', 'request_type_name', 'request_type_id',
                'closed_date_est', 'closed_date_utc', 'closed_date_unix',
@@ -210,7 +208,6 @@ replace_last_update = BigQueryOperator(
     dag=dag
 )
 
-
 delete_old_insert_new_records = BigQueryOperator(
     task_id='delete_old_insert_new_records',
     sql=integrate_new_requests.delete_old_insert_new(COLS_IN_ORDER, 'incoming_enriched'),
@@ -220,11 +217,11 @@ delete_old_insert_new_records = BigQueryOperator(
 )
 
 # Create a table from all_linked_requests that has all columns EXCEPT those that have potential PII. This table is
-# subsequently exported to WPRDC. BQ will not currently (2021-10-01) allow data to be pushed from a query and it must
-# be stored in a table prior to the push. Thus, this is a 2 step process also involving the operator below.
+# subsequently exported to WPRDC.
 drop_pii_for_export = BigQueryOperator(
     task_id='drop_pii_for_export',
-    sql=transform_enrich_requests.drop_pii((F"{SAFE_FIELDS}, {PII_COORDS}"), PRIVATE_TYPES),
+    sql=transform_enrich_requests.drop_pii(safe_fields=F"{SAFE_FIELDS}, {PII_COORDS}",
+                                           private_types=PRIVATE_TYPES),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
@@ -248,5 +245,5 @@ beam_cleanup = BashOperator(
 
 # DAG execution:
 gcs_loader >> dataflow >> gcs_to_bq >> format_dedupe >> city_limits >> geojoin >> insert_new_parent >> \
-        remove_false_parents >> integrate_children >> replace_last_update >> delete_old_insert_new_records >> \
-        drop_pii_for_export >> wprdc_export >> beam_cleanup
+    remove_false_parents >> integrate_children >> replace_last_update >> delete_old_insert_new_records >> \
+    drop_pii_for_export >> wprdc_export >> beam_cleanup
