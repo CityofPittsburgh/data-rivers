@@ -101,7 +101,7 @@ def drop_pii(safe_fields, private_types, create_table=True):
     sql += f"""
     SELECT
         group_id,
-        child_tickets,
+        TO_JSON_STRING(child_tickets) AS child_tickets,
         num_requests,
         parent_closed,
         {safe_fields}
