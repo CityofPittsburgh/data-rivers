@@ -184,6 +184,9 @@ class ChangeDataTypes(beam.DoFn, ABC):
                     elif type_change[1] == "str":
                         if str(datum[type_change[0]]) != 'None':
                             datum[type_change[0]] = str(datum[type_change[0]])
+                    elif type_change[1] == "byte_str":
+                        if str(datum[type_change[0]]) != 'None':
+                            datum[type_change[0]] = str(datum[type_change[0]]).encode('utf-8')
                     elif type_change[1] == "nullstr":
                         if str(datum[type_change[0]]) != 'None':
                             if str(datum[type_change[0]]) == '':
