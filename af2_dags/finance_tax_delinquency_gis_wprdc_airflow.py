@@ -16,7 +16,7 @@ from dependencies.bq_queries import geo_queries as q
 # database. Once the data is extracted, it will be uploaded to BigQuery and geocoded by matching on parcel number.
 # The final output will be stored as a CSV file in GCS and made available to WPRDC for public display.
 
-COLS = "parc_num, address, billing_city, current_delq, prior_years, state_description, neighborhood, " \
+COLS = "parc_num, address, billing_city, current_delq, prior_years, prior_delq_tax, prior_delq_pi, state_description, neighborhood, " \
        "council_district, ward, CAST(dpw_streets AS STRING) AS public_works_division, " \
        "CAST(ward AS STRING) AS pli_division, police_zone, fire_zone, longitude, latitude"
 

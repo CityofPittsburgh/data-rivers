@@ -25,7 +25,7 @@ conn = jaydebeapi.connect("oracle.jdbc.OracleDriver", os.environ['REALESTATE_DB'
 
 query = F"""SELECT cca.CNTY_ACCT AS PIN, m.MODIFY_DATE, PROP_LOCATION AS ADDRESS,
                    BILL_CITY || ', ' || BILL_STATE AS BILLING_CITY, CURRENT_DELQ, 
-                   PRIOR_YEARS, STATE_DESCRIPTION, NEIGHBORHOOD
+                   PRIOR_YEARS, PRIOR_DELQ_TAX, PRIOR_DELQ_PI, STATE_DESCRIPTION, NEIGHBORHOOD
               FROM WEB_DELINQUENTS wd, MASTER m, CITY_COUNTY_ACCOUNTS cca
              WHERE wd.ACCT_NO = m.ACCT_NO
                AND m.ACCT_NO = cca.CITY_ACCT"""
