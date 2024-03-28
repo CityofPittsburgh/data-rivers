@@ -43,7 +43,8 @@ def enhance_ad_table():
         SELECT * FROM `{os.environ['GCLOUD_PROJECT']}.active_directory.ad_users_raw`
         WHERE email NOT IN (SELECT email FROM `{os.environ['GCLOUD_PROJECT']}.active_directory.ad_ceridian_matches`)
         UNION ALL
-        SELECT employee_num, first_name, last_name, email, sam_account_name, title, department, description, enabled
+        SELECT employee_num, first_name, last_name, display_name, published_name, email, 
+               sam_account_name, title, department, description, enabled
         FROM `{os.environ['GCLOUD_PROJECT']}.active_directory.ad_ceridian_matches`
     ) ORDER BY last_name ASC
     """
@@ -58,8 +59,8 @@ def update_ids_from_ceridian(new_table, where_clause=''):
             SELECT * FROM `{os.environ['GCLOUD_PROJECT']}.active_directory.ad_users_raw`
             WHERE employee_id IS NULL OR SAFE_CAST(employee_id AS INT64) IS NULL
           )
-          SELECT DISTINCT c.employee_num, id_fix.first_name, id_fix.last_name, id_fix.email, 
-                 id_fix.sam_account_name, id_fix.title, id_fix.department,
+          SELECT DISTINCT c.employee_num, id_fix.first_name, id_fix.last_name, id_fix.display_name, 
+                 id_fix.published_name, id_fix.email, id_fix.sam_account_name, id_fix.title, id_fix.department,
                  CASE 
                     WHEN c.employee_num IS NOT NULL THEN c.office
                     ELSE id_fix.description
@@ -71,8 +72,8 @@ def update_ids_from_ceridian(new_table, where_clause=''):
         SELECT DISTINCT 
                CASE WHEN sso_match.employee_num IS NOT NULL THEN sso_match.employee_num 
                ELSE c.employee_num END AS employee_num, 
-               sso_match.first_name, sso_match.last_name, sso_match.email, 
-               sso_match.sam_account_name, sso_match.title, sso_match.department,
+               sso_match.first_name, sso_match.last_name, sso_match.display_name, sso_match.published_name,
+               sso_match.email, sso_match.sam_account_name, sso_match.title, sso_match.department,
                CASE 
                  WHEN sso_match.employee_num IS NULL AND c.employee_num IS NOT NULL THEN c.office
                  ELSE sso_match.description

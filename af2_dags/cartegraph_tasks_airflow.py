@@ -13,10 +13,8 @@ from dependencies.bq_queries import general_queries, geo_queries
 
 INCOMING_COLS = """id, activity, department, status, entry_date_UTC, entry_date_EST, entry_date_UNIX, 
 actual_start_date_UTC, actual_start_date_EST, actual_start_date_UNIX, actual_stop_date_UTC, actual_stop_date_EST, 
-actual_stop_date_UNIX, labor_cost, equipment_cost, material_cost, labor_hours, 
-NULLIF(request_issue, '') AS request_issue, NULLIF(request_department, '') AS request_department,  
-NULLIF(request_location, '') AS request_location, NULLIF(asset_id, '') AS asset_id, asset_type, 
-NULLIF(task_description, '') AS task_description, NULLIF(task_notes, '') AS task_notes"""
+actual_stop_date_UNIX, labor_cost, equipment_cost, material_cost, labor_hours, request_issue, request_department, 
+request_location, asset_id, asset_type, task_description, task_notes"""
 
 COLS_IN_ORDER = INCOMING_COLS + """, neighborhood_name, council_district, ward, 
 police_zone, fire_zone, dpw_streets, dpw_enviro, dpw_parks, lat, long"""
