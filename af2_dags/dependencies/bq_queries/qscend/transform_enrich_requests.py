@@ -94,12 +94,18 @@ def document_missed_requests(backfill_table):
     """
 
 
-def drop_pii(safe_fields, private_types):
-    return f"""
-    CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.data_export_scrubbed` AS
+def drop_pii(safe_fields, private_types, create_table=True):
+    sql = ""
+    if create_table:
+        sql = f"CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.data_export_scrubbed` AS "
+    sql += f"""
     SELECT
         group_id,
-        child_ids,
+        TO_JSON_STRING(ARRAY(
+            SELECT AS STRUCT * 
+            FROM UNNEST(child_tickets) 
+            WHERE child_id IS NOT NULL) 
+        ) AS child_tickets,
         num_requests,
         parent_closed,
         {safe_fields}
@@ -107,6 +113,41 @@ def drop_pii(safe_fields, private_types):
         `{os.environ['GCLOUD_PROJECT']}.qalert.all_linked_requests`
     WHERE 
         request_type_name NOT IN ({private_types})
+    """
+    return sql
+
+
+def format_incoming_data_types(incoming_table, cols):
+    return F"""
+    CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.qalert.{incoming_table}` AS
+    WITH formatted  AS 
+        (
+        SELECT 
+            DISTINCT * EXCEPT (create_date_est, create_date_utc, last_action_est, last_action_utc, 
+                               closed_date_est, closed_date_utc, input_pii_lat, input_pii_long, google_pii_lat, 
+                               google_pii_long, input_anon_lat, input_anon_long, google_anon_lat, google_anon_long),
+            PARSE_DATETIME('%Y-%m-%d %X', LEFT(create_date_est, LENGTH(create_date_est)-6)) AS create_date_est,
+            PARSE_TIMESTAMP('%Y-%m-%d %X%Ez', create_date_utc) create_date_utc,
+            PARSE_DATETIME('%Y-%m-%d %X', LEFT(last_action_est, LENGTH(last_action_est)-6)) AS last_action_est,
+            PARSE_TIMESTAMP('%Y-%m-%d %X%Ez', last_action_utc) AS last_action_utc,
+            PARSE_DATETIME('%Y-%m-%d %X', LEFT(closed_date_est, LENGTH(closed_date_est)-6)) AS closed_date_est, 
+            PARSE_TIMESTAMP('%Y-%m-%d %X%Ez', closed_date_utc) AS closed_date_utc, 
+            CAST(input_pii_lat AS FLOAT64) AS input_pii_lat,
+            CAST(input_pii_long AS FLOAT64) AS input_pii_long,
+            CAST(google_pii_lat AS FLOAT64) AS google_pii_lat,
+            CAST(google_pii_long AS FLOAT64) AS google_pii_long,
+            CAST(input_anon_lat AS FLOAT64) AS input_anon_lat,
+            CAST(input_anon_long AS FLOAT64) AS input_anon_long,
+            CAST(google_anon_lat AS FLOAT64) AS google_anon_lat,
+            CAST(google_anon_long AS FLOAT64) AS google_anon_long,
+        FROM 
+            {os.environ['GCLOUD_PROJECT']}.qalert.{incoming_table}
+        )
+    -- drop the final column through slicing the string (-13). final column is added in next query     
+    SELECT 
+        {cols} 
+    FROM 
+        formatted
     """
 
 

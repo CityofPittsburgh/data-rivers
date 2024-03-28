@@ -98,8 +98,8 @@ def compare_timebank_balances(comp_table, offset=0):
     if comp_table == 'balance_update':
         query += f"""AND c.retrieval_date = PARSE_DATE('%m/%d/%Y', '{comp_str}') 
                      AND i.retrieval_date = PARSE_DATE('%m/%d/%Y', '{comp_str}')
-                     AND c.code IN ('Military', 'COVAC', 'PPL')
-                     AND i.code IN ('Military', 'COVAC', 'PPL')"""
+                     AND c.code IN ('Military', 'COVAC', 'PPL', 'DH')
+                     AND i.code IN ('Military', 'COVAC', 'PPL', 'DH')"""
 
     elif comp_table == 'discrepancy_report':
         query += f"""AND c.retrieval_date = PARSE_DATE('%m/%d/%Y', '{today.strftime('%m/%d/%Y')}') 
@@ -146,6 +146,15 @@ def extract_recent_terminations():
     FROM `{os.environ['GCLOUD_PROJECT']}.ceridian.all_employees`
     WHERE status = 'Terminated' AND 
     DATE_DIFF(CURRENT_DATETIME(), PARSE_DATETIME('%Y-%m-%d', termination_date), DAY) <= 30
+    """
+
+
+def extract_recent_status_changes(field_list, status_field, status_value, date_field):
+    return F"""
+    SELECT {field_list}
+    FROM `{os.environ['GCLOUD_PROJECT']}.ceridian.all_employees` 
+    WHERE {status_field} = '{status_value}'
+    AND DATE_DIFF(CURRENT_DATETIME(), PARSE_DATETIME('%Y-%m-%d', {date_field}), DAY) <= 30
     """
 
 

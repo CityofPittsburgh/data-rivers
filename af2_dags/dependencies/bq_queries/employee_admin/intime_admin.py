@@ -30,6 +30,19 @@ def extract_current_intime_details():
     """
 
 
+def export_active_officers():
+    return F"""
+    CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.intime.active_employees` AS
+    SELECT DISTINCT i.employee_id, i.mpoetc_number, i.mpoetc_username, i.ncic_username, i.badge_number, i.first_name, 
+    i.middle_initial, i.last_name, i.display_name, i.email, i.birth_date, i.hire_date, i.rank, i.rank_valid_date, 
+    i.unit, i.unit_valid_date, i.race, i.gender, i.employee_type, i.web_rms_dropdown
+    FROM `{os.environ['GCLOUD_PROJECT']}.intime.employee_data` i
+    LEFT OUTER JOIN `{os.environ['GCLOUD_PROJECT']}.ceridian.all_employees` c
+    ON i.employee_id = c.employee_num
+    WHERE c.status = 'Active'
+    """
+
+
 def update_timebank_table():
     return F"""
     CREATE OR REPLACE TABLE `{os.environ['GCLOUD_PROJECT']}.intime.timebank_balances` AS

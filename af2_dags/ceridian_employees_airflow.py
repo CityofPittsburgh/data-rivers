@@ -24,9 +24,14 @@ from dependencies.bq_queries import general_queries as g_q
 # membership totals to display on Dashburgh. This will give the public insight on the demographics
 # of the city government and how it compares to the demographics of the city as a whole.
 
-SAFE_FIELDS = """employee_num, first_name, last_name, display_name, sso_login, dept_desc, 
-office, job_title, hire_date, termination_date, work_assignment_date, account_modified_date, 
-`union`, status, pay_class, manager_name, ethnicity, gender"""
+SAFE_FIELDS = """employee_num, first_name, last_name, display_name, sso_login, dept_desc, office, job_title, 
+hire_date, termination_date, work_assignment_date, account_modified_reason, account_modified_date,
+`union`, status, pay_class, manager_name, ethnicity, gender, common_name, preferred_last_name"""
+
+TERM_FIELDS = "employee_num, sso_login, first_name, last_name, dept_desc, status, termination_date, pay_class"
+
+STATUS_FIELDS = """employee_num, sso_login, first_name, last_name, job_title, manager_name, 
+dept_desc, office, hire_date, account_modified_reason, account_modified_date, pay_class, status"""
 
 dag = DAG(
     'ceridian_employees',
@@ -163,7 +168,36 @@ create_racial_comp_table = BigQueryOperator(
 export_terminations = BigQueryOperator(
     task_id='export_terminations',
     sql=g_q.direct_gcs_export(f"gs://{os.environ['GCS_PREFIX']}_iapro/past_month_terminations",
-                              'csv', '*',  c_q.extract_recent_terminations()),
+                              'csv', '*',
+                              c_q.extract_recent_status_changes(field_list=TERM_FIELDS, status_field='status',
+                                                                status_value='Terminated',
+                                                                date_field='termination_date')),
+    bigquery_conn_id='google_cloud_default',
+    use_legacy_sql=False,
+    dag=dag
+)
+
+export_transfers = BigQueryOperator(
+    task_id='export_transfers',
+    sql=g_q.direct_gcs_export(f"gs://{os.environ['GCS_PREFIX']}_iapro/past_month_transfers",
+                              'csv', '*',
+                              c_q.extract_recent_status_changes(field_list=STATUS_FIELDS,
+                                                                status_field='account_modified_reason',
+                                                                status_value='Transfer',
+                                                                date_field='account_modified_date')),
+    bigquery_conn_id='google_cloud_default',
+    use_legacy_sql=False,
+    dag=dag
+)
+
+export_rehires = BigQueryOperator(
+    task_id='export_rehires',
+    sql=g_q.direct_gcs_export(f"gs://{os.environ['GCS_PREFIX']}_iapro/past_month_rehires",
+                              'csv', '*',
+                              c_q.extract_recent_status_changes(field_list=STATUS_FIELDS,
+                                                                status_field='account_modified_reason',
+                                                                status_value='Rehire',
+                                                                date_field='account_modified_date')),
     bigquery_conn_id='google_cloud_default',
     use_legacy_sql=False,
     dag=dag
@@ -224,6 +258,10 @@ ceridian_employees_gcs >> ceridian_employees_dataflow >> ceridian_employees_bq_l
 ceridian_employees_gcs >> ceridian_employees_dataflow >> ceridian_employees_bq_load >> create_iapro_export_table >> \
     ceridian_iapro_export >> delete_iapro_table >> beam_cleanup
 ceridian_employees_gcs >> ceridian_employees_dataflow >> ceridian_employees_bq_load >> export_terminations >> \
+    beam_cleanup
+ceridian_employees_gcs >> ceridian_employees_dataflow >> ceridian_employees_bq_load >> export_transfers >> \
+    beam_cleanup
+ceridian_employees_gcs >> ceridian_employees_dataflow >> ceridian_employees_bq_load >> export_rehires >> \
     beam_cleanup
 ceridian_employees_gcs >> ceridian_employees_dataflow >> ceridian_employees_bq_load >> export_applications >> \
     beam_cleanup

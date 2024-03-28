@@ -58,6 +58,7 @@ def run(argv=None):
                             ('Employee_HireDate', 'hire_date'),
                             ('Employee_TerminationDate', 'termination_date'),
                             ('EmployeeWorkAssignment_EffectiveStart', 'work_assignment_date'),
+                            ('EmploymentStatusReason_LongName', 'account_modified_reason'),
                             ('EmployeeEmploymentStatus_CreatedTimestamp', 'account_modified_date'),
                             ('DFUnion_ShortName', 'union'),
                             ('EmploymentStatus_LongName', 'status'),
@@ -65,7 +66,9 @@ def run(argv=None):
                             ('EmployeeManager_ManagerDisplayName', 'manager_name'),
                             ('DFEthnicity_ShortName', 'ethnicity'),
                             ('Employee_Gender', 'gender'),
-                            ('SSOLogin', 'sso_login')]
+                            ('SSOLogin', 'sso_login'),
+                            ('Employee_CommonName', 'common_name'),
+                            ('Employee_PreferredLastName', 'preferred_last_name')]
         type_changes = [('employee_num', 'str'), ('base_salary', 'float')]
         drop_fields = ['EmploymentStatus_ShortName', 'DeptJob_ShortName',
                        'Employee_PreferredLastName', 'DenormEmployeeContact_BusinessPhone',

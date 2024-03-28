@@ -35,9 +35,7 @@ end = '</ns2:getEmployeeDataListResponse>'
 run_start_win, first_run = find_last_successful_run(bucket, "employees/successful_run_log/log.json", DEFAULT_RUN_START)
 from_time = run_start_win.split(' ')[0]
 
-params = [{'tag': 'branchRef', 'content': 'POLICE'},
-          {'tag': 'startDate', 'content': from_time},
-          {'tag': 'endDate', 'content': today}]
+params = [{'tag': 'branchRef', 'content': 'POLICE'}]
 
 # API call to get data
 response = post_xml(BASE_URL, envelope=generate_xml(soap_url, request, params),
